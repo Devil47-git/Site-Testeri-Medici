@@ -1,0 +1,12 @@
+{
+  "name": "site-testeri-medici",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "googleapis": "^144.0.0"
+  }
+}
