@@ -5,3 +5,5 @@
 
 /* Tema întunecată */
 body.dark-mode{--ink:#edf0fa;--muted:#a5aec3;--line:#30374a;--bg:#151925;background:var(--bg)}body.dark-mode .sidebar,body.dark-mode .topbar,body.dark-mode .stat-card,body.dark-mode .panel,body.dark-mode .modal{background:#1d2332;border-color:var(--line)}body.dark-mode .topbar{background:#1b2130}body.dark-mode .search,body.dark-mode .filter,body.dark-mode .outline{background:#202738;border-color:#394258;color:#c4cbdb}body.dark-mode .search input{background:transparent;color:var(--ink)}body.dark-mode td{border-color:#2c3446;color:#b1bad0}body.dark-mode th{border-color:#30374a}body.dark-mode .nav-item{color:#abb4c7}body.dark-mode .nav-item.active{background:#302e5d;color:#aaa5ff}body.dark-mode .modal-backdrop{background:#050812aa}body.dark-mode .auth-screen{background:linear-gradient(135deg,#121625,#20203b)}body.dark-mode .auth-card{background:#1d2332;border-color:#30374a}.theme-toggle-active{color:var(--purple)!important}
+
+.empty-state{padding:24px 10px;text-align:center;color:#9aa4b6;font-size:12px}.member-result{min-height:18px;color:#43ae80;font-size:11px;margin-top:-12px;margin-bottom:10px}

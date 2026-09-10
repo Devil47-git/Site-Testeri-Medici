@@ -37,7 +37,7 @@
             <div class="workspace-label">SPAȚIUL TĂU</div>
             <nav>
                 <button class="nav-item active" data-view="overview"><span>▦</span> Prezentare generală</button>
-                <button class="nav-item" data-view="testers"><span>♙</span> Testerii mei <em>24</em></button>
+                <button class="nav-item" data-view="testers"><span>♙</span> Testerii mei <em id="tester-count">0</em></button>
                 <button class="nav-item" data-view="tests"><span>▤</span> Teste disponibile</button>
             </nav>
             <div class="workspace-label lower">ADMINISTRARE</div>
@@ -46,7 +46,7 @@
                 <button class="nav-item" data-view="settings"><span>⚙</span> Setări</button>
             </nav>
             <div class="sidebar-bottom">
-                <div class="sync-dot"><i></i> Google Sheets sincronizat<br><small>Acum 8 minute</small></div>
+                <div class="sync-dot"><i></i> Google Sheets<br><small id="sync-label">Neconectat</small></div>
                 <div class="user-mini">
                     <div class="avatar purple">AM</div>
                     <div><b id="user-name">Alex M.</b><small id="user-role">Conducere</small></div><span>⌄</span>
@@ -63,31 +63,27 @@
             <section class="page-wrap" id="app">
                 <div class="welcome">
                     <div>
-                        <p class="eyebrow">SÂMBĂTĂ, 14 IUNIE 2025</p>
+                        <p class="eyebrow" id="today-label"></p>
                         <h1>Bună, <span id="welcome-name">Alex</span> <span>👋</span></h1>
-                        <p class="muted">Iată ce se întâmplă în departamentul tău astăzi.</p>
+                        <p class="muted" id="welcome-subtitle">Datele vor apărea după sincronizarea cu sursa departamentului.</p>
                     </div><button class="primary" id="add-btn">＋ Adaugă tester</button>
                 </div>
                 <div class="stats-grid">
                     <div class="stat-card">
                         <div class="stat-icon cyan">♙</div>
-                        <p>TESTERI ACTIVI</p><strong>24</strong><span class="trend">↗ 8% <small>față de luna
-                                trecută</small></span>
+                        <p>TESTERI CU ACCES</p><strong id="active-count">0</strong><span class="trend neutral">Din datele sincronizate</span>
                     </div>
                     <div class="stat-card">
                         <div class="stat-icon violet">▤</div>
-                        <p>TESTE ACTIVE</p><strong>8</strong><span class="trend neutral">● Toate funcționează
-                            normal</span>
+                        <p>TESTE CONFIGURATE</p><strong id="test-count">0</strong><span class="trend neutral">Din catalogul local</span>
                     </div>
                     <div class="stat-card">
                         <div class="stat-icon orange">◷</div>
-                        <p>ULTIMA SINCRONIZARE</p><strong>Acum 8m</strong><span class="trend neutral">Google
-                            Sheets</span>
+                        <p>SINCRONIZARE</p><strong id="last-sync">—</strong><span class="trend neutral">Google Sheets</span>
                     </div>
                     <div class="stat-card">
                         <div class="stat-icon green">✓</div>
-                        <p>RATĂ DE FINALIZARE</p><strong>87.4%</strong><span class="trend">↗ 3.2% <small>luna
-                                aceasta</small></span>
+                        <p>DATE LOCALE</p><strong id="local-state">—</strong><span class="trend neutral">Fără valori inventate</span>
                     </div>
                 </div>
                 <div class="content-grid">
@@ -125,28 +121,7 @@
                                 <p class="muted">Ultimele acțiuni din departament</p>
                             </div><button class="dots">•••</button>
                         </div>
-                        <div class="activity-list">
-                            <div class="activity">
-                                <div class="avatar cyan">DV</div>
-                                <div><b>Daria V.</b> a finalizat <strong>Testul ALS</strong><small>Acum 12
-                                        minute</small></div>
-                            </div>
-                            <div class="activity">
-                                <div class="avatar orange">MC</div>
-                                <div><b>Matei C.</b> a primit acces la <strong>Testul MOTO</strong><small>Acum 47
-                                        minute</small></div>
-                            </div>
-                            <div class="activity">
-                                <div class="avatar violet">IP</div>
-                                <div><b>Ioana P.</b> și-a actualizat profilul<strong></strong><small>Acum 2 ore</small>
-                                </div>
-                            </div>
-                            <div class="activity">
-                                <div class="avatar green">RA</div>
-                                <div><b>Radu A.</b> a finalizat <strong>Testul SMULS</strong><small>Ieri, 18:42</small>
-                                </div>
-                            </div>
-                        </div><button class="outline full">Vezi toată activitatea</button>
+                        <div class="activity-list" id="activity-list"><div class="empty-state">Nu există activitate înregistrată.</div></div><button class="outline full" id="activity-btn">Vezi toată activitatea</button>
                     </aside>
                 </div>
                 <section class="bottom-grid">
@@ -157,25 +132,14 @@
                                 <p class="muted">Distribuția testerilor pe fiecare test</p>
                             </div><button class="dots">•••</button>
                         </div>
-                        <div class="role-bars">
-                            <div><span class="role-dot smuls"></span><b>SMULS</b><span class="bar"><i
-                                        style="width:72%"></i></span><strong>14</strong></div>
-                            <div><span class="role-dot als"></span><b>ALS</b><span class="bar"><i
-                                        style="width:48%"></i></span><strong>9</strong></div>
-                            <div><span class="role-dot moto"></span><b>MOTO</b><span class="bar"><i
-                                        style="width:38%"></i></span><strong>7</strong></div>
-                            <div><span class="role-dot pilot"></span><b>PILOT</b><span class="bar"><i
-                                        style="width:28%"></i></span><strong>5</strong></div>
-                            <div><span class="role-dot para"></span><b>PARAȘUTIST</b><span class="bar"><i
-                                        style="width:20%"></i></span><strong>3</strong></div>
-                        </div>
+                        <div class="role-bars" id="role-bars"><div class="empty-state">Nu există testerii sincronizați.</div></div>
                     </div>
                     <div class="panel sync-panel">
                         <div class="sync-illustration">↻</div>
                         <div>
                             <h2>Sincronizare automată</h2>
                             <p class="muted">Datele sunt preluate din Google Sheets și verificate periodic.</p>
-                            <div class="sync-status"><i></i> Sincronizare activă <span>La fiecare 15 minute</span></div>
+                            <div class="sync-status"><i></i> Sursa este configurată <span id="sync-detail">Așteaptă sincronizarea</span></div>
                         </div><button class="outline" id="sync-btn">Sincronizează acum</button>
                     </div>
                 </section>
@@ -186,12 +150,7 @@
         <div class="modal"><button class="close" id="close-modal">×</button>
             <p class="eyebrow">ACCES NOU</p>
             <h2>Adaugă un tester</h2>
-            <p class="muted">Trimite o invitație folosind adresa de email Discord.</p><label>Email Discord<input
-                    id="email" type="email" placeholder="nume#0000 sau email@exemplu.ro"></label><label>Teste
-                disponibile<div class="checks"><label><input type="checkbox" checked> Test admitere</label><label><input
-                            type="checkbox"> MOTO</label><label><input type="checkbox"> SMULS</label><label><input
-                            type="checkbox"> ALS</label></div></label><button class="primary full"
-                id="invite-btn">Trimite invitația →</button>
+            <p class="muted">Caută membrul după callsign, apoi acordă-i testele permise.</p><label>Callsign<input id="callsign" type="text" placeholder="M-214" autocomplete="off"></label><div id="member-result" class="member-result"></div><label>Teste de acordat<div class="checks" id="grant-checks"><label><input type="checkbox" value="Test admitere"> Test admitere</label><label><input type="checkbox" value="Test transfer"> Test transfer</label><label><input type="checkbox" value="Adeverință medicală"> Adeverință medicală</label><label><input type="checkbox" value="Test SMULS"> Test SMULS</label><label><input type="checkbox" value="Test MOTO"> Test MOTO</label><label><input type="checkbox" value="Test ALS"> Test ALS</label><label><input type="checkbox" value="Test PILOT"> Test PILOT</label><label><input type="checkbox" value="Test parașutiști"> Test parașutiști</label></div></label><button class="primary full" id="invite-btn">Salvează accesul →</button>
         </div>
     </div>
     <script src="script.js"></script>
