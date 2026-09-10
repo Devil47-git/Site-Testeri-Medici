@@ -45,18 +45,16 @@ function normalize(value = '') { return String(value).toUpperCase().normalize('N
 function hasFunction(functions, pattern) { return pattern.test(normalize(functions)); }
 function accessFor(csNum, functions, rank, dept) {
   const isConducere = (csNum >= 1 && csNum <= 15) || ['DIRECTOR', 'INSPECTOR', 'CONDUCERE'].some(x => normalize(rank).includes(x)) || normalize(dept).includes('CONDUCERE');
+  // Funcțiile din K stabilesc doar ce poate aproba conducerea, nu acordă acces automat.
+  // Accesul efectiv la specializări trebuie păstrat într-o sursă separată de grants.
   const allowedTests = csNum >= 200 ? ['Test admitere', 'Test transfer', 'Adeverință medicală'] : [];
-  // M-300+ nu primește automat ALS/PILOT/PARAȘUTIST. SMULS/MOTO cer funcția din K.
-  if (csNum >= 300 && hasFunction(functions, /SMULS|\|\s*S\s*\|/)) allowedTests.push('Test SMULS');
-  if (csNum >= 300 && hasFunction(functions, /MOTO|\|\s*M\s*\|/)) allowedTests.push('Test MOTO');
-  if (csNum >= 200 && csNum < 300) {
-    if (hasFunction(functions, /ALS|\|\s*A\s*\|/)) allowedTests.push('Test ALS');
-    if (hasFunction(functions, /PILOT|\|\s*P\s*\|/)) allowedTests.push('Test PILOT');
-    if (hasFunction(functions, /PARASUTIST|PARAȘUTIST|\|\s*PT\s*\|/)) allowedTests.push('Test parașutiști');
-    if (hasFunction(functions, /SMULS|\|\s*S\s*\|/)) allowedTests.push('Test SMULS');
-    if (hasFunction(functions, /MOTO|\|\s*M\s*\|/)) allowedTests.push('Test MOTO');
-  }
-  return { isConducere, allowedTests };
+  const eligibleSpecializations = [];
+  if (hasFunction(functions, /SMULS|\|\s*S\s*\|/)) eligibleSpecializations.push('Test SMULS');
+  if (hasFunction(functions, /MOTO|\|\s*M\s*\|/)) eligibleSpecializations.push('Test MOTO');
+  if (hasFunction(functions, /ALS|\|\s*A\s*\|/)) eligibleSpecializations.push('Test ALS');
+  if (hasFunction(functions, /PILOT|\|\s*P\s*\|/)) eligibleSpecializations.push('Test PILOT');
+  if (hasFunction(functions, /PARASUTIST|PARAȘUTIST|\|\s*PT\s*\|/)) eligibleSpecializations.push('Test parașutiști');
+  return { isConducere, allowedTests, eligibleSpecializations, grantedTests: [] };
 }
 function mapSheetRowToUser(row, discordUser) {
   const callSignRaw = String(row[2] || '').trim();

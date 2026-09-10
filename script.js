@@ -45,4 +45,10 @@ async function startSession(){
   }catch(error){appShell.classList.remove('ready');showAuthError(error.message==='not-authorized'?'Conectează-te cu Discord pentru a verifica accesul.':error.message)}
 }
 document.querySelector('#discord-login').onclick=()=>{window.location.href=LOGIN_ENDPOINT};
+const themeToggle=document.querySelector('#theme-toggle');
+const savedTheme=localStorage.getItem('medici-theme');
+if(savedTheme==='dark') document.body.classList.add('dark-mode');
+function updateThemeButton(){if(themeToggle){themeToggle.textContent=document.body.classList.contains('dark-mode')?'☀':'◐';themeToggle.classList.toggle('theme-toggle-active',document.body.classList.contains('dark-mode'));}}
+updateThemeButton();
+if(themeToggle) themeToggle.onclick=()=>{document.body.classList.toggle('dark-mode');localStorage.setItem('medici-theme',document.body.classList.contains('dark-mode')?'dark':'light');updateThemeButton()};
 startSession();
