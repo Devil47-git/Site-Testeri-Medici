@@ -1,13 +1,21 @@
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const SHEET_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:T400';
+const GRANTS_RANGE = process.env.GOOGLE_GRANTS_RANGE || 'GRANTS!A1:D';
 
 export default async function handler(req, res) {
   const allowedOrigin = process.env.APP_ORIGIN || 'https://site-wheat-zeta-76.vercel.app';
   res.setHeader('Access-Control-Allow-Origin', allowedOrigin);
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   res.setHeader('Vary', 'Origin');
   if (req.method === 'OPTIONS') return res.status(200).end();
+  if (req.method === 'GET') {
+    const code = typeof req.query?.code === 'string' ? req.query.code.trim() : '';
+    const error = typeof req.query?.error === 'string' ? req.query.error : '';
+    if (error) return res.redirect(`/?error=${encodeURIComponent(error)}`);
+    if (!code) return res.status(400).json({ error: 'No code provided' });
+    return res.redirect(`/?code=${encodeURIComponent(code)}`);
+  }
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const { code } = req.body && typeof req.body === 'object' ? req.body : {};
@@ -35,7 +43,14 @@ export default async function handler(req, res) {
     const row = sheetData.values.slice(1).filter(item => Array.isArray(item)).find(item => String(item[19] || '').trim() === String(discordUser.id));
     if (!row) return res.status(404).json({ error: 'not_found' });
 
-    return res.status(200).json({ success: true, user: mapSheetRowToUser(row, discordUser) });
+    const user = mapSheetRowToUser(row, discordUser);
+    const grantsRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(GRANTS_RANGE)}?key=${GOOGLE_API_KEY}`);
+    if (grantsRes.ok) {
+      const grantsData = await grantsRes.json();
+      const grant = (Array.isArray(grantsData.values) ? grantsData.values : []).slice(1).filter(item => Array.isArray(item)).find(item => String(item[0] || '').trim() === String(discordUser.id));
+      if (grant) user.grantedTests = [...new Set([...(user.grantedTests || []), ...String(grant[2] || '').split('|').filter(Boolean)])];
+    }
+    return res.status(200).json({ success: true, user });
   } catch (error) {
     console.error('Discord authentication failed:', error);
     return res.status(500).json({ error: 'Server error' });
@@ -45,7 +60,9 @@ export default async function handler(req, res) {
 function normalize(value = '') { return String(value).toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim(); }
 function hasFunction(functions, pattern) { return pattern.test(normalize(functions)); }
 function accessFor(csNum, functions, rank, dept) {
-  const isConducere = (csNum >= 1 && csNum <= 15) || ['DIRECTOR', 'INSPECTOR', 'CONDUCERE'].some(x => normalize(rank).includes(x)) || normalize(dept).includes('CONDUCERE');
+  const normalizedRank = normalize(rank);
+  const normalizedDept = normalize(dept);
+  const isConducere = (csNum >= 1 && csNum <= 15) || ['DIRECTOR', 'INSPECTOR', 'CONDUCERE', 'MANAGER', 'COORDONATOR'].some(x => normalizedRank.includes(x)) || ['CONDUCERE', 'MEDICAL'].some(x => normalizedDept.includes(x));
   const catalog = ['Test admitere', 'Test transfer', 'Adeverință medicală', 'Test SMULS', 'Test MOTO', 'Test ALS', 'Test PILOT', 'Test parașutiști'];
   const allowedTests = isConducere ? catalog : csNum >= 200 ? ['Test admitere', 'Test transfer', 'Adeverință medicală'] : [];
   const eligibleSpecializations = [];
@@ -54,11 +71,12 @@ function accessFor(csNum, functions, rank, dept) {
   if (hasFunction(functions, /ALS|\|\s*A\s*\|/)) eligibleSpecializations.push('Test ALS');
   if (hasFunction(functions, /PILOT|\|\s*P\s*\|/)) eligibleSpecializations.push('Test PILOT');
   if (hasFunction(functions, /PARASUTIST|PARAȘUTIST|\|\s*PT\s*\|/)) eligibleSpecializations.push('Test parașutiști');
-  return { isConducere, allowedTests, eligibleSpecializations, grantedTests: [] };
+  return { isConducere, isLeadership: isConducere, accessLevel: isConducere ? 'leadership' : 'tester', allowedTests, eligibleSpecializations, grantedTests: [] };
 }
 function mapSheetRowToUser(row, discordUser) {
   const callSignRaw = String(row[2] || '').trim();
   const csNum = parseInt(callSignRaw.replace(/\D/g, ''), 10) || 0;
   const functions = String(row[10] || '').trim(); const rank = String(row[4] || '').trim(); const dept = String(row[5] || '').trim();
-  return { id: String(row[1] || '').trim(), name: String(row[3] || discordUser.username || '').trim(), callsign: callSignRaw, callSign: callSignRaw, csNum, rank, dept, functions, discordId: discordUser.id, avatar: discordUser.avatar ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png` : null, ...accessFor(csNum, functions, rank, dept) };
+  const access = accessFor(csNum, functions, rank, dept);
+  return { id: String(row[1] || '').trim(), name: String(row[3] || discordUser.username || '').trim(), callsign: callSignRaw, callSign: callSignRaw, csNum, rank, dept, functions, discordId: discordUser.id, avatar: discordUser.avatar ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png` : null, ...access };
 }

@@ -6,8 +6,25 @@ const GRANTS_KEY = 'medici-grants';
 let currentUser = null;
 let testers = JSON.parse(localStorage.getItem(GRANTS_KEY) || '[]');
 function saveTesters() { localStorage.setItem(GRANTS_KEY, JSON.stringify(testers)); }
+async function loadRemoteGrants() {
+  if (!currentUser?.discordId || !isLeadershipUser(currentUser)) return;
+  const response = await fetch(`/api/access/grants?requesterId=${encodeURIComponent(currentUser.discordId)}`);
+  if (!response.ok) return;
+  const payload = await response.json();
+  testers = payload.grants || [];
+  saveTesters();
+  renderRows();
+}
+async function saveRemoteGrant(callsign, grantedTests) {
+  if (!currentUser?.discordId) throw new Error('Sesiunea nu conține Discord ID.');
+  const response = await fetch('/api/access/grants', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requesterId: currentUser.discordId, callsign, grantedTests }) });
+  const payload = await response.json();
+  if (!response.ok) throw new Error(payload.error || 'Accesul nu a putut fi salvat.');
+  return payload.grant;
+}
 function normalizeCallsign(value) { const number = String(value || '').replace(/\D/g, ''); return number ? `M-${number.padStart(3, '0')}` : ''; }
-function allowedForUser(user) { if (user?.isConducere || user?.isLeadership) return catalog; return [...new Set([...(user?.allowedTests || []), ...(user?.eligibleSpecializations || [])])]; }
+function isLeadershipUser(user) { const cs = Number(user?.csNum || String(user?.callsign || user?.callSign || '').replace(/\D/g, '')); return Boolean(user?.accessLevel === 'leadership' || user?.isConducere || user?.isLeadership || (cs >= 1 && cs <= 15)); }
+function allowedForUser(user) { if (isLeadershipUser(user)) return catalog; return [...new Set([...(user?.allowedTests || []), ...(user?.eligibleSpecializations || []), ...(user?.grantedTests || [])])]; }
 function renderRows(list = testers) { rows.innerHTML = list.length ? list.map((t,index) => `<tr><td><div class="tester"><div class="avatar ${roleColors[index%roleColors.length]}">${initialsFrom(t.name)}</div>${t.name}</div></td><td>${t.callsign}</td><td><div class="tags">${(t.grantedTests||[]).map((x,i) => `<span class="tag ${i%3===1?'orange':i%3===2?'cyan':''}">${x}</span>`).join('')||'<span class="muted">Niciun test</span>'}</div></td><td>${t.updatedAt||'—'}</td><td><span class="status"><i></i>Activ</span></td><td><button class="more">•••</button></td></tr>`).join('') : '<tr><td colspan="6" class="empty-state">Nu există testeri adăugați.</td></tr>'; document.querySelector('#tester-count').textContent=list.length;document.querySelector('#active-count').textContent=list.length; }
 function renderView(view) {
   viewContent.hidden = view === 'overview';
@@ -26,12 +43,12 @@ function openTest(testName) {
 }
 renderRows();
 const modal = document.querySelector('#modal'); const callsignInput=document.querySelector('#callsign'); const memberResult=document.querySelector('#member-result'); const grantChecks=document.querySelector('#grant-checks');
-document.querySelector('#add-btn').onclick = () => {if (!(currentUser?.isConducere || currentUser?.isLeadership)) { memberResult.textContent='Doar conducerea poate acorda acces.'; return; } modal.classList.add('open');callsignInput.value='';memberResult.textContent='';grantChecks.innerHTML='';}; document.querySelector('#close-modal').onclick = () => modal.classList.remove('open'); modal.onclick = e => { if (e.target === modal) modal.classList.remove('open') };
+document.querySelector('#add-btn').onclick = () => {if (!isLeadershipUser(currentUser)) { memberResult.textContent='Doar conducerea poate acorda acces.'; return; } modal.classList.add('open');callsignInput.value='';memberResult.textContent='';grantChecks.innerHTML='';}; document.querySelector('#close-modal').onclick = () => modal.classList.remove('open'); modal.onclick = e => { if (e.target === modal) modal.classList.remove('open') };
 let selectedMember=null;
 async function lookupMember(){const value=callsignInput.value.trim();if(!value){selectedMember=null;memberResult.textContent='';return} const normalized=normalizeCallsign(value);const local=testers.find(t=>normalizeCallsign(t.callsign)===normalized); if(local){selectedMember=local;memberResult.textContent=`${local.name} · ${normalized}`;renderGrantChecks(local.eligibleTests||catalog);return} memberResult.textContent='Membrul va fi căutat în lista sincronizată.';selectedMember={callsign:normalized,name:normalized,eligibleTests:catalog,grantedTests:[]};renderGrantChecks(catalog)}
 function renderGrantChecks(options){grantChecks.innerHTML=options.map(test=>`<label><input type="checkbox" value="${test}" ${selectedMember?.grantedTests?.includes(test)?'checked':''}> ${test}</label>`).join('')}
 callsignInput.onchange=lookupMember;callsignInput.oninput=()=>{clearTimeout(window.lookupTimer);window.lookupTimer=setTimeout(lookupMember,350)};
-document.querySelector('#invite-btn').onclick = () => {if(!selectedMember){memberResult.textContent='Introdu un callsign valid.';return} const granted=[...grantChecks.querySelectorAll('input:checked')].map(x=>x.value);const normalized=normalizeCallsign(selectedMember.callsign);if(!normalized){memberResult.textContent='Introdu un callsign valid.';return} const existing=testers.find(t=>normalizeCallsign(t.callsign)===normalized);if(existing){existing.callsign=normalized;existing.grantedTests=granted;existing.updatedAt='Acum'}else{testers.push({...selectedMember,callsign:normalized,grantedTests:granted,updatedAt:'Acum'})}saveTesters();renderRows();renderView('testers');modal.classList.remove('open')};
+document.querySelector('#invite-btn').onclick = async () => {if(!selectedMember){memberResult.textContent='Introdu un callsign valid.';return} const granted=[...grantChecks.querySelectorAll('input:checked')].map(x=>x.value);const normalized=normalizeCallsign(selectedMember.callsign);if(!normalized){memberResult.textContent='Introdu un callsign valid.';return} try { const saved=await saveRemoteGrant(normalized, granted); const existing=testers.find(t=>normalizeCallsign(t.callsign)===normalized);if(existing){Object.assign(existing,saved)}else{testers.push(saved)}saveTesters();renderRows();renderView('testers');modal.classList.remove('open'); } catch (error) { memberResult.textContent=error.message; } };
 document.querySelector('#search').oninput = e => { const q = e.target.value.toLowerCase(); renderRows(testers.filter(t => (t.name+t.callsign+(t.grantedTests||[]).join('')).toLowerCase().includes(q))) };
 document.querySelector('#filter-btn').onclick = () => { document.querySelector('#search').focus() }; document.querySelector('#sync-btn').onclick = e => {e.currentTarget.textContent='Sincronizare indisponibilă';document.querySelector('#sync-detail').textContent='Necesită sursa de grants'};
 const labels = { overview: 'Prezentare generală', testers: 'Testerii mei', tests: 'Teste disponibile', members: 'Membri departament', settings: 'Setări' }; document.querySelectorAll('[data-view]').forEach(btn => btn.onclick = () => { document.querySelectorAll('.nav-item').forEach(x => x.classList.remove('active')); if (btn.classList.contains('nav-item')) btn.classList.add('active'); document.querySelector('#page-label').textContent = labels[btn.dataset.view] || 'Testerii mei'; document.querySelector('.sidebar').classList.remove('open'); renderView(btn.dataset.view); if (btn.dataset.view==='tests') {document.querySelector('#test-count').textContent=allowedForUser(currentUser).length;document.querySelector('#local-state').textContent='Catalog'} }); document.querySelector('.mobile-menu').onclick = () => document.querySelector('.sidebar').classList.toggle('open');
@@ -44,36 +61,40 @@ const authError=document.querySelector('#auth-error');
 const AUTH_API_ENDPOINT='/api/auth/discord';
 const LOGIN_ENDPOINT='/api/auth/login';
 const AUTH_STORAGE_KEY='medici-auth';
+const AUTH_SCHEMA_VERSION=2;
 const AUTH_TTL=3*24*60*60*1000;
 function initialsFrom(name='User'){return name.split(/\s+/).map(x=>x[0]).join('').slice(0,2).toUpperCase()}
 function applyUser(user){
   currentUser=user; const name=user.name||user.displayName||'Utilizator'; const initials=initialsFrom(name); const first=name.split(/\s+/)[0];
   const callsign=normalizeCallsign(user.callsign||user.callSign); user.callsign=callsign;
   document.querySelector('#welcome-name').textContent=first; document.querySelector('#user-name').textContent=name;
-  document.querySelector('#user-role').textContent=user.isConducere||user.isLeadership?'Conducere':'Tester';
+  document.querySelector('#user-role').textContent=isLeadershipUser(user)?'Conducere':'Tester';
   document.querySelector('#top-avatar').textContent=initials; document.querySelector('.user-mini .avatar').textContent=initials;
   if(callsign) document.querySelector('.welcome .muted').textContent=`${callsign} · Acces sincronizat din departament.`;
   document.querySelector('.stat-card:nth-child(2) strong').textContent=allowedForUser(user).length;
   document.querySelector('#sync-label').textContent='Conectat'; document.querySelector('#local-state').textContent='Sincronizat';
 }
 function showAuthError(message){authError.textContent=message;authError.classList.add('show')}
-function enterApp(user){applyUser(user);authScreen.style.display='none';appShell.classList.add('ready')}
+function enterApp(user){applyUser(user);authScreen.style.display='none';appShell.classList.add('ready');document.querySelector('#page-label').textContent=labels.overview;renderView('overview');loadRemoteGrants().catch(() => {});}
+const accessError = new URLSearchParams(window.location.search).get('access');
+if (accessError === 'denied') showAuthError('Contul Discord nu există în lista departamentului.');
+if (accessError === 'error') showAuthError('Autentificarea Discord nu a putut fi finalizată.');
 async function exchangeCallbackCode(){
   const params=new URLSearchParams(window.location.search); const code=params.get('code');
   if(params.get('error')) throw new Error('Autentificarea Discord a fost anulată.');
   if(!code) return null;
   const response=await fetch(AUTH_API_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code})});
   const payload=await response.json(); if(!response.ok||!payload.success||!payload.user) throw new Error(payload.error==='not_found'?'Discord ID-ul nu există în lista departamentului.':'Verificarea autentificării a eșuat.');
-  const stored={user:payload.user,expiresAt:Date.now()+AUTH_TTL}; localStorage.setItem(AUTH_STORAGE_KEY,JSON.stringify(stored));
+  const stored={version:AUTH_SCHEMA_VERSION,user:payload.user,expiresAt:Date.now()+AUTH_TTL}; localStorage.setItem(AUTH_STORAGE_KEY,JSON.stringify(stored));
   window.history.replaceState({},document.title,window.location.pathname); return payload.user;
 }
 async function startSession(){
   try{
     const callbackUser=await exchangeCallbackCode(); if(callbackUser) return enterApp(callbackUser);
     const cached=JSON.parse(localStorage.getItem(AUTH_STORAGE_KEY)||'null');
-    if(cached?.user&&cached.expiresAt>Date.now()) return enterApp(cached.user);
+    if(cached?.version===AUTH_SCHEMA_VERSION&&cached?.user&&cached.expiresAt>Date.now()) return enterApp(cached.user);
     localStorage.removeItem(AUTH_STORAGE_KEY); throw new Error('not-authorized');
-  }catch(error){appShell.classList.remove('ready');showAuthError(error.message==='not-authorized'?'Conectează-te cu Discord pentru a verifica accesul.':error.message)}
+  }catch(error){appShell.classList.remove('ready');const message=error.message==='not-authorized'?'Conectează-te cu Discord pentru a verifica accesul.':error.message;showAuthError(message)}
 }
 document.querySelector('#discord-login').onclick=()=>{window.location.href=LOGIN_ENDPOINT};
 const themeToggle=document.querySelector('#theme-toggle');

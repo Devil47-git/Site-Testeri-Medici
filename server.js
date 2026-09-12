@@ -17,10 +17,12 @@ function cookie(req, key) { return (req.headers.cookie || '').split(';').map(x =
 function redirect(res, location) { res.writeHead(302, { Location: location }); res.end(); }
 function json(res, code, data) { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(data)); }
 function normalize(value = '') { return String(value).toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim(); }
-function roleAccess(functions, grade = '') {
-  const f = normalize(functions); const g = Number(String(grade).match(/M[- ]?(\d{1,3})/)?.[1] || 0);
-  const isLeadership = g >= 1 && g <= 15;
-  const tests = ['Test admitere', 'Test transfer', 'Adeverință medicală'];
+function roleAccess(functions, callsign = '', rank = '', dept = '') {
+  const f = normalize(functions); const g = Number(String(callsign).replace(/\D/g, '')) || 0;
+  const normalizedRank = normalize(rank); const normalizedDept = normalize(dept);
+  const isLeadership = (g >= 1 && g <= 15) || ['DIRECTOR', 'INSPECTOR', 'CONDUCERE', 'MANAGER', 'COORDONATOR'].some(value => normalizedRank.includes(value)) || ['CONDUCERE', 'MEDICAL'].some(value => normalizedDept.includes(value));
+  const catalog = ['Test admitere', 'Test transfer', 'Adeverință medicală', 'Test SMULS', 'Test MOTO', 'Test ALS', 'Test PILOT', 'Test parașutiști'];
+  const tests = isLeadership ? catalog : ['Test admitere', 'Test transfer', 'Adeverință medicală'];
   if (g >= 200) {
     if (/SMULS|\|\s*S\s*\|/.test(f)) tests.push('Test SMULS');
     if (/MOTO|\|\s*M\s*\|/.test(f)) tests.push('Test MOTO');
@@ -28,7 +30,7 @@ function roleAccess(functions, grade = '') {
     if (g < 300 && /PILOT|\|\s*P\s*\|/.test(f)) tests.push('Test PILOT');
     if (g < 300 && /PARASUTIST|PARAȘUTIST|\|\s*PT\s*\|/.test(f)) tests.push('Test parașutiști');
   }
-  return { isLeadership, tests };
+  return { isLeadership, isConducere: isLeadership, accessLevel: isLeadership ? 'leadership' : 'tester', tests };
 }
 async function sheetMember(discordId) {
   if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON && !process.env.GOOGLE_APPLICATION_CREDENTIALS) throw new Error('Google Sheets is not configured');
@@ -37,8 +39,9 @@ async function sheetMember(discordId) {
   const result = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: SHEET_RANGE });
   const row = (result.data.values || []).slice(1).find(values => String(values[19] || '').trim() === String(discordId).trim());
   if (!row) return null;
-  const functions = row[10] || ''; const grade = row[0] || row[1] || '';
-  return { discordId, callsign: row[2] || '', name: row[3] || '', functions, grade, ...roleAccess(functions, grade) };
+  const callsign = String(row[2] || '').trim(); const functions = row[10] || ''; const rank = row[4] || ''; const dept = row[5] || '';
+  const access = roleAccess(functions, callsign, rank, dept);
+  return { discordId, callsign, callSign: callsign, csNum: Number(callsign.replace(/\D/g, '')) || 0, name: row[3] || '', functions, rank, dept, allowedTests: access.tests, eligibleSpecializations: [], ...access };
 }
 async function exchangeDiscord(code) {
   const body = new URLSearchParams({ client_id: process.env.DISCORD_CLIENT_ID, client_secret: process.env.DISCORD_CLIENT_SECRET, grant_type: 'authorization_code', code, redirect_uri: process.env.DISCORD_REDIRECT_URI, scope: 'identify' });
@@ -48,8 +51,14 @@ async function exchangeDiscord(code) {
 }
 async function route(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
-  if (url.pathname === '/api/auth/discord') {
-    if (!process.env.DISCORD_CLIENT_ID) return json(res, 500, { error: 'Discord OAuth is not configured' });
+  if (url.pathname === '/api/auth/login' || url.pathname === '/api/auth/discord') {
+    if (req.method === 'POST' && url.pathname === '/api/auth/discord') {
+      let body = ''; for await (const chunk of req) body += chunk;
+      let payload; try { payload = JSON.parse(body || '{}'); } catch { return json(res, 400, { error: 'Invalid request body' }); }
+      if (typeof payload.code !== 'string' || !payload.code.trim()) return json(res, 400, { error: 'No code provided' });
+      try { const discord = await exchangeDiscord(payload.code.trim()); const member = await sheetMember(discord.id); if (!member) return json(res, 404, { error: 'not_found' }); return json(res, 200, { success: true, user: { ...member, discordUsername: discord.username, avatar: discord.avatar || null } }); } catch (error) { console.error('Discord authentication failed:', error); return json(res, 502, { error: 'Discord authentication failed' }); }
+    }
+    if (!process.env.DISCORD_CLIENT_ID || !process.env.DISCORD_REDIRECT_URI) return json(res, 500, { error: 'Discord OAuth is not configured' });
     const state = crypto.randomBytes(24).toString('hex'); oauthState.set(state, Date.now() + 300000);
     const target = `https://discord.com/oauth2/authorize?client_id=${encodeURIComponent(process.env.DISCORD_CLIENT_ID)}&response_type=code&redirect_uri=${encodeURIComponent(process.env.DISCORD_REDIRECT_URI)}&scope=identify&state=${state}`;
     return redirect(res, target);
