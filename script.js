@@ -7,11 +7,15 @@ let currentUser = null;
 let testers = JSON.parse(localStorage.getItem(GRANTS_KEY) || '[]');
 function saveTesters() { localStorage.setItem(GRANTS_KEY, JSON.stringify(testers)); }
 async function loadRemoteGrants() {
-  if (!currentUser?.discordId || !isLeadershipUser(currentUser)) return;
+  if (!currentUser?.discordId) return;
   const response = await fetch(`/api/access/grants?requesterId=${encodeURIComponent(currentUser.discordId)}`);
   if (!response.ok) return;
   const payload = await response.json();
-  testers = payload.grants || [];
+  if (isLeadershipUser(currentUser)) testers = payload.grants || [];
+  else {
+    const ownGrant = (payload.grants || []).find(grant => grant.discordId === currentUser.discordId);
+    currentUser.grantedTests = ownGrant?.grantedTests || currentUser.grantedTests || [];
+  }
   saveTesters();
   renderRows();
 }
@@ -27,14 +31,22 @@ function isLeadershipUser(user) { const cs = Number(user?.csNum || String(user?.
 function allowedForUser(user) { if (isLeadershipUser(user)) return catalog; return [...new Set([...(user?.allowedTests || []), ...(user?.eligibleSpecializations || []), ...(user?.grantedTests || [])])]; }
 function renderRows(list = testers) { rows.innerHTML = list.length ? list.map((t,index) => `<tr><td><div class="tester"><div class="avatar ${roleColors[index%roleColors.length]}">${initialsFrom(t.name)}</div>${t.name}</div></td><td>${t.callsign}</td><td><div class="tags">${(t.grantedTests||[]).map((x,i) => `<span class="tag ${i%3===1?'orange':i%3===2?'cyan':''}">${x}</span>`).join('')||'<span class="muted">Niciun test</span>'}</div></td><td>${t.updatedAt||'—'}</td><td><span class="status"><i></i>Activ</span></td><td><button class="more">•••</button></td></tr>`).join('') : '<tr><td colspan="6" class="empty-state">Nu există testeri adăugați.</td></tr>'; document.querySelector('#tester-count').textContent=list.length;document.querySelector('#active-count').textContent=list.length; }
 function renderView(view) {
-  viewContent.hidden = view === 'overview';
-  if (view === 'overview') return;
+  const overview = document.querySelector('#overview-view');
+  const isOverview = view === 'overview';
+  viewContent.hidden = isOverview;
+  overview.hidden = !isOverview;
+  viewContent.style.display = isOverview ? 'none' : 'block';
+  overview.style.display = isOverview ? 'block' : 'none';
+  if (isOverview) return;
   const title = labels[view] || 'Spațiul tău';
   if (view === 'tests') viewContent.innerHTML = `<div class="panel view-panel"><div class="panel-head"><div><h2>${title}</h2><p class="muted">Testele disponibile pentru ${currentUser?.callsign || 'contul curent'}.</p></div></div><div class="test-cards">${allowedForUser(currentUser).map(test => `<article class="test-card"><h3>${test}</h3><p class="muted">Acces disponibil conform callsign-ului și permisiunilor acordate.</p><button class="primary" data-test="${test}">Deschide testul</button></article>`).join('') || '<div class="empty-state">Nu ai teste disponibile.</div>'}</div></div>`;
-  else if (view === 'testers' || view === 'members') viewContent.innerHTML = `<div class="panel view-panel"><div class="panel-head"><div><h2>${title}</h2><p class="muted">Accesul este păstrat local și rămâne disponibil după închiderea site-ului.</p></div><button class="primary" id="view-add">＋ Adaugă tester</button></div><div class="table-wrap"><table><thead><tr><th>TESTER</th><th>CALLSIGN</th><th>TESTE ALOCATE</th><th>ULTIMA ACTIVITATE</th><th>STATUS</th></tr></thead><tbody>${testers.map(t => `<tr><td>${t.name}</td><td>${t.callsign}</td><td>${(t.grantedTests || []).join(', ') || '—'}</td><td>${t.updatedAt || '—'}</td><td>Activ</td></tr>`).join('') || '<tr><td colspan="5" class="empty-state">Nu există testeri salvați.</td></tr>'}</tbody></table></div></div>`;
-  else viewContent.innerHTML = `<div class="panel view-panel"><h2>${title}</h2><p class="muted">Setările dashboardului și ale sesiunii tale.</p><button class="outline" id="clear-local">Șterge accesul salvat pe acest dispozitiv</button></div>`;
+  else if (view === 'testers' || view === 'members') {
+    const canManage = isLeadershipUser(currentUser);
+    viewContent.innerHTML = `<div class="panel view-panel"><div class="panel-head"><div><h2>${title}</h2><p class="muted">${canManage ? 'Testerii și membrii subdepartamentului medical.' : 'Accesul tău la testele alocate.'}</p></div>${canManage ? '<button class="primary" id="view-add">＋ Adaugă tester</button>' : ''}</div><div class="table-wrap"><table><thead><tr><th>TESTER</th><th>CALLSIGN</th><th>TESTE ALOCATE</th><th>ULTIMA ACTIVITATE</th><th>STATUS</th></tr></thead><tbody>${testers.map(t => `<tr><td>${t.name || 'Membru departament'}</td><td>${normalizeCallsign(t.callsign)}</td><td>${(t.grantedTests || []).join(', ') || '—'}</td><td>${t.updatedAt || '—'}</td><td>Activ</td></tr>`).join('') || '<tr><td colspan="5" class="empty-state">Nu există testeri salvați.</td></tr>'}</tbody></table></div></div>`;
+  } else viewContent.innerHTML = `<div class="panel view-panel"><h2>${title}</h2><p class="muted">Gestionează preferințele și sesiunea contului tău.</p><div class="settings-list"><p><b>Identitate:</b> ${currentUser?.name || '—'}</p><p><b>Callsign:</b> ${normalizeCallsign(currentUser?.callsign || currentUser?.callSign)}</p><p><b>Nivel acces:</b> ${isLeadershipUser(currentUser) ? 'Conducere' : 'Tester'}</p><button class="outline" id="clear-local">Șterge datele locale ale acestui dispozitiv</button><button class="outline" id="logout-btn">Deconectează-te</button></div></div>`;
   const add = document.querySelector('#view-add'); if (add) add.onclick = () => document.querySelector('#add-btn').click();
   const clear = document.querySelector('#clear-local'); if (clear) clear.onclick = () => { localStorage.removeItem(GRANTS_KEY); testers = []; renderRows(); renderView(view); };
+  const logout = document.querySelector('#logout-btn'); if (logout) logout.onclick = () => { localStorage.removeItem(AUTH_STORAGE_KEY); window.location.reload(); };
   viewContent.querySelectorAll('[data-test]').forEach(button => button.onclick = () => openTest(button.dataset.test));
 }
 function openTest(testName) {
@@ -50,8 +62,18 @@ function renderGrantChecks(options){grantChecks.innerHTML=options.map(test=>`<la
 callsignInput.onchange=lookupMember;callsignInput.oninput=()=>{clearTimeout(window.lookupTimer);window.lookupTimer=setTimeout(lookupMember,350)};
 document.querySelector('#invite-btn').onclick = async () => {if(!selectedMember){memberResult.textContent='Introdu un callsign valid.';return} const granted=[...grantChecks.querySelectorAll('input:checked')].map(x=>x.value);const normalized=normalizeCallsign(selectedMember.callsign);if(!normalized){memberResult.textContent='Introdu un callsign valid.';return} try { const saved=await saveRemoteGrant(normalized, granted); const existing=testers.find(t=>normalizeCallsign(t.callsign)===normalized);if(existing){Object.assign(existing,saved)}else{testers.push(saved)}saveTesters();renderRows();renderView('testers');modal.classList.remove('open'); } catch (error) { memberResult.textContent=error.message; } };
 document.querySelector('#search').oninput = e => { const q = e.target.value.toLowerCase(); renderRows(testers.filter(t => (t.name+t.callsign+(t.grantedTests||[]).join('')).toLowerCase().includes(q))) };
-document.querySelector('#filter-btn').onclick = () => { document.querySelector('#search').focus() }; document.querySelector('#sync-btn').onclick = e => {e.currentTarget.textContent='Sincronizare indisponibilă';document.querySelector('#sync-detail').textContent='Necesită sursa de grants'};
-const labels = { overview: 'Prezentare generală', testers: 'Testerii mei', tests: 'Teste disponibile', members: 'Membri departament', settings: 'Setări' }; document.querySelectorAll('[data-view]').forEach(btn => btn.onclick = () => { document.querySelectorAll('.nav-item').forEach(x => x.classList.remove('active')); if (btn.classList.contains('nav-item')) btn.classList.add('active'); document.querySelector('#page-label').textContent = labels[btn.dataset.view] || 'Testerii mei'; document.querySelector('.sidebar').classList.remove('open'); renderView(btn.dataset.view); if (btn.dataset.view==='tests') {document.querySelector('#test-count').textContent=allowedForUser(currentUser).length;document.querySelector('#local-state').textContent='Catalog'} }); document.querySelector('.mobile-menu').onclick = () => document.querySelector('.sidebar').classList.toggle('open');
+document.querySelector('#filter-btn').onclick = () => { document.querySelector('#search').focus() }; document.querySelector('#sync-btn').onclick = async e => { e.currentTarget.disabled=true; e.currentTarget.textContent='Sincronizare...'; try { await loadRemoteGrants(); document.querySelector('#sync-detail').textContent='Actualizat acum'; document.querySelector('#last-sync').textContent=new Date().toLocaleTimeString('ro-RO',{hour:'2-digit',minute:'2-digit'}); } catch { document.querySelector('#sync-detail').textContent='Sincronizarea a eșuat'; } finally { e.currentTarget.disabled=false; e.currentTarget.textContent='Sincronizează acum'; } };
+const labels = { overview: 'Prezentare generală', testers: 'Testerii mei', tests: 'Teste disponibile', members: 'Membri departament', settings: 'Setări' };
+function navigateTo(view) {
+  if (!labels[view]) return;
+  document.querySelectorAll('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.view === view));
+  document.querySelector('#page-label').textContent = labels[view];
+  document.querySelector('.sidebar').classList.remove('open');
+  renderView(view);
+  if (view === 'tests') { document.querySelector('#test-count').textContent = allowedForUser(currentUser).length; document.querySelector('#local-state').textContent = 'Catalog'; }
+}
+document.querySelectorAll('[data-view]').forEach(btn => btn.addEventListener('click', () => navigateTo(btn.dataset.view)));
+document.querySelector('.mobile-menu').onclick = () => document.querySelector('.sidebar').classList.toggle('open');
 const today=new Intl.DateTimeFormat('ro-RO',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(new Date());document.querySelector('#today-label').textContent=today.toUpperCase();document.querySelector('#test-count').textContent=catalog.length;document.querySelector('#local-state').textContent='Pregătit';
 
 // Fluxul OAuth: Discord redirecționează înapoi cu ?code=..., apoi codul este trimis server-side către API-ul Vercel.
@@ -73,9 +95,11 @@ function applyUser(user){
   if(callsign) document.querySelector('.welcome .muted').textContent=`${callsign} · Acces sincronizat din departament.`;
   document.querySelector('.stat-card:nth-child(2) strong').textContent=allowedForUser(user).length;
   document.querySelector('#sync-label').textContent='Conectat'; document.querySelector('#local-state').textContent='Sincronizat';
+  document.querySelector('#add-btn').hidden = !isLeadershipUser(user);
+  document.querySelector('[data-view="members"]').hidden = !isLeadershipUser(user);
 }
 function showAuthError(message){authError.textContent=message;authError.classList.add('show')}
-function enterApp(user){applyUser(user);authScreen.style.display='none';appShell.classList.add('ready');document.querySelector('#page-label').textContent=labels.overview;renderView('overview');loadRemoteGrants().catch(() => {});}
+function enterApp(user){applyUser(user);authScreen.style.display='none';appShell.classList.add('ready');navigateTo('overview');loadRemoteGrants().catch(() => {});}
 const accessError = new URLSearchParams(window.location.search).get('access');
 if (accessError === 'denied') showAuthError('Contul Discord nu există în lista departamentului.');
 if (accessError === 'error') showAuthError('Autentificarea Discord nu a putut fi finalizată.');
