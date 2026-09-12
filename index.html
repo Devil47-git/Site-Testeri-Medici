@@ -17,7 +17,7 @@
     <div class="auth-screen" id="auth-screen">
         <div class="auth-card">
             <div class="brand auth-brand"><span
-                    class="brand-mark">✦</span><span><b>MEDICI</b><small>TESTERI</small></span></div>
+                    class="brand-mark">✦</span><span><b>DEPARTAMENTUL MEDICAL LOS SANTOS</b><small>SUB-DEPARTAMENTUL TESTERILOR</small></span></div>
             <div class="auth-icon">◈</div>
             <p class="eyebrow">ACCES SECURIZAT</p>
             <h1>Conectează-te cu Discord</h1>
@@ -33,11 +33,11 @@
     </div>
     <div class="app-shell" id="app-shell">
         <aside class="sidebar">
-            <div class="brand"><span class="brand-mark">✦</span><span><b>MEDICI</b><small>TESTERI</small></span></div>
+            <button class="brand brand-button" id="brand-settings" type="button" title="Deschide setările"><span class="brand-mark">✦</span><span><b>DEPARTAMENTUL MEDICAL LOS SANTOS</b><small>SUB-DEPARTAMENTUL TESTERILOR</small></span></button>
             <div class="workspace-label">SPAȚIUL TĂU</div>
             <nav>
-                <button class="nav-item active" data-view="overview"><span>▦</span> Prezentare generală</button>
-                <button class="nav-item" data-view="testers"><span>♙</span> Testerii mei <em id="tester-count">0</em></button>
+                <button class="nav-item active" data-view="overview"><span>▦</span> Dashboard</button>
+                <button class="nav-item" data-view="testers"><span>♙</span> Testerii departamentului <em id="tester-count">0</em></button>
                 <button class="nav-item" data-view="tests"><span>▤</span> Teste disponibile</button>
             </nav>
             <div class="workspace-label lower">ADMINISTRARE</div>
@@ -47,16 +47,16 @@
             </nav>
             <div class="sidebar-bottom">
                 <div class="sync-dot"><i></i> Google Sheets<br><small id="sync-label">Neconectat</small></div>
-                <div class="user-mini">
+                <button class="user-mini" id="user-menu" type="button" title="Deschide setările">
                     <div class="avatar purple">AM</div>
                     <div><b id="user-name">Alex M.</b><small id="user-role">Conducere</small></div><span>⌄</span>
-                </div>
+                </button>
             </div>
         </aside>
         <main class="main-content">
             <header class="topbar"><button class="mobile-menu">☰</button>
-                <div class="crumb">Spațiul tău <span>/</span> <b id="page-label">Prezentare generală</b></div>
-                <div class="top-actions"><button class="icon-btn" id="theme-toggle" aria-label="Schimbă tema" title="Schimbă tema">◐</button><button class="help">?</button>
+                <div class="crumb"><b id="section-label">Spațiul tău</b> <span>/</span> <b id="page-label">Dashboard</b></div>
+                <div class="top-actions"><button class="icon-btn" id="theme-toggle" aria-label="Schimbă tema" title="Schimbă tema">◐</button><button class="help" id="help-btn" type="button" aria-label="Ajutor">?</button>
                     <div class="avatar purple" id="top-avatar">AM</div>
                 </div>
             </header>
@@ -93,7 +93,7 @@
                             <div>
                                 <h2>Testerii activi</h2>
                                 <p class="muted">Persoanele care au acces în acest moment</p>
-                            </div><button class="text-btn" data-view="testers">Vezi toți <span>→</span></button>
+                            </div><div class="panel-actions"><button class="dots" id="activity-menu" type="button" aria-label="Opțiuni testerii departamentului">•••</button><button class="text-btn" data-view="testers">Vezi toți <span>→</span></button></div>
                         </div>
                         <div class="toolbar">
                             <div class="search">⌕<input id="search" placeholder="Caută după nume sau callsign..."></div>
@@ -122,7 +122,7 @@
                                 <p class="muted">Ultimele acțiuni din departament</p>
                             </div><button class="dots">•••</button>
                         </div>
-                        <div class="activity-list" id="activity-list"><div class="empty-state">Nu există activitate înregistrată.</div></div><button class="outline full" id="activity-btn">Vezi toată activitatea</button>
+                        <div class="activity-list" id="activity-list"><div class="empty-state">Se încarcă activitatea…</div></div><button class="outline full" id="activity-btn" type="button">Vezi toată activitatea</button>
                     </aside>
                 </div>
                 <section class="bottom-grid">
@@ -133,7 +133,7 @@
                                 <p class="muted">Distribuția testerilor pe fiecare test</p>
                             </div><button class="dots">•••</button>
                         </div>
-                        <div class="role-bars" id="role-bars"><div class="empty-state">Nu există testerii sincronizați.</div></div>
+                        <div class="role-bars" id="role-bars"><div class="empty-state">Se încarcă specializările…</div></div>
                     </div>
                     <div class="panel sync-panel">
                         <div class="sync-illustration">↻</div>
@@ -153,7 +153,7 @@
         <div class="modal"><button class="close" id="close-modal">×</button>
             <p class="eyebrow">ACCES NOU</p>
             <h2>Adaugă un tester</h2>
-            <p class="muted">Caută membrul după callsign, apoi acordă-i testele permise.</p><label>Callsign<input id="callsign" type="text" placeholder="M-214" autocomplete="off"></label><div id="member-result" class="member-result"></div><label>Teste de acordat<div class="checks" id="grant-checks"><label><input type="checkbox" value="Test admitere"> Test admitere</label><label><input type="checkbox" value="Test transfer"> Test transfer</label><label><input type="checkbox" value="Adeverință medicală"> Adeverință medicală</label><label><input type="checkbox" value="Test SMULS"> Test SMULS</label><label><input type="checkbox" value="Test MOTO"> Test MOTO</label><label><input type="checkbox" value="Test ALS"> Test ALS</label><label><input type="checkbox" value="Test PILOT"> Test PILOT</label><label><input type="checkbox" value="Test parașutiști"> Test parașutiști</label></div></label><button class="primary full" id="invite-btn">Salvează accesul →</button>
+            <p class="muted">Caută membrul după callsign, apoi acordă-i testele permise.</p><label>Callsign<input id="callsign" type="text" placeholder="103 sau M-103" autocomplete="off"></label><div id="member-result" class="member-result"></div><label>Teste de acordat<div class="checks" id="grant-checks"><label><input type="checkbox" value="Test admitere"> Test admitere</label><label><input type="checkbox" value="Test transfer"> Test transfer</label><label><input type="checkbox" value="Adeverință medicală"> Adeverință medicală</label><label><input type="checkbox" value="Test SMULS"> Test SMULS</label><label><input type="checkbox" value="Test MOTO"> Test MOTO</label><label><input type="checkbox" value="Test ALS"> Test ALS</label><label><input type="checkbox" value="Test PILOT"> Test PILOT</label><label><input type="checkbox" value="Test parașutiști"> Test parașutiști</label></div></label><button class="primary full" id="invite-btn">Salvează accesul →</button>
         </div>
     </div>
     <script src="script.js"></script>

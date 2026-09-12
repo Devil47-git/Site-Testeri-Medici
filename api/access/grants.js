@@ -93,6 +93,7 @@ export default async function handler(req, res) {
     if (!targetId && !targetCallsign) return json(res, 400, { error: 'Missing target member' });
     const target = targetId ? await findMember(sheets, targetId) : (await readValues(sheets, MEMBER_RANGE)).slice(1).filter(Array.isArray).find(row => callsignNumber(row[2]) === callsignNumber(targetCallsign));
     if (!target) return json(res, 404, { error: 'Target member not found' });
+    if (!String(target[3] || '').trim()) return json(res, 422, { error: 'Target callsign is free because column D has no name' });
     if (!String(target[19] || '').trim()) return json(res, 422, { error: 'Target member has no Discord ID in column T' });
     const targetDiscordId = String(target[19] || '').trim();
     const updated = { discordId: targetDiscordId, callsign: String(target[2] || targetCallsign).trim(), grantedTests: normalizeTests(req.body.grantedTests), updatedAt: new Date().toISOString() };
