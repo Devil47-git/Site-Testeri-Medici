@@ -24,7 +24,6 @@ function openTest(testName) {
   viewContent.innerHTML = `<div class="panel view-panel"><div class="panel-head"><div><p class="eyebrow">TEST ÎN DESFĂȘURARE</p><h2>${testName}</h2><p class="muted">Acces confirmat pentru ${currentUser?.callsign || 'contul curent'}.</p></div><button class="outline" id="back-to-tests">← Înapoi</button></div><div class="test-runner"><p>Testul este disponibil. Conținutul întrebărilor trebuie încărcat din fișierele testului.</p><p class="muted">În această versiune poți verifica accesul și reveni la catalog fără ca sesiunea sau permisiunile să se reseteze.</p></div></div>`;
   document.querySelector('#back-to-tests').onclick = () => renderView('tests');
 }
-}
 renderRows();
 const modal = document.querySelector('#modal'); const callsignInput=document.querySelector('#callsign'); const memberResult=document.querySelector('#member-result'); const grantChecks=document.querySelector('#grant-checks');
 document.querySelector('#add-btn').onclick = () => {if (!(currentUser?.isConducere || currentUser?.isLeadership)) { memberResult.textContent='Doar conducerea poate acorda acces.'; return; } modal.classList.add('open');callsignInput.value='';memberResult.textContent='';grantChecks.innerHTML='';}; document.querySelector('#close-modal').onclick = () => modal.classList.remove('open'); modal.onclick = e => { if (e.target === modal) modal.classList.remove('open') };
