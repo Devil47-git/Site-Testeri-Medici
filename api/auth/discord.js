@@ -11,7 +11,7 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const { code } = req.body && typeof req.body === 'object' ? req.body : {};
-  if (!code) return res.status(400).json({ error: 'No code provided' });
+  if (typeof code !== 'string' || !code.trim()) return res.status(400).json({ error: 'No code provided' });
   const { DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_REDIRECT_URI, GOOGLE_API_KEY } = process.env;
   if (!DISCORD_CLIENT_ID || !DISCORD_CLIENT_SECRET || !DISCORD_REDIRECT_URI || !GOOGLE_API_KEY) {
     return res.status(500).json({ error: 'Missing OAuth or Google API environment variables' });
@@ -32,12 +32,13 @@ export default async function handler(req, res) {
     const sheetRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(SHEET_RANGE)}?key=${GOOGLE_API_KEY}`);
     const sheetData = await sheetRes.json();
     if (!sheetRes.ok || !Array.isArray(sheetData.values)) return res.status(502).json({ error: 'User database lookup failed' });
-    const row = sheetData.values.slice(1).find(item => String(item[19] || '').trim() === String(discordUser.id));
+    const row = sheetData.values.slice(1).filter(item => Array.isArray(item)).find(item => String(item[19] || '').trim() === String(discordUser.id));
     if (!row) return res.status(404).json({ error: 'not_found' });
 
     return res.status(200).json({ success: true, user: mapSheetRowToUser(row, discordUser) });
   } catch (error) {
-    return res.status(500).json({ error: 'Server error', details: error.message });
+    console.error('Discord authentication failed:', error);
+    return res.status(500).json({ error: 'Server error' });
   }
 }
 
@@ -45,9 +46,8 @@ function normalize(value = '') { return String(value).toUpperCase().normalize('N
 function hasFunction(functions, pattern) { return pattern.test(normalize(functions)); }
 function accessFor(csNum, functions, rank, dept) {
   const isConducere = (csNum >= 1 && csNum <= 15) || ['DIRECTOR', 'INSPECTOR', 'CONDUCERE'].some(x => normalize(rank).includes(x)) || normalize(dept).includes('CONDUCERE');
-  // Funcțiile din K stabilesc doar ce poate aproba conducerea, nu acordă acces automat.
-  // Accesul efectiv la specializări trebuie păstrat într-o sursă separată de grants.
-  const allowedTests = csNum >= 200 ? ['Test admitere', 'Test transfer', 'Adeverință medicală'] : [];
+  const catalog = ['Test admitere', 'Test transfer', 'Adeverință medicală', 'Test SMULS', 'Test MOTO', 'Test ALS', 'Test PILOT', 'Test parașutiști'];
+  const allowedTests = isConducere ? catalog : csNum >= 200 ? ['Test admitere', 'Test transfer', 'Adeverință medicală'] : [];
   const eligibleSpecializations = [];
   if (hasFunction(functions, /SMULS|\|\s*S\s*\|/)) eligibleSpecializations.push('Test SMULS');
   if (hasFunction(functions, /MOTO|\|\s*M\s*\|/)) eligibleSpecializations.push('Test MOTO');
