@@ -1,7 +1,8 @@
 window.MEDICAL_TESTS = {
   'Test admitere': {
-    description: 'Verifică ținuta, tatuajele faciale, cazierul, minimum 50 de ore, controlul cu stetoscopul și drug-testul înainte de proba teoretică. Candidatul are voie la 3 răspunsuri greșite; la al 4-lea este respins. Promovare: minimum 17/20.',
-    instructions: 'Candidatul trebuie să confirme: „Da, sunt de acord!”. Nu afișa răspunsurile candidatului. Notează calificativul și folosește /me ADMIS / RESPINS semnat GRAD+NUME.',
+    description: 'Verifică ținuta, tatuajele faciale, cazierul, minimum 50 de ore, controlul cu stetoscopul și drug-testul înainte de proba teoretică. Candidatul are voie la maximum 3 greșeli; la a 4-a este respins. Promovare: minimum 17/20.',
+    instructions: 'Candidatul trebuie să confirme: „Da, sunt de acord!”. Testerul compară răspunsurile cu ghidul și bifează greșelile. Notează calificativul și folosește /me ADMIS / RESPINS semnat GRAD+NUME.',
+    maxWrong: 3,
     questions: [
       ['Este permis unui medic să țină echipament medical asupra sa OFF-DY dacă nu îl folosește?', 'Nu. Este strict interzis.'],
       ['Un medic poate merge cu mașina departamentului OFF-DUTY dacă o duce la garaj sau o mută?', 'Nu. Este interzisă folosirea vehiculelor departamentului OFF-DUTY.'],
@@ -26,8 +27,9 @@ window.MEDICAL_TESTS = {
     ]
   },
   'Test transfer': {
-    description: 'Transfer Poliție–Departamentul Medical. Candidatul poate merge pe teren însoțit din prima zi; pentru activitate singur poate susține certificările BLS, RADIO și ALS. Are voie la 2 răspunsuri greșite; al 3-lea răspuns greșit înseamnă respins.',
-    instructions: 'Citește condițiile în prezența candidatului. Întrebarea deschisă despre motivul alegerii departamentului nu are răspuns corect sau greșit; verifică intenția.',
+    description: 'Transfer Poliție–Departamentul Medical. Candidatul poate merge pe teren însoțit din prima zi; pentru activitate singur poate susține certificările BLS, RADIO și ALS. Are voie la maximum 2 greșeli; la a 3-a este respins.',
+    instructions: 'Citește condițiile în prezența candidatului. Testerul compară răspunsurile cu ghidul și bifează greșelile. Întrebarea deschisă despre motivul alegerii departamentului nu are răspuns corect sau greșit; verifică intenția.',
+    maxWrong: 2,
     questions: [
       ['Sunteți de acord să respectați termenii și condițiile Departamentului Medical și să vă asumați repercusiunile?', 'Da.'],
       ['Este permis unui cadru medical să primească atenții de la pacienți?', 'Nu, este strict interzis.'],
@@ -92,13 +94,6 @@ window.MEDICAL_TESTS = {
       { title: '4 — Descarcerare complexă', steps: ['/me securizează zona și verifică scurgerile', '/me folosește ecosorbentul și montează triunghiurile', '/me scoate foarfeca și cleștele hidraulic', '/me analizează daunele', '/me deconectează bateria', '/me taie parbrizul și sparge geamul', '/me taie stâlpul A și deblochează portiera', '/me acționează cricul hidraulic', '/me taie centura și retrage scaunul', '/me montează vesta KED și gulerul cervical', '/me extrage victima', '/me examinează leziunile și aplică atela', '/me urcă victima pe targă și în autospecială', '/me conectează aparatele și monitorizează pacientul'] },
       { title: '5 — Descarcerare de urgență', steps: ['/me securizează zona și verifică scurgerile', '/me oprește activitățile de tăiere', '/me montează triunghiurile și scoate echipamentul', '/me deconectează bateria și creează acces', '/me constată starea victimei', '/me extrage rapid victima din vehicul', '/me începe resuscitarea dacă este inconștientă', '/me execută 30 compresii și 2 ventilații', '/me administrează atropină', '/me montează gulerul cervical', '/me aplică atela și urcă victima pe targă', '/me transportă victima și monitorizează semnele vitale'] }
     ],
-    questions: [
-      ['Ce reprezintă descarcerarea verticală fără scurgeri de combustibil?', 'Tipul 1.'],
-      ['Ce reprezintă descarcerarea posterioară?', 'Tipul 2.'],
-      ['Ce reprezintă descarcerarea verticală?', 'Tipul 3.'],
-      ['Ce reprezintă descarcerarea complexă?', 'Tipul 4.'],
-      ['Ce reprezintă descarcerarea de urgență?', 'Tipul 5.']
-    ]
   },
   'Test ALS': {
     description: 'Certificare ALS Eclipse. Verifică certificatul BLS, permisul categoria B și faptul că au trecut minimum 3 zile de la ultimul test Radio sau BLS. Candidatul trebuie să efectueze minimum 7 interacțiuni /me la punctul R.A.R.',
