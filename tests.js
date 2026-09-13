@@ -85,6 +85,13 @@ window.MEDICAL_TESTS = {
   'Test SMULS': {
     description: 'Certificarea S.M.U.L.S. are două probe: descarcerare și traseu OFF-Road. Verifică testul teoretic, licența navală, permisul categoria B și Stalker-ul full tunat.',
     instructions: 'La descarcerare candidatul alege un număr și efectuează minimum 10 replici /me. Are voie la 2 greșeli; la a 3-a este respins. Traseul are limită de 60 km/h și timp de 5:45 vara sau 6:00 iarna.',
+    cases: [
+      { title: '1 — Descarcerare verticală fără scurgeri de combustibil', steps: ['/me securizează zona și verifică scurgerile de combustibil', '/me folosește ecosorbentul', '/me montează triunghiurile de blocare', '/me scoate trusa, foarfeca și cleștele hidraulic', '/me analizează daunele majore', '/me deconectează bateria', '/me taie parbrizul și stâlpii A și B', '/me decopertează plafonul', '/me elimină obiectele periculoase', '/me montează vesta KED și gulerul cervical', '/me poziționează targa spinală', '/me extrage lent victima', '/me examinează leziunile', '/me curăță și dezinfectează rănile', '/me aplică atela ghipsată', '/me urcă victima pe targă și în autospecială', '/me conectează pacientul la aparate și monitorizează semnele vitale'] },
+      { title: '2 — Descarcerare posterioară', steps: ['/me securizează zona și verifică scurgerile', '/me folosește ecosorbentul', '/me montează triunghiurile de blocare', '/me scoate echipamentul', '/me decupează portbagajul', '/me taie spătarul banchetei', '/me verifică starea de conștiență', '/me ia targa spinală, vesta KED și gulerul cervical', '/me fixează victima', '/me introduce targa sub victimă și o extrage lent', '/me examinează leziunile', '/me curăță și dezinfectează rănile', '/me aplică atela', '/me urcă victima în autospecială', '/me conectează aparatele și monitorizează semnele vitale'] },
+      { title: '3 — Descarcerare verticală prin plafon', steps: ['/me securizează zona și verifică scurgerile', '/me montează triunghiurile de blocare', '/me scoate foarfeca, cleștele și fierăstrăul pneumatic', '/me deconectează bateria', '/me taie parbrizul și stâlpii A și B', '/me decopertează plafonul', '/me elimină obiectele periculoase', '/me montează KED și gulerul cervical', '/me poziționează targa spinală', '/me extrage lent victima', '/me examinează leziunile', '/me curăță rănile și aplică atela', '/me urcă victima în autospecială', '/me conectează aparatele și monitorizează pacientul'] },
+      { title: '4 — Descarcerare complexă', steps: ['/me securizează zona și verifică scurgerile', '/me folosește ecosorbentul și montează triunghiurile', '/me scoate foarfeca și cleștele hidraulic', '/me analizează daunele', '/me deconectează bateria', '/me taie parbrizul și sparge geamul', '/me taie stâlpul A și deblochează portiera', '/me acționează cricul hidraulic', '/me taie centura și retrage scaunul', '/me montează vesta KED și gulerul cervical', '/me extrage victima', '/me examinează leziunile și aplică atela', '/me urcă victima pe targă și în autospecială', '/me conectează aparatele și monitorizează pacientul'] },
+      { title: '5 — Descarcerare de urgență', steps: ['/me securizează zona și verifică scurgerile', '/me oprește activitățile de tăiere', '/me montează triunghiurile și scoate echipamentul', '/me deconectează bateria și creează acces', '/me constată starea victimei', '/me extrage rapid victima din vehicul', '/me începe resuscitarea dacă este inconștientă', '/me execută 30 compresii și 2 ventilații', '/me administrează atropină', '/me montează gulerul cervical', '/me aplică atela și urcă victima pe targă', '/me transportă victima și monitorizează semnele vitale'] }
+    ],
     questions: [
       ['Ce reprezintă descarcerarea verticală fără scurgeri de combustibil?', 'Tipul 1.'],
       ['Ce reprezintă descarcerarea posterioară?', 'Tipul 2.'],
@@ -97,7 +104,6 @@ window.MEDICAL_TESTS = {
     description: 'Certificare ALS Eclipse. Verifică certificatul BLS, permisul categoria B și faptul că au trecut minimum 3 zile de la ultimul test Radio sau BLS. Candidatul trebuie să efectueze minimum 7 interacțiuni /me la punctul R.A.R.',
     instructions: 'Proba are maximum 2 greșeli; la a 3-a candidatul este respins. Testerul este victima. Verifică folosirea completă a tărgii și cazul ales de candidat. Locația R.A.R.: https://imgur.com/a/KBRtGxU. Parcarea testului: https://imgur.com/a/xAfJ4NC.',
     maxWrong: 2,
-    cooldownDays: 3,
     images: [
       { label: 'Punctul R.A.R.', url: 'https://imgur.com/a/KBRtGxU' },
       { label: 'Parcarea testului', url: 'https://imgur.com/a/xAfJ4NC' }
@@ -119,7 +125,6 @@ window.MEDICAL_TESTS = {
     description: 'Brevet de parașutist. Testul are probă teoretică și probă practică. Teoria permite o greșeală; la a doua este respins. Proba practică nu permite nicio greșeală și necesită filmare.',
     instructions: 'Verifică gradul minim Medic-Specialist, pilotul cu brevet, stația comună și minimum 4 parașute, dintre care 3 pentru candidat. Filmarea este obligatorie pentru validarea aterizărilor.',
     maxWrong: 1,
-    cooldownDays: 5,
     images: [],
     practical: [
       { name: 'Săritura ușoară', location: 'Port-avionul de lângă insula exotică', altitude: '1000 m', landing: 'Toată pista port-avionului', images: [] },
