@@ -1,6 +1,6 @@
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const SHEET_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:T400';
-const GRANTS_RANGE = process.env.GOOGLE_GRANTS_RANGE || 'GRANTS!A1:D';
+const GRANTS_RANGE = process.env.GOOGLE_GRANTS_RANGE || 'GRANTS!A1:E';
 
 export default async function handler(req, res) {
   const allowedOrigin = process.env.APP_ORIGIN || 'https://site-wheat-zeta-76.vercel.app';
@@ -67,7 +67,8 @@ function accessFor(csNum, functions, rank, dept) {
   const normalizedDept = normalize(dept);
   const isConducere = (csNum >= 1 && csNum <= 15) || ['DIRECTOR', 'INSPECTOR', 'CONDUCERE', 'MANAGER', 'COORDONATOR'].some(x => normalizedRank.includes(x)) || ['CONDUCERE', 'MEDICAL'].some(x => normalizedDept.includes(x));
   const catalog = ['Test admitere', 'Test transfer', 'Adeverință medicală', 'Test SMULS', 'Test MOTO', 'Test ALS', 'Test PILOT', 'Test parașutiști'];
-  const allowedTests = isConducere ? catalog : csNum >= 200 ? ['Test admitere', 'Test transfer', 'Adeverință medicală'] : [];
+  const isTester = /TESTER/.test(normalize(functions));
+  const allowedTests = isConducere || isTester ? (isConducere ? catalog : ['Test admitere', 'Test transfer', 'Adeverință medicală']) : [];
   const eligibleSpecializations = [];
   if (hasFunction(functions, /SMULS|\|\s*S\s*\|/)) eligibleSpecializations.push('Test SMULS');
   if (hasFunction(functions, /MOTO|\|\s*M\s*\|/)) eligibleSpecializations.push('Test MOTO');

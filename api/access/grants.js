@@ -1,6 +1,6 @@
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:T400';
-const GRANTS_RANGE = process.env.GOOGLE_GRANTS_RANGE || 'GRANTS!A1:D';
+const GRANTS_RANGE = process.env.GOOGLE_GRANTS_RANGE || 'GRANTS!A1:E';
 const catalog = ['Test admitere', 'Test transfer', 'Adeverință medicală', 'Test SMULS', 'Test MOTO', 'Test ALS', 'Test PILOT', 'Test parașutiști'];
 
 function normalize(value = '') { return String(value).toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim(); }
@@ -54,7 +54,7 @@ async function readGrants(sheets) {
   try {
     await ensureGrantsSheet(sheets);
     const rows = await readValues(sheets, GRANTS_RANGE);
-    return rows.slice(1).filter(Array.isArray).map(row => ({ discordId: String(row[0] || '').trim(), callsign: String(row[1] || '').trim(), grantedTests: normalizeTests(String(row[2] || '').split('|')), updatedAt: String(row[3] || '').trim() }));
+    return rows.slice(1).filter(Array.isArray).map(row => ({ discordId: String(row[0] || '').trim(), callsign: String(row[1] || '').trim(), grantedTests: normalizeTests(String(row[2] || '').split('|')), updatedAt: String(row[3] || '').trim(), lastSeen: String(row[4] || '').trim() }));
   } catch (error) {
     if (String(error.message || '').includes('Unable to parse range')) return [];
     throw error;
@@ -62,7 +62,7 @@ async function readGrants(sheets) {
 }
 async function writeGrants(sheets, grants) {
   await ensureGrantsSheet(sheets);
-  const values = [['discordId', 'callsign', 'grantedTests', 'updatedAt'], ...grants.map(grant => [grant.discordId, grant.callsign, normalizeTests(grant.grantedTests).join('|'), grant.updatedAt])];
+  const values = [['discordId', 'callsign', 'grantedTests', 'updatedAt', 'lastSeen'], ...grants.map(grant => [grant.discordId, grant.callsign, normalizeTests(grant.grantedTests).join('|'), grant.updatedAt, grant.lastSeen || ''])];
   await sheets.spreadsheets.values.clear({ spreadsheetId: SHEET_ID, range: GRANTS_RANGE });
   await sheets.spreadsheets.values.update({ spreadsheetId: SHEET_ID, range: GRANTS_RANGE, valueInputOption: 'RAW', requestBody: { values } });
 }
@@ -79,7 +79,7 @@ export default async function handler(req, res) {
       const requester = memberRows.find(row => String(row[19] || '').trim() === requesterId.trim());
       if (!requester) return json(res, 403, { error: 'Requester is not a department member' });
       const grantRows = (await readPublicValues(GRANTS_RANGE).catch(() => [])).slice(1).filter(Array.isArray);
-      const grants = grantRows.map(row => ({ discordId: String(row[0] || '').trim(), callsign: String(row[1] || '').trim(), grantedTests: normalizeTests(String(row[2] || '').split('|')), updatedAt: String(row[3] || '').trim() }));
+      const grants = grantRows.map(row => ({ discordId: String(row[0] || '').trim(), callsign: String(row[1] || '').trim(), grantedTests: normalizeTests(String(row[2] || '').split('|')), updatedAt: String(row[3] || '').trim(), lastSeen: String(row[4] || '').trim() }));
       const visibleGrants = isLeadership(requester) ? grants : grants.filter(grant => grant.discordId === requesterId.trim());
       return json(res, 200, { grants: visibleGrants });
     }
@@ -96,9 +96,13 @@ export default async function handler(req, res) {
     if (!String(target[3] || '').trim()) return json(res, 422, { error: 'Target callsign is free because column D has no name' });
     if (!String(target[19] || '').trim()) return json(res, 422, { error: 'Target member has no Discord ID in column T' });
     const targetDiscordId = String(target[19] || '').trim();
-    const updated = { discordId: targetDiscordId, callsign: String(target[2] || targetCallsign).trim(), grantedTests: normalizeTests(req.body.grantedTests), updatedAt: new Date().toISOString() };
-    const next = [...grants.filter(grant => grant.discordId !== targetDiscordId), updated];
-    await writeGrants(sheets, next);
+    const next = grants.filter(grant => grant.discordId !== targetDiscordId);
+    if (req.body.remove === true) {
+      await writeGrants(sheets, next);
+      return json(res, 200, { success: true, removed: true, discordId: targetDiscordId });
+    }
+    const updated = { discordId: targetDiscordId, callsign: String(target[2] || targetCallsign).trim(), grantedTests: normalizeTests(req.body.grantedTests), updatedAt: new Date().toISOString(), lastSeen: '' };
+    await writeGrants(sheets, [...next, updated]);
     return json(res, 200, { success: true, grant: updated });
   } catch (error) {
     console.error('Grant storage failed:', error);

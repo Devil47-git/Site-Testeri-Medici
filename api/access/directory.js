@@ -1,14 +1,30 @@
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:T400';
-const GRANTS_RANGE = process.env.GOOGLE_GRANTS_RANGE || 'GRANTS!A1:D';
+const GRANTS_RANGE = process.env.GOOGLE_GRANTS_RANGE || 'GRANTS!A1:E';
 function normalize(value = '') { return String(value).toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim(); }
 function callsignNumber(value = '') { return Number(String(value).replace(/\D/g, '')) || 0; }
 function isLeadership(row) {
   const number = callsignNumber(row[2]); const rank = normalize(row[4]); const dept = normalize(row[5]);
-  return (number >= 1 && number <= 15) || ['DIRECTOR', 'INSPECTOR', 'CONDUCERE', 'MANAGER', 'COORDONATOR'].some(value => rank.includes(value)) || ['CONDUCERE', 'MEDICAL'].some(value => dept.includes(value));
+  return (number >= 1 && number <= 15) || /DIRECTOR GENERAL|DIRECTOR ADJUNCT|MEDIC INSPECTOR|MEDIC CHIRURG/.test(`${rank} ${dept} ${row[10] || ''}`);
 }
 function readTests(value = '') { return String(value).split('|').filter(Boolean); }
-function specialtyTests(functions = '') { const value = normalize(functions); return ['Test ALS','Test SMULS','Test MOTO','Test PILOT','Test parașutiști'].filter(test => value.includes(normalize(test.replace('Test ', ''))) || (test === 'Test parașutiști' && value.includes('PARA'))); }
+function relevantMember(row) {
+  const number = callsignNumber(row[2]);
+  const functions = normalize(row[10]);
+  if (!number || number > 399 || !String(row[3] || '').trim()) return false;
+  if (number <= 15) return true;
+  if (number >= 100 && number < 200) return Boolean(functions);
+  if (number >= 200 && number < 300) return Boolean(functions);
+  return number >= 300 && /TESTER/.test(functions);
+}
+function leadershipTitle(row) {
+  const value = normalize(`${row[4] || ''} ${row[10] || ''}`);
+  if (value.includes('DIRECTOR GENERAL')) return 'Director General';
+  if (value.includes('DIRECTOR ADJUNCT')) return 'Director Adjunct';
+  if (value.includes('MEDIC INSPECTOR')) return 'Medic Inspector';
+  if (value.includes('MEDIC CHIRURG')) return 'Medic Chirurg';
+  return String(row[4] || row[10] || 'Conducere').trim();
+}
 async function readPublic(range) {
   const key = process.env.GOOGLE_API_KEY;
   if (!key) throw new Error('GOOGLE_API_KEY is not configured');
@@ -28,10 +44,10 @@ export default async function handler(req, res) {
     const requester = members.find(row => String(row[19] || '').trim() === requesterId);
     if (!requester) return json(res, 403, { error: 'Requester is not a department member' });
     const grants = (await readPublic(GRANTS_RANGE).catch(() => [])).slice(1).filter(Array.isArray);
-    const grantsByDiscord = new Map(grants.map(row => [String(row[0] || '').trim(), readTests(row[2])]));
-    const result = members.filter(row => String(row[3] || '').trim()).map(row => ({
-      discordId: String(row[19] || '').trim(), name: String(row[3] || '').trim(), callsign: String(row[2] || '').trim(), csNum: callsignNumber(row[2]), rank: String(row[4] || '').trim(), dept: String(row[5] || '').trim(), functions: String(row[10] || '').trim(), gradeGroup: callsignNumber(row[2]) < 16 ? 'Conducerea departamentului' : `${Math.max(100, Math.floor(callsignNumber(row[2]) / 100) * 100)}`,
-      isLeadership: isLeadership(row), grantedTests: [...new Set([...specialtyTests(row[10]), ...(grantsByDiscord.get(String(row[19] || '').trim()) || [])])], isTester: /TESTER/.test(normalize(row[10])) || callsignNumber(row[2]) >= 200 || grantsByDiscord.has(String(row[19] || '').trim())
+    const grantsByDiscord = new Map(grants.map(row => [String(row[0] || '').trim(), { grantedTests: readTests(row[2]), updatedAt: String(row[3] || '').trim(), lastSeen: String(row[4] || '').trim() }]));
+    const result = members.filter(relevantMember).map(row => ({
+      discordId: String(row[19] || '').trim(), name: String(row[3] || '').trim(), callsign: String(row[2] || '').trim(), csNum: callsignNumber(row[2]), rank: isLeadership(row) ? leadershipTitle(row) : String(row[4] || '').trim(), dept: String(row[5] || '').trim(), functions: String(row[10] || '').trim(), gradeGroup: callsignNumber(row[2]) < 16 ? 'Conducerea departamentului' : `${Math.floor(callsignNumber(row[2]) / 100) * 100}`,
+      isLeadership: isLeadership(row), leadershipTitle: isLeadership(row) ? leadershipTitle(row) : '', grantedTests: grantsByDiscord.get(String(row[19] || '').trim())?.grantedTests || [], updatedAt: grantsByDiscord.get(String(row[19] || '').trim())?.updatedAt || '', lastSeen: grantsByDiscord.get(String(row[19] || '').trim())?.lastSeen || '', isTester: callsignNumber(row[2]) >= 200 || /TESTER/.test(normalize(row[10])) || grantsByDiscord.has(String(row[19] || '').trim())
     }));
     return json(res, 200, { members: result, syncedAt: new Date().toISOString() });
   } catch (error) {
