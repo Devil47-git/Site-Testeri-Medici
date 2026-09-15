@@ -2,7 +2,8 @@ const coreTests = ['Test admitere','Test transfer','Adeverință medicală'];
 const specialtyTests = ['Test ALS','Test SMULS','Test MOTO','Test PILOT','Test parașutiști'];
 const catalog = [...coreTests, ...specialtyTests];
 const TEST_CATALOG_KEY = 'medici-test-catalog-v4';
-let testDefinitions = JSON.parse(localStorage.getItem(TEST_CATALOG_KEY) || 'null') || window.MEDICAL_TESTS || Object.fromEntries(catalog.map(name => [name, { name, description: `Acces disponibil pentru ${name}.`, questions: [] }]));
+function readStored(key, fallback) { try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; } catch { return fallback; } }
+let testDefinitions = readStored(TEST_CATALOG_KEY, null) || window.MEDICAL_TESTS || Object.fromEntries(catalog.map(name => [name, { name, description: `Acces disponibil pentru ${name}.`, questions: [] }]));
 function saveTestDefinitions() { localStorage.setItem(TEST_CATALOG_KEY, JSON.stringify(testDefinitions)); }
 const rows = document.querySelector('#tester-rows');
 const viewContent = document.querySelector('#view-content');
@@ -10,7 +11,7 @@ const roleColors = ['cyan','orange','violet','green'];
 let activeTesterFilter = 'all';
 const GRANTS_KEY = 'medici-grants';
 let currentUser = null;
-let testers = JSON.parse(localStorage.getItem(GRANTS_KEY) || '[]');
+let testers = readStored(GRANTS_KEY, []);
 function saveTesters() { localStorage.setItem(GRANTS_KEY, JSON.stringify(testers)); }
 function refreshCurrentView() { const active = document.querySelector('.nav-item.active')?.dataset.view || 'overview'; renderView(active); }
 function candidateSummary(member, result = 'Admis') { if (!member) return ''; return `Candidat: @[${normalizeCallsign(member.callsign)}] ${member.name || '—'}\nGrad: ${member.rank || '—'}\nRezultat: ${result}`; }
@@ -19,11 +20,19 @@ async function loadRemoteGrants() {
   const response = await fetch(`/api/access/grants?requesterId=${encodeURIComponent(currentUser.discordId)}`);
   if (!response.ok) return;
   const payload = await response.json();
+  const grantsPayload = Array.isArray(payload?.grants) ? payload.grants : [];
+  if (!Array.isArray(payload?.grants)) {
+    testers = [];
+    saveTesters();
+    renderRows();
+    refreshCurrentView();
+    return;
+  }
   if (isLeadershipUser(currentUser)) {
-    const grants = payload.grants || [];
+    const grants = grantsPayload;
     testers = directoryMembers.length ? directoryMembers.filter(member => member.isTester || memberIsTester(member)).map(member => { const grant = grants.find(item => item.discordId === member.discordId); return { ...member, ...grant, grantedTests: grant?.grantedTests || member.grantedTests || [] }; }) : grants;
   } else {
-    const ownGrant = (payload.grants || []).find(grant => grant.discordId === currentUser.discordId);
+    const ownGrant = grantsPayload.find(grant => grant.discordId === currentUser.discordId);
     currentUser.grantedTests = ownGrant?.grantedTests || currentUser.grantedTests || [];
     testers = ownGrant ? [ownGrant] : [];
   }
@@ -71,6 +80,29 @@ function renderDashboardData() {
   if (overview) overview.dataset.updatedAt = new Date().toISOString();
   document.querySelector('#sync-panel')?.toggleAttribute('hidden', !isLeadershipUser(currentUser));
 }
+function renderTestsView(title) {
+  return `<div class="panel view-panel"><div class="panel-head"><div><h2>${title}</h2><p class="muted">Instrument pentru testeri. Tu poți deschide orice test disponibil oricând.</p></div></div><div class="test-cards">${allowedForUser(currentUser).map(test => `<article class="test-card"><h3>${test}</h3><p class="muted">${testDefinitions[test]?.description || 'Test disponibil.'}</p><button class="primary" data-test="${test}">Deschide ghidul</button></article>`).join('') || '<div class="empty-state">Nu ai teste disponibile.</div>'}</div></div>`;
+}
+function renderTestersView() {
+  const grouped = [{ title: 'TESTER GENERAL', members: testers.filter(member => (member.grantedTests || []).some(test => coreTests.includes(test)) && !(member.grantedTests || []).some(test => specialtyTests.includes(test))) }, ...specialtyTests.map(test => ({ title: test, members: testers.filter(member => (member.grantedTests || []).includes(test)) }))].filter(group => group.members.length);
+  return `<div class="panel view-panel"><div class="panel-head"><div><h2>Testerii departamentului</h2><p class="muted">Testerii sunt grupați după specializare. Admiterea, transferul și adeverința sunt acces general.</p></div>${isLeadershipUser(currentUser) ? '<button class="primary" id="view-add">＋ Adaugă tester</button>' : ''}</div>${grouped.map(group => `<section class="tester-group"><h3>${group.title}</h3><div class="table-wrap"><table><thead><tr><th>TESTER</th><th>CALLSIGN</th><th>DATA</th><th>ACȚIUNI</th></tr></thead><tbody>${group.members.map(member => `<tr><td>${member.name || 'Membru departament'}</td><td>${normalizeCallsign(member.callsign)}</td><td>${dateOnly(member.updatedAt)}</td><td>${isLeadershipUser(currentUser) ? `<button type="button" class="outline danger-button" data-remove-member="${normalizeCallsign(member.callsign)}">Scoate accesul</button>` : '—'}</td></tr>`).join('')}</tbody></table></div></section>`).join('') || '<div class="empty-state">Nu există testeri.</div>'}</div>`;
+}
+function renderMembersView() {
+  const groups = ['Conducerea departamentului', ...new Set(directoryMembers.filter(member => !memberIsLeadership(member)).map(member => member.gradeGroup).sort((a, b) => Number(a) - Number(b)))];
+  return `<div class="panel view-panel"><h2>Membri departament</h2><p class="muted">Membrii relevanți ai departamentului sunt grupați după conducere și grade.</p>${groups.map(group => { const members = sortMembers(directoryMembers.filter(member => group === 'Conducerea departament' ? memberIsLeadership(member) : !memberIsLeadership(member) && member.gradeGroup === group)); return members.length ? `<section class="member-group"><h3>${group}</h3><div class="table-wrap"><table><thead><tr><th>FUNCȚIE</th><th>NUME</th><th>CALLSIGN</th><th>GRAD</th></tr></thead><tbody>${members.map(member => `<tr><td>${member.leadershipTitle || leadershipTitleForCallsign(member.callsign) || member.functions || '—'}</td><td>${member.name || '—'}</td><td>${normalizeCallsign(member.callsign)}</td><td>${member.rank || member.gradeGroup}</td></tr>`).join('')}</tbody></table></div></section>` : ''; }).join('')}</div>`;
+}
+function renderSettingsView(title) {
+  return `<div class="panel view-panel"><h2>${title}</h2><p class="muted">Gestionează preferințele și sesiunea contului tău.</p><div class="settings-list"><p><b>Identitate:</b> ${currentUser?.name || '—'}</p><p><b>Callsign:</b> ${normalizeCallsign(currentUser?.callsign || currentUser?.callSign)}</p><p><b>Nivel acces:</b> ${isLeadershipUser(currentUser) ? 'Conducere' : 'Tester'}</p>${isLeadershipUser(currentUser) ? `<hr><h3>Configurare teste</h3><p class="muted">Poți importa aici textul testului; îl voi transforma automat în întrebări după structura fișierului.</p><label>Test<select id="test-editor-select">${catalog.map(test => `<option value="${test}">${test}</option>`).join('')}</select></label><input id="test-file-input" type="file" accept=".txt,.md,.json"><textarea id="test-editor-json" rows="8"></textarea><button class="primary" id="save-test-definition">Salvează testul</button><span id="test-editor-status" class="muted"></span>` : ''}<hr><button class="outline danger-button" id="logout-btn">Deconectează-te</button></div></div>`;
+}
+function wireTestersEvents() {
+  const add = document.querySelector('#view-add'); if (add) add.onclick = () => document.querySelector('#add-btn').click();
+  viewContent.querySelectorAll('[data-' + 'remove-member]').forEach(btn => btn.onclick = async () => { if (!isLeadershipUser(currentUser)) return; try { await saveRemoteGrant(btn.dataset.removeMember, [], true, testers.find(member => normalizeCallsign(member.callsign) === btn.dataset.removeMember)?.discordId || ''); testers = testers.filter(member => normalizeCallsign(member.callsign) !== btn.dataset.removeMember); saveTesters(); renderRows(); renderDashboardData(); renderView('testers'); } catch (error) { alert(error.message); }); // removed-duplicate
+}
+function wireSettingsEvents() {
+  const logout = document.querySelector('#logout-btn'); if (logout) logout.onclick = () => { localStorage.removeItem(AUTH_STORAGE_KEY); window.location.reload(); };
+  const editor = document.querySelector('#test-editor-select'); const editorJson = document.querySelector('#test-editor-json'); const editorStatus = document.querySelector('#test-editor-status');
+  if (editor && editorJson) { const loadDefinition = () => { editorJson.value = JSON.stringify(testDefinitions[editor.value], null, 2); }; editor.onchange = loadDefinition; loadDefinition(); const fileInput = document.querySelector('#test-file-input'); if (fileInput) fileInput.onchange = async () => { const file = fileInput.files?.[0]; if (!file) return; editorJson.value = await file.text(); editorStatus.textContent = 'Fișier încărcat. Verifică și salvează.'; }; document.querySelector('#save-test-definition').onclick = () => { try { const value = JSON.parse(editorJson.value); testDefinitions[editor.value] = { ...value, name: editor.value }; saveTestDefinitions(); editorStatus.textContent = 'Salvat'; renderView('settings'); } catch { editorStatus.textContent = 'Format invalid. Pentru moment folosește JSON; după ce primesc Notepad-ul adaptez importul exact.'; } }; }
+}
 function renderView(view) {
   const overview = document.querySelector('#overview-view');
   const isOverview = view === 'overview';
@@ -81,19 +113,11 @@ function renderView(view) {
   if (isOverview) return;
   const title = labels[view] || 'Spațiul tău';
   document.querySelector('#section-label').textContent = view === 'settings' || view === 'members' ? 'Administrare' : 'Generale';
-  if (view === 'tests') viewContent.innerHTML = `<div class="panel view-panel"><div class="panel-head"><div><h2>${title}</h2><p class="muted">Instrument pentru testeri. Tu poți deschide orice test disponibil oricând.</p></div></div><div class="test-cards">${allowedForUser(currentUser).map(test => `<article class="test-card"><h3>${test}</h3><p class="muted">${testDefinitions[test]?.description || 'Test disponibil.'}</p><button class="primary" data-test="${test}">Deschide ghidul</button></article>`).join('') || '<div class="empty-state">Nu ai teste disponibile.</div>'}</div></div>`;
-  else if (view === 'testers') {
-    const grouped = [{ title: 'TESTER GENERAL', members: testers.filter(member => (member.grantedTests || []).some(test => coreTests.includes(test)) && !(member.grantedTests || []).some(test => specialtyTests.includes(test))) }, ...specialtyTests.map(test => ({ title: test, members: testers.filter(member => (member.grantedTests || []).includes(test)) }))].filter(group => group.members.length);
-    viewContent.innerHTML = `<div class="panel view-panel"><div class="panel-head"><div><h2>Testerii departamentului</h2><p class="muted">Testerii sunt grupați după specializare. Admiterea, transferul și adeverința sunt acces general.</p></div>${isLeadershipUser(currentUser) ? '<button class="primary" id="view-add">＋ Adaugă tester</button>' : ''}</div>${grouped.map(group => `<section class="tester-group"><h3>${group.title}</h3><div class="table-wrap"><table><thead><tr><th>TESTER</th><th>CALLSIGN</th><th>DATA</th><th>ACȚIUNI</th></tr></thead><tbody>${group.members.map(member => `<tr><td>${member.name || 'Membru departament'}</td><td>${normalizeCallsign(member.callsign)}</td><td>${dateOnly(member.updatedAt)}</td><td>${isLeadershipUser(currentUser) ? `<button type="button" class="outline danger-button" data-remove-member="${normalizeCallsign(member.callsign)}">Scoate accesul</button>` : '—'}</td></tr>`).join('')}</tbody></table></div></section>`).join('') || '<div class="empty-state">Nu există testeri.</div>'}</div>`;
-  } else if (view === 'members') {
-        const groups = ['Conducerea departamentului', ...new Set(directoryMembers.filter(member => !memberIsLeadership(member)).map(member => member.gradeGroup).sort((a, b) => Number(a) - Number(b)))];
-    viewContent.innerHTML = `<div class="panel view-panel"><h2>Membri departament</h2><p class="muted">Membrii relevanți ai departamentului sunt grupați după conducere și grade.</p>${groups.map(group => { const members = sortMembers(directoryMembers.filter(member => group === 'Conducerea departament' ? memberIsLeadership(member) : !memberIsLeadership(member) && member.gradeGroup === group)); return members.length ? `<section class="member-group"><h3>${group}</h3><div class="table-wrap"><table><thead><tr><th>FUNCȚIE</th><th>NUME</th><th>CALLSIGN</th><th>GRAD</th></tr></thead><tbody>${members.map(member => `<tr><td>${member.leadershipTitle || leadershipTitleForCallsign(member.callsign) || member.functions || '—'}</td><td>${member.name || '—'}</td><td>${normalizeCallsign(member.callsign)}</td><td>${member.rank || member.gradeGroup}</td></tr>`).join('')}</tbody></table></div></section>` : ''; }).join('')}</div>`;
-  } else viewContent.innerHTML = `<div class="panel view-panel"><h2>${title}</h2><p class="muted">Gestionează preferințele și sesiunea contului tău.</p><div class="settings-list"><p><b>Identitate:</b> ${currentUser?.name || '—'}</p><p><b>Callsign:</b> ${normalizeCallsign(currentUser?.callsign || currentUser?.callSign)}</p><p><b>Nivel acces:</b> ${isLeadershipUser(currentUser) ? 'Conducere' : 'Tester'}</p>${isLeadershipUser(currentUser) ? `<hr><h3>Configurare teste</h3><p class="muted">Poți importa aici textul testului; îl voi transforma automat în întrebări după structura fișierului.</p><label>Test<select id="test-editor-select">${catalog.map(test => `<option value="${test}">${test}</option>`).join('')}</select></label><input id="test-file-input" type="file" accept=".txt,.md,.json"><textarea id="test-editor-json" rows="8"></textarea><button class="primary" id="save-test-definition">Salvează testul</button><span id="test-editor-status" class="muted"></span>` : ''}<hr><button class="outline danger-button" id="logout-btn">Deconectează-te</button></div></div>`;
-  const add = document.querySelector('#view-add'); if (add) add.onclick = () => document.querySelector('#add-btn').click();
-  viewContent.querySelectorAll('[data-remove-member]').forEach(button => button.onclick = async () => { if (!isLeadershipUser(currentUser)) return; try { await saveRemoteGrant(button.dataset.removeMember, [], true, testers.find(member => normalizeCallsign(member.callsign) === button.dataset.removeMember)?.discordId || ''); testers = testers.filter(member => normalizeCallsign(member.callsign) !== button.dataset.removeMember); saveTesters(); renderRows(); renderDashboardData(); renderView('testers'); } catch (error) { alert(error.message); } });
-  const logout = document.querySelector('#logout-btn'); if (logout) logout.onclick = () => { localStorage.removeItem(AUTH_STORAGE_KEY); window.location.reload(); };
-  const editor = document.querySelector('#test-editor-select'); const editorJson = document.querySelector('#test-editor-json'); const editorStatus = document.querySelector('#test-editor-status');
-  if (editor && editorJson) { const loadDefinition = () => { editorJson.value = JSON.stringify(testDefinitions[editor.value], null, 2); }; editor.onchange = loadDefinition; loadDefinition(); const fileInput = document.querySelector('#test-file-input'); if (fileInput) fileInput.onchange = async () => { const file = fileInput.files?.[0]; if (!file) return; editorJson.value = await file.text(); editorStatus.textContent = 'Fișier încărcat. Verifică și salvează.'; }; document.querySelector('#save-test-definition').onclick = () => { try { const value = JSON.parse(editorJson.value); testDefinitions[editor.value] = { ...value, name: editor.value }; saveTestDefinitions(); editorStatus.textContent = 'Salvat'; renderView('settings'); } catch { editorStatus.textContent = 'Format invalid. Pentru moment folosește JSON; după ce primesc Notepad-ul adaptez importul exact.'; } }; }
+  if (view === 'tests') viewContent.innerHTML = renderTestsView(title);
+  else if (view === 'testers') { viewContent.innerHTML = renderTestersView(); wireTestersEvents(); }
+  else if (view === 'members') viewContent.innerHTML = renderMembersView();
+  else { viewContent.innerHTML = renderSettingsView(title); wireSettingsEvents(); }
+  // redundant remove-member wiring; handled by wireTestersEvents() try { await saveRemoteGrant(button.dataset.removeMember, [], true, testers.find(member => normalizeCallsign(member.callsign) === button.dataset.removeMember)?.discordId || ''); testers = testers.filter(member => normalizeCallsign(member.callsign) !== button.dataset.removeMember); saveTesters(); renderRows(); renderDashboardData(); renderView('testers'); } catch (error) { alert(error.message); } });
   viewContent.querySelectorAll('[data-test]').forEach(button => button.onclick = () => openTest(button.dataset.test));
 }
 function openTest(testName) {
@@ -101,11 +125,16 @@ function openTest(testName) {
   const questions = Array.isArray(definition.questions) ? definition.questions : [];
   const previousView = document.querySelector('.nav-item.active')?.dataset.view || 'tests';
   if (window.history.state?.view !== 'test') window.history.pushState({ view: 'test', testName, previousView }, '', `#test-${encodeURIComponent(testName)}`);
+  viewContent.innerHTML = buildTestMarkup(testName, definition, questions);
+  wireTestEvents(definition);
+}
+function buildTestMarkup(testName, definition, questions) {
   const images = (definition.images || []).map(image => `<a class="test-image-link" href="${image.url}" target="_blank" rel="noopener">${image.label || 'Deschide imaginea'}</a>`).join('');
   const cases = (definition.cases || []).map((item, index) => `<option value="${index}">${item.title}</option>`).join('');
   const practical = (definition.practical || []).map((item, index) => `<option value="${index}">${item.name}</option>`).join('');
-
-  viewContent.innerHTML = `<div class="panel view-panel"><div class="panel-head"><div><p class="eyebrow">GHID PENTRU TESTER</p><h2>${testName}</h2><p class="muted">Acces permanent pentru testerul conectat: ${normalizeCallsign(currentUser?.callsign)}.</p></div><button class="outline" id="back-to-tests">← Înapoi</button></div><p class="muted">${definition.description}</p><p class="test-instructions">${definition.instructions || ''}</p>${images ? `<div class="test-images">${images}</div>` : ''}${cases ? `<label>Cazul ales de candidat<select id="case-select">${cases}</select></label><div id="case-steps" class="case-steps"></div>` : ''}${practical ? `<label>Probă practică<select id="practical-select">${practical}</select></label><div id="practical-steps" class="case-steps"></div>` : ''}${questions.length ? `<form id="test-form" class="question-list"><label>Callsign candidat<input id="candidate-callsign" type="text" placeholder="510 sau M-510"></label><div id="candidate-summary" class="candidate-summary"></div>${testName === 'Test admitere' || testName === 'Test transfer' || testName === 'Adeverință medicală' ? `<label>Imagine document candidat<input id="candidate-document" type="file" accept="image/*"></label><p class="muted">Imaginea este disponibilă testerului pentru verificare manuală.</p>` : ''}${questions.map((question, index) => `<fieldset><legend>${index + 1}. ${question.text}</legend><div class="correct-answer"><b>Răspuns:</b><span>${question.answer || 'Verifică ghidul.'}</span></div><label class="answer-check"><input type="checkbox" data-wrong="${index}"> Răspuns greșit</label></fieldset>`).join('')}<p>Greșeli: <strong id="wrong-count">0</strong> / ${definition.maxWrong ?? '—'}</p><button class="primary" type="submit">Finalizează evaluarea</button></form>` : '<div class="test-runner"><p>Acest ghid nu are întrebări teoretice configurate.</p></div>'}</div>`;
+  return `<div class="panel view-panel"><div class="panel-head"><div><p class="eyebrow">GHID PENTRU TESTER</p><h2>${testName}</h2><p class="muted">Acces permanent pentru testerul conectat: ${normalizeCallsign(currentUser?.callsign)}.</p></div><button class="outline" id="back-to-tests">← Înapoi</button></div><p class="muted">${definition.description}</p><p class="test-instructions">${definition.instructions || ''}</p>${images ? `<div class="test-images">${images}</div>` : ''}${cases ? `<label>Cazul ales de candidat<select id="case-select">${cases}</select></label><div id="case-steps" class="case-steps"></div>` : ''}${practical ? `<label>Probă practică<select id="practical-select">${practical}</select></label><div id="practical-steps" class="case-steps"></div>` : ''}${questions.length ? `<form id="test-form" class="question-list"><label>Callsign candidat<input id="candidate-callsign" type="text" placeholder="510 sau M-510"></label><div id="candidate-summary" class="candidate-summary"></div>${testName === 'Test admitere' || testName === 'Test transfer' || testName === 'Adeverință medicală' ? `<label>Imagine document candidat<input id="candidate-document" type="file" accept="image/*"></label><p class="muted">Imaginea este disponibilă testerului pentru verificare manuală.</p>` : ''}${questions.map((question, index) => `<fieldset><legend>${index + 1}. ${question.text}</legend><div class="correct-answer"><b>Răspuns:</b><span>${question.answer || 'Verifică ghidul.'}</span></div><label class="answer-check"><input type="checkbox" data-wrong="${index}"> Răspuns greșit</label></fieldset>`).join('')}<p>Greșeli: <strong id="wrong-count">0</strong> / ${definition.maxWrong ?? '—'}</p><button class="primary" type="submit">Finalizează evaluarea</button></form>` : '<div class="test-runner"><p>Acest ghid nu are întrebări teoretice configurate.</p></div>'}</div>`;
+}
+function wireTestEvents(definition) {
   document.querySelector('#back-to-tests').onclick = () => renderView('tests');
   const caseSelect = document.querySelector('#case-select'); const caseSteps = document.querySelector('#case-steps');
   const renderCase = () => { if (!caseSelect || !caseSteps) return; const item = definition.cases[Number(caseSelect.value)]; caseSteps.innerHTML = `<h3>${item.title}</h3><p>Minimum interacțiuni: ${item.minimumMe || 0} /me</p><ol>${item.steps.map(step => `<li>${step}</li>`).join('')}</ol>`; }; if (caseSelect) { caseSelect.onchange = renderCase; renderCase(); }
@@ -162,7 +191,7 @@ const AUTH_STORAGE_KEY='medici-auth';
 const AUTH_SCHEMA_VERSION=3;
 const AUTH_TTL=2*24*60*60*1000;
 const PRESENCE_KEY='medici-presence';
-function markPresence() { if (!currentUser?.discordId) return; const presence = JSON.parse(localStorage.getItem(PRESENCE_KEY) || '{}'); presence[currentUser.discordId] = Date.now(); localStorage.setItem(PRESENCE_KEY, JSON.stringify(presence)); }
+function markPresence() { if (!currentUser?.discordId) return; const presence = readStored(PRESENCE_KEY, {}); presence[currentUser.discordId] = Date.now(); localStorage.setItem(PRESENCE_KEY, JSON.stringify(presence)); }
 function isActive(member) { return Number(member.lastSeen || 0) > Date.now() - 120000; }
 async function sendPresence() { if (!currentUser?.discordId) return; await fetch('/api/access/presence', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ discordId: currentUser.discordId }) }).catch(() => {}); }
 window.addEventListener('storage', event => { if (event.key === PRESENCE_KEY) { renderRows(); refreshCurrentView(); } });
@@ -197,13 +226,18 @@ async function exchangeCallbackCode(){
 }
 async function verifyCachedUser(user) {
   if (!user?.discordId) return false;
-  const response = await fetch(`/api/access/directory?requesterId=${encodeURIComponent(user.discordId)}`);
-  return response.ok;
+  try {
+    const response = await fetch('/api/session', { credentials: 'same-origin' });
+    if (response.status === 401) return false;
+    if (!response.ok) return false;
+    const payload = await response.json().catch(() => null);
+    return Boolean(payload?.authorized);
+  } catch { return false; }
 }
 async function startSession(){
   try{
     const callbackUser=await exchangeCallbackCode(); if(callbackUser) return enterApp(callbackUser);
-    const cached=JSON.parse(localStorage.getItem(AUTH_STORAGE_KEY)||'null');
+    const cached=readStored(AUTH_STORAGE_KEY, null);
     if(cached?.version===AUTH_SCHEMA_VERSION&&cached?.user&&cached.expiresAt>Date.now()&&await verifyCachedUser(cached.user)) return enterApp(cached.user);
     localStorage.removeItem(AUTH_STORAGE_KEY); throw new Error('not-authorized');
   }catch(error){appShell.classList.remove('ready');const message=error.message==='not-authorized'?'Conectează-te cu Discord pentru a verifica accesul.':error.message;showAuthError(message)}

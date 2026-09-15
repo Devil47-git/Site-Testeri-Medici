@@ -1,3 +1,5 @@
+import { accessFor } from '../access/shared.js';
+
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const SHEET_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:T400';
 const GRANTS_RANGE = process.env.GOOGLE_GRANTS_RANGE || 'GRANTS!A1:E';
@@ -60,23 +62,6 @@ export default async function handler(req, res) {
   }
 }
 
-function normalize(value = '') { return String(value).toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim(); }
-function hasFunction(functions, pattern) { return pattern.test(normalize(functions)); }
-function accessFor(csNum, functions, rank, dept) {
-  const normalizedRank = normalize(rank);
-  const normalizedDept = normalize(dept);
-  const isConducere = (csNum >= 1 && csNum <= 15) || ['DIRECTOR', 'INSPECTOR', 'CONDUCERE', 'MANAGER', 'COORDONATOR'].some(x => normalizedRank.includes(x)) || ['CONDUCERE', 'MEDICAL'].some(x => normalizedDept.includes(x));
-  const catalog = ['Test admitere', 'Test transfer', 'Adeverință medicală', 'Test SMULS', 'Test MOTO', 'Test ALS', 'Test PILOT', 'Test parașutiști'];
-  const isTester = /TESTER/.test(normalize(functions));
-  const allowedTests = isConducere || isTester ? (isConducere ? catalog : ['Test admitere', 'Test transfer', 'Adeverință medicală']) : [];
-  const eligibleSpecializations = [];
-  if (hasFunction(functions, /SMULS|\|\s*S\s*\|/)) eligibleSpecializations.push('Test SMULS');
-  if (hasFunction(functions, /MOTO|\|\s*M\s*\|/)) eligibleSpecializations.push('Test MOTO');
-  if (hasFunction(functions, /ALS|\|\s*A\s*\|/)) eligibleSpecializations.push('Test ALS');
-  if (hasFunction(functions, /PILOT|\|\s*P\s*\|/)) eligibleSpecializations.push('Test PILOT');
-  if (hasFunction(functions, /PARASUTIST|PARAȘUTIST|\|\s*PT\s*\|/)) eligibleSpecializations.push('Test parașutiști');
-  return { isConducere, isLeadership: isConducere, accessLevel: isConducere ? 'leadership' : 'tester', allowedTests, eligibleSpecializations, grantedTests: [] };
-}
 function mapSheetRowToUser(row, discordUser) {
   const callSignRaw = String(row[2] || '').trim();
   const csNum = parseInt(callSignRaw.replace(/\D/g, ''), 10) || 0;

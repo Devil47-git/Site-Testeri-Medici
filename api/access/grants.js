@@ -1,17 +1,9 @@
+import { normalize, callsignNumber, isLeadershipRow, normalizeTests } from './shared.js';
+
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:T400';
 const GRANTS_RANGE = process.env.GOOGLE_GRANTS_RANGE || 'GRANTS!A1:E';
-const catalog = ['Test admitere', 'Test transfer', 'Adeverință medicală', 'Test SMULS', 'Test MOTO', 'Test ALS', 'Test PILOT', 'Test parașutiști'];
-
-function normalize(value = '') { return String(value).toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim(); }
-function callsignNumber(value = '') { return Number(String(value).replace(/\D/g, '')) || 0; }
-function isLeadership(row) {
-  const callsign = callsignNumber(row[2]);
-  const rank = normalize(row[4]);
-  const dept = normalize(row[5]);
-  return (callsign >= 1 && callsign <= 15) || ['DIRECTOR', 'INSPECTOR', 'CONDUCERE', 'MANAGER', 'COORDONATOR'].some(value => rank.includes(value)) || ['CONDUCERE', 'MEDICAL'].some(value => dept.includes(value));
-}
-function normalizeTests(tests) { return [...new Set((Array.isArray(tests) ? tests : []).filter(test => catalog.includes(test)))]; }
+function isLeadership(row) { return isLeadershipRow(row); }
 function authConfig() {
   if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON && !process.env.GOOGLE_APPLICATION_CREDENTIALS) throw new Error('Google Sheets service account is not configured');
 }
@@ -22,6 +14,8 @@ async function sheetsClient() {
   const auth = new google.auth.GoogleAuth({ credentials, scopes: ['https://www.googleapis.com/auth/spreadsheets'] });
   return google.sheets({ version: 'v4', auth });
 }
+const GRANTS_WRITE_HEADER = ['discordId', 'callsign', 'grantedTests', 'updatedAt', 'lastSeen'];
+function grantRowValues(grant) { return [grant.discordId, grant.callsign, normalizeTests(grant.grantedTests).join('|'), grant.updatedAt, grant.lastSeen || '']; }
 function grantsSheetTitle() { return GRANTS_RANGE.split('!')[0].replace(/^'|'$/g, '') || 'GRANTS'; }
 async function ensureGrantsSheet(sheets) {
   const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: SHEET_ID, fields: 'sheets.properties.title' });
@@ -62,9 +56,20 @@ async function readGrants(sheets) {
 }
 async function writeGrants(sheets, grants) {
   await ensureGrantsSheet(sheets);
-  const values = [['discordId', 'callsign', 'grantedTests', 'updatedAt', 'lastSeen'], ...grants.map(grant => [grant.discordId, grant.callsign, normalizeTests(grant.grantedTests).join('|'), grant.updatedAt, grant.lastSeen || ''])];
-  await sheets.spreadsheets.values.clear({ spreadsheetId: SHEET_ID, range: GRANTS_RANGE });
-  await sheets.spreadsheets.values.update({ spreadsheetId: SHEET_ID, range: GRANTS_RANGE, valueInputOption: 'RAW', requestBody: { values } });
+  const existingRows = await readValues(sheets, grantsSheetTitle() + '!A1:E');
+  const hasHeader = String(existingRows[0] && existingRows[0][0] || '').trim() === 'discordId';
+  const body = hasHeader ? existingRows.slice(1) : existingRows;
+  if (!hasHeader) await sheets.spreadsheets.values.update({ spreadsheetId: SHEET_ID, range: grantsSheetTitle() + '!A1:E1', valueInputOption: 'RAW', requestBody: { values: [GRANTS_WRITE_HEADER] });
+  const existingById = new Map(body.map((row, index) => [String(row && row[0] || '').trim(), index + (hasHeader ? 2 : 1)]));
+  const updates = [];
+  const appends = [];
+  for (const grant of grants) {
+    const rowNumber = existingById.get(String(grant.discordId).trim());
+    if (rowNumber === undefined) appends.push(grantRowValues(grant));
+    else updates.push({ range: grantsSheetTitle() + '!A' + rowNumber + ':E' + rowNumber, values: [grantRowValues(grant)] });
+  }
+  if (updates.length) await sheets.spreadsheets.values.batchUpdate({ spreadsheetId: SHEET_ID, requestBody: { valueInputOption: 'RAW', data: updates });
+  if (appends.length) await sheets.spreadsheets.values.append({ spreadsheetId: SHEET_ID, range: grantsSheetTitle() + '!A1', valueInputOption: 'RAW', insertDataOption: 'INSERT_ROWS', requestBody: { values: appends });
 }
 function json(res, status, body) { return res.status(status).json(body); }
 

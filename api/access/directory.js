@@ -1,12 +1,9 @@
+import { normalize, callsignNumber, isLeadershipRow } from './shared.js';
+
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:T400';
 const GRANTS_RANGE = process.env.GOOGLE_GRANTS_RANGE || 'GRANTS!A1:E';
-function normalize(value = '') { return String(value).toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim(); }
-function callsignNumber(value = '') { return Number(String(value).replace(/\D/g, '')) || 0; }
-function isLeadership(row) {
-  const number = callsignNumber(row[2]); const rank = normalize(row[4]); const dept = normalize(row[5]);
-  return (number >= 1 && number <= 15) || /DIRECTOR GENERAL|DIRECTOR ADJUNCT|MEDIC INSPECTOR|MEDIC CHIRURG/.test(`${rank} ${dept} ${row[10] || ''}`);
-}
+function isLeadership(row) { return isLeadershipRow(row); }
 function readTests(value = '') { return String(value).split('|').filter(Boolean); }
 function relevantMember(row) {
   const number = callsignNumber(row[2]);

@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { google } from 'googleapis';
+import { normalize, isLeadership } from './api/access/shared.js';
 
 const PORT = Number(process.env.PORT || 3000);
 const ROOT = process.cwd();
@@ -16,13 +17,11 @@ const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=u
 function cookie(req, key) { return (req.headers.cookie || '').split(';').map(x => x.trim().split('=')).find(x => x[0] === key)?.[1]; }
 function redirect(res, location) { res.writeHead(302, { Location: location }); res.end(); }
 function json(res, code, data) { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(data)); }
-function normalize(value = '') { return String(value).toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim(); }
 function roleAccess(functions, callsign = '', rank = '', dept = '') {
   const f = normalize(functions); const g = Number(String(callsign).replace(/\D/g, '')) || 0;
-  const normalizedRank = normalize(rank); const normalizedDept = normalize(dept);
-  const isLeadership = (g >= 1 && g <= 15) || ['DIRECTOR', 'INSPECTOR', 'CONDUCERE', 'MANAGER', 'COORDONATOR'].some(value => normalizedRank.includes(value)) || ['CONDUCERE', 'MEDICAL'].some(value => normalizedDept.includes(value));
+  const leader = isLeadership(g, rank, dept);
   const catalog = ['Test admitere', 'Test transfer', 'Adeverință medicală', 'Test SMULS', 'Test MOTO', 'Test ALS', 'Test PILOT', 'Test parașutiști'];
-  const tests = isLeadership ? catalog : ['Test admitere', 'Test transfer', 'Adeverință medicală'];
+  const tests = leader ? catalog : ['Test admitere', 'Test transfer', 'Adeverință medicală'];
   if (g >= 200) {
     if (/SMULS|\|\s*S\s*\|/.test(f)) tests.push('Test SMULS');
     if (/MOTO|\|\s*M\s*\|/.test(f)) tests.push('Test MOTO');
@@ -30,7 +29,7 @@ function roleAccess(functions, callsign = '', rank = '', dept = '') {
     if (g < 300 && /PILOT|\|\s*P\s*\|/.test(f)) tests.push('Test PILOT');
     if (g < 300 && /PARASUTIST|PARAȘUTIST|\|\s*PT\s*\|/.test(f)) tests.push('Test parașutiști');
   }
-  return { isLeadership, isConducere: isLeadership, accessLevel: isLeadership ? 'leadership' : 'tester', tests };
+  return { isLeadership: leader, isConducere: leader, accessLevel: leader ? 'leadership' : 'tester', tests };
 }
 async function sheetMember(discordId) {
   if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON && !process.env.GOOGLE_APPLICATION_CREDENTIALS) throw new Error('Google Sheets is not configured');
@@ -59,16 +58,18 @@ async function route(req, res) {
       try { const discord = await exchangeDiscord(payload.code.trim()); const member = await sheetMember(discord.id); if (!member) return json(res, 404, { error: 'not_found' }); return json(res, 200, { success: true, user: { ...member, discordUsername: discord.username, avatar: discord.avatar || null } }); } catch (error) { console.error('Discord authentication failed:', error); return json(res, 502, { error: 'Discord authentication failed' }); }
     }
     if (!process.env.DISCORD_CLIENT_ID || !process.env.DISCORD_REDIRECT_URI) return json(res, 500, { error: 'Discord OAuth is not configured' });
-    const state = crypto.randomBytes(24).toString('hex'); oauthState.set(state, Date.now() + 300000);
+    const now = Date.now(); for (const [key, expires] of oauthState) { if (expires < now) oauthState.delete(key); } while (oauthState.size >= 500) oauthState.delete(oauthState.keys().next().value);
+    const state = crypto.randomBytes(24).toString('hex'); oauthState.set(state, now + 300000);
     const target = `https://discord.com/oauth2/authorize?client_id=${encodeURIComponent(process.env.DISCORD_CLIENT_ID)}&response_type=code&redirect_uri=${encodeURIComponent(process.env.DISCORD_REDIRECT_URI)}&scope=identify&state=${state}`;
     return redirect(res, target);
   }
   if (url.pathname === '/api/auth/callback') {
     const state = url.searchParams.get('state'); if (!oauthState.has(state) || oauthState.get(state) < Date.now()) return json(res, 400, { error: 'Invalid OAuth state' }); oauthState.delete(state);
-    try { const discord = await exchangeDiscord(url.searchParams.get('code')); const member = await sheetMember(discord.id); if (!member) return redirect(res, '/?access=denied'); const sid = crypto.randomBytes(32).toString('hex'); sessions.set(sid, { ...member, discordUsername: discord.username, expires: Date.now() + 259200000 }); res.setHeader('Set-Cookie', `session=${sid}; HttpOnly; SameSite=Lax; Path=/; Max-Age=259200`); return redirect(res, '/'); } catch (e) { return redirect(res, '/?access=error'); }
+    const code = url.searchParams.get('code'); if (!code || !code.trim()) return redirect(res, '/?access=denied');
+    try { const discord = await exchangeDiscord(code.trim()); const member = await sheetMember(discord.id); if (!member) return redirect(res, '/?access=denied'); const sid = crypto.randomBytes(32).toString('hex'); sessions.set(sid, { ...member, discordUsername: discord.username, expires: Date.now() + 259200000 }); res.setHeader('Set-Cookie', `session=${sid}; HttpOnly; SameSite=Lax; Path=/; Max-Age=259200`); return redirect(res, '/'); } catch (e) { return redirect(res, '/?access=error'); }
   }
   if (url.pathname === '/api/session') { const sessionId = cookie(req, 'session'); const session = sessions.get(sessionId); if (!session || session.expires < Date.now()) return json(res, 401, { authorized: false }); try { const fresh = await sheetMember(session.discordId); if (!fresh) return json(res, 403, { authorized: false }); const updated = { ...session, ...fresh, expires: Date.now() + 259200000 }; sessions.set(sessionId, updated); return json(res, 200, { authorized: true, ...updated }); } catch { return json(res, 200, { authorized: true, ...session }); } }
   if (url.pathname.startsWith('/api/')) return json(res, 404, { error: 'Not found' });
-  const file = path.join(ROOT, url.pathname === '/' ? 'index.html' : url.pathname); try { const data = await fs.readFile(file); res.writeHead(200, { 'Content-Type': mime[path.extname(file)] || 'application/octet-stream' }); res.end(data); } catch { json(res, 404, { error: 'Not found' }); }
+  const file = path.resolve(ROOT, url.pathname === '/' ? 'index.html' : '.' + url.pathname); if (file !== ROOT && !file.startsWith(ROOT + path.sep)) return json(res, 404, { error: 'Not found' }); try { const data = await fs.readFile(file); res.writeHead(200, { 'Content-Type': mime[path.extname(file)] || 'application/octet-stream' }); res.end(data); } catch { json(res, 404, { error: 'Not found' }); }
 }
 http.createServer((req, res) => route(req, res).catch(e => json(res, 500, { error: e.message }))).listen(PORT, () => console.log(`Medici panel: http://localhost:${PORT}`));
