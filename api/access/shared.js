@@ -41,9 +41,9 @@ export function hasFunction(functions, pattern) { return pattern.test(normalize(
 
 export function specializationFor(functions) {
   const eligible = [];
-  if (hasFunction(functions, /SMULS|\s*S\s*\|/)) eligible.push('Test SMULS');
+  if (hasFunction(functions, /S\.?\s*M\.?\s*U\.?\s*L\.?\s*S\.?|\s*S\s*\|/)) eligible.push('Test SMULS');
   if (hasFunction(functions, /MOTO|\s*M\s*\|/)) eligible.push('Test MOTO');
-  if (hasFunction(functions, /ALS|\s*A\s*\|/)) eligible.push('Test ALS');
+  if (hasFunction(functions, /A\.?\s*L\.?\s*S\.?|\s*A\s*\|/)) eligible.push('Test ALS');
   if (hasFunction(functions, /PILOT|\s*P\s*\|/)) eligible.push('Test PILOT');
   if (hasFunction(functions, /PARASUTIST|PARAȘUTIST|\s*PT\s*\|/)) eligible.push('Test parașutiști');
   return eligible;
@@ -51,18 +51,13 @@ export function specializationFor(functions) {
 
 export function accessFor(csNum, functions, rank, dept) {
   const leadership = isLeadership(csNum, rank, dept);
-  const isTester = /TESTER/.test(normalize(functions));
-  // Medic primar si medic specialist primesc automat testele de baza; testele
-  // de specializare se acorda ulterior prin grile din coloana GRANTS.
   const gradeGroup = gradeGroupFor(csNum);
-  const gradeGrants = gradeGroup === 'primar' || gradeGroup === 'specialist' ? coreTests : [];
-  const allowedTests = leadership ? catalog : [...new Set([...(isTester ? coreTests : []), ...gradeGrants])];
   return {
     isConducere: leadership,
     isLeadership: leadership,
     accessLevel: leadership ? 'leadership' : 'tester',
     gradeGroup,
-    allowedTests: [...allowedTests],
+    allowedTests: leadership ? [...catalog] : [],
     eligibleSpecializations: specializationFor(functions),
     grantedTests: []
   };

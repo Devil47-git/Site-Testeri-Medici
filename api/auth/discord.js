@@ -54,7 +54,6 @@ export default async function handler(req, res) {
       const grant = (Array.isArray(grantsData.values) ? grantsData.values : []).slice(1).filter(item => Array.isArray(item)).find(item => String(item[0] || '').trim() === String(discordUser.id));
       if (grant) {
         user.grantedTests = [...new Set([...(user.grantedTests || []), ...String(grant[2] || '').split('|').filter(Boolean)])];
-        if (user.grantedTests.length) user.allowedTests = [...new Set([...(user.allowedTests || []), 'Test admitere', 'Test transfer', 'Adeverință medicală'])];
       }
     }
     return res.status(200).json({ success: true, user });

@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { google } from 'googleapis';
-import { normalize, isLeadership, gradeGroupFor, catalog, coreTests } from './api/access/shared.js';
+import { isLeadership, gradeGroupFor, catalog } from './api/access/shared.js';
 
 const PORT = Number(process.env.PORT || 3000);
 const ROOT = process.cwd();
@@ -18,18 +18,10 @@ function cookie(req, key) { return (req.headers.cookie || '').split(';').map(x =
 function redirect(res, location) { res.writeHead(302, { Location: location }); res.end(); }
 function json(res, code, data) { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(data)); }
 function roleAccess(functions, callsign = '', rank = '', dept = '') {
-  const f = normalize(functions); const g = Number(String(callsign).replace(/\D/g, '')) || 0;
+  const g = Number(String(callsign).replace(/\D/g, '')) || 0;
   const leader = isLeadership(g, rank, dept);
   const group = gradeGroupFor(g);
-  const gradeGrants = group === 'primar' || group === 'specialist' ? coreTests : [];
-  const tests = leader ? catalog : [...new Set([...(g >= 101 && g <= 230 ? coreTests : []), ...gradeGrants])];
-  if (g >= 200) {
-    if (/SMULS|\|\s*S\s*\|/.test(f)) tests.push('Test SMULS');
-    if (/MOTO|\|\s*M\s*\|/.test(f)) tests.push('Test MOTO');
-    if (g < 300 && /ALS|\|\s*A\s*\|/.test(f)) tests.push('Test ALS');
-    if (g < 300 && /PILOT|\|\s*P\s*\|/.test(f)) tests.push('Test PILOT');
-    if (g < 300 && /PARASUTIST|PARAȘUTIST|\|\s*PT\s*\|/.test(f)) tests.push('Test parașutiști');
-  }
+  const tests = leader ? catalog : [];
   return { isLeadership: leader, isConducere: leader, accessLevel: leader ? 'leadership' : 'tester', gradeGroup: group, tests: [...new Set(tests)] };
 }
 async function sheetMember(discordId) {

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { accessFor, catalog as accessCatalog } from '../api/access/shared.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const source = readFileSync(join(here, '..', 'script.js'), 'utf8');
@@ -27,7 +28,7 @@ function extract(name) {
 const catalog = ['Test admitere', 'Test transfer', 'Adeverință medicală', 'Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști'];
 const definitions = Object.fromEntries(catalog.map(n => [n, { name: n, questions: [] }]));
 
-const names = ['callsignNumber', 'normalizeCallsign', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberIsTester', 'sortMembers', 'gradeGroupFor'];
+const names = ['callsignNumber', 'normalizeCallsign', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberIsTester', 'memberCanGiveTest', 'sortMembers', 'gradeGroupFor'];
 const srcs = names.map(extract).join('\n');
 const pattern = source.match(/^const RESIDENT_TESTER_PATTERN = .*$/m)?.[0] || 'const RESIDENT_TESTER_PATTERN = /TESTER/;';
 const normalizeTextSrc = extract('normalizeText');
@@ -35,10 +36,10 @@ const fullSrc = `${pattern}\n${normalizeTextSrc}\n${srcs}`;
 const load = new Function(
   'catalog',
   'testDefinitions',
-  `${fullSrc}\nreturn { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberIsTester, sortMembers, gradeGroupFor };`,
+  `${fullSrc}\nreturn { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberIsTester, memberCanGiveTest, sortMembers, gradeGroupFor };`,
 )(catalog, definitions);
 
-const { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberIsTester, sortMembers, gradeGroupFor } = load;
+const { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberIsTester, memberCanGiveTest, sortMembers, gradeGroupFor } = load;
 
 test('callsignNumber strips non-digits and returns 0 for empty', () => {
   assert.equal(callsignNumber('M-007'), 7);
@@ -88,6 +89,17 @@ test('allowedForUser filters to known, defined tests only', () => {
   assert.deepEqual(allowed, ['Test MOTO']);
 });
 
+test('non-leadership users receive only explicitly granted tests', () => {
+  const assigned = ['Test MOTO'];
+  assert.deepEqual(allowedForUser({ allowedTests: accessCatalog, eligibleSpecializations: ['Test ALS'], grantedTests: assigned }), assigned);
+  assert.deepEqual(accessFor(320, 'MOTO', 'Medic Rezident', '').allowedTests, []);
+});
+
+test('leadership alone receives general catalog access', () => {
+  assert.deepEqual(accessFor(1, '', 'Medic Inspector', '').allowedTests, accessCatalog);
+  assert.deepEqual(allowedForUser({ csNum: 1, grantedTests: [] }), catalog);
+});
+
 test('eligible specializations do not override revoked grants', () => {
   assert.deepEqual(allowedForUser({ eligibleSpecializations: ['Test MOTO'], grantedTests: [] }), []);
 });
@@ -106,6 +118,12 @@ test('memberIsTester handles missing csNum without NaN', () => {
   assert.equal(memberIsTester({ csNum: 341, functions: 'PILOT' }), false);
   assert.equal(memberIsTester({ functions: 'tester' }), true);
   assert.equal(memberIsTester({}), false);
+});
+
+test('Docs-based dashboard filters match dotted SMULS and ALS functions', () => {
+  assert.equal(memberCanGiveTest({ functions: 'S.M.U.L.S.' }, 'Test SMULS'), true);
+  assert.equal(memberCanGiveTest({ functions: 'A.L.S.' }, 'Test ALS'), true);
+  assert.equal(memberCanGiveTest({ functions: 'MOTO' }, 'Test ALS'), false);
 });
 
 test('sortMembers places leadership first, then by csNum', () => {

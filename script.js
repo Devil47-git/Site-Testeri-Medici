@@ -17,6 +17,7 @@
 
 const coreTests = ['Test admitere','Test transfer','Adeverință medicală'];
 const specialtyTests = ['Test ALS','Test SMULS','Test MOTO','Test PILOT','Test parașutiști'];
+const docsTesterFilters = ['Test SMULS', 'Test ALS'];
 const catalog = [...coreTests, ...specialtyTests];
 const TEST_CATALOG_KEY = 'medici-test-catalog-v4';
 /** @param {string} key @param {any} fallback @returns {any} */
@@ -108,16 +109,21 @@ function gradeGroupFor(csNum) { const n = callsignNumber(csNum);
 }
 function gradeGroupForMember(member) { return member?.gradeGroup || gradeGroupFor(member?.csNum || member?.callsign); }
 /** @param {any} user @returns {string[]} */
-function allowedForUser(user) { if (isLeadershipUser(user)) return catalog; return [...new Set([...(user?.allowedTests || []), ...(user?.grantedTests || [])])].filter(test => catalog.includes(test) && testDefinitions[test]); }
+function allowedForUser(user) { if (isLeadershipUser(user)) return catalog; return [...new Set(user?.grantedTests || [])].filter(test => catalog.includes(test) && testDefinitions[test]); }
 /** @param {any} value @returns {string} */
 function dateOnly(value) { return value ? new Date(value).toLocaleDateString('ro-RO') : '—'; }
 /** @param {any} member @returns {boolean} */
 /** @param {any} value @returns {string} */
 function normalizeText(value) { return String(value || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
+function memberCanGiveTest(member, test) {
+  const functions = normalizeText(member?.functions);
+  if (test === 'Test SMULS') return /S\.?\s*M\.?\s*U\.?\s*L\.?\s*S\.?|\s*S\s*\|/.test(functions);
+  if (test === 'Test ALS') return /A\.?\s*L\.?\s*S\.?|\s*A\s*\|/.test(functions);
+  return false;
+}
 function memberIsTester(member) { const cs = callsignNumber(member?.csNum); const specialty = RESIDENT_TESTER_PATTERN.test(normalizeText(member?.functions)); return (member?.grantedTests || []).length > 0 || (cs >= 101 && cs <= 230) || (cs >= 301 && cs <= 340 && specialty) || /TESTER/.test(normalizeText(member?.functions)); }
 /** @param {any[]} members @returns {any[]} */
 function sortMembers(members) { return [...members].sort((a, b) => { const ca = callsignNumber(a?.csNum); const cb = callsignNumber(b?.csNum); return ca - cb; }); }
-function syncCoreAccess(user) { if (user && (user.grantedTests || []).length) user.allowedTests = [...new Set([...(user.allowedTests || []), ...coreTests])]; }
 function avatarFor(member) {
   const name = String(member?.name || '').trim();
   const initials = escapeHtml(initialsFrom(name || '??'));
@@ -129,11 +135,15 @@ function avatarFor(member) {
 }
 function memberNameFor(member) { return String(member?.name || '').trim() || normalizeCallsign(member?.callsign) || '—'; }
 function rankFor(member) { return String(member?.rank || '').trim() || String(member?.gradeGroup || '').trim() || '—'; }
+function testerAccessHtml(member) {
+  const assignedTests = member.grantedTests || [];
+  if (isLeadershipUser(member)) return '<span class="muted">Acces general</span>';
+  return assignedTests.length
+    ? assignedTests.map((test, i) => `<span class="tag ${i % 3 === 1 ? 'orange' : i % 3 === 2 ? 'cyan' : ''}">${escapeHtml(test)}</span>`).join('')
+    : '<span class="muted">Fără teste alocate</span>';
+}
 function testerRowHtml(member, index) {
-  const specialty = (member.grantedTests || []).filter(test => !coreTests.includes(test));
-  const tags = specialty.length
-    ? specialty.map((test, i) => `<span class="tag ${i % 3 === 1 ? 'orange' : i % 3 === 2 ? 'cyan' : ''}">${escapeHtml(test)}</span>`).join('')
-    : '<span class="muted">Acces general</span>';
+  const tags = testerAccessHtml(member);
   return `<tr><td><div class="tester">${avatarFor(member)}<span>${escapeHtml(memberNameFor(member))}</span></div></td><td>${escapeHtml(normalizeCallsign(member.callsign))}</td><td>${escapeHtml(rankFor(member))}</td><td><div class="tags">${tags}</div></td><td>${dateOnly(member.updatedAt)}</td><td><span class="status ${isActive(member) ? 'online' : 'offline'}"><i></i>${isActive(member) ? 'Activ' : 'Inactiv'}</span></td><td><button class="more" data-member-menu="${escapeHtml(normalizeCallsign(member.callsign))}">•••</button></td></tr>`;
 }
 function testerTableHtml(members) {
@@ -144,11 +154,11 @@ function currentFilteredTesters() {
   return testers.filter(member => {
     const haystack = `${memberNameFor(member)} ${member.callsign || ''} ${(member.grantedTests || []).join(' ')} ${member.rank || ''}`.toLowerCase();
     if (q && !haystack.includes(q)) return false;
-    if (activeTesterFilter !== 'all' && !(member.grantedTests || []).includes(activeTesterFilter)) return false;
+    if (activeTesterFilter !== 'all' && !memberCanGiveTest(member, activeTesterFilter)) return false;
     return true;
   });
 }
-const RESIDENT_TESTER_PATTERN = /SMULS|MOTO|ALS|PILOT/;
+const RESIDENT_TESTER_PATTERN = /S\.?\s*M\.?\s*U\.?\s*L\.?\s*S\.?|MOTO|A\.?\s*L\.?\s*S\.?|PILOT/;
 const DASHBOARD_GROUPS = [
   { label: 'Conducere', members: member => (callsignNumber(member?.csNum) >= 1 && callsignNumber(member?.csNum) <= 15) },
   { label: 'Medici Primari', members: member => { const cs = callsignNumber(member?.csNum); return cs >= 101 && cs <= 115; } },
@@ -156,21 +166,24 @@ const DASHBOARD_GROUPS = [
   { label: 'Medici Rezidenți', members: member => { const cs = callsignNumber(member?.csNum); return cs >= 301 && cs <= 340 && RESIDENT_TESTER_PATTERN.test(normalizeText(member?.functions)); } }
 ];
 function renderRows(list = testers) {
+  const query = String(document.querySelector('#search')?.value || '').trim();
   const filtered = currentFilteredTesters();
-  if (rows) rows.innerHTML = filtered.map((member, index) => testerRowHtml(member, index)).join('');
+  if (rows) rows.innerHTML = query ? filtered.map((member, index) => testerRowHtml(member, index)).join('') : '';
   if (testerGroups) {
-    testerGroups.innerHTML = filtered.length
-      ? DASHBOARD_GROUPS.map(group => {
-          const members = sortMembers(filtered.filter(group.members));
-          if (!members.length) return '';
-          return `<section class="tester-group"><h3>${escapeHtml(group.label)}</h3>${testerTableHtml(members)}</section>`;
-        }).join('')
-      : '<div class="empty-state">Nu există testeri pentru filtrul selectat.</div>';
+    testerGroups.innerHTML = !query
+      ? '<div class="empty-state">Caută un tester după nume sau callsign.</div>'
+      : filtered.length
+        ? filtered.map(testerSearchResultHtml).join('')
+        : '<div class="empty-state">Nu există testeri pentru căutarea și filtrul selectate.</div>';
   }
   const count = document.querySelector('#tester-count');
   if (count) count.textContent = list.length;
   const active = document.querySelector('#active-count');
   if (active) active.textContent = list.length;
+}
+function testerSearchResultHtml(member) {
+  const status = isActive(member) ? 'online' : 'offline';
+  return `<article class="tester-search-result"><div class="search-result-person">${avatarFor(member)}<div><strong>${escapeHtml(memberNameFor(member))}</strong><small>${escapeHtml(normalizeCallsign(member.callsign))} · ${escapeHtml(rankFor(member))}</small></div></div><div class="search-result-tests tags">${testerAccessHtml(member)}</div><span class="status ${status}"><i></i>${isActive(member) ? 'Activ' : 'Inactiv'}</span></article>`;
 }
 /** @type {Member[]} */
 let directoryMembers = [];
@@ -336,12 +349,12 @@ document.querySelector('#confirm-remove-btn')?.addEventListener('click', async e
 });
 let selectedMember=null;
 async function lookupMember(){const value=callsignInput.value.trim();if(!value){selectedMember=null;memberResult.textContent='';return} const normalized=normalizeCallsign(value);const member=directoryMembers.find(item=>normalizeCallsign(item.callsign)===normalized);const local=testers.find(item=>normalizeCallsign(item.callsign)===normalized);if(!member){selectedMember=null;memberResult.textContent='Callsign inexistent sau liber în lista departamentului.';grantChecks.innerHTML='';return}selectedMember={...member,...local, callsign:normalized, name:member.name, grantedTests:local?.grantedTests||member.grantedTests||[]};memberResult.textContent=`${member.name} · ${normalized}`;renderGrantChecks(catalog)}
-function renderGrantChecks(options){grantChecks.innerHTML=`<button type="button" class="grant-preset" id="tester-preset">Acordă rolul TESTER (admitere, transfer și adeverință)</button>${options.filter(test=>!coreTests.includes(test)).map(test=>`<label><input type="checkbox" value="${test}" ${selectedMember?.grantedTests?.includes(test)?'checked':''}> ${test}</label>`).join('')}`;document.querySelector('#tester-preset').onclick=()=>{selectedMember.grantedTests=[...new Set([...selectedMember.grantedTests,...coreTests])];memberResult.textContent='Rolul TESTER selectat.';renderGrantChecks(options)}}
+function renderGrantChecks(options){grantChecks.innerHTML=`<button type="button" class="grant-preset" id="tester-preset">Acordă acces la testele de bază</button>${options.map(test=>`<label><input type="checkbox" value="${test}" ${selectedMember?.grantedTests?.includes(test)?'checked':''}> ${test}</label>`).join('')}`;document.querySelector('#tester-preset').onclick=()=>{selectedMember.grantedTests=[...new Set([...(selectedMember.grantedTests||[]),...coreTests])];memberResult.textContent='Testele de bază au fost selectate.';renderGrantChecks(options)}}
 callsignInput.onchange=lookupMember;callsignInput.oninput=()=>{clearTimeout(window.lookupTimer);window.lookupTimer=setTimeout(lookupMember,350)};
 document.querySelector('#invite-btn').onclick = async () => {
   if (!selectedMember) { memberResult.textContent = 'Selectează un membru existent.'; return; }
   const checked = [...grantChecks.querySelectorAll('input:checked')].map(input => input.value);
-  const granted = [...new Set([...coreTests, ...checked])];
+  const granted = [...new Set(checked)];
   const normalized = normalizeCallsign(selectedMember.callsign);
   if (!normalized) { memberResult.textContent = 'Callsign invalid.'; return; }
   if (!selectedMember.discordId) { memberResult.textContent = 'Membrul nu are un Discord ID pe coloana T; nu i se poate salva accesul.'; return; }
@@ -366,9 +379,10 @@ const testFilterBtn = document.querySelector('#filter-btn');
 const testFilterMenu = document.querySelector('#test-filter-menu');
 function renderTestFilterMenu() {
   if (!testFilterMenu) return;
-  const options = ['all', ...specialtyTests];
-  testFilterMenu.innerHTML = options.map(test => `<button type="button" class="test-filter-option ${activeTesterFilter === test ? 'active' : ''}" data-test-filter="${escapeHtml(test)}">${test === 'all' ? 'Toți testerii' : escapeHtml(test)}<em>${test === 'all' ? testers.length : testers.filter(m => (m.grantedTests || []).includes(test)).length}</em></button>`).join('');
-  testFilterMenu.querySelectorAll('[data-test-filter]').forEach(option => { option.onclick = () => { activeTesterFilter = option.dataset.testFilter; if (testFilterBtn) testFilterBtn.textContent = activeTesterFilter === 'all' ? 'Filtrează după test ☷' : `${activeTesterFilter.replace('Test ', '')} ☷`; renderTestFilterMenu(); renderRows(); if (testFilterMenu) testFilterMenu.hidden = true; if (testFilterBtn) testFilterBtn.setAttribute('aria-expanded', 'false'); }; });
+  const options = ['all', ...docsTesterFilters];
+  const labels = { 'Test SMULS': 'S.M.U.L.S.', 'Test ALS': 'A.L.S.' };
+  testFilterMenu.innerHTML = options.map(test => `<button type="button" class="test-filter-option ${activeTesterFilter === test ? 'active' : ''}" data-test-filter="${escapeHtml(test)}">${test === 'all' ? 'Toți testerii' : labels[test]}<em>${test === 'all' ? testers.length : testers.filter(member => memberCanGiveTest(member, test)).length}</em></button>`).join('');
+  testFilterMenu.querySelectorAll('[data-test-filter]').forEach(option => { option.onclick = () => { activeTesterFilter = option.dataset.testFilter; if (testFilterBtn) testFilterBtn.textContent = activeTesterFilter === 'all' ? 'Filtrează după test ☷' : `${labels[activeTesterFilter]} ☷`; renderTestFilterMenu(); renderRows(); if (testFilterMenu) testFilterMenu.hidden = true; if (testFilterBtn) testFilterBtn.setAttribute('aria-expanded', 'false'); }; });
 }
 if (testFilterBtn) { testFilterBtn.onclick = event => { event.stopPropagation(); if (!testFilterMenu) return; testFilterMenu.hidden = !testFilterMenu.hidden; testFilterBtn.setAttribute('aria-expanded', String(!testFilterMenu.hidden)); if (!testFilterMenu.hidden) renderTestFilterMenu(); }; }
 document.addEventListener('click', event => { if (testFilterMenu && !testFilterMenu.hidden && !document.querySelector('#test-filter')?.contains(event.target)) { testFilterMenu.hidden = true; testFilterBtn?.setAttribute('aria-expanded', 'false'); } });
@@ -411,7 +425,7 @@ const AUTH_SCHEMA_VERSION=3;
 const AUTH_TTL=2*24*60*60*1000;
 // ===== BANDAL TEMPORAR PENTRU TESTARE =====
 // Set to true only for a local preview; production uses Discord authentication.
-const DEV_LOGIN_ENABLED=false;
+const DEV_LOGIN_ENABLED=['localhost','127.0.0.1','[::1]'].includes(window.location.hostname);
 const DEV_LOGIN_USER={ id:'DEV-001', discordId:'0', name:'Tester Local', displayName:'Tester Local', callsign:'M-001', callSign:'M-001', csNum:1, rank:'Medic Inspector', dept:'Departamentul Medical', functions:'TESTER', isLeadership:true, isConducere:true, accessLevel:'leadership', gradeGroup:'leadership', allowedTests:[...coreTests,...specialtyTests], eligibleSpecializations:[], grantedTests:[...coreTests,...specialtyTests], avatar:null };
 // ===== SFÂRȘIT BANDAL =====
 const PRESENCE_KEY='medici-presence';
@@ -458,7 +472,7 @@ function setStats(user){
 }
 /** @param {any} user @returns {void} */
 function applyUser(user){
-  currentUser = user; syncCoreAccess(user);
+  currentUser = user;
   setWelcomeHeader(user); setVisibilityPermissions(user); setStats(user);
 }
 function showAuthError(message){authError.textContent=message;authError.classList.add('show')}
@@ -508,10 +522,4 @@ if (discordLoginBtn) {
     discordLoginBtn.onclick = () => { window.location.href = LOGIN_ENDPOINT; };
   }
 }
-const themeToggle=document.querySelector('#theme-toggle');
-const savedTheme=localStorage.getItem('medici-theme');
-if(savedTheme==='dark') document.body.classList.add('dark-mode');
-function updateThemeButton(){if(themeToggle){themeToggle.textContent=document.body.classList.contains('dark-mode')?'☀':'◐';themeToggle.classList.toggle('theme-toggle-active',document.body.classList.contains('dark-mode'));}}
-updateThemeButton();
-if(themeToggle) themeToggle.onclick=()=>{document.body.classList.toggle('dark-mode');localStorage.setItem('medici-theme',document.body.classList.contains('dark-mode')?'dark':'light');updateThemeButton()};
 startSession();
