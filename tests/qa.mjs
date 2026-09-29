@@ -11,10 +11,13 @@ export default async function run(page, ui) {
     hasThemeToggle: Boolean(document.querySelector('#theme-toggle')),
     darkMode: document.body.classList.contains('dark-mode'),
     tables: document.querySelectorAll('#tester-groups table').length,
+    summaryCards: [...document.querySelectorAll('#test-summary-grid .test-summary-card h2')].map(h => h.textContent),
     removeBtnVisible: !document.querySelector('#remove-btn')?.hidden,
     addBtnVisible: !document.querySelector('#add-btn')?.hidden
   }));
 
+  await page.click('#filter-btn');
+  await page.waitForTimeout(100);
   const filterState = await page.evaluate(() => ({
     open: !document.querySelector('#test-filter-menu')?.hidden,
     options: [...document.querySelectorAll('[data-test-filter]')].map(o => o.textContent.trim())
@@ -26,6 +29,14 @@ export default async function run(page, ui) {
     results: [...document.querySelectorAll('#tester-groups .tester-search-result')].map(item => item.textContent.trim()),
     tables: document.querySelectorAll('#tester-groups table').length
   }));
+  await page.fill('#search', 'M-004');
+  const vacantState = await page.locator('#tester-groups .tester-search-result').count();
+
+  await page.click('#add-btn');
+  await page.locator('#callsign').fill('210');
+  await page.waitForTimeout(400);
+  const docsGrantSelected = await page.locator('#grant-checks input[value="Test ALS"]').isChecked();
+  await page.click('#close-modal');
 
   await page.click('#remove-btn');
   await page.waitForTimeout(300);
@@ -35,5 +46,5 @@ export default async function run(page, ui) {
   }));
   await page.click('#close-remove-modal');
 
-  return { errs, initialState, filterState, searchState, removeState };
+  return { errs, initialState, filterState, searchState, vacantState, docsGrantSelected, removeState };
 }

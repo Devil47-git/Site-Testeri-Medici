@@ -18,6 +18,7 @@
 const coreTests = ['Test admitere','Test transfer','Adeverință medicală'];
 const specialtyTests = ['Test ALS','Test SMULS','Test MOTO','Test PILOT','Test parașutiști'];
 const docsTesterFilters = ['Test SMULS', 'Test ALS'];
+const testSummaryDefinitions = [['Test SMULS', 'Test S.M.U.L.S.'], ['Test MOTO', 'Test MOTO'], ['Test PILOT', 'Test PILOT'], ['Test ALS', 'Test A.L.S.'], ['Test parașutiști', 'Test parașutism']];
 const catalog = [...coreTests, ...specialtyTests];
 const TEST_CATALOG_KEY = 'medici-test-catalog-v4';
 /** @param {string} key @param {any} fallback @returns {any} */
@@ -35,7 +36,8 @@ const GRANTS_KEY = 'medici-grants';
 /** @type {Member|null} */
 let currentUser = null;
 /** @type {Member[]} */
-let testers = readStored(GRANTS_KEY, []);
+let testers = readStored(GRANTS_KEY, []).filter(member => String(member?.name || '').trim());
+let testRunCounts = {};
 function saveTesters() { localStorage.setItem(GRANTS_KEY, JSON.stringify(testers)); }
 function refreshCurrentView() { const active = document.querySelector('.nav-item.active')?.dataset.view || 'overview'; renderView(active); }
 function candidateSummary(member, result = 'Admis') { if (!member) return ''; return `Candidat: @[${normalizeCallsign(member.callsign)}] ${member.name || '—'}\nGrad: ${member.rank || '—'}\nRezultat: ${result}`; }
@@ -57,12 +59,13 @@ async function loadRemoteGrants() {
     testers = [];
     saveTesters();
     renderRows();
+    renderDashboardData();
     refreshCurrentView();
     return;
   }
   if (isLeadershipUser(currentUser)) {
     const grants = grantsPayload;
-    testers = directoryMembers.length ? directoryMembers.filter(member => member.isTester || memberIsTester(member)).map(member => { const grant = grants.find(item => item.discordId === member.discordId);
+    testers = directoryMembers.length ? directoryMembers.filter(member => String(member.name || '').trim() && (member.isTester || memberIsTester(member))).map(member => { const grant = grants.find(item => item.discordId === member.discordId);
       if (!grant) return member;
       return { ...member, ...grant, grantedTests: grant.grantedTests || member.grantedTests || [] }; }) : grants;
   } else {
@@ -72,14 +75,20 @@ async function loadRemoteGrants() {
   }
   saveTesters();
   renderRows();
+  renderDashboardData();
   refreshCurrentView();
 }
 async function saveRemoteGrant(callsign, grantedTests, remove = false, targetDiscordId = '') {
   if (!currentUser?.discordId) throw new Error('Sesiunea nu conține Discord ID.');
   const response = await fetch('/api/access/grants', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requesterId: currentUser.discordId, targetDiscordId, callsign, grantedTests, remove }) });
-  const payload = await response.json();
+  const payload = await parseApiResponse(response);
   if (!response.ok) throw new Error(payload.error || 'Accesul nu a putut fi salvat.');
   return payload;
+}
+async function parseApiResponse(response) {
+  const text = await response.text();
+  try { return JSON.parse(text); }
+  catch { throw new Error(text.trim().slice(0, 240) || `Răspuns invalid de la server (${response.status}).`); }
 }
 function setSyncDetail(message) { const el = document.querySelector('#sync-detail'); if (el) el.textContent = message; }
 /** @param {any} value @returns {string} */
@@ -119,8 +128,12 @@ function memberCanGiveTest(member, test) {
   const functions = normalizeText(member?.functions);
   if (test === 'Test SMULS') return /S\.?\s*M\.?\s*U\.?\s*L\.?\s*S\.?|\s*S\s*\|/.test(functions);
   if (test === 'Test ALS') return /A\.?\s*L\.?\s*S\.?|\s*A\s*\|/.test(functions);
+  if (test === 'Test MOTO') return /MOTO|\s*M\s*\|/.test(functions);
+  if (test === 'Test PILOT') return /PILOT|\s*P\s*\|/.test(functions);
+  if (test === 'Test parașutiști') return /PARASUTIST|PARACHUTIST|\s*PT\s*\|/.test(functions);
   return false;
 }
+function docsAssignedTests(member) { return testSummaryDefinitions.map(([test]) => test).filter(test => memberCanGiveTest(member, test)); }
 function memberIsTester(member) { const cs = callsignNumber(member?.csNum); const specialty = RESIDENT_TESTER_PATTERN.test(normalizeText(member?.functions)); return (member?.grantedTests || []).length > 0 || (cs >= 101 && cs <= 230) || (cs >= 301 && cs <= 340 && specialty) || /TESTER/.test(normalizeText(member?.functions)); }
 /** @param {any[]} members @returns {any[]} */
 function sortMembers(members) { return [...members].sort((a, b) => { const ca = callsignNumber(a?.csNum); const cb = callsignNumber(b?.csNum); return ca - cb; }); }
@@ -192,7 +205,8 @@ async function loadDirectory() {
   const response = await fetch(`/api/access/directory?requesterId=${encodeURIComponent(currentUser.discordId)}`);
   if (!response.ok) return;
   const payload = await response.json();
-  directoryMembers = payload.members || [];
+  directoryMembers = (payload.members || []).filter(member => String(member?.name || '').trim());
+  await loadTestRunCounts();
   if (isLeadershipUser(currentUser)) {
     testers = directoryMembers.filter(member => member.isTester || memberIsTester(member)).map(member => ({ ...member, grantedTests: member.grantedTests || [] }));
     saveTesters();
@@ -202,12 +216,44 @@ async function loadDirectory() {
   refreshCurrentView();
 }
 function renderDashboardData() {
-  const counts = Object.fromEntries(specialtyTests.map(test => [test, testers.filter(member => (member.grantedTests || []).includes(test)).length]));
-  const roleBars = document.querySelector('#role-bars');
-  roleBars.innerHTML = specialtyTests.map(test => `<div class="role-row"><span>${test.replace('Test ', '')}</span><strong>${counts[test] || 0}</strong><div class="bar"><i style="width:${Math.min((counts[test] || 0) * 20, 100)}%"></i></div></div>`).join('');
+  const summaries = document.querySelector('#test-summary-grid');
+  if (summaries) summaries.innerHTML = testSummaryDefinitions.map(([test, label]) => {
+    const members = testers.filter(member => (member.grantedTests || []).includes(test) && memberCanGiveTest(member, test)).sort((a, b) => callsignNumber(a.csNum) - callsignNumber(b.csNum));
+    const rows = members.length
+      ? members.map(member => {
+          const count = testRunCounts[member.discordId]?.[test] || 0;
+          return `<div class="test-summary-member"><div><strong>${escapeHtml(memberNameFor(member))}</strong><small>${escapeHtml(rankFor(member))} · ${escapeHtml(normalizeCallsign(member.callsign))}</small></div><span>${count} ${count === 1 ? 'test' : 'teste'}</span></div>`;
+        }).join('')
+      : '<p class="muted">Nu există testeri cu acest test alocat.</p>';
+    return `<article class="panel test-summary-card"><header><h2>${escapeHtml(label)}</h2><span>${members.length}</span></header>${rows}</article>`;
+  }).join('');
   const overview = document.querySelector('#overview-view');
   if (overview) overview.dataset.updatedAt = new Date().toISOString();
-  document.querySelector('#sync-panel')?.toggleAttribute('hidden', !isLeadershipUser(currentUser));
+}
+async function loadTestRunCounts() {
+  if (!currentUser?.discordId) { testRunCounts = {}; return; }
+  try {
+    const response = await fetch(`/api/access/test-results?requesterId=${encodeURIComponent(currentUser.discordId)}`);
+    const payload = await parseApiResponse(response);
+    if (!response.ok) throw new Error(payload.error || 'Istoricul testelor nu a putut fi încărcat.');
+    testRunCounts = {};
+    for (const item of payload.counts || []) {
+      testRunCounts[item.discordId] ||= {};
+      testRunCounts[item.discordId][item.testName] = Number(item.count) || 0;
+    }
+  } catch (error) {
+    testRunCounts = {};
+    console.error('Test history load failed:', error);
+  }
+}
+async function recordTestRun(testName, result = '') {
+  if (!currentUser?.discordId) throw new Error('Sesiunea nu conține Discord ID.');
+  const response = await fetch('/api/access/test-results', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requesterId: currentUser.discordId, testName, result }) });
+  const payload = await parseApiResponse(response);
+  if (!response.ok) throw new Error(payload.error || 'Testul susținut nu a putut fi înregistrat.');
+  testRunCounts[currentUser.discordId] ||= {};
+  testRunCounts[currentUser.discordId][testName] = (testRunCounts[currentUser.discordId][testName] || 0) + 1;
+  renderDashboardData();
 }
 function renderTestsView(title) {
   return `<div class="panel view-panel"><div class="panel-head"><div><h2>${title}</h2><p class="muted">Instrument pentru testeri. Tu poți deschide orice test disponibil oricând.</p></div></div><div class="test-cards">${allowedForUser(currentUser).map(test => `<article class="test-card"><h3>${test}</h3><p class="muted">${testDefinitions[test]?.description || 'Test disponibil.'}</p><button class="primary" data-test="${test}">Deschide ghidul</button></article>`).join('') || '<div class="empty-state">Nu ai teste disponibile.</div>'}</div></div>`;
@@ -265,7 +311,7 @@ function openTest(testName) {
   const previousView = document.querySelector('.nav-item.active')?.dataset.view || 'tests';
   if (window.history.state?.view !== 'test') window.history.pushState({ view: 'test', testName, previousView }, '', `#test-${encodeURIComponent(testName)}`);
   viewContent.innerHTML = buildTestMarkup(testName, definition, questions);
-  wireTestEvents(definition);
+  wireTestEvents(testName, definition);
 }
 function buildTestMarkup(testName, definition, questions) {
   const images = (definition.images || []).map(image => `<a class="test-image-link" href="${image.url}" target="_blank" rel="noopener">${image.label || 'Deschide imaginea'}</a>`).join('');
@@ -273,7 +319,7 @@ function buildTestMarkup(testName, definition, questions) {
   const practical = (definition.practical || []).map((item, index) => `<option value="${index}">${item.name}</option>`).join('');
   return `<div class="panel view-panel"><div class="panel-head"><div><p class="eyebrow">GHID PENTRU TESTER</p><h2>${testName}</h2><p class="muted">Acces permanent pentru testerul conectat: ${normalizeCallsign(currentUser?.callsign)}.</p></div><button class="outline" id="back-to-tests">← Înapoi</button></div><p class="muted">${definition.description}</p><p class="test-instructions">${definition.instructions || ''}</p>${images ? `<div class="test-images">${images}</div>` : ''}${cases ? `<label>Cazul ales de candidat<select id="case-select">${cases}</select></label><div id="case-steps" class="case-steps"></div>` : ''}${practical ? `<label>Probă practică<select id="practical-select">${practical}</select></label><div id="practical-steps" class="case-steps"></div>` : ''}${questions.length ? `<form id="test-form" class="question-list"><label>Callsign candidat<input id="candidate-callsign" type="text" placeholder="510 sau M-510"></label><div id="candidate-summary" class="candidate-summary"></div>${testName === 'Test admitere' || testName === 'Test transfer' || testName === 'Adeverință medicală' ? `<label>Imagine document candidat<input id="candidate-document" type="file" accept="image/*"></label><p class="muted">Imaginea este disponibilă testerului pentru verificare manuală.</p>` : ''}${questions.map((question, index) => `<fieldset><legend>${index + 1}. ${question.text}</legend><div class="correct-answer"><b>Răspuns:</b><span>${question.answer || 'Verifică ghidul.'}</span></div><label class="answer-check"><input type="checkbox" data-wrong="${index}"> Răspuns greșit</label></fieldset>`).join('')}<p>Greșeli: <strong id="wrong-count">0</strong> / ${definition.maxWrong ?? '—'}</p><button class="primary" type="submit">Finalizează evaluarea</button></form>` : '<div class="test-runner"><p>Acest ghid nu are întrebări teoretice configurate.</p></div>'}</div>`;
 }
-function wireTestEvents(definition) {
+function wireTestEvents(testName, definition) {
   document.querySelector('#back-to-tests').onclick = () => renderView('tests');
   const caseSelect = document.querySelector('#case-select'); const caseSteps = document.querySelector('#case-steps');
   const renderCase = () => { if (!caseSelect || !caseSteps) return; const item = definition.cases[Number(caseSelect.value)]; caseSteps.innerHTML = `<h3>${item.title}</h3><p>Minimum interacțiuni: ${item.minimumMe || 0} /me</p><ol>${item.steps.map(step => `<li>${step}</li>`).join('')}</ol>`; }; if (caseSelect) { caseSelect.onchange = renderCase; renderCase(); }
@@ -281,7 +327,29 @@ function wireTestEvents(definition) {
   const renderPractical = () => { if (!practicalSelect || !practicalSteps) return; const item = definition.practical[Number(practicalSelect.value)]; practicalSteps.innerHTML = `<h3>${item.name}</h3><p><b>Locație:</b> ${item.location}</p><p><b>Altitudine:</b> ${item.altitude}</p><p><b>Aterizare:</b> ${item.landing}</p>${(item.images || []).map(image => `<a class="test-image-link" href="${image.url}" target="_blank" rel="noopener">${image.label || 'Imagine traseu'}</a>`).join('')}`; }; if (practicalSelect) { practicalSelect.onchange = renderPractical; renderPractical(); }
   const wrongInputs = [...document.querySelectorAll('[data-wrong]')]; wrongInputs.forEach(input => input.onchange = () => { document.querySelector('#wrong-count').textContent = wrongInputs.filter(item => item.checked).length; });
   const candidateInput = document.querySelector('#candidate-callsign'); const candidateSummaryEl = document.querySelector('#candidate-summary'); if (candidateInput) candidateInput.oninput = () => { const member = directoryMembers.find(item => normalizeCallsign(item.callsign) === normalizeCallsign(candidateInput.value)); candidateSummaryEl.textContent = member ? candidateSummary(member) : ''; };
-  const form = document.querySelector('#test-form'); if (form) form.onsubmit = event => { event.preventDefault(); const wrong = wrongInputs.filter(item => item.checked).length; const limit = Number(definition.maxWrong ?? Infinity); const failed = wrong > limit; const member = directoryMembers.find(item => normalizeCallsign(item.callsign) === normalizeCallsign(candidateInput?.value)); const result = failed ? 'Respins (CS)' : 'Admis'; form.innerHTML = `<pre class="candidate-summary">${candidateSummary(member, result) || `Rezultat: ${result}`}</pre>`; };
+  const form = document.querySelector('#test-form'); if (form) form.onsubmit = async event => {
+    event.preventDefault();
+    const wrong = wrongInputs.filter(item => item.checked).length;
+    const limit = Number(definition.maxWrong ?? Infinity);
+    const result = wrong > limit ? 'Respins (CS)' : 'Admis';
+    const member = directoryMembers.find(item => normalizeCallsign(item.callsign) === normalizeCallsign(candidateInput?.value));
+    let status = 'Testul a fost înregistrat.';
+    try { await recordTestRun(testName, result); }
+    catch (error) { status = `Rezultatul a fost afișat, dar numărătoarea nu s-a salvat: ${error.message}`; }
+    form.innerHTML = `<pre class="candidate-summary">${candidateSummary(member, result) || `Rezultat: ${result}`}</pre><p class="muted">${escapeHtml(status)}</p>`;
+  };
+  const runner = document.querySelector('.test-runner');
+  if (runner) {
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = 'primary'; button.textContent = 'Înregistrează testul susținut';
+    const status = document.createElement('p'); status.className = 'muted';
+    runner.append(button, status);
+    button.onclick = async () => {
+      button.disabled = true;
+      try { await recordTestRun(testName); status.textContent = 'Testul a fost înregistrat.'; }
+      catch (error) { status.textContent = error.message; button.disabled = false; }
+    };
+  }
 }
 renderRows();
 const modal = document.querySelector('#modal'); const callsignInput=document.querySelector('#callsign'); const memberResult=document.querySelector('#member-result'); const grantChecks=document.querySelector('#grant-checks');
@@ -290,8 +358,12 @@ function openAddModal(member) {
   modal.classList.add('open');
   callsignInput.value = member ? normalizeCallsign(member.callsign) : '';
   grantChecks.innerHTML = '';
-  if (member) { selectedMember = { ...member }; renderGrantChecks(catalog); memberResult.textContent = `${memberNameFor(member)} · ${normalizeCallsign(member.callsign)}`; }
-  else { selectedMember = null; memberResult.textContent = ''; lookupMember(); }
+  if (member) {
+    selectedMember = { ...member };
+    selectedGrantDraft = [...new Set([...(member.grantedTests || []), ...docsAssignedTests(member)])];
+    renderGrantChecks(catalog);
+    memberResult.textContent = `${memberNameFor(member)} · ${normalizeCallsign(member.callsign)}`;
+  } else { selectedMember = null; selectedGrantDraft = []; memberResult.textContent = ''; lookupMember(); }
 }
 document.querySelector('#add-btn').onclick = () => openAddModal();
 document.querySelector('#close-modal').onclick = () => modal.classList.remove('open');
@@ -348,8 +420,24 @@ document.querySelector('#confirm-remove-btn')?.addEventListener('click', async e
   finally { button.disabled = false; }
 });
 let selectedMember=null;
-async function lookupMember(){const value=callsignInput.value.trim();if(!value){selectedMember=null;memberResult.textContent='';return} const normalized=normalizeCallsign(value);const member=directoryMembers.find(item=>normalizeCallsign(item.callsign)===normalized);const local=testers.find(item=>normalizeCallsign(item.callsign)===normalized);if(!member){selectedMember=null;memberResult.textContent='Callsign inexistent sau liber în lista departamentului.';grantChecks.innerHTML='';return}selectedMember={...member,...local, callsign:normalized, name:member.name, grantedTests:local?.grantedTests||member.grantedTests||[]};memberResult.textContent=`${member.name} · ${normalized}`;renderGrantChecks(catalog)}
-function renderGrantChecks(options){grantChecks.innerHTML=`<button type="button" class="grant-preset" id="tester-preset">Acordă acces la testele de bază</button>${options.map(test=>`<label><input type="checkbox" value="${test}" ${selectedMember?.grantedTests?.includes(test)?'checked':''}> ${test}</label>`).join('')}`;document.querySelector('#tester-preset').onclick=()=>{selectedMember.grantedTests=[...new Set([...(selectedMember.grantedTests||[]),...coreTests])];memberResult.textContent='Testele de bază au fost selectate.';renderGrantChecks(options)}}
+let selectedGrantDraft=[];
+async function lookupMember() {
+  const value = callsignInput.value.trim();
+  if (!value) { selectedMember = null; selectedGrantDraft = []; memberResult.textContent = ''; return; }
+  const normalized = normalizeCallsign(value);
+  const member = directoryMembers.find(item => normalizeCallsign(item.callsign) === normalized && String(item.name || '').trim());
+  const local = testers.find(item => normalizeCallsign(item.callsign) === normalized);
+  if (!member) { selectedMember = null; selectedGrantDraft = []; memberResult.textContent = 'Callsign inexistent, liber sau fără nume în lista departamentului.'; grantChecks.innerHTML = ''; return; }
+  selectedMember = { ...member, ...local, callsign: normalized, name: member.name, grantedTests: local?.grantedTests || member.grantedTests || [] };
+  selectedGrantDraft = [...new Set([...selectedMember.grantedTests, ...docsAssignedTests(member)])];
+  memberResult.textContent = `${member.name} · ${normalized}`;
+  renderGrantChecks(catalog);
+}
+function renderGrantChecks(options) {
+  grantChecks.innerHTML = `<button type="button" class="grant-preset" id="tester-preset">Preia testele din Docs</button>${options.map(test => `<label><input type="checkbox" value="${escapeHtml(test)}" ${selectedGrantDraft.includes(test) ? 'checked' : ''}> ${escapeHtml(test)}</label>`).join('')}`;
+  grantChecks.querySelectorAll('input[type="checkbox"]').forEach(input => input.onchange = () => { selectedGrantDraft = [...grantChecks.querySelectorAll('input:checked')].map(item => item.value); });
+  document.querySelector('#tester-preset').onclick = () => { selectedGrantDraft = [...new Set([...(selectedMember?.grantedTests || []), ...docsAssignedTests(selectedMember)])]; renderGrantChecks(options); };
+}
 callsignInput.onchange=lookupMember;callsignInput.oninput=()=>{clearTimeout(window.lookupTimer);window.lookupTimer=setTimeout(lookupMember,350)};
 document.querySelector('#invite-btn').onclick = async () => {
   if (!selectedMember) { memberResult.textContent = 'Selectează un membru existent.'; return; }
@@ -386,7 +474,7 @@ function renderTestFilterMenu() {
 }
 if (testFilterBtn) { testFilterBtn.onclick = event => { event.stopPropagation(); if (!testFilterMenu) return; testFilterMenu.hidden = !testFilterMenu.hidden; testFilterBtn.setAttribute('aria-expanded', String(!testFilterMenu.hidden)); if (!testFilterMenu.hidden) renderTestFilterMenu(); }; }
 document.addEventListener('click', event => { if (testFilterMenu && !testFilterMenu.hidden && !document.querySelector('#test-filter')?.contains(event.target)) { testFilterMenu.hidden = true; testFilterBtn?.setAttribute('aria-expanded', 'false'); } });
-testerGroups?.addEventListener('click', event => { const button = event.target.closest('[data-member-menu]'); if (!button) return; const member = testers.find(item => normalizeCallsign(item.callsign) === button.dataset.memberMenu); if (member) { selectedMember = member; openAddModal(member); } }); rows?.addEventListener('click', event => { const button = event.target.closest('[data-member-menu]'); if (!button) return; const member = testers.find(item => normalizeCallsign(item.callsign) === button.dataset.memberMenu); if (member) { selectedMember = member; openAddModal(member); } }); document.querySelector('#brand-settings').onclick = () => navigateTo('settings'); document.querySelector('#user-menu').onclick = () => navigateTo('settings'); document.querySelector('#top-avatar').onclick = () => navigateTo('settings'); document.querySelector('#help-btn').onclick = () => alert('Folosește meniul din stânga pentru a naviga.'); document.querySelector('#sync-btn').onclick = async e => { e.currentTarget.disabled=true; e.currentTarget.textContent='Sincronizare...'; try { await loadDirectory(); await loadRemoteGrants(); document.querySelector('#sync-detail').textContent='Actualizat acum'; document.querySelector('#last-sync').textContent=new Date().toLocaleDateString('ro-RO'); } catch { document.querySelector('#sync-detail').textContent='Sincronizarea a eșuat'; } finally { e.currentTarget.disabled=false; e.currentTarget.textContent='Sincronizează acum'; } };
+testerGroups?.addEventListener('click', event => { const button = event.target.closest('[data-member-menu]'); if (!button) return; const member = testers.find(item => normalizeCallsign(item.callsign) === button.dataset.memberMenu); if (member) { selectedMember = member; openAddModal(member); } }); rows?.addEventListener('click', event => { const button = event.target.closest('[data-member-menu]'); if (!button) return; const member = testers.find(item => normalizeCallsign(item.callsign) === button.dataset.memberMenu); if (member) { selectedMember = member; openAddModal(member); } }); document.querySelector('#brand-settings').onclick = () => navigateTo('settings'); document.querySelector('#user-menu').onclick = () => navigateTo('settings'); document.querySelector('#top-avatar').onclick = () => navigateTo('settings'); document.querySelector('#help-btn').onclick = () => alert('Folosește meniul din stânga pentru a naviga.');
 const labels = { overview: 'Dashboard', testers: 'Testerii departamentului', tests: 'Teste disponibile', members: 'Membri departament', settings: 'Setări' };
 function navigateTo(view, { push = true } = {}) {
   if (!labels[view]) return;
@@ -396,7 +484,7 @@ function navigateTo(view, { push = true } = {}) {
   document.querySelector('#section-label').textContent = view === 'settings' || view === 'members' ? 'Administrare' : 'Generale';
   document.querySelector('.sidebar').classList.remove('open');
   renderView(view);
-  if (view === 'tests') { document.querySelector('#test-count').textContent = allowedForUser(currentUser).length; document.querySelector('#local-state').textContent = 'Sincronizat'; }
+  if (view === 'tests') document.querySelector('#test-count').textContent = allowedForUser(currentUser).length;
 }
 document.querySelectorAll('[data-view]').forEach(btn => btn.addEventListener('click', () => navigateTo(btn.dataset.view)));
 window.addEventListener('popstate', event => {
@@ -412,7 +500,7 @@ window.addEventListener('hashchange', () => {
 document.querySelector('.mobile-menu').onclick = () => document.querySelector('.sidebar').classList.toggle('open');
 window.setInterval(() => { markPresence(); sendPresence(); renderRows(); }, 30000);
 window.setInterval(async () => { if (!currentUser) return; try { await loadDirectory(); await loadRemoteGrants(); } catch { /* următoarea sincronizare va reîncerca */ } }, 60*60*1000);
-const today=new Intl.DateTimeFormat('ro-RO',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(new Date());document.querySelector('#today-label').textContent=today.toUpperCase();document.querySelector('#test-count').textContent=catalog.length;document.querySelector('#local-state').textContent='Pregătit';
+const today=new Intl.DateTimeFormat('ro-RO',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(new Date());document.querySelector('#today-label').textContent=today.toUpperCase();document.querySelector('#test-count').textContent=catalog.length;
 
 // Fluxul OAuth: Discord redirecționează înapoi cu ?code=..., apoi codul este trimis server-side către API-ul Vercel.
 const authScreen=document.querySelector('#auth-screen');
@@ -455,11 +543,9 @@ function setVisibilityPermissions(user){
   const addBtn = document.querySelector('#add-btn');
   const removeBtn = document.querySelector('#remove-btn');
   const membersNav = document.querySelector('[data-view="members"]');
-  const syncPanel = document.querySelector('#sync-panel');
   if (addBtn) addBtn.hidden = !leadership;
   if (removeBtn) removeBtn.hidden = !leadership;
   if (membersNav) membersNav.hidden = !leadership;
-  if (syncPanel) syncPanel.hidden = !leadership;
   const sectionLabel = document.querySelector('#section-label');
   if (sectionLabel) sectionLabel.textContent = leadership ? 'Administrare' : 'Spațiul tău';
 }
@@ -467,8 +553,6 @@ function setVisibilityPermissions(user){
 function setStats(user){
   const stat = document.querySelector('.stat-card:nth-child(2) strong');
   if (stat) stat.textContent = allowedForUser(user).length;
-  const localState = document.querySelector('#local-state');
-  if (localState) localState.textContent = 'Sincronizat';
 }
 /** @param {any} user @returns {void} */
 function applyUser(user){
@@ -476,7 +560,7 @@ function applyUser(user){
   setWelcomeHeader(user); setVisibilityPermissions(user); setStats(user);
 }
 function showAuthError(message){authError.textContent=message;authError.classList.add('show')}
-async function enterApp(user){applyUser(user);markPresence();sendPresence();authScreen.style.display='none';appShell.classList.add('ready');window.history.replaceState({ view: 'overview' }, '', `${window.location.pathname}#overview`);navigateTo('overview', { push: false });try { await loadDirectory(); await loadRemoteGrants(); } catch (error) { document.querySelector('#sync-detail').textContent='Sincronizarea a eșuat'; console.error(error); }}
+async function enterApp(user){applyUser(user);markPresence();sendPresence();authScreen.style.display='none';appShell.classList.add('ready');window.history.replaceState({ view: 'overview' }, '', `${window.location.pathname}#overview`);navigateTo('overview', { push: false });try { await loadDirectory(); await loadRemoteGrants(); } catch (error) { setSyncDetail('Sincronizarea a eșuat'); console.error(error); }}
 const accessError = new URLSearchParams(window.location.search).get('access');
 if (accessError === 'denied') showAuthError('Contul Discord nu există în lista departamentului.');
 if (accessError === 'error') showAuthError('Autentificarea Discord nu a putut fi finalizată.');

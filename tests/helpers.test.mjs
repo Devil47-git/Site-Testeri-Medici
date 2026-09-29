@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { accessFor, catalog as accessCatalog } from '../api/access/shared.js';
+import { accessFor, catalog as accessCatalog, isLeadership } from '../api/access/shared.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const source = readFileSync(join(here, '..', 'script.js'), 'utf8');
@@ -98,6 +98,8 @@ test('non-leadership users receive only explicitly granted tests', () => {
 test('leadership alone receives general catalog access', () => {
   assert.deepEqual(accessFor(1, '', 'Medic Inspector', '').allowedTests, accessCatalog);
   assert.deepEqual(allowedForUser({ csNum: 1, grantedTests: [] }), catalog);
+  assert.equal(isLeadership(210, 'Medic Specialist', 'Departamentul Medical'), false);
+  assert.equal(isLeadership(4, 'Director Adjunct', 'Departamentul Medical'), true);
 });
 
 test('eligible specializations do not override revoked grants', () => {
@@ -123,6 +125,9 @@ test('memberIsTester handles missing csNum without NaN', () => {
 test('Docs-based dashboard filters match dotted SMULS and ALS functions', () => {
   assert.equal(memberCanGiveTest({ functions: 'S.M.U.L.S.' }, 'Test SMULS'), true);
   assert.equal(memberCanGiveTest({ functions: 'A.L.S.' }, 'Test ALS'), true);
+  assert.equal(memberCanGiveTest({ functions: 'MOTO' }, 'Test MOTO'), true);
+  assert.equal(memberCanGiveTest({ functions: 'PILOT' }, 'Test PILOT'), true);
+  assert.equal(memberCanGiveTest({ functions: 'PARASUTIST' }, 'Test parașutiști'), true);
   assert.equal(memberCanGiveTest({ functions: 'MOTO' }, 'Test ALS'), false);
 });
 

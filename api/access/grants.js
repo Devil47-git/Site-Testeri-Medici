@@ -59,7 +59,7 @@ async function writeGrants(sheets, grants) {
   const existingRows = await readValues(sheets, grantsSheetTitle() + '!A1:E');
   const hasHeader = String(existingRows[0] && existingRows[0][0] || '').trim() === 'discordId';
   const body = hasHeader ? existingRows.slice(1) : existingRows;
-  if (!hasHeader) await sheets.spreadsheets.values.update({ spreadsheetId: SHEET_ID, range: grantsSheetTitle() + '!A1:E1', valueInputOption: 'RAW', requestBody: { values: [GRANTS_WRITE_HEADER] });
+  if (!hasHeader) await sheets.spreadsheets.values.update({ spreadsheetId: SHEET_ID, range: grantsSheetTitle() + '!A1:E1', valueInputOption: 'RAW', requestBody: { values: [GRANTS_WRITE_HEADER] } });
   const existingById = new Map(body.map((row, index) => [String(row && row[0] || '').trim(), index + (hasHeader ? 2 : 1)]));
   const updates = [];
   const appends = [];
@@ -68,8 +68,8 @@ async function writeGrants(sheets, grants) {
     if (rowNumber === undefined) appends.push(grantRowValues(grant));
     else updates.push({ range: grantsSheetTitle() + '!A' + rowNumber + ':E' + rowNumber, values: [grantRowValues(grant)] });
   }
-  if (updates.length) await sheets.spreadsheets.values.batchUpdate({ spreadsheetId: SHEET_ID, requestBody: { valueInputOption: 'RAW', data: updates });
-  if (appends.length) await sheets.spreadsheets.values.append({ spreadsheetId: SHEET_ID, range: grantsSheetTitle() + '!A1', valueInputOption: 'RAW', insertDataOption: 'INSERT_ROWS', requestBody: { values: appends });
+  if (updates.length) await sheets.spreadsheets.values.batchUpdate({ spreadsheetId: SHEET_ID, requestBody: { valueInputOption: 'RAW', data: updates } });
+  if (appends.length) await sheets.spreadsheets.values.append({ spreadsheetId: SHEET_ID, range: grantsSheetTitle() + '!A1', valueInputOption: 'RAW', insertDataOption: 'INSERT_ROWS', requestBody: { values: appends } });
 }
 function json(res, status, body) { return res.status(status).json(body); }
 

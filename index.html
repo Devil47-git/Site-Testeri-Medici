@@ -77,14 +77,6 @@
                         <div class="stat-icon violet">▤</div>
                         <p>TESTE CONFIGURATE</p><strong id="test-count">0</strong><span class="trend neutral">Din catalogul local</span>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-icon orange">◷</div>
-                        <p>SINCRONIZARE</p><strong id="last-sync">—</strong><span class="trend neutral">Google Sheets</span>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon green">✓</div>
-                        <p>DATE LOCALE</p><strong id="local-state">—</strong><span class="trend neutral">Fără valori inventate</span>
-                    </div>
                 </div>
                 <div class="content-grid">
                     <section class="panel testers-panel">
@@ -104,25 +96,7 @@
                         <div id="tester-groups" class="tester-groups"></div>
                     </section>
                 </div>
-                <section class="bottom-grid">
-                    <div class="panel roles-panel" id="roles-panel">
-                        <div class="panel-head">
-                            <div>
-                                <h2>Acces pe specializări</h2>
-                                <p class="muted">Distribuția testerilor pe fiecare test</p>
-                            </div><button class="dots">•••</button>
-                        </div>
-                        <div class="role-bars" id="role-bars"><div class="empty-state">Se încarcă specializările…</div></div>
-                    </div>
-                    <div class="panel sync-panel" id="sync-panel">
-                        <div class="sync-illustration">↻</div>
-                        <div>
-                            <h2>Sincronizare automată</h2>
-                            <p class="muted">Datele sunt preluate din Google Sheets și verificate periodic.</p>
-                            <div class="sync-status"><i></i> Sursa este configurată <span id="sync-detail">Așteaptă sincronizarea</span></div>
-                        </div><button class="outline" id="sync-btn">Sincronizează acum</button>
-                    </div>
-                </section>
+                <section class="test-summary-grid" id="test-summary-grid" aria-label="Teste susținute"></section>
                 </div>
                 <section class="view-content" id="view-content" hidden></section>
             </section>

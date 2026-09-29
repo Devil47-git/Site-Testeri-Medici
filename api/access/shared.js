@@ -1,7 +1,7 @@
 export const catalog = ['Test admitere', 'Test transfer', 'Adeverință medicală', 'Test SMULS', 'Test MOTO', 'Test ALS', 'Test PILOT', 'Test parașutiști'];
 export const coreTests = ['Test admitere', 'Test transfer', 'Adeverință medicală'];
 export const LEADERSHIP_RANK_KEYWORDS = ['DIRECTOR', 'INSPECTOR', 'CONDUCERE', 'MANAGER', 'COORDONATOR'];
-export const LEADERSHIP_DEPT_KEYWORDS = ['CONDUCERE', 'MEDICAL'];
+export const LEADERSHIP_DEPT_KEYWORDS = ['CONDUCERE'];
 
 // Grade groups: conducere (001-015), medic primar (101-115), medic specialist (201-230).
 export const GRADE_GROUPS = {
