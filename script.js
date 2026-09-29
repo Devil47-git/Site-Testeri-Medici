@@ -410,9 +410,8 @@ const AUTH_STORAGE_KEY='medici-auth';
 const AUTH_SCHEMA_VERSION=3;
 const AUTH_TTL=2*24*60*60*1000;
 // ===== BANDAL TEMPORAR PENTRU TESTARE =====
-// Setează pe false pentru a reactiva autentificarea cu Discord.
-// Codul Discord de mai sus rămâne neatins; doar fluxul de pornire este oprit.
-const DEV_LOGIN_ENABLED=new URLSearchParams(window.location.search).get('dev')==='1';
+// Preview login is local-only; Discord OAuth remains active on deployed hosts.
+const DEV_LOGIN_ENABLED=['localhost','127.0.0.1','[::1]'].includes(window.location.hostname);
 const DEV_LOGIN_USER={ id:'DEV-001', discordId:'0', name:'Tester Local', displayName:'Tester Local', callsign:'M-001', callSign:'M-001', csNum:1, rank:'Medic Inspector', dept:'Departamentul Medical', functions:'TESTER', isLeadership:true, isConducere:true, accessLevel:'leadership', gradeGroup:'leadership', allowedTests:[...coreTests,...specialtyTests], eligibleSpecializations:[], grantedTests:[...coreTests,...specialtyTests], avatar:null };
 // ===== SFÂRȘIT BANDAL =====
 const PRESENCE_KEY='medici-presence';
