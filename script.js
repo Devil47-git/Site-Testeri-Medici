@@ -236,6 +236,12 @@ const LOGIN_ENDPOINT='/api/auth/login';
 const AUTH_STORAGE_KEY='medici-auth';
 const AUTH_SCHEMA_VERSION=3;
 const AUTH_TTL=2*24*60*60*1000;
+// ===== BANDAL TEMPORAR PENTRU TESTARE =====
+// Setează pe false pentru a reactiva autentificarea cu Discord.
+// Codul Discord de mai sus rămâne neatins; doar fluxul de pornire este oprit.
+const DEV_LOGIN_ENABLED=new URLSearchParams(window.location.search).get('dev')==='1';
+const DEV_LOGIN_USER={ id:'DEV-001', discordId:'0', name:'Tester Local', displayName:'Tester Local', callsign:'M-001', callSign:'M-001', csNum:1, rank:'Medic Inspector', dept:'Departamentul Medical', functions:'TESTER', isLeadership:true, isConducere:true, accessLevel:'leadership', allowedTests:[...coreTests,...specialtyTests], eligibleSpecializations:[], grantedTests:[...coreTests,...specialtyTests], avatar:null };
+// ===== SFÂRȘIT BANDAL =====
 const PRESENCE_KEY='medici-presence';
 function markPresence() { if (!currentUser?.discordId) return; const presence = readStored(PRESENCE_KEY, {}); presence[currentUser.discordId] = Date.now(); localStorage.setItem(PRESENCE_KEY, JSON.stringify(presence)); }
 function isActive(member) { return Number(member.lastSeen || 0) > Date.now() - 120000; }
@@ -306,6 +312,7 @@ async function verifyCachedUser(user) {
   } catch { return false; }
 }
 async function startSession(){
+  if(DEV_LOGIN_ENABLED){ return enterApp({ ...DEV_LOGIN_USER }); }
   try{
     const callbackUser=await exchangeCallbackCode(); if(callbackUser) return enterApp(callbackUser);
     const cached=readStored(AUTH_STORAGE_KEY, null);
@@ -314,7 +321,7 @@ async function startSession(){
   }catch(error){appShell.classList.remove('ready');const message=error.message==='not-authorized'?'Conectează-te cu Discord pentru a verifica accesul.':error.message;showAuthError(message)}
 }
 const discordLoginBtn = document.querySelector('#discord-login');
-if (discordLoginBtn) discordLoginBtn.onclick = () => { window.location.href = LOGIN_ENDPOINT; };
+if (discordLoginBtn) discordLoginBtn.onclick = () => { if (DEV_LOGIN_ENABLED) return; window.location.href = LOGIN_ENDPOINT; };
 const themeToggle=document.querySelector('#theme-toggle');
 const savedTheme=localStorage.getItem('medici-theme');
 if(savedTheme==='dark') document.body.classList.add('dark-mode');
