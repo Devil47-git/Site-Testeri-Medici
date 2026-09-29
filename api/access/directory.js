@@ -1,7 +1,9 @@
 import { normalize, callsignNumber, isLeadershipRow, gradeGroupFor, GRADE_GROUPS, LEADERSHIP_MAX } from './shared.js';
 
+const RESIDENT_TESTER_PATTERN = /SMULS|MOTO|ALS|PILOT/;
+
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
-const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:T400';
+const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:U400';
 const GRANTS_RANGE = process.env.GOOGLE_GRANTS_RANGE || 'GRANTS!A1:E';
 function isLeadership(row) { return isLeadershipRow(row); }
 function readTests(value = '') { return String(value).split('|').filter(Boolean); }
@@ -11,6 +13,7 @@ function relevantMember(row) {
   if (!number || number > 399 || !String(row[3] || '').trim()) return false;
   if (number >= 1 && number <= LEADERSHIP_MAX) return true;
   if (number >= GRADE_GROUPS.primar.min && number <= GRADE_GROUPS.specialist.max) return true;
+  if (number >= 301 && number <= 340) return RESIDENT_TESTER_PATTERN.test(normalize(row[10]));
   if (number >= 200 && number < 300) return Boolean(functions);
   return number >= 300 && /TESTER/.test(functions);
 }
@@ -47,8 +50,8 @@ export default async function handler(req, res) {
     const grants = (await readPublic(GRANTS_RANGE).catch(() => [])).slice(1).filter(Array.isArray);
     const grantsByDiscord = new Map(grants.map(row => [String(row[0] || '').trim(), { grantedTests: readTests(row[2]), updatedAt: String(row[3] || '').trim(), lastSeen: String(row[4] || '').trim() }]));
     const result = members.filter(row => relevantMember(row) || isLeadership(row)).map(row => ({
-      discordId: String(row[19] || '').trim(), name: String(row[3] || '').trim(), callsign: String(row[2] || '').trim(), csNum: callsignNumber(row[2]), rank: isLeadership(row) ? leadershipTitle(row) : String(row[4] || '').trim(), dept: String(row[5] || '').trim(), functions: String(row[10] || '').trim(), gradeGroup: groupLabel(row),
-      isLeadership: isLeadership(row), leadershipTitle: isLeadership(row) ? leadershipTitle(row) : '', grantedTests: grantsByDiscord.get(String(row[19] || '').trim())?.grantedTests || [], updatedAt: grantsByDiscord.get(String(row[19] || '').trim())?.updatedAt || '', lastSeen: grantsByDiscord.get(String(row[19] || '').trim())?.lastSeen || '', isTester: ['leadership', 'primar', 'specialist'].includes(gradeGroupFor(callsignNumber(row[2]))) || /TESTER/.test(normalize(row[10])) || grantsByDiscord.has(String(row[19] || '').trim())
+      discordId: String(row[19] || '').trim(), name: String(row[3] || '').trim(), callsign: String(row[2] || '').trim(), csNum: callsignNumber(row[2]), rank: String(row[4] || '').trim(), dept: String(row[5] || '').trim(), functions: String(row[10] || '').trim(), gradeGroup: groupLabel(row),
+      isLeadership: isLeadership(row), leadershipTitle: isLeadership(row) ? leadershipTitle(row) : '', avatar: row[20] ? `https://cdn.discordapp.com/avatars/${String(row[19] || '').trim()}/${String(row[20] || '').trim()}.png` : '', grantedTests: grantsByDiscord.get(String(row[19] || '').trim())?.grantedTests || [], updatedAt: grantsByDiscord.get(String(row[19] || '').trim())?.updatedAt || '', lastSeen: grantsByDiscord.get(String(row[19] || '').trim())?.lastSeen || '', isTester: ['leadership', 'primar', 'specialist'].includes(gradeGroupFor(callsignNumber(row[2]))) || (callsignNumber(row[2]) >= 301 && callsignNumber(row[2]) <= 340 && RESIDENT_TESTER_PATTERN.test(normalize(row[10]))) || /TESTER/.test(normalize(row[10])) || grantsByDiscord.has(String(row[19] || '').trim())
     }));
     return json(res, 200, { members: result, syncedAt: new Date().toISOString() });
   } catch (error) {

@@ -29,10 +29,13 @@ const definitions = Object.fromEntries(catalog.map(n => [n, { name: n, questions
 
 const names = ['callsignNumber', 'normalizeCallsign', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberIsTester', 'sortMembers', 'gradeGroupFor'];
 const srcs = names.map(extract).join('\n');
+const pattern = source.match(/^const RESIDENT_TESTER_PATTERN = .*$/m)?.[0] || 'const RESIDENT_TESTER_PATTERN = /TESTER/;';
+const normalizeTextSrc = extract('normalizeText');
+const fullSrc = `${pattern}\n${normalizeTextSrc}\n${srcs}`;
 const load = new Function(
   'catalog',
   'testDefinitions',
-  `${srcs}\nreturn { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberIsTester, sortMembers, gradeGroupFor };`,
+  `${fullSrc}\nreturn { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberIsTester, sortMembers, gradeGroupFor };`,
 )(catalog, definitions);
 
 const { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberIsTester, sortMembers, gradeGroupFor } = load;
@@ -52,12 +55,12 @@ test('normalizeCallsign pads to three digits', () => {
   assert.equal(normalizeCallsign(undefined), '');
 });
 
-test('isLeadershipUser accepts csNum 1-10 and leadership flags', () => {
+test('isLeadershipUser accepts csNum 1-15 and leadership flags', () => {
   assert.equal(isLeadershipUser({ csNum: 1 }), true);
-  assert.equal(isLeadershipUser({ csNum: 15 }), false);
+  assert.equal(isLeadershipUser({ csNum: 15 }), true);
   assert.equal(isLeadershipUser({ csNum: 16 }), false);
   assert.equal(isLeadershipUser({ csNum: 10 }), true);
-  assert.equal(isLeadershipUser({ csNum: 11 }), false);
+  assert.equal(isLeadershipUser({ csNum: 11 }), true);
   assert.equal(isLeadershipUser({ accessLevel: 'leadership', csNum: 900 }), true);
   assert.equal(isLeadershipUser(null), false);
 });
@@ -85,6 +88,10 @@ test('allowedForUser filters to known, defined tests only', () => {
   assert.deepEqual(allowed, ['Test MOTO']);
 });
 
+test('eligible specializations do not override revoked grants', () => {
+  assert.deepEqual(allowedForUser({ eligibleSpecializations: ['Test MOTO'], grantedTests: [] }), []);
+});
+
 test('memberIsTester handles missing csNum without NaN', () => {
   assert.equal(memberIsTester({ grantedTests: ['Test MOTO'] }), true);
   assert.equal(memberIsTester({ csNum: 250 }), false);
@@ -93,6 +100,10 @@ test('memberIsTester handles missing csNum without NaN', () => {
   assert.equal(memberIsTester({ csNum: 115 }), true);
   assert.equal(memberIsTester({ csNum: 100 }), false);
   assert.equal(memberIsTester({ csNum: 50 }), false);
+  assert.equal(memberIsTester({ csNum: 320, functions: 'MOTO' }), true);
+  assert.equal(memberIsTester({ csNum: 320, functions: 'AMBULANTA' }), false);
+  assert.equal(memberIsTester({ csNum: 340, functions: 'PILOT' }), true);
+  assert.equal(memberIsTester({ csNum: 341, functions: 'PILOT' }), false);
   assert.equal(memberIsTester({ functions: 'tester' }), true);
   assert.equal(memberIsTester({}), false);
 });
@@ -105,7 +116,8 @@ test('sortMembers places leadership first, then by csNum', () => {
 test('gradeGroupFor splits conducere, primari and specialisti', () => {
   assert.equal(gradeGroupFor(1), 'Conducerea departamentului');
   assert.equal(gradeGroupFor(10), 'Conducerea departamentului');
-  assert.equal(gradeGroupFor(11), '');
+  assert.equal(gradeGroupFor(15), 'Conducerea departamentului');
+  assert.equal(gradeGroupFor(16), '');
   assert.equal(gradeGroupFor(101), 'Medici Primari (101-115)');
   assert.equal(gradeGroupFor(115), 'Medici Primari (101-115)');
   assert.equal(gradeGroupFor(116), '');

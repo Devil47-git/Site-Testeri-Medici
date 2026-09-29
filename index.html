@@ -66,7 +66,7 @@
                         <p class="eyebrow" id="today-label"></p>
                         <h1>Bună, <span id="welcome-name">Alex</span> <span>👋</span></h1>
                         <p class="muted" id="welcome-subtitle">Datele vor apărea după sincronizarea cu sursa departamentului.</p>
-                    </div><button class="primary" id="add-btn">＋ Adaugă tester</button>
+                    </div><div class="welcome-actions"><button class="primary" id="add-btn">＋ Adaugă tester</button><button class="outline danger-button" id="remove-btn" hidden>－ Scoatere Tester</button></div>
                 </div>
                 <div class="stats-grid">
                     <div class="stat-card">
@@ -96,23 +96,12 @@
                         </div>
                         <div class="toolbar">
                             <div class="search">⌕<input id="search" placeholder="Caută după nume sau callsign..."></div>
-                            <button class="filter" id="filter-btn">Filtrează <span>☷</span></button>
+                            <div class="test-filter" id="test-filter">
+                                <button class="filter" id="filter-btn" aria-expanded="false">Filtrează după test <span>☷</span></button>
+                                <div class="test-filter-menu" id="test-filter-menu" hidden></div>
+                            </div>
                         </div>
-                        <div class="table-wrap">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>TESTER</th>
-                                        <th>CALLSIGN</th>
-                                        <th>TESTE ALOCATE</th>
-                                        <th>ULTIMA ACTIVITATE</th>
-                                        <th>STATUS</th>
-                                        <th></th>
-                                    </tr>
-                                </thead>
-                                <tbody id="tester-rows"></tbody>
-                            </table>
-                        </div>
+                        <div id="tester-groups" class="tester-groups"></div>
                     </section>
                 </div>
                 <section class="bottom-grid">
@@ -143,7 +132,18 @@
         <div class="modal"><button class="close" id="close-modal">×</button>
             <p class="eyebrow">ACCES NOU</p>
             <h2>Adaugă un tester</h2>
-            <p class="muted">Caută membrul după callsign, apoi acordă-i testele permise.</p><label>Callsign<input id="callsign" type="text" placeholder="007 sau M-007" autocomplete="off"></label><div id="member-result" class="member-result"></div><label>Teste de acordat<div class="checks" id="grant-checks"><label><input type="checkbox" value="Test admitere"> Test admitere</label><label><input type="checkbox" value="Test transfer"> Test transfer</label><label><input type="checkbox" value="Adeverință medicală"> Adeverință medicală</label><label><input type="checkbox" value="Test SMULS"> Test SMULS</label><label><input type="checkbox" value="Test MOTO"> Test MOTO</label><label><input type="checkbox" value="Test ALS"> Test ALS</label><label><input type="checkbox" value="Test PILOT"> Test PILOT</label><label><input type="checkbox" value="Test parașutiști"> Test parașutiști</label></div></label><button class="primary full" id="invite-btn">Salvează accesul →</button>
+            <p class="muted">Caută membrul după callsign, apoi acordă-i testele permise.</p><label>Callsign<input id="callsign" type="text" placeholder="007 sau M-007" autocomplete="off"></label><div id="member-result" class="member-result"></div><label>Teste de acordat<div class="checks" id="grant-checks"></div></label><button class="primary full" id="invite-btn">Salvează accesul →</button>
+        </div>
+    </div>
+    <div class="modal-backdrop" id="remove-modal">
+        <div class="modal"><button class="close" id="close-remove-modal">×</button>
+            <p class="eyebrow">REVOCARE ACCES</p>
+            <h2>Scoatere Tester</h2>
+            <p class="muted">Alege testerul și testul de la care vrei să-i retragi accesul.</p>
+            <label>Tester<select id="remove-member-select"></select></label>
+            <label>Test de scos<div class="checks" id="remove-test-checks"></div></label>
+            <p class="member-result" id="remove-result"></p>
+            <button class="primary full danger-button" id="confirm-remove-btn">Revocă accesul selectat</button>
         </div>
     </div>
     <script src="tests.js"></script>

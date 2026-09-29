@@ -2,7 +2,8 @@ import { accessFor } from '../access/shared.js';
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const SHEET_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:T400';
-const GRANTS_RANGE = process.env.GOOGLE_GRANTS_RANGE || 'GRANTS!A1:E';
+const GRANTS_RANGE = process.env.GOOGLE_GRANTS_RANGE || 'GRANTS!A1:F';
+const AVATAR_RANGE = process.env.GOOGLE_AVATAR_RANGE || 'LISTA DEPARTAMENT!T:U';
 
 export default async function handler(req, res) {
   const allowedOrigin = process.env.APP_ORIGIN || 'https://site-wheat-zeta-76.vercel.app';
@@ -46,6 +47,7 @@ export default async function handler(req, res) {
     if (!row) return res.status(404).json({ error: 'not_found' });
 
     const user = mapSheetRowToUser(row, discordUser);
+    await persistAvatarHash(user, discordUser);
     const grantsRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(GRANTS_RANGE)}?key=${GOOGLE_API_KEY}`);
     if (grantsRes.ok) {
       const grantsData = await grantsRes.json();
@@ -62,10 +64,39 @@ export default async function handler(req, res) {
   }
 }
 
+function avatarUrl(discordId, hash) {
+  return hash ? `https://cdn.discordapp.com/avatars/${discordId}/${hash}.png` : '';
+}
+/** Salvează hash-ul pozei de pe Discord în coloana U, ca să rămână în tabel după o nouă conectare. */
+async function persistAvatarHash(user, discordUser) {
+  const hash = String(discordUser.avatar || '').trim();
+  user.avatar = avatarUrl(discordUser.id, hash);
+  if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON && !process.env.GOOGLE_APPLICATION_CREDENTIALS) return;
+  try {
+    const { google } = await import('googleapis');
+    const credentials = process.env.GOOGLE_SERVICE_ACCOUNT_JSON ? JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT_JSON) : undefined;
+    const auth = new google.auth.GoogleAuth({ credentials, scopes: ['https://www.googleapis.com/auth/spreadsheets'] });
+    const sheets = google.sheets({ version: 'v4', auth });
+    const existing = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: AVATAR_RANGE });
+    const rows = Array.isArray(existing.data.values) ? existing.data.values : [];
+    const index = rows.findIndex(row => String(row?.[0] || '').trim() === String(discordUser.id));
+    if (index < 0 || String(rows[index]?.[1] || '') === hash) return;
+    const sheetTitle = AVATAR_RANGE.split('!')[0].replace(/^'|'$/g, '').replace(/'/g, "''");
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SHEET_ID,
+      range: `'${sheetTitle}'!U${index + 1}`,
+      valueInputOption: 'RAW',
+      requestBody: { values: [[hash]] }
+    });
+  } catch (error) {
+    console.error('Discord avatar persistence failed:', error);
+  }
+}
+
 function mapSheetRowToUser(row, discordUser) {
   const callSignRaw = String(row[2] || '').trim();
   const csNum = parseInt(callSignRaw.replace(/\D/g, ''), 10) || 0;
   const functions = String(row[10] || '').trim(); const rank = String(row[4] || '').trim(); const dept = String(row[5] || '').trim();
   const access = accessFor(csNum, functions, rank, dept);
-  return { id: String(row[1] || '').trim(), name: String(row[3] || discordUser.username || '').trim(), callsign: callSignRaw, callSign: callSignRaw, csNum, rank, dept, functions, discordId: discordUser.id, avatar: discordUser.avatar ? `https://cdn.discordapp.com/avatars/${discordUser.id}/${discordUser.avatar}.png` : null, ...access };
+  return { id: String(row[1] || '').trim(), name: String(row[3] || discordUser.username || '').trim(), callsign: callSignRaw, callSign: callSignRaw, csNum, rank, dept, functions, discordId: discordUser.id, avatar: avatarUrl(discordUser.id, row[20] || discordUser.avatar), ...access };
 }
