@@ -495,7 +495,19 @@ async function startSession(){
   }catch(error){appShell.classList.remove('ready');const message=error.message==='not-authorized'?'Conectează-te cu Discord pentru a verifica accesul.':error.message;showAuthError(message)}
 }
 const discordLoginBtn = document.querySelector('#discord-login');
-if (discordLoginBtn) discordLoginBtn.onclick = () => { if (DEV_LOGIN_ENABLED) return; window.location.href = LOGIN_ENDPOINT; };
+if (discordLoginBtn) {
+  if (DEV_LOGIN_ENABLED) {
+    document.querySelector('.auth-card h1').textContent = 'Intră pe site';
+    document.querySelector('.auth-copy').textContent = 'Accesează site-ul fără conectare Discord.';
+    document.querySelector('.auth-preview b').textContent = 'Acces demo';
+    document.querySelector('.auth-preview small').textContent = 'Cont de previzualizare';
+    document.querySelector('.auth-note').hidden = true;
+    discordLoginBtn.innerHTML = 'Intră pe site <span>→</span>';
+    discordLoginBtn.onclick = () => enterApp({ ...DEV_LOGIN_USER });
+  } else {
+    discordLoginBtn.onclick = () => { window.location.href = LOGIN_ENDPOINT; };
+  }
+}
 const themeToggle=document.querySelector('#theme-toggle');
 const savedTheme=localStorage.getItem('medici-theme');
 if(savedTheme==='dark') document.body.classList.add('dark-mode');
