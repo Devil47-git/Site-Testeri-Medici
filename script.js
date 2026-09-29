@@ -410,8 +410,8 @@ const AUTH_STORAGE_KEY='medici-auth';
 const AUTH_SCHEMA_VERSION=3;
 const AUTH_TTL=2*24*60*60*1000;
 // ===== BANDAL TEMPORAR PENTRU TESTARE =====
-// Temporary public preview: all visitors enter as the demo leadership account.
-const DEV_LOGIN_ENABLED=true;
+// Set to true only for a local preview; production uses Discord authentication.
+const DEV_LOGIN_ENABLED=false;
 const DEV_LOGIN_USER={ id:'DEV-001', discordId:'0', name:'Tester Local', displayName:'Tester Local', callsign:'M-001', callSign:'M-001', csNum:1, rank:'Medic Inspector', dept:'Departamentul Medical', functions:'TESTER', isLeadership:true, isConducere:true, accessLevel:'leadership', gradeGroup:'leadership', allowedTests:[...coreTests,...specialtyTests], eligibleSpecializations:[], grantedTests:[...coreTests,...specialtyTests], avatar:null };
 // ===== SFÂRȘIT BANDAL =====
 const PRESENCE_KEY='medici-presence';
