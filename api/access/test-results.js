@@ -1,4 +1,4 @@
-import { catalog, isLeadershipRow, normalizeTests, specializationFor } from './shared.js';
+import { catalog, isLeadershipRow, normalizeTests, testsForFunctions } from './shared.js';
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:T400';
@@ -50,7 +50,7 @@ async function findRequester(sheets, discordId) {
 
 async function canRecordTest(sheets, member, discordId, testName) {
   if (isLeadershipRow(member)) return true;
-  if (specializationFor(member[10]).includes(testName)) return true;
+  if (testsForFunctions(member[10]).includes(testName)) return true;
   const grants = (await readValues(sheets, GRANTS_RANGE).catch(() => [])).slice(1);
   const grant = grants.find(row => String(row[0] || '').trim() === discordId);
   return normalizeTests(String(grant?.[2] || '').split('|')).includes(testName);

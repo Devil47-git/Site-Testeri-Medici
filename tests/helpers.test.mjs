@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { accessFor, catalog as accessCatalog, isLeadership } from '../api/access/shared.js';
+import { accessFor, catalog as accessCatalog, coreTests, isLeadership, normalizeTests, testsForFunctions } from '../api/access/shared.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const source = readFileSync(join(here, '..', 'script.js'), 'utf8');
@@ -104,6 +104,12 @@ test('leadership alone receives general catalog access', () => {
   assert.deepEqual(allowedForUser({ csNum: 1, grantedTests: [] }), catalog);
   assert.equal(isLeadership(210, 'Medic Specialist', 'Departamentul Medical'), false);
   assert.equal(isLeadership(4, 'Director Adjunct', 'Departamentul Medical'), true);
+});
+
+test('Tester Docs role maps to the complete three-test bundle', () => {
+  assert.deepEqual(testsForFunctions('TESTER'), coreTests);
+  assert.deepEqual(testsForFunctions('TESTER | A.L.S.'), [...coreTests, 'Test ALS']);
+  assert.deepEqual(normalizeTests(['Test transfer']), coreTests);
 });
 
 test('eligible specializations do not override revoked grants', () => {

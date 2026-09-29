@@ -46,5 +46,16 @@ export default async function run(page, ui) {
   }));
   await page.click('#close-remove-modal');
 
-  return { errs, initialState, filterState, searchState, vacantState, docsGrantSelected, removeState };
+  await page.fill('#search', '');
+  const memberToggle = page.locator('#test-summary-grid .test-summary-card').filter({ hasText: 'Test A.L.S.' }).locator('[data-summary-member]').first();
+  const memberDetailExists = await memberToggle.count();
+  if (memberDetailExists) await memberToggle.click();
+  const memberDetail = await page.evaluate(() => ({
+    expanded: document.querySelector('#test-summary-grid [data-summary-member][aria-expanded="true"]')?.getAttribute('data-summary-member') || '',
+    roles: [...document.querySelectorAll('#test-summary-grid .summary-member-roles .tag')].map(tag => tag.textContent.trim()),
+    tests: [...document.querySelectorAll('#test-summary-grid .summary-test-count > span')].map(label => label.textContent.trim()),
+    counts: [...document.querySelectorAll('#test-summary-grid .summary-test-count > strong')].map(count => count.textContent.trim())
+  }));
+
+  return { errs, initialState, filterState, searchState, vacantState, docsGrantSelected, removeState, memberDetail };
 }

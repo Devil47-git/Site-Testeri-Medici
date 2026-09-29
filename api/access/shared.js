@@ -49,6 +49,12 @@ export function specializationFor(functions) {
   return eligible;
 }
 
+export function testsForFunctions(functions) {
+  const assigned = specializationFor(functions);
+  if (/\bTESTER\b/.test(normalize(functions))) assigned.unshift(...coreTests);
+  return [...new Set(assigned)];
+}
+
 export function accessFor(csNum, functions, rank, dept) {
   const leadership = isLeadership(csNum, rank, dept);
   const gradeGroup = gradeGroupFor(csNum);
@@ -59,10 +65,12 @@ export function accessFor(csNum, functions, rank, dept) {
     gradeGroup,
     allowedTests: leadership ? [...catalog] : [],
     eligibleSpecializations: specializationFor(functions),
-    grantedTests: leadership ? [] : specializationFor(functions)
+    grantedTests: leadership ? [] : testsForFunctions(functions)
   };
 }
 
 export function normalizeTests(tests) {
-  return [...new Set((Array.isArray(tests) ? tests : []).filter(test => catalog.includes(test)))];
+  const normalized = [...new Set((Array.isArray(tests) ? tests : []).filter(test => catalog.includes(test)))];
+  if (!coreTests.some(test => normalized.includes(test))) return normalized;
+  return [...coreTests, ...normalized.filter(test => !coreTests.includes(test))];
 }

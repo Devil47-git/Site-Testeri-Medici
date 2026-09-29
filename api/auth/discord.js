@@ -1,4 +1,4 @@
-import { accessFor } from '../access/shared.js';
+import { accessFor, normalizeTests } from '../access/shared.js';
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const SHEET_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:T400';
@@ -53,7 +53,7 @@ export default async function handler(req, res) {
       const grantsData = await grantsRes.json();
       const grant = (Array.isArray(grantsData.values) ? grantsData.values : []).slice(1).filter(item => Array.isArray(item)).find(item => String(item[0] || '').trim() === String(discordUser.id));
       if (grant) {
-        user.grantedTests = [...new Set([...(user.grantedTests || []), ...String(grant[2] || '').split('|').filter(Boolean)])];
+        user.grantedTests = normalizeTests([...(user.grantedTests || []), ...String(grant[2] || '').split('|').filter(Boolean)]);
       }
     }
     return res.status(200).json({ success: true, user });

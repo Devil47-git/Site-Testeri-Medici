@@ -16,6 +16,7 @@
  */
 
 const coreTests = ['Test admitere','Test transfer','Adeverință medicală'];
+const TESTER_BUNDLE_KEY = '__tester_bundle__';
 const specialtyTests = ['Test ALS','Test SMULS','Test MOTO','Test PILOT','Test parașutiști'];
 const docsTesterFilters = ['Test SMULS', 'Test ALS'];
 const testSummaryDefinitions = [['Test SMULS', 'Test S.M.U.L.S.'], ['Test MOTO', 'Test MOTO'], ['Test PILOT', 'Test PILOT'], ['Test ALS', 'Test A.L.S.'], ['Test parașutiști', 'Test parașutism']];
@@ -36,8 +37,9 @@ const GRANTS_KEY = 'medici-grants';
 /** @type {Member|null} */
 let currentUser = null;
 /** @type {Member[]} */
-let testers = readStored(GRANTS_KEY, []).filter(member => String(member?.name || '').trim());
+let testers = readStored(GRANTS_KEY, []).filter(member => String(member?.name || '').trim()).map(member => ({ ...member, grantedTests: normalizeGrantBundle(member.grantedTests || []) }));
 let testRunCounts = {};
+let expandedSummaryMember = '';
 function saveTesters() { localStorage.setItem(GRANTS_KEY, JSON.stringify(testers)); }
 function refreshCurrentView() { const active = document.querySelector('.nav-item.active')?.dataset.view || 'overview'; renderView(active); }
 function candidateSummary(member, result = 'Admis') { if (!member) return ''; return `Candidat: @[${normalizeCallsign(member.callsign)}] ${member.name || '—'}\nGrad: ${member.rank || '—'}\nRezultat: ${result}`; }
@@ -65,9 +67,12 @@ async function loadRemoteGrants() {
   }
   if (isLeadershipUser(currentUser)) {
     const grants = grantsPayload;
-    testers = directoryMembers.length ? directoryMembers.filter(member => String(member.name || '').trim() && (member.isTester || memberIsTester(member))).map(member => { const grant = grants.find(item => item.discordId === member.discordId);
-      if (!grant) return member;
-      return { ...member, ...grant, grantedTests: [...new Set([...(member.grantedTests || []), ...(grant.grantedTests || [])])] }; }) : grants;
+    testers = directoryMembers.length
+      ? directoryMembers.filter(member => String(member.name || '').trim() && (member.isTester || memberIsTester(member))).map(member => {
+          const grant = grants.find(item => item.discordId === member.discordId);
+          return { ...member, ...grant, grantedTests: normalizeGrantBundle([...(member.grantedTests || []), ...docsAssignedTests(member), ...(grant?.grantedTests || [])]) };
+        })
+      : grants.map(grant => ({ ...grant, grantedTests: normalizeGrantBundle(grant.grantedTests || []) }));
   } else {
     const ownGrant = grantsPayload.find(grant => grant.discordId === currentUser.discordId);
     currentUser.grantedTests = ownGrant?.grantedTests || currentUser.grantedTests || [];
@@ -133,7 +138,18 @@ function memberCanGiveTest(member, test) {
   if (test === 'Test parașutiști') return /PARASUTIST|PARACHUTIST|\s*PT\s*\|/.test(functions);
   return false;
 }
-function docsAssignedTests(member) { return testSummaryDefinitions.map(([test]) => test).filter(test => memberCanGiveTest(member, test)); }
+function docsAssignedTests(member) {
+  const assigned = testSummaryDefinitions.map(([test]) => test).filter(test => memberCanGiveTest(member, test));
+  if (/\bTESTER\b/.test(normalizeText(member?.functions))) assigned.unshift(...coreTests);
+  return [...new Set(assigned)];
+}
+function normalizeGrantBundle(tests) {
+  const normalized = [...new Set(tests)];
+  if (coreTests.some(test => normalized.includes(test))) {
+    for (const test of coreTests) if (!normalized.includes(test)) normalized.push(test);
+  }
+  return normalized;
+}
 function memberIsTester(member) { const cs = callsignNumber(member?.csNum); const specialty = RESIDENT_TESTER_PATTERN.test(normalizeText(member?.functions)); return (member?.grantedTests || []).length > 0 || (cs >= 101 && cs <= 230) || (cs >= 301 && cs <= 340 && specialty) || /TESTER/.test(normalizeText(member?.functions)); }
 /** @param {any[]} members @returns {any[]} */
 function sortMembers(members) { return [...members].sort((a, b) => { const ca = callsignNumber(a?.csNum); const cb = callsignNumber(b?.csNum); return ca - cb; }); }
@@ -149,10 +165,12 @@ function avatarFor(member) {
 function memberNameFor(member) { return String(member?.name || '').trim() || normalizeCallsign(member?.callsign) || '—'; }
 function rankFor(member) { return String(member?.rank || '').trim() || String(member?.gradeGroup || '').trim() || '—'; }
 function testerAccessHtml(member) {
-  const assignedTests = member.grantedTests || [];
+  const assignedTests = normalizeGrantBundle(member.grantedTests || []);
   if (isLeadershipUser(member)) return '<span class="muted">Acces general</span>';
-  return assignedTests.length
-    ? assignedTests.map((test, i) => `<span class="tag ${i % 3 === 1 ? 'orange' : i % 3 === 2 ? 'cyan' : ''}">${escapeHtml(test)}</span>`).join('')
+  const hasTesterBundle = coreTests.every(test => assignedTests.includes(test));
+  const visibleTests = [...(hasTesterBundle ? ['Tester'] : []), ...assignedTests.filter(test => !hasTesterBundle || !coreTests.includes(test))];
+  return visibleTests.length
+    ? visibleTests.map((test, i) => `<span class="tag ${i % 3 === 1 ? 'orange' : i % 3 === 2 ? 'cyan' : ''}">${escapeHtml(test)}</span>`).join('')
     : '<span class="muted">Fără teste alocate</span>';
 }
 function testerRowHtml(member, index) {
@@ -208,7 +226,7 @@ async function loadDirectory() {
   directoryMembers = (payload.members || []).filter(member => String(member?.name || '').trim());
   await loadTestRunCounts();
   if (isLeadershipUser(currentUser)) {
-    testers = directoryMembers.filter(member => member.isTester || memberIsTester(member)).map(member => ({ ...member, grantedTests: member.grantedTests || [] }));
+    testers = directoryMembers.filter(member => member.isTester || memberIsTester(member)).map(member => ({ ...member, grantedTests: normalizeGrantBundle([...(member.grantedTests || []), ...docsAssignedTests(member)]) }));
     saveTesters();
   }
   renderRows();
@@ -222,13 +240,25 @@ function renderDashboardData() {
     const rows = members.length
       ? members.map(member => {
           const count = testRunCounts[member.discordId]?.[test] || 0;
-          return `<div class="test-summary-member"><div><strong>${escapeHtml(memberNameFor(member))}</strong><small>${escapeHtml(rankFor(member))} · ${escapeHtml(normalizeCallsign(member.callsign))}</small></div><span>${count} ${count === 1 ? 'test' : 'teste'}</span></div>`;
+          const key = `${test}:${member.discordId || normalizeCallsign(member.callsign)}`;
+          const expanded = expandedSummaryMember === key;
+          return `<div class="test-summary-member"><button type="button" class="test-summary-member-toggle" data-summary-member="${escapeHtml(key)}" aria-expanded="${expanded}"><span class="summary-member-identity"><strong>${escapeHtml(memberNameFor(member))}</strong><small>${escapeHtml(rankFor(member))} · ${escapeHtml(normalizeCallsign(member.callsign))}</small></span><span class="summary-member-count">${count} ${count === 1 ? 'test' : 'teste'} <span aria-hidden="true">${expanded ? '⌃' : '⌄'}</span></span></button>${expanded ? testerSummaryDetailHtml(member) : ''}</div>`;
         }).join('')
       : '<p class="muted">Nu există testeri cu acest test alocat.</p>';
     return `<article class="panel test-summary-card"><header><h2>${escapeHtml(label)}</h2><span>${members.length}</span></header>${rows}</article>`;
   }).join('');
   const overview = document.querySelector('#overview-view');
   if (overview) overview.dataset.updatedAt = new Date().toISOString();
+}
+function testerSummaryDetailHtml(member) {
+  const assignedTests = normalizeGrantBundle([...(member.grantedTests || []), ...docsAssignedTests(member)]);
+  const roleBadges = isLeadershipUser(member) ? testerAccessHtml(member) : testerAccessHtml({ ...member, grantedTests: assignedTests });
+  const counts = catalog.map(test => {
+    const count = testRunCounts[member.discordId]?.[test] || 0;
+    const hasAccess = isLeadershipUser(member) || assignedTests.includes(test);
+    return `<div class="summary-test-count"><span>${escapeHtml(test)}</span><small>${hasAccess ? 'Acces activ' : 'Fără acces'}</small><strong>${count}</strong></div>`;
+  }).join('');
+  return `<div class="summary-member-detail"><div class="summary-member-roles"><strong>Roluri tester</strong><div class="tags">${roleBadges}</div></div><div class="summary-test-counts">${counts}</div></div>`;
 }
 async function loadTestRunCounts() {
   if (!currentUser?.discordId) { testRunCounts = {}; return; }
@@ -360,7 +390,7 @@ function openAddModal(member) {
   grantChecks.innerHTML = '';
   if (member) {
     selectedMember = { ...member };
-    selectedGrantDraft = [...new Set([...(member.grantedTests || []), ...docsAssignedTests(member)])];
+    selectedGrantDraft = normalizeGrantBundle([...(member.grantedTests || []), ...docsAssignedTests(member)]);
     renderGrantChecks(catalog);
     memberResult.textContent = `${memberNameFor(member)} · ${normalizeCallsign(member.callsign)}`;
   } else { selectedMember = null; selectedGrantDraft = []; memberResult.textContent = ''; lookupMember(); }
@@ -377,9 +407,13 @@ const removeResult = document.querySelector('#remove-result');
 function renderRemoveTestChecks() {
   const member = testers.find(item => normalizeCallsign(item.callsign) === normalizeCallsign(removeMemberSelect?.value || ''));
   const granted = member?.grantedTests || [];
-  removeTestChecks.innerHTML = granted.length
-    ? granted.map(test => `<label><input type="checkbox" value="${escapeHtml(test)}"> ${escapeHtml(test)}</label>`).join('')
-    : '<p class="muted">Acest tester nu are teste alocate.</p>';
+  const hasTesterBundle = coreTests.every(test => granted.includes(test));
+  const otherTests = granted.filter(test => !coreTests.includes(test));
+  removeTestChecks.innerHTML = hasTesterBundle
+    ? `<label><input type="checkbox" value="${TESTER_BUNDLE_KEY}"> Tester (admitere, transfer, adeverință)</label>${otherTests.map(test => `<label><input type="checkbox" value="${escapeHtml(test)}"> ${escapeHtml(test)}</label>`).join('')}`
+    : granted.length
+      ? granted.map(test => `<label><input type="checkbox" value="${escapeHtml(test)}"> ${escapeHtml(test)}</label>`).join('')
+      : '<p class="muted">Acest tester nu are teste alocate.</p>';
   removeResult.textContent = member ? `Teste active: ${granted.length}` : '';
 }
 function openRemoveModal() {
@@ -399,7 +433,8 @@ document.querySelector('#confirm-remove-btn')?.addEventListener('click', async e
   const button = event.currentTarget;
   const member = testers.find(item => normalizeCallsign(item.callsign) === normalizeCallsign(removeMemberSelect?.value || ''));
   if (!member) { removeResult.textContent = 'Alege un tester din listă.'; return; }
-  const toRemove = [...removeTestChecks.querySelectorAll('input:checked')].map(input => input.value);
+  const selectedToRemove = [...removeTestChecks.querySelectorAll('input:checked')].map(input => input.value);
+  const toRemove = selectedToRemove.flatMap(test => test === TESTER_BUNDLE_KEY ? coreTests : [test]);
   if (!toRemove.length) { removeResult.textContent = 'Bifează cel puțin un test de revocat.'; return; }
   button.disabled = true;
   try {
@@ -428,21 +463,26 @@ async function lookupMember() {
   const member = directoryMembers.find(item => normalizeCallsign(item.callsign) === normalized && String(item.name || '').trim());
   const local = testers.find(item => normalizeCallsign(item.callsign) === normalized);
   if (!member) { selectedMember = null; selectedGrantDraft = []; memberResult.textContent = 'Callsign inexistent, liber sau fără nume în lista departamentului.'; grantChecks.innerHTML = ''; return; }
-  selectedMember = { ...member, ...local, callsign: normalized, name: member.name, functions: member.functions, grantedTests: [...new Set([...(member.grantedTests || []), ...(local?.grantedTests || [])])] };
-  selectedGrantDraft = [...new Set([...selectedMember.grantedTests, ...docsAssignedTests(member)])];
+  selectedMember = { ...member, ...local, callsign: normalized, name: member.name, functions: member.functions, grantedTests: normalizeGrantBundle([...(member.grantedTests || []), ...(local?.grantedTests || [])]) };
+  selectedGrantDraft = normalizeGrantBundle([...selectedMember.grantedTests, ...docsAssignedTests(member)]);
   memberResult.textContent = `${member.name} · ${normalized}`;
   renderGrantChecks(catalog);
 }
 function renderGrantChecks(options) {
-  grantChecks.innerHTML = `<button type="button" class="grant-preset" id="tester-preset">Preia testele din Docs</button>${options.map(test => `<label><input type="checkbox" value="${escapeHtml(test)}" ${selectedGrantDraft.includes(test) ? 'checked' : ''}> ${escapeHtml(test)}</label>`).join('')}`;
-  grantChecks.querySelectorAll('input[type="checkbox"]').forEach(input => input.onchange = () => { selectedGrantDraft = [...grantChecks.querySelectorAll('input:checked')].map(item => item.value); });
-  document.querySelector('#tester-preset').onclick = () => { selectedGrantDraft = [...new Set([...(selectedMember?.grantedTests || []), ...docsAssignedTests(selectedMember)])]; renderGrantChecks(options); };
+  const hasTesterBundle = coreTests.every(test => selectedGrantDraft.includes(test));
+  const otherTests = options.filter(test => !coreTests.includes(test));
+  grantChecks.innerHTML = `<button type="button" class="grant-preset" id="tester-preset">Preia testele din Docs</button><label><input type="checkbox" value="${TESTER_BUNDLE_KEY}" ${hasTesterBundle ? 'checked' : ''}> Tester (admitere, transfer, adeverință)</label>${otherTests.map(test => `<label><input type="checkbox" value="${escapeHtml(test)}" ${selectedGrantDraft.includes(test) ? 'checked' : ''}> ${escapeHtml(test)}</label>`).join('')}`;
+  grantChecks.querySelectorAll('input[type="checkbox"]').forEach(input => input.onchange = () => {
+    const checked = [...grantChecks.querySelectorAll('input:checked')].flatMap(item => item.value === TESTER_BUNDLE_KEY ? coreTests : [item.value]);
+    selectedGrantDraft = normalizeGrantBundle(checked);
+  });
+  document.querySelector('#tester-preset').onclick = () => { selectedGrantDraft = normalizeGrantBundle([...(selectedMember?.grantedTests || []), ...docsAssignedTests(selectedMember)]); renderGrantChecks(options); };
 }
 callsignInput.onchange=lookupMember;callsignInput.oninput=()=>{clearTimeout(window.lookupTimer);window.lookupTimer=setTimeout(lookupMember,350)};
 document.querySelector('#invite-btn').onclick = async () => {
   if (!selectedMember) { memberResult.textContent = 'Selectează un membru existent.'; return; }
   const checked = [...grantChecks.querySelectorAll('input:checked')].map(input => input.value);
-  const granted = [...new Set(checked)];
+  const granted = normalizeGrantBundle(checked.flatMap(test => test === TESTER_BUNDLE_KEY ? coreTests : [test]));
   const normalized = normalizeCallsign(selectedMember.callsign);
   if (!normalized) { memberResult.textContent = 'Callsign invalid.'; return; }
   if (!selectedMember.discordId) { memberResult.textContent = 'Membrul nu are un Discord ID pe coloana T; nu i se poate salva accesul.'; return; }
@@ -463,6 +503,12 @@ document.querySelector('#invite-btn').onclick = async () => {
   finally { button.disabled = false; button.innerHTML = 'Salvează accesul →'; }
 };
 document.querySelector('#search').oninput = () => renderRows();
+document.querySelector('#test-summary-grid')?.addEventListener('click', event => {
+  const button = event.target.closest('[data-summary-member]');
+  if (!button) return;
+  expandedSummaryMember = expandedSummaryMember === button.dataset.summaryMember ? '' : button.dataset.summaryMember;
+  renderDashboardData();
+});
 const testFilterBtn = document.querySelector('#filter-btn');
 const testFilterMenu = document.querySelector('#test-filter-menu');
 function renderTestFilterMenu() {

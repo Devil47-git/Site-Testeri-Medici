@@ -1,4 +1,4 @@
-import { normalize, callsignNumber, isLeadershipRow, gradeGroupFor, GRADE_GROUPS, LEADERSHIP_MAX, specializationFor } from './shared.js';
+import { normalize, callsignNumber, isLeadershipRow, gradeGroupFor, GRADE_GROUPS, LEADERSHIP_MAX, testsForFunctions, normalizeTests } from './shared.js';
 
 const RESIDENT_TESTER_PATTERN = /S\.?\s*M\.?\s*U\.?\s*L\.?\s*S\.?|MOTO|A\.?\s*L\.?\s*S\.?|PILOT/;
 
@@ -57,7 +57,7 @@ export default async function handler(req, res) {
       return {
         discordId, name: String(row[3] || '').trim(), callsign: String(row[2] || '').trim(), csNum: callsignNumber(row[2]), rank: String(row[4] || '').trim(), dept: String(row[5] || '').trim(), functions, gradeGroup: groupLabel(row),
         isLeadership: isConducere, leadershipTitle: isConducere ? leadershipTitle(row) : '', avatar: row[20] ? `https://cdn.discordapp.com/avatars/${discordId}/${String(row[20] || '').trim()}.png` : '',
-        grantedTests: [...new Set([...specializationFor(functions), ...(storedGrant?.grantedTests || [])])], updatedAt: storedGrant?.updatedAt || '', lastSeen: storedGrant?.lastSeen || '',
+        grantedTests: normalizeTests([...testsForFunctions(functions), ...(storedGrant?.grantedTests || [])]), updatedAt: storedGrant?.updatedAt || '', lastSeen: storedGrant?.lastSeen || '',
         isTester: ['leadership', 'primar', 'specialist'].includes(gradeGroupFor(callsignNumber(row[2]))) || (callsignNumber(row[2]) >= 301 && callsignNumber(row[2]) <= 340 && RESIDENT_TESTER_PATTERN.test(normalize(functions))) || /TESTER/.test(normalize(functions)) || grantsByDiscord.has(discordId)
       };
     });
