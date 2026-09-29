@@ -138,5 +138,5 @@ window.MEDICAL_TESTS = {
 };
 window.MEDICAL_TESTS = Object.fromEntries(Object.entries(window.MEDICAL_TESTS).map(([name, test]) => ({
   name,
-  test: { ...test, questions: test.questions.map(([text, answer]) => ({ text, answer, options: [answer, 'Nu se aplică', 'Răspuns incomplet'] })) }
+  test: { ...test, questions: (test.questions || []).map(([text, answer]) => ({ text, answer, options: [answer, 'Nu se aplică', 'Răspuns incomplet'] })) }
 })).map(({ name, test }) => [name, test]));
