@@ -1,25 +1,55 @@
+/**
+ * @typedef {Object} Grant
+ * @property {string} [discordId]
+ * @property {string} [callsign]
+ * @property {string} [name]
+ * @property {string[]} [grantedTests]
+ * @property {string} [updatedAt]
+ * @property {number} [lastSeen]
+ *
+ * @typedef {Grant & { csNum?: number|string, isTester?: boolean, isLeadership?: boolean, isConducere?: boolean, functions?: string, accessLevel?: string, allowedTests?: string[], eligibleSpecializations?: string[], rank?: string, lastName?: string }} Member
+ *
+ * @typedef {Object} TestDefinition
+ * @property {string} name
+ * @property {string} [description]
+ * @property {Array<any>} [questions]
+ */
+
 const coreTests = ['Test admitere','Test transfer','Adeverință medicală'];
 const specialtyTests = ['Test ALS','Test SMULS','Test MOTO','Test PILOT','Test parașutiști'];
 const catalog = [...coreTests, ...specialtyTests];
 const TEST_CATALOG_KEY = 'medici-test-catalog-v4';
+/** @param {string} key @param {any} fallback @returns {any} */
 function readStored(key, fallback) { try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; } catch { return fallback; } }
+/** @type {Record<string, TestDefinition>} */
 let testDefinitions = readStored(TEST_CATALOG_KEY, null) || window.MEDICAL_TESTS || Object.fromEntries(catalog.map(name => [name, { name, description: `Acces disponibil pentru ${name}.`, questions: [] }]));
 function saveTestDefinitions() { localStorage.setItem(TEST_CATALOG_KEY, JSON.stringify(testDefinitions)); }
 const rows = document.querySelector('#tester-rows');
 const viewContent = document.querySelector('#view-content');
 const roleColors = ['cyan','orange','violet','green'];
+/** @type {string} */
 let activeTesterFilter = 'all';
 const GRANTS_KEY = 'medici-grants';
+/** @type {Member|null} */
 let currentUser = null;
+/** @type {Member[]} */
 let testers = readStored(GRANTS_KEY, []);
 function saveTesters() { localStorage.setItem(GRANTS_KEY, JSON.stringify(testers)); }
 function refreshCurrentView() { const active = document.querySelector('.nav-item.active')?.dataset.view || 'overview'; renderView(active); }
 function candidateSummary(member, result = 'Admis') { if (!member) return ''; return `Candidat: @[${normalizeCallsign(member.callsign)}] ${member.name || '—'}\nGrad: ${member.rank || '—'}\nRezultat: ${result}`; }
 async function loadRemoteGrants() {
   if (!currentUser?.discordId) return;
-  const response = await fetch(`/api/access/grants?requesterId=${encodeURIComponent(currentUser.discordId)}`);
-  if (!response.ok) return;
-  const payload = await response.json();
+  let payload;
+  try {
+    const response = await fetch(`/api/access/grants?requesterId=${encodeURIComponent(currentUser.discordId)}`);
+    if (!response.ok) { setSyncDetail('Sincronizarea accesului a eșuat'); return; }
+    payload = await response.json().catch(() => null);
+  } catch (error) {
+    console.error(error);
+    setSyncDetail('Sincronizarea accesului a eșuat');
+    return;
+  }
+  if (!payload) { setSyncDetail('Sincronizarea accesului a eșuat'); return; }
   const grantsPayload = Array.isArray(payload?.grants) ? payload.grants : [];
   if (!Array.isArray(payload?.grants)) {
     testers = [];
@@ -30,7 +60,9 @@ async function loadRemoteGrants() {
   }
   if (isLeadershipUser(currentUser)) {
     const grants = grantsPayload;
-    testers = directoryMembers.length ? directoryMembers.filter(member => member.isTester || memberIsTester(member)).map(member => { const grant = grants.find(item => item.discordId === member.discordId); return { ...member, ...grant, grantedTests: grant?.grantedTests || member.grantedTests || [] }; }) : grants;
+    testers = directoryMembers.length ? directoryMembers.filter(member => member.isTester || memberIsTester(member)).map(member => { const grant = grants.find(item => item.discordId === member.discordId);
+      if (!grant) return member;
+      return { ...member, ...grant, grantedTests: grant.grantedTests || member.grantedTests || [] }; }) : grants;
   } else {
     const ownGrant = grantsPayload.find(grant => grant.discordId === currentUser.discordId);
     currentUser.grantedTests = ownGrant?.grantedTests || currentUser.grantedTests || [];
@@ -47,16 +79,30 @@ async function saveRemoteGrant(callsign, grantedTests, remove = false, targetDis
   if (!response.ok) throw new Error(payload.error || 'Accesul nu a putut fi salvat.');
   return payload;
 }
+function setSyncDetail(message) { const el = document.querySelector('#sync-detail'); if (el) el.textContent = message; }
+/** @param {any} value @returns {string} */
+function escapeHtml(value) { return String(value == null ? '' : value).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch])); }
+/** @param {any} value @returns {string} */
 function normalizeCallsign(value) { const number = String(value || '').replace(/\D/g, ''); return number ? `M-${number.padStart(3, '0')}` : ''; }
-function isLeadershipUser(user) { const cs = Number(user?.csNum || String(user?.callsign || user?.callSign || '').replace(/\D/g, '')); return Boolean(user?.accessLevel === 'leadership' || user?.isConducere || user?.isLeadership || (cs >= 1 && cs <= 15)); }
-function memberIsLeadership(member) { const cs = Number(member?.csNum || String(member?.callsign || '').replace(/\D/g, '')); return Boolean(member?.isLeadership || (cs >= 1 && cs <= 15)); }
-function leadershipTitleForCallsign(value) { const cs = Number(String(value || '').replace(/\D/g, '')); if (cs === 1) return 'Director General'; if (cs >= 2 && cs <= 4) return 'Director Adjunct'; if (cs >= 5 && cs <= 8) return 'Medic Inspector'; if (cs >= 9 && cs <= 15) return 'Medic Chirurg'; return ''; }
+/** @param {any} value @returns {number} */
+function callsignNumber(value) { const digits = String(value == null ? '' : value).replace(/\D/g, ''); const n = Number(digits); return Number.isFinite(n) ? n : 0; }
+/** @param {any} user @returns {boolean} */
+function isLeadershipUser(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return Boolean(user?.accessLevel === 'leadership' || user?.isConducere || user?.isLeadership || (cs >= 1 && cs <= 15)); }
+/** @param {any} member @returns {boolean} */
+function memberIsLeadership(member) { return isLeadershipUser(member); }
+/** @param {any} value @returns {string} */
+function leadershipTitleForCallsign(value) { const cs = callsignNumber(value); if (cs === 1) return 'Director General'; if (cs >= 2 && cs <= 4) return 'Director Adjunct'; if (cs >= 5 && cs <= 8) return 'Medic Inspector'; if (cs >= 9 && cs <= 15) return 'Medic Chirurg'; return ''; }
+/** @param {any} user @returns {string[]} */
 function allowedForUser(user) { if (isLeadershipUser(user)) return catalog; return [...new Set([...(user?.allowedTests || []), ...(user?.eligibleSpecializations || []), ...(user?.grantedTests || [])])].filter(test => catalog.includes(test) && testDefinitions[test]); }
+/** @param {any} value @returns {string} */
 function dateOnly(value) { return value ? new Date(value).toLocaleDateString('ro-RO') : '—'; }
-function memberIsTester(member) { return (member.grantedTests || []).length > 0 || (member.csNum >= 200 && member.csNum < 300) || /TESTER/.test(String(member.functions || '').toUpperCase()); }
-function sortMembers(members) { return [...members].sort((a, b) => (a.csNum < 16 ? -1 : b.csNum < 16 ? 1 : a.csNum - b.csNum)); }
+/** @param {any} member @returns {boolean} */
+function memberIsTester(member) { const cs = callsignNumber(member?.csNum); return (member?.grantedTests || []).length > 0 || (cs >= 200 && cs < 300) || /TESTER/.test(String(member?.functions || '').toUpperCase()); }
+/** @param {any[]} members @returns {any[]} */
+function sortMembers(members) { return [...members].sort((a, b) => { const ca = callsignNumber(a?.csNum); const cb = callsignNumber(b?.csNum); return ca < 16 ? -1 : cb < 16 ? 1 : ca - cb; }); }
 function syncCoreAccess(user) { if (user && (user.grantedTests || []).length) user.allowedTests = [...new Set([...(user.allowedTests || []), ...coreTests])]; }
-function renderRows(list = testers) { rows.innerHTML = list.length ? list.map((t,index) => `<tr><td><div class="tester"><div class="avatar ${roleColors[index%roleColors.length]}">${initialsFrom(t.name || 'Membru')}</div>${t.name || 'Membru departament'}</div></td><td>${normalizeCallsign(t.callsign)}</td><td><div class="tags">${(t.grantedTests||[]).filter(test => !coreTests.includes(test)).map((x,i) => `<span class="tag ${i%3===1?'orange':i%3===2?'cyan':''}">${x}</span>`).join('')||'<span class="muted">Tester</span>'}</div></td><td>${dateOnly(t.updatedAt)}</td><td><span class="status ${isActive(t) ? 'online' : 'offline'}"><i></i>${isActive(t) ? 'Activ' : 'Inactiv'}</span></td><td><button class="more" data-member-menu="${normalizeCallsign(t.callsign)}">•••</button></td></tr>`).join('') : '<tr><td colspan="6" class="empty-state">Nu există testeri adăugați.</td></tr>'; document.querySelector('#tester-count').textContent=list.length;document.querySelector('#active-count').textContent=list.length; }
+function renderRows(list = testers) { rows.innerHTML = list.length ? list.map((t,index) => `<tr><td><div class="tester"><div class="avatar ${roleColors[index%roleColors.length]}">${escapeHtml(initialsFrom(t.name || 'Membru'))}</div>${escapeHtml(t.name || 'Membru departament')}</div></td><td>${escapeHtml(normalizeCallsign(t.callsign))}</td><td><div class="tags">${(t.grantedTests||[]).filter(test => !coreTests.includes(test)).map((x,i) => `<span class="tag ${i%3===1?'orange':i%3===2?'cyan':''}">${escapeHtml(x)}</span>`).join('')||'<span class="muted">Tester</span>'}</div></td><td>${dateOnly(t.updatedAt)}</td><td><span class="status ${isActive(t) ? 'online' : 'offline'}"><i></i>${isActive(t) ? 'Activ' : 'Inactiv'}</span></td><td><button class="more" data-member-menu="${normalizeCallsign(t.callsign)}">•••</button></td></tr>`).join('') : '<tr><td colspan="6" class="empty-state">Nu există testeri adăugați.</td></tr>'; document.querySelector('#tester-count').textContent=list.length;document.querySelector('#active-count').textContent=list.length; }
+/** @type {Member[]} */
 let directoryMembers = [];
 async function loadDirectory() {
   if (!currentUser?.discordId) return;
@@ -96,7 +142,7 @@ function renderSettingsView(title) {
 }
 function wireTestersEvents() {
   const add = document.querySelector('#view-add'); if (add) add.onclick = () => document.querySelector('#add-btn').click();
-  viewContent.querySelectorAll('[data-' + 'remove-member]').forEach(btn => btn.onclick = async () => { if (!isLeadershipUser(currentUser)) return; try { await saveRemoteGrant(btn.dataset.removeMember, [], true, testers.find(member => normalizeCallsign(member.callsign) === btn.dataset.removeMember)?.discordId || ''); testers = testers.filter(member => normalizeCallsign(member.callsign) !== btn.dataset.removeMember); saveTesters(); renderRows(); renderDashboardData(); renderView('testers'); } catch (error) { alert(error.message); }); // removed-duplicate
+  viewContent.querySelectorAll('[data-remove-member]').forEach(btn => btn.onclick = async () => { if (!isLeadershipUser(currentUser)) return; try { await saveRemoteGrant(btn.dataset.removeMember, [], true, testers.find(member => normalizeCallsign(member.callsign) === btn.dataset.removeMember)?.discordId || ''); testers = testers.filter(member => normalizeCallsign(member.callsign) !== btn.dataset.removeMember); saveTesters(); renderRows(); renderDashboardData(); renderView('testers'); } catch (error) { alert(error.message); } }); // removed-duplicate
 }
 function wireSettingsEvents() {
   const logout = document.querySelector('#logout-btn'); if (logout) logout.onclick = () => { localStorage.removeItem(AUTH_STORAGE_KEY); window.location.reload(); };
@@ -196,19 +242,44 @@ function isActive(member) { return Number(member.lastSeen || 0) > Date.now() - 1
 async function sendPresence() { if (!currentUser?.discordId) return; await fetch('/api/access/presence', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ discordId: currentUser.discordId }) }).catch(() => {}); }
 window.addEventListener('storage', event => { if (event.key === PRESENCE_KEY) { renderRows(); refreshCurrentView(); } });
 function initialsFrom(name='User'){return name.split(/\s+/).map(x=>x[0]).join('').slice(0,2).toUpperCase()}
+/** @param {any} user @returns {{name:string, initials:string, callsign:string}} */
+function setWelcomeHeader(user){
+  const name = user.name || user.displayName || 'Utilizator';
+  const initials = initialsFrom(name);
+  const first = name.split(/\s+/)[0];
+  const callsign = normalizeCallsign(user.callsign || user.callSign);
+  user.callsign = callsign;
+  document.querySelector('#welcome-name').textContent = first;
+  document.querySelector('#user-name').textContent = name;
+  document.querySelector('#user-role').textContent = isLeadershipUser(user) ? 'Conducere' : 'Tester';
+  document.querySelector('#top-avatar').textContent = initials;
+  document.querySelector('.user-mini .avatar').textContent = initials;
+  if (callsign) document.querySelector('.welcome .muted').textContent = `${callsign} · Acces sincronizat din departament.`;
+  return { name, initials, callsign };
+}
+/** @param {any} user @returns {void} */
+function setVisibilityPermissions(user){
+  const leadership = isLeadershipUser(user);
+  const addBtn = document.querySelector('#add-btn');
+  const membersNav = document.querySelector('[data-view="members"]');
+  const syncPanel = document.querySelector('#sync-panel');
+  if (addBtn) addBtn.hidden = !leadership;
+  if (membersNav) membersNav.hidden = !leadership;
+  if (syncPanel) syncPanel.hidden = !leadership;
+  const sectionLabel = document.querySelector('#section-label');
+  if (sectionLabel) sectionLabel.textContent = leadership ? 'Administrare' : 'Spațiul tău';
+}
+/** @param {any} user @returns {void} */
+function setStats(user){
+  const stat = document.querySelector('.stat-card:nth-child(2) strong');
+  if (stat) stat.textContent = allowedForUser(user).length;
+  const localState = document.querySelector('#local-state');
+  if (localState) localState.textContent = 'Sincronizat';
+}
+/** @param {any} user @returns {void} */
 function applyUser(user){
-  currentUser=user; syncCoreAccess(user); const name=user.name||user.displayName||'Utilizator'; const initials=initialsFrom(name); const first=name.split(/\s+/)[0];
-  const callsign=normalizeCallsign(user.callsign||user.callSign); user.callsign=callsign;
-  document.querySelector('#welcome-name').textContent=first; document.querySelector('#user-name').textContent=name;
-  document.querySelector('#user-role').textContent=isLeadershipUser(user)?'Conducere':'Tester';
-  document.querySelector('#top-avatar').textContent=initials; document.querySelector('.user-mini .avatar').textContent=initials;
-  if(callsign) document.querySelector('.welcome .muted').textContent=`${callsign} · Acces sincronizat din departament.`;
-  document.querySelector('.stat-card:nth-child(2) strong').textContent=allowedForUser(user).length;
-  document.querySelector('#local-state').textContent='Sincronizat';
-  document.querySelector('#add-btn').hidden = !isLeadershipUser(user);
-  document.querySelector('[data-view="members"]').hidden = !isLeadershipUser(user);
-  document.querySelector('#sync-panel').hidden = !isLeadershipUser(user);
-  document.querySelector('#section-label').textContent = isLeadershipUser(user) ? 'Administrare' : 'Spațiul tău';
+  currentUser = user; syncCoreAccess(user);
+  setWelcomeHeader(user); setVisibilityPermissions(user); setStats(user);
 }
 function showAuthError(message){authError.textContent=message;authError.classList.add('show')}
 async function enterApp(user){applyUser(user);markPresence();sendPresence();authScreen.style.display='none';appShell.classList.add('ready');window.history.replaceState({ view: 'overview' }, '', `${window.location.pathname}#overview`);navigateTo('overview', { push: false });try { await loadDirectory(); await loadRemoteGrants(); } catch (error) { document.querySelector('#sync-detail').textContent='Sincronizarea a eșuat'; console.error(error); }}
@@ -242,7 +313,8 @@ async function startSession(){
     localStorage.removeItem(AUTH_STORAGE_KEY); throw new Error('not-authorized');
   }catch(error){appShell.classList.remove('ready');const message=error.message==='not-authorized'?'Conectează-te cu Discord pentru a verifica accesul.':error.message;showAuthError(message)}
 }
-document.querySelector('#discord-login').onclick=()=>{window.location.href=LOGIN_ENDPOINT};
+const discordLoginBtn = document.querySelector('#discord-login');
+if (discordLoginBtn) discordLoginBtn.onclick = () => { window.location.href = LOGIN_ENDPOINT; };
 const themeToggle=document.querySelector('#theme-toggle');
 const savedTheme=localStorage.getItem('medici-theme');
 if(savedTheme==='dark') document.body.classList.add('dark-mode');
