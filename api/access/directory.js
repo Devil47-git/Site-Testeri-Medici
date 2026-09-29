@@ -1,4 +1,4 @@
-import { normalize, callsignNumber, isLeadershipRow, gradeGroupFor, GRADE_GROUPS, LEADERSHIP_MAX } from './shared.js';
+import { normalize, callsignNumber, isLeadershipRow, gradeGroupFor, GRADE_GROUPS, LEADERSHIP_MAX, specializationFor } from './shared.js';
 
 const RESIDENT_TESTER_PATTERN = /S\.?\s*M\.?\s*U\.?\s*L\.?\s*S\.?|MOTO|A\.?\s*L\.?\s*S\.?|PILOT/;
 
@@ -49,10 +49,18 @@ export default async function handler(req, res) {
     if (!requester) return json(res, 403, { error: 'Requester is not a department member' });
     const grants = (await readPublic(GRANTS_RANGE).catch(() => [])).slice(1).filter(Array.isArray);
     const grantsByDiscord = new Map(grants.map(row => [String(row[0] || '').trim(), { grantedTests: readTests(row[2]), updatedAt: String(row[3] || '').trim(), lastSeen: String(row[4] || '').trim() }]));
-    const result = members.filter(row => String(row[3] || '').trim() && (relevantMember(row) || isLeadership(row))).map(row => ({
-      discordId: String(row[19] || '').trim(), name: String(row[3] || '').trim(), callsign: String(row[2] || '').trim(), csNum: callsignNumber(row[2]), rank: String(row[4] || '').trim(), dept: String(row[5] || '').trim(), functions: String(row[10] || '').trim(), gradeGroup: groupLabel(row),
-      isLeadership: isLeadership(row), leadershipTitle: isLeadership(row) ? leadershipTitle(row) : '', avatar: row[20] ? `https://cdn.discordapp.com/avatars/${String(row[19] || '').trim()}/${String(row[20] || '').trim()}.png` : '', grantedTests: grantsByDiscord.get(String(row[19] || '').trim())?.grantedTests || [], updatedAt: grantsByDiscord.get(String(row[19] || '').trim())?.updatedAt || '', lastSeen: grantsByDiscord.get(String(row[19] || '').trim())?.lastSeen || '', isTester: ['leadership', 'primar', 'specialist'].includes(gradeGroupFor(callsignNumber(row[2]))) || (callsignNumber(row[2]) >= 301 && callsignNumber(row[2]) <= 340 && RESIDENT_TESTER_PATTERN.test(normalize(row[10]))) || /TESTER/.test(normalize(row[10])) || grantsByDiscord.has(String(row[19] || '').trim())
-    }));
+    const result = members.filter(row => String(row[3] || '').trim() && (relevantMember(row) || isLeadership(row))).map(row => {
+      const discordId = String(row[19] || '').trim();
+      const storedGrant = grantsByDiscord.get(discordId);
+      const functions = String(row[10] || '').trim();
+      const isConducere = isLeadership(row);
+      return {
+        discordId, name: String(row[3] || '').trim(), callsign: String(row[2] || '').trim(), csNum: callsignNumber(row[2]), rank: String(row[4] || '').trim(), dept: String(row[5] || '').trim(), functions, gradeGroup: groupLabel(row),
+        isLeadership: isConducere, leadershipTitle: isConducere ? leadershipTitle(row) : '', avatar: row[20] ? `https://cdn.discordapp.com/avatars/${discordId}/${String(row[20] || '').trim()}.png` : '',
+        grantedTests: [...new Set([...specializationFor(functions), ...(storedGrant?.grantedTests || [])])], updatedAt: storedGrant?.updatedAt || '', lastSeen: storedGrant?.lastSeen || '',
+        isTester: ['leadership', 'primar', 'specialist'].includes(gradeGroupFor(callsignNumber(row[2]))) || (callsignNumber(row[2]) >= 301 && callsignNumber(row[2]) <= 340 && RESIDENT_TESTER_PATTERN.test(normalize(functions))) || /TESTER/.test(normalize(functions)) || grantsByDiscord.has(discordId)
+      };
+    });
     return json(res, 200, { members: result, syncedAt: new Date().toISOString() });
   } catch (error) {
     console.error('Department directory failed:', error);

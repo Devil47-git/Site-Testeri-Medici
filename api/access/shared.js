@@ -59,7 +59,7 @@ export function accessFor(csNum, functions, rank, dept) {
     gradeGroup,
     allowedTests: leadership ? [...catalog] : [],
     eligibleSpecializations: specializationFor(functions),
-    grantedTests: []
+    grantedTests: leadership ? [] : specializationFor(functions)
   };
 }
 

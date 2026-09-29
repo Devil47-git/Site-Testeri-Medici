@@ -67,7 +67,7 @@ async function loadRemoteGrants() {
     const grants = grantsPayload;
     testers = directoryMembers.length ? directoryMembers.filter(member => String(member.name || '').trim() && (member.isTester || memberIsTester(member))).map(member => { const grant = grants.find(item => item.discordId === member.discordId);
       if (!grant) return member;
-      return { ...member, ...grant, grantedTests: grant.grantedTests || member.grantedTests || [] }; }) : grants;
+      return { ...member, ...grant, grantedTests: [...new Set([...(member.grantedTests || []), ...(grant.grantedTests || [])])] }; }) : grants;
   } else {
     const ownGrant = grantsPayload.find(grant => grant.discordId === currentUser.discordId);
     currentUser.grantedTests = ownGrant?.grantedTests || currentUser.grantedTests || [];
@@ -118,7 +118,7 @@ function gradeGroupFor(csNum) { const n = callsignNumber(csNum);
 }
 function gradeGroupForMember(member) { return member?.gradeGroup || gradeGroupFor(member?.csNum || member?.callsign); }
 /** @param {any} user @returns {string[]} */
-function allowedForUser(user) { if (isLeadershipUser(user)) return catalog; return [...new Set(user?.grantedTests || [])].filter(test => catalog.includes(test) && testDefinitions[test]); }
+function allowedForUser(user) { if (isLeadershipUser(user)) return catalog; return [...new Set([...(user?.grantedTests || []), ...docsAssignedTests(user)])].filter(test => catalog.includes(test) && testDefinitions[test]); }
 /** @param {any} value @returns {string} */
 function dateOnly(value) { return value ? new Date(value).toLocaleDateString('ro-RO') : '—'; }
 /** @param {any} member @returns {boolean} */
@@ -428,7 +428,7 @@ async function lookupMember() {
   const member = directoryMembers.find(item => normalizeCallsign(item.callsign) === normalized && String(item.name || '').trim());
   const local = testers.find(item => normalizeCallsign(item.callsign) === normalized);
   if (!member) { selectedMember = null; selectedGrantDraft = []; memberResult.textContent = 'Callsign inexistent, liber sau fără nume în lista departamentului.'; grantChecks.innerHTML = ''; return; }
-  selectedMember = { ...member, ...local, callsign: normalized, name: member.name, grantedTests: local?.grantedTests || member.grantedTests || [] };
+  selectedMember = { ...member, ...local, callsign: normalized, name: member.name, functions: member.functions, grantedTests: [...new Set([...(member.grantedTests || []), ...(local?.grantedTests || [])])] };
   selectedGrantDraft = [...new Set([...selectedMember.grantedTests, ...docsAssignedTests(member)])];
   memberResult.textContent = `${member.name} · ${normalized}`;
   renderGrantChecks(catalog);
