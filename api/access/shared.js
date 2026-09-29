@@ -3,6 +3,22 @@ export const coreTests = ['Test admitere', 'Test transfer', 'Adeverință medica
 export const LEADERSHIP_RANK_KEYWORDS = ['DIRECTOR', 'INSPECTOR', 'CONDUCERE', 'MANAGER', 'COORDONATOR'];
 export const LEADERSHIP_DEPT_KEYWORDS = ['CONDUCERE', 'MEDICAL'];
 
+// Grade groups: conducere (001-010), medic primar (101-115), medic specialist (201-230).
+export const GRADE_GROUPS = {
+  leadership: { label: 'Conducerea departamentului', min: 1, max: 10 },
+  primar: { label: 'Medici Primari (101-115)', min: 101, max: 115 },
+  specialist: { label: 'Medici Specialisti (201-230)', min: 201, max: 230 }
+};
+export const LEADERSHIP_MAX = 10;
+
+export function gradeGroupFor(csNum) {
+  const n = Number(csNum) || 0;
+  if (n >= GRADE_GROUPS.leadership.min && n <= GRADE_GROUPS.leadership.max) return 'leadership';
+  if (n >= GRADE_GROUPS.primar.min && n <= GRADE_GROUPS.primar.max) return 'primar';
+  if (n >= GRADE_GROUPS.specialist.min && n <= GRADE_GROUPS.specialist.max) return 'specialist';
+  return '';
+}
+
 export function normalize(value = '') { return String(value).toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim(); }
 
 export function callsignNumber(value = '') { return Number(String(value).replace(/\D/g, '')) || 0; }
@@ -11,14 +27,14 @@ export function isLeadershipRow(row) {
   const number = callsignNumber(row[2]);
   const rank = normalize(row[4]);
   const dept = normalize(row[5]);
-  return (number >= 1 && number <= 15) || LEADERSHIP_RANK_KEYWORDS.some(value => rank.includes(value)) || LEADERSHIP_DEPT_KEYWORDS.some(value => dept.includes(value));
+  return (number >= 1 && number <= LEADERSHIP_MAX) || LEADERSHIP_RANK_KEYWORDS.some(value => rank.includes(value)) || LEADERSHIP_DEPT_KEYWORDS.some(value => dept.includes(value));
 }
 
 export function isLeadership(csNum, rank, dept) {
   const normalizedRank = normalize(rank);
   const normalizedDept = normalize(dept);
   const number = Number(csNum) || 0;
-  return (number >= 1 && number <= 15) || LEADERSHIP_RANK_KEYWORDS.some(value => normalizedRank.includes(value)) || LEADERSHIP_DEPT_KEYWORDS.some(value => normalizedDept.includes(value));
+  return (number >= 1 && number <= LEADERSHIP_MAX) || LEADERSHIP_RANK_KEYWORDS.some(value => normalizedRank.includes(value)) || LEADERSHIP_DEPT_KEYWORDS.some(value => normalizedDept.includes(value));
 }
 
 export function hasFunction(functions, pattern) { return pattern.test(normalize(functions)); }
@@ -36,11 +52,16 @@ export function specializationFor(functions) {
 export function accessFor(csNum, functions, rank, dept) {
   const leadership = isLeadership(csNum, rank, dept);
   const isTester = /TESTER/.test(normalize(functions));
-  const allowedTests = leadership ? catalog : (isTester ? coreTests : []);
+  // Medic primar si medic specialist primesc automat testele de baza; testele
+  // de specializare se acorda ulterior prin grile din coloana GRANTS.
+  const gradeGroup = gradeGroupFor(csNum);
+  const gradeGrants = gradeGroup === 'primar' || gradeGroup === 'specialist' ? coreTests : [];
+  const allowedTests = leadership ? catalog : [...new Set([...(isTester ? coreTests : []), ...gradeGrants])];
   return {
     isConducere: leadership,
     isLeadership: leadership,
     accessLevel: leadership ? 'leadership' : 'tester',
+    gradeGroup,
     allowedTests: [...allowedTests],
     eligibleSpecializations: specializationFor(functions),
     grantedTests: []

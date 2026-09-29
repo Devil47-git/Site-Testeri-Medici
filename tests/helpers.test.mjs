@@ -27,15 +27,15 @@ function extract(name) {
 const catalog = ['Test admitere', 'Test transfer', 'Adeverință medicală', 'Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști'];
 const definitions = Object.fromEntries(catalog.map(n => [n, { name: n, questions: [] }]));
 
-const names = ['callsignNumber', 'normalizeCallsign', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberIsTester', 'sortMembers'];
+const names = ['callsignNumber', 'normalizeCallsign', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberIsTester', 'sortMembers', 'gradeGroupFor'];
 const srcs = names.map(extract).join('\n');
 const load = new Function(
   'catalog',
   'testDefinitions',
-  `${srcs}\nreturn { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberIsTester, sortMembers };`,
+  `${srcs}\nreturn { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberIsTester, sortMembers, gradeGroupFor };`,
 )(catalog, definitions);
 
-const { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberIsTester, sortMembers } = load;
+const { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberIsTester, sortMembers, gradeGroupFor } = load;
 
 test('callsignNumber strips non-digits and returns 0 for empty', () => {
   assert.equal(callsignNumber('M-007'), 7);
@@ -52,10 +52,12 @@ test('normalizeCallsign pads to three digits', () => {
   assert.equal(normalizeCallsign(undefined), '');
 });
 
-test('isLeadershipUser accepts csNum 1-15 and leadership flags', () => {
+test('isLeadershipUser accepts csNum 1-10 and leadership flags', () => {
   assert.equal(isLeadershipUser({ csNum: 1 }), true);
-  assert.equal(isLeadershipUser({ csNum: 15 }), true);
+  assert.equal(isLeadershipUser({ csNum: 15 }), false);
   assert.equal(isLeadershipUser({ csNum: 16 }), false);
+  assert.equal(isLeadershipUser({ csNum: 10 }), true);
+  assert.equal(isLeadershipUser({ csNum: 11 }), false);
   assert.equal(isLeadershipUser({ accessLevel: 'leadership', csNum: 900 }), true);
   assert.equal(isLeadershipUser(null), false);
 });
@@ -69,7 +71,8 @@ test('leadershipTitleForCallsign maps ranges', () => {
   assert.equal(leadershipTitleForCallsign('1'), 'Director General');
   assert.equal(leadershipTitleForCallsign('3'), 'Director Adjunct');
   assert.equal(leadershipTitleForCallsign('6'), 'Medic Inspector');
-  assert.equal(leadershipTitleForCallsign('12'), 'Medic Chirurg');
+  assert.equal(leadershipTitleForCallsign('12'), '');
+  assert.equal(leadershipTitleForCallsign('10'), 'Medic Chirurg');
   assert.equal(leadershipTitleForCallsign('50'), '');
 });
 
@@ -84,7 +87,12 @@ test('allowedForUser filters to known, defined tests only', () => {
 
 test('memberIsTester handles missing csNum without NaN', () => {
   assert.equal(memberIsTester({ grantedTests: ['Test MOTO'] }), true);
-  assert.equal(memberIsTester({ csNum: 250 }), true);
+  assert.equal(memberIsTester({ csNum: 250 }), false);
+  assert.equal(memberIsTester({ csNum: 205 }), true);
+  assert.equal(memberIsTester({ csNum: 101 }), true);
+  assert.equal(memberIsTester({ csNum: 115 }), true);
+  assert.equal(memberIsTester({ csNum: 100 }), false);
+  assert.equal(memberIsTester({ csNum: 50 }), false);
   assert.equal(memberIsTester({ functions: 'tester' }), true);
   assert.equal(memberIsTester({}), false);
 });
@@ -92,4 +100,16 @@ test('memberIsTester handles missing csNum without NaN', () => {
 test('sortMembers places leadership first, then by csNum', () => {
   const sorted = sortMembers([{ csNum: 250 }, { csNum: 20 }, { csNum: 5 }]).map(m => m.csNum);
   assert.deepEqual(sorted, [5, 20, 250]);
+});
+
+test('gradeGroupFor splits conducere, primari and specialisti', () => {
+  assert.equal(gradeGroupFor(1), 'Conducerea departamentului');
+  assert.equal(gradeGroupFor(10), 'Conducerea departamentului');
+  assert.equal(gradeGroupFor(11), '');
+  assert.equal(gradeGroupFor(101), 'Medici Primari (101-115)');
+  assert.equal(gradeGroupFor(115), 'Medici Primari (101-115)');
+  assert.equal(gradeGroupFor(116), '');
+  assert.equal(gradeGroupFor(201), 'Medici Specialisti (201-230)');
+  assert.equal(gradeGroupFor(230), 'Medici Specialisti (201-230)');
+  assert.equal(gradeGroupFor(231), '');
 });

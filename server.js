@@ -4,7 +4,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { google } from 'googleapis';
-import { normalize, isLeadership } from './api/access/shared.js';
+import { normalize, isLeadership, gradeGroupFor, catalog, coreTests } from './api/access/shared.js';
 
 const PORT = Number(process.env.PORT || 3000);
 const ROOT = process.cwd();
@@ -20,8 +20,9 @@ function json(res, code, data) { res.writeHead(code, { 'Content-Type': 'applicat
 function roleAccess(functions, callsign = '', rank = '', dept = '') {
   const f = normalize(functions); const g = Number(String(callsign).replace(/\D/g, '')) || 0;
   const leader = isLeadership(g, rank, dept);
-  const catalog = ['Test admitere', 'Test transfer', 'Adeverință medicală', 'Test SMULS', 'Test MOTO', 'Test ALS', 'Test PILOT', 'Test parașutiști'];
-  const tests = leader ? catalog : ['Test admitere', 'Test transfer', 'Adeverință medicală'];
+  const group = gradeGroupFor(g);
+  const gradeGrants = group === 'primar' || group === 'specialist' ? coreTests : [];
+  const tests = leader ? catalog : [...new Set([...(g >= 101 && g <= 230 ? coreTests : []), ...gradeGrants])];
   if (g >= 200) {
     if (/SMULS|\|\s*S\s*\|/.test(f)) tests.push('Test SMULS');
     if (/MOTO|\|\s*M\s*\|/.test(f)) tests.push('Test MOTO');
@@ -29,7 +30,7 @@ function roleAccess(functions, callsign = '', rank = '', dept = '') {
     if (g < 300 && /PILOT|\|\s*P\s*\|/.test(f)) tests.push('Test PILOT');
     if (g < 300 && /PARASUTIST|PARAȘUTIST|\|\s*PT\s*\|/.test(f)) tests.push('Test parașutiști');
   }
-  return { isLeadership: leader, isConducere: leader, accessLevel: leader ? 'leadership' : 'tester', tests };
+  return { isLeadership: leader, isConducere: leader, accessLevel: leader ? 'leadership' : 'tester', gradeGroup: group, tests: [...new Set(tests)] };
 }
 async function sheetMember(discordId) {
   if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON && !process.env.GOOGLE_APPLICATION_CREDENTIALS) throw new Error('Google Sheets is not configured');

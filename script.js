@@ -87,17 +87,31 @@ function normalizeCallsign(value) { const number = String(value || '').replace(/
 /** @param {any} value @returns {number} */
 function callsignNumber(value) { const digits = String(value == null ? '' : value).replace(/\D/g, ''); const n = Number(digits); return Number.isFinite(n) ? n : 0; }
 /** @param {any} user @returns {boolean} */
-function isLeadershipUser(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return Boolean(user?.accessLevel === 'leadership' || user?.isConducere || user?.isLeadership || (cs >= 1 && cs <= 15)); }
+function isLeadershipUser(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return Boolean(user?.accessLevel === 'leadership' || user?.isConducere || user?.isLeadership || (cs >= 1 && cs <= 10)); }
 /** @param {any} member @returns {boolean} */
 function memberIsLeadership(member) { return isLeadershipUser(member); }
 /** @param {any} value @returns {string} */
-function leadershipTitleForCallsign(value) { const cs = callsignNumber(value); if (cs === 1) return 'Director General'; if (cs >= 2 && cs <= 4) return 'Director Adjunct'; if (cs >= 5 && cs <= 8) return 'Medic Inspector'; if (cs >= 9 && cs <= 15) return 'Medic Chirurg'; return ''; }
+function leadershipTitleForCallsign(value) { const cs = callsignNumber(value);
+  if (cs === 1) return 'Director General';
+  if (cs >= 2 && cs <= 4) return 'Director Adjunct';
+  if (cs >= 5 && cs <= 8) return 'Medic Inspector';
+  if (cs >= 9 && cs <= 10) return 'Medic Chirurg';
+  return '';
+}
+const GRADE_GROUP_ORDER = ['Conducerea departamentului', 'Medici Primari (101-115)', 'Medici Specialisti (201-230)'];
+function gradeGroupFor(csNum) { const n = callsignNumber(csNum);
+  if (n >= 1 && n <= 10) return 'Conducerea departamentului';
+  if (n >= 101 && n <= 115) return 'Medici Primari (101-115)';
+  if (n >= 201 && n <= 230) return 'Medici Specialisti (201-230)';
+  return '';
+}
+function gradeGroupForMember(member) { return member?.gradeGroup || gradeGroupFor(member?.csNum || member?.callsign); }
 /** @param {any} user @returns {string[]} */
 function allowedForUser(user) { if (isLeadershipUser(user)) return catalog; return [...new Set([...(user?.allowedTests || []), ...(user?.eligibleSpecializations || []), ...(user?.grantedTests || [])])].filter(test => catalog.includes(test) && testDefinitions[test]); }
 /** @param {any} value @returns {string} */
 function dateOnly(value) { return value ? new Date(value).toLocaleDateString('ro-RO') : '—'; }
 /** @param {any} member @returns {boolean} */
-function memberIsTester(member) { const cs = callsignNumber(member?.csNum); return (member?.grantedTests || []).length > 0 || (cs >= 200 && cs < 300) || /TESTER/.test(String(member?.functions || '').toUpperCase()); }
+function memberIsTester(member) { const cs = callsignNumber(member?.csNum); return (member?.grantedTests || []).length > 0 || (cs >= 101 && cs <= 230) || /TESTER/.test(String(member?.functions || '').toUpperCase()); }
 /** @param {any[]} members @returns {any[]} */
 function sortMembers(members) { return [...members].sort((a, b) => { const ca = callsignNumber(a?.csNum); const cb = callsignNumber(b?.csNum); return ca < 16 ? -1 : cb < 16 ? 1 : ca - cb; }); }
 function syncCoreAccess(user) { if (user && (user.grantedTests || []).length) user.allowedTests = [...new Set([...(user.allowedTests || []), ...coreTests])]; }
@@ -134,8 +148,14 @@ function renderTestersView() {
   return `<div class="panel view-panel"><div class="panel-head"><div><h2>Testerii departamentului</h2><p class="muted">Testerii sunt grupați după specializare. Admiterea, transferul și adeverința sunt acces general.</p></div>${isLeadershipUser(currentUser) ? '<button class="primary" id="view-add">＋ Adaugă tester</button>' : ''}</div>${grouped.map(group => `<section class="tester-group"><h3>${group.title}</h3><div class="table-wrap"><table><thead><tr><th>TESTER</th><th>CALLSIGN</th><th>DATA</th><th>ACȚIUNI</th></tr></thead><tbody>${group.members.map(member => `<tr><td>${member.name || 'Membru departament'}</td><td>${normalizeCallsign(member.callsign)}</td><td>${dateOnly(member.updatedAt)}</td><td>${isLeadershipUser(currentUser) ? `<button type="button" class="outline danger-button" data-remove-member="${normalizeCallsign(member.callsign)}">Scoate accesul</button>` : '—'}</td></tr>`).join('')}</tbody></table></div></section>`).join('') || '<div class="empty-state">Nu există testeri.</div>'}</div>`;
 }
 function renderMembersView() {
-  const groups = ['Conducerea departamentului', ...new Set(directoryMembers.filter(member => !memberIsLeadership(member)).map(member => member.gradeGroup).sort((a, b) => Number(a) - Number(b)))];
-  return `<div class="panel view-panel"><h2>Membri departament</h2><p class="muted">Membrii relevanți ai departamentului sunt grupați după conducere și grade.</p>${groups.map(group => { const members = sortMembers(directoryMembers.filter(member => group === 'Conducerea departament' ? memberIsLeadership(member) : !memberIsLeadership(member) && member.gradeGroup === group)); return members.length ? `<section class="member-group"><h3>${group}</h3><div class="table-wrap"><table><thead><tr><th>FUNCȚIE</th><th>NUME</th><th>CALLSIGN</th><th>GRAD</th></tr></thead><tbody>${members.map(member => `<tr><td>${member.leadershipTitle || leadershipTitleForCallsign(member.callsign) || member.functions || '—'}</td><td>${member.name || '—'}</td><td>${normalizeCallsign(member.callsign)}</td><td>${member.rank || member.gradeGroup}</td></tr>`).join('')}</tbody></table></div></section>` : ''; }).join('')}</div>`;
+  const groups = GRADE_GROUP_ORDER.filter(group => directoryMembers.some(member => gradeGroupForMember(member) === group));
+  const sections = groups.map(group => {
+    const members = sortMembers(directoryMembers.filter(member => gradeGroupForMember(member) === group));
+    if (!members.length) return '';
+    const rowsHtml = members.map(member => `<tr><td>${escapeHtml(member.leadershipTitle || leadershipTitleForCallsign(member.callsign) || member.functions || '—')}</td><td>${escapeHtml(member.name || '—')}</td><td>${escapeHtml(normalizeCallsign(member.callsign))}</td><td>${escapeHtml(member.rank || '—')}</td></tr>`).join('');
+    return `<section class="member-group"><h3>${escapeHtml(group)}</h3><div class="table-wrap"><table><thead><tr><th>FUNCȚIE</th><th>NUME</th><th>CALLSIGN</th><th>GRAD</th></tr></thead><tbody>${rowsHtml}</tbody></table></div></section>`;
+  }).join('');
+  return `<div class="panel view-panel"><h2>Membri departament</h2><p class="muted">Membrii departamentului sunt grupați pe grade: conducere, medici primari și medici specialiști.</p>${sections || '<p class="muted">Nu s-a putut încărca lista membrilor.</p>'}</div>`;
 }
 function renderSettingsView(title) {
   return `<div class="panel view-panel"><h2>${title}</h2><p class="muted">Gestionează preferințele și sesiunea contului tău.</p><div class="settings-list"><p><b>Identitate:</b> ${currentUser?.name || '—'}</p><p><b>Callsign:</b> ${normalizeCallsign(currentUser?.callsign || currentUser?.callSign)}</p><p><b>Nivel acces:</b> ${isLeadershipUser(currentUser) ? 'Conducere' : 'Tester'}</p>${isLeadershipUser(currentUser) ? `<hr><h3>Configurare teste</h3><p class="muted">Poți importa aici textul testului; îl voi transforma automat în întrebări după structura fișierului.</p><label>Test<select id="test-editor-select">${catalog.map(test => `<option value="${test}">${test}</option>`).join('')}</select></label><input id="test-file-input" type="file" accept=".txt,.md,.json"><textarea id="test-editor-json" rows="8"></textarea><button class="primary" id="save-test-definition">Salvează testul</button><span id="test-editor-status" class="muted"></span>` : ''}<hr><button class="outline danger-button" id="logout-btn">Deconectează-te</button></div></div>`;
@@ -240,7 +260,7 @@ const AUTH_TTL=2*24*60*60*1000;
 // Setează pe false pentru a reactiva autentificarea cu Discord.
 // Codul Discord de mai sus rămâne neatins; doar fluxul de pornire este oprit.
 const DEV_LOGIN_ENABLED=new URLSearchParams(window.location.search).get('dev')==='1';
-const DEV_LOGIN_USER={ id:'DEV-001', discordId:'0', name:'Tester Local', displayName:'Tester Local', callsign:'M-001', callSign:'M-001', csNum:1, rank:'Medic Inspector', dept:'Departamentul Medical', functions:'TESTER', isLeadership:true, isConducere:true, accessLevel:'leadership', allowedTests:[...coreTests,...specialtyTests], eligibleSpecializations:[], grantedTests:[...coreTests,...specialtyTests], avatar:null };
+const DEV_LOGIN_USER={ id:'DEV-001', discordId:'0', name:'Tester Local', displayName:'Tester Local', callsign:'M-001', callSign:'M-001', csNum:1, rank:'Medic Inspector', dept:'Departamentul Medical', functions:'TESTER', isLeadership:true, isConducere:true, accessLevel:'leadership', gradeGroup:'leadership', allowedTests:[...coreTests,...specialtyTests], eligibleSpecializations:[], grantedTests:[...coreTests,...specialtyTests], avatar:null };
 // ===== SFÂRȘIT BANDAL =====
 const PRESENCE_KEY='medici-presence';
 function markPresence() { if (!currentUser?.discordId) return; const presence = readStored(PRESENCE_KEY, {}); presence[currentUser.discordId] = Date.now(); localStorage.setItem(PRESENCE_KEY, JSON.stringify(presence)); }
