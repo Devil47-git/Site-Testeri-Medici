@@ -30,20 +30,20 @@ function extract(name) {
 const catalog = ['Test admitere', 'Test transfer', 'Adeverință medicală', 'Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști'];
 const definitions = Object.fromEntries(catalog.map(n => [n, { name: n, questions: [] }]));
 
-const names = ['callsignNumber', 'normalizeCallsign', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'sortMembers', 'gradeGroupFor', 'admissionChecksComplete', 'isTestFailed', 'maxWrongForTest', 'questionItemHtml', 'parseIdentityCardText', 'mergeIdentityCardDetails'];
+const names = ['callsignNumber', 'normalizeCallsign', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'sortMembers', 'gradeGroupFor', 'admissionChecksComplete', 'motoChecksComplete', 'isTestFailed', 'maxWrongForTest', 'questionItemHtml', 'parseIdentityCardText', 'mergeIdentityCardDetails', 'displayTestName'];
 const srcs = names.map(extract).join('\n');
 const pattern = source.match(/^const RESIDENT_TESTER_PATTERN = .*$/m)?.[0] || 'const RESIDENT_TESTER_PATTERN = /TESTER/;';
 const normalizeTextSrc = extract('normalizeText');
-const fullSrc = `${pattern}\nconst admissionRequirements = ['Verificarea ținutei', 'Verificarea tatuajelor faciale', 'Verificarea cazierului', 'Minimum 50 de ore jucate', 'Controlul cu stetoscopul', 'Drug-testul'];\n${normalizeTextSrc}\n${srcs}`;
+const fullSrc = `${pattern}\nconst admissionRequirements = ['Verificarea ținutei', 'Verificarea tatuajelor faciale', 'Verificarea cazierului', 'Minimum 50 de ore jucate', 'Controlul cu stetoscopul', 'Drug-testul'];\nconst motoRequirements = ['Grad Medic-Rezident', 'Certificat S.M.U.L.S.', 'Permis Categoria A'];\n${normalizeTextSrc}\n${srcs}`;
 const testSummaryDefinitions = [['Test SMULS'], ['Test MOTO'], ['Test PILOT'], ['Test ALS'], ['Test parașutiști']];
 const load = new Function(
   'catalog',
   'testDefinitions',
   'testSummaryDefinitions',
-  `${fullSrc}\nreturn { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, admissionChecksComplete, isTestFailed, maxWrongForTest, questionItemHtml, parseIdentityCardText, mergeIdentityCardDetails };`,
+  `${fullSrc}\nreturn { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, admissionChecksComplete, motoChecksComplete, isTestFailed, maxWrongForTest, questionItemHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName };`,
 )(catalog, definitions, testSummaryDefinitions);
 
-const { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberIsTester, memberCanGiveTest, sortMembers, gradeGroupFor, admissionChecksComplete, isTestFailed, maxWrongForTest, questionItemHtml, parseIdentityCardText, mergeIdentityCardDetails } = load;
+const { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberIsTester, memberCanGiveTest, sortMembers, gradeGroupFor, admissionChecksComplete, motoChecksComplete, isTestFailed, maxWrongForTest, questionItemHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName } = load;
 
 test('callsignNumber strips non-digits and returns 0 for empty', () => {
   assert.equal(callsignNumber('M-007'), 7);
@@ -176,6 +176,11 @@ test('admission test unlocks only after all six requirements are checked', () =>
   assert.equal(admissionChecksComplete([true, true, true, true, true]), false);
 });
 
+test('Moto test unlocks only after all three prerequisites are checked', () => {
+  assert.equal(motoChecksComplete([true, true, false]), false);
+  assert.equal(motoChecksComplete([true, true, true]), true);
+});
+
 test('admission test rejects the fourth mistake', () => {
   const limit = maxWrongForTest('Test admitere', 2);
   assert.equal(limit, 3);
@@ -201,6 +206,16 @@ test('each question keeps prompt, answer, and wrong checkbox in one box', () => 
 test('identity card OCR parser extracts only name and CNP', () => {
   const details = parseIdentityCardText('CNP 1060825927178\nNume/Nom/Last name\nCartier\nPrenume/Prenom/First name\nMohammed\nSERIA LS NR 92717');
   assert.deepEqual(details, { name: 'Cartier Mohammed', lastName: 'Cartier', firstName: 'Mohammed', cnp: '1060825927178' });
+});
+
+test('parachute test display name is simplified without changing its catalog key', () => {
+  assert.equal(displayTestName('Test parașutiști'), 'Test Parasutism');
+  assert.equal(displayTestName('Test ALS'), 'Test ALS');
+});
+
+test('SMULS guide includes the supplied route image as an inline preview', () => {
+  const testDefinitions = readFileSync(join(here, '..', 'tests.js'), 'utf8');
+  assert.match(testDefinitions, /'Test SMULS'[\s\S]*?images: \[\{ label: 'Hartă traseu S\.M\.U\.L\.S\.', url: '\/image\.png', inline: true \}\]/);
 });
 
 test('identity card OCR parser handles inline labels and spaced or confused CNP digits', () => {

@@ -18,6 +18,7 @@
 const coreTests = ['Test admitere','Test transfer','Adeverință medicală'];
 const TESTER_BUNDLE_KEY = '__tester_bundle__';
 const admissionRequirements = ['Verificarea ținutei', 'Verificarea tatuajelor faciale', 'Verificarea cazierului', 'Minimum 50 de ore jucate', 'Controlul cu stetoscopul', 'Drug-testul'];
+const motoRequirements = ['Grad Medic-Rezident', 'Certificat S.M.U.L.S.', 'Permis Categoria A'];
 const specialtyTests = ['Test ALS','Test SMULS','Test MOTO','Test PILOT','Test parașutiști'];
 const docsTesterFilters = ['Test SMULS', 'Test ALS'];
 const testSummaryDefinitions = [['Test SMULS', 'Test S.M.U.L.S.'], ['Test MOTO', 'Test MOTO'], ['Test PILOT', 'Test PILOT'], ['Test ALS', 'Test A.L.S.'], ['Test parașutiști', 'Test parașutism']];
@@ -350,6 +351,10 @@ function admissionChecklistHtml() {
   return `<section class="admission-checklist" aria-labelledby="admission-checklist-title"><h3 id="admission-checklist-title">Verificări înainte de proba teoretică</h3>${admissionRequirements.map((requirement, index) => `<label class="admission-check-row"><span>${escapeHtml(requirement)}</span><span class="admission-check-control"><input type="checkbox" data-admission-check="${index}" aria-label="${escapeHtml(requirement)}"><span class="admission-check-error" aria-hidden="true">!</span></span></label>`).join('')}</section>`;
 }
 function admissionChecksComplete(checks) { return checks.length === admissionRequirements.length && checks.every(Boolean); }
+function motoChecklistHtml() {
+  return `<section class="admission-checklist" aria-labelledby="moto-checklist-title"><h3 id="moto-checklist-title">Verificări înainte de test</h3>${motoRequirements.map((requirement, index) => `<label class="admission-check-row"><span>${escapeHtml(requirement)}</span><span class="admission-check-control"><input type="checkbox" data-moto-check="${index}" aria-label="${escapeHtml(requirement)}"><span class="admission-check-error" aria-hidden="true">!</span></span></label>`).join('')}</section>`;
+}
+function motoChecksComplete(checks) { return checks.length === motoRequirements.length && checks.every(Boolean); }
 function isTestFailed(wrong, maxWrong) { return wrong > maxWrong; }
 function maxWrongForTest(testName, maxWrong) { return testName === 'Test admitere' ? 3 : Number(maxWrong ?? Infinity); }
 function questionItemHtml(question, index) {
@@ -455,25 +460,32 @@ async function encodeIdentityPhoto(file) {
 }
 function buildTestMarkup(testName, definition, questions) {
   const isAdmissionTest = testName === 'Test admitere';
+  const isMotoTest = testName === 'Test MOTO';
   const isMedicalCertificate = testName === 'Adeverință medicală';
   const isApplicationTest = isAdmissionTest || testName === 'Test transfer';
   const maxWrong = maxWrongForTest(testName, definition.maxWrong);
   const candidateDetails = isApplicationTest ? admissionCandidateDetailsHtml() : isMedicalCertificate ? medicalCertificateDetailsHtml() : '';
   const admissionChecks = isAdmissionTest ? admissionChecklistHtml() : '';
+  const motoChecks = isMotoTest ? motoChecklistHtml() : '';
   const description = isAdmissionTest ? 'Candidatul poate greși de maximum 3 ori; la a 4-a greșeală este respins. Promovare: minimum 17/20.' : definition.description;
-  const images = (definition.images || []).map(image => `<a class="test-image-link" href="${image.url}" target="_blank" rel="noopener">${image.label || 'Deschide imaginea'}</a>`).join('');
+  const images = (definition.images || []).map(image => `<a class="test-image-link${image.inline ? ' test-image-preview' : ''}" href="${image.url}" target="_blank" rel="noopener">${image.inline ? `<img src="${image.url}" alt="${escapeHtml(image.label || testName)}">` : image.label || 'Deschide imaginea'}</a>`).join('');
   const cases = (definition.cases || []).map((item, index) => `<option value="${index}">${item.title}</option>`).join('');
   const practical = (definition.practical || []).map((item, index) => `<option value="${index}">${item.name}</option>`).join('');
   const candidateCallsign = isApplicationTest || isMedicalCertificate ? '' : '<label class="candidate-call-sign">Callsign candidat<input id="candidate-callsign" type="text" placeholder="510 sau M-510"></label>';
   const candidateNameField = testName === 'Test ALS' ? '<label class="candidate-call-sign">Nume candidat<input id="als-candidate-name" type="text" autocomplete="name"></label>' : '';
   const candidateDocument = !isApplicationTest && !isMedicalCertificate && testName === 'Adeverință medicală' ? '<label>Imagine document candidat<input id="candidate-document" type="file" accept="image/*"></label><p class="muted">Imaginea este disponibilă testerului pentru verificare manuală.</p>' : '';
   const questionForm = questions.length ? `<form id="test-form" class="question-list">${candidateCallsign}${candidateNameField}<div id="candidate-summary" class="candidate-summary"></div>${candidateDocument}${questions.map(questionItemHtml).join('')}<p>Greșeli: <strong id="wrong-count">0</strong> / ${Number.isFinite(maxWrong) ? maxWrong : '—'}</p><button class="primary" type="submit">Finalizează evaluarea</button></form>` : '<div class="test-runner"><p>Acest ghid nu are întrebări teoretice configurate.</p></div>';
-  const gatedQuestionForm = isAdmissionTest && questions.length ? `<div id="admission-test-content" hidden>${questionForm}</div>` : questionForm;
+  const gatedQuestionForm = (isAdmissionTest || isMotoTest) && questions.length ? `<div id="${isAdmissionTest ? 'admission-test-content' : 'moto-test-content'}" hidden>${questionForm}</div>` : questionForm;
   const instructions = isAdmissionTest || testName === 'Test transfer' || isMedicalCertificate || !definition.instructions ? '' : `<p class="test-instructions">${definition.instructions}</p>`;
-  return `<div class="panel view-panel"><div class="panel-head"><div><p class="eyebrow">GHID PENTRU TESTER</p><h2>${displayTestName(testName)}</h2><p class="muted">Acces permanent pentru testerul conectat: ${normalizeCallsign(currentUser?.callsign)}.</p></div><button class="outline" id="back-to-tests">← Înapoi</button></div>${candidateDetails}${admissionChecks}<p class="muted">${description}</p>${instructions}${images ? `<div class="test-images">${images}</div>` : ''}${cases ? `<label>Cazul ales de candidat<select id="case-select">${cases}</select></label><div id="case-steps" class="case-steps"></div>` : ''}${practical ? `<label>Probă practică<select id="practical-select">${practical}</select></label><div id="practical-steps" class="case-steps"></div>` : ''}${gatedQuestionForm}</div>`;
+  const guideBody = `${candidateDetails}${admissionChecks}${motoChecks}<p class="muted">${description}</p>${instructions}${cases ? `<label>Cazul ales de candidat<select id="case-select">${cases}</select></label><div id="case-steps" class="case-steps"></div>` : ''}${practical ? `<label>Probă practică<select id="practical-select">${practical}</select></label><div id="practical-steps" class="case-steps"></div>` : ''}${gatedQuestionForm}`;
+  const content = testName === 'Test SMULS' && images
+    ? `<div class="test-with-map"><div class="test-main-column">${guideBody}</div><aside class="test-map-column">${images}</aside></div>`
+    : `${guideBody}${images ? `<div class="test-images">${images}</div>` : ''}`;
+  return `<div class="panel view-panel"><div class="panel-head"><div><p class="eyebrow">GHID PENTRU TESTER</p><h2>${displayTestName(testName)}</h2><p class="muted">Acces permanent pentru testerul conectat: ${normalizeCallsign(currentUser?.callsign)}.</p></div><button class="outline" id="back-to-tests">← Înapoi</button></div>${content}</div>`;
 }
 function wireTestEvents(testName, definition) {
   const isAdmissionTest = testName === 'Test admitere';
+  const isMotoTest = testName === 'Test MOTO';
   const isMedicalCertificate = testName === 'Adeverință medicală';
   const isApplicationTest = isAdmissionTest || testName === 'Test transfer';
   document.querySelector('#back-to-tests').onclick = () => renderView('tests');
@@ -547,6 +559,17 @@ function wireTestEvents(testName, definition) {
         input.dispatchEvent(new Event('change', { bubbles: true }));
       };
     }
+  }
+  if (isMotoTest) {
+    const checks = [...document.querySelectorAll('[data-moto-check]')];
+    const testContent = document.querySelector('#moto-test-content');
+    const updateMotoGate = () => {
+      const complete = motoChecksComplete(checks.map(check => check.checked));
+      checks.forEach(check => { check.closest('.admission-check-row').classList.toggle('is-incomplete', !check.checked); });
+      if (testContent) testContent.hidden = !complete;
+    };
+    checks.forEach(check => check.onchange = updateMotoGate);
+    updateMotoGate();
   }
   const caseSelect = document.querySelector('#case-select'); const caseSteps = document.querySelector('#case-steps');
   const renderCase = () => { if (!caseSelect || !caseSteps) return; const item = definition.cases[Number(caseSelect.value)]; caseSteps.innerHTML = `<h3>${item.title}</h3><p>Minimum interacțiuni: ${item.minimumMe || 0} /me</p><ol>${item.steps.map(step => `<li>${step}</li>`).join('')}</ol>`; }; if (caseSelect) { caseSelect.onchange = renderCase; renderCase(); }

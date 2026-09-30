@@ -12,6 +12,14 @@ body.dark-mode{--ink:#edf0fa;--muted:#a5aec3;--line:#30374a;--bg:#151925;backgro
 
 /* ===== Grupare dashboard, filtre, avataruri, centrare ===== */
 .welcome-actions{display:flex;gap:10px;align-items:center}
+.test-image-preview{padding:0;overflow:hidden;border-color:var(--line);max-width:100%}
+.test-image-preview img{display:block;width:min(100%,720px);max-height:420px;object-fit:contain;border-radius:6px}
+.test-with-map{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,38%);gap:20px;align-items:start}
+.test-map-column{position:sticky;top:18px;min-width:0}
+.test-map-column .test-images{margin:0}
+.test-map-column .test-image-preview{width:100%;box-shadow:0 0 10px #ffffff40}
+.test-map-column .test-image-preview img{width:100%;max-height:calc(100vh - 140px)}
+@media(max-width:860px){.test-with-map{grid-template-columns:minmax(0,1fr)}.test-map-column{position:static;grid-row:1}}
 .correct-answer{background:linear-gradient(110deg,#A4D3ED,#23A2E8);border-color:#23A2E8;color:#12344a}
 .question-list fieldset{border:1px solid #23A2E8;border-radius:8px;padding:12px 14px;background:linear-gradient(110deg,#A4D3ED,#23A2E8);color:#12344a}
 .question-prompt{margin:0 0 4px;color:#12344a;font-size:15px;font-weight:700;line-height:1.4}
