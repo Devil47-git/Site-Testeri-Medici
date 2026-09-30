@@ -1,4 +1,4 @@
-import { normalize, callsignNumber, isLeadershipRow, gradeGroupFor, GRADE_GROUPS, LEADERSHIP_MAX, testsForFunctions, normalizeTests, functionsForMember } from './shared.js';
+import { normalize, callsignNumber, isLeadershipRow, gradeGroupFor, GRADE_GROUPS, LEADERSHIP_MAX, testsForFunctions, normalizeTests, functionsForMember, isSheetCheckboxChecked } from './shared.js';
 
 const RESIDENT_TESTER_PATTERN = /S\.?\s*M\.?\s*U\.?\s*L\.?\s*S\.?|MOTO|A\.?\s*L\.?\s*S\.?|PILOT/;
 
@@ -11,6 +11,7 @@ function relevantMember(row) {
   const number = callsignNumber(row[2]);
   const functions = normalize(row[10]);
   if (!number || number > 399 || !String(row[3] || '').trim()) return false;
+  if (isSheetCheckboxChecked(row[12])) return true;
   if (number >= 1 && number <= LEADERSHIP_MAX) return true;
   if (number >= GRADE_GROUPS.primar.min && number <= GRADE_GROUPS.specialist.max) return true;
   if (number >= 301 && number <= 340) return RESIDENT_TESTER_PATTERN.test(normalize(row[10]));
@@ -33,6 +34,7 @@ export function statusFromRow(row) {
   const status = normalize(row?.[7]);
   if (status === 'ACTIV') return 'Activ';
   if (status === 'CONCEDIU') return 'Concediu';
+  if (status === 'CO CIVIL' || status === 'CO-CIVIL') return 'Co Civil';
   return 'Inactiv';
 }
 async function readPublic(range) {
@@ -61,11 +63,12 @@ export default async function handler(req, res) {
       const functions = functionsForMember(callsignNumber(row[2]), row[10]);
       const isConducere = isLeadership(row);
       const status = statusFromRow(row);
+      const parachuteAssigned = isSheetCheckboxChecked(row[12]);
       return {
         discordId, name: String(row[3] || '').trim(), callsign: String(row[2] || '').trim(), csNum: callsignNumber(row[2]), rank: String(row[4] || '').trim(), dept: String(row[5] || '').trim(), functions, status, gradeGroup: groupLabel(row),
         isLeadership: isConducere, leadershipTitle: isConducere ? leadershipTitle(row) : '', avatar: row[20] ? `https://cdn.discordapp.com/avatars/${discordId}/${String(row[20] || '').trim()}.png` : '',
-        grantedTests: normalizeTests([...testsForFunctions(functions), ...(storedGrant?.grantedTests || [])]), updatedAt: storedGrant?.updatedAt || '', lastSeen: storedGrant?.lastSeen || '',
-        isTester: ['leadership', 'primar', 'specialist'].includes(gradeGroupFor(callsignNumber(row[2]))) || (callsignNumber(row[2]) >= 301 && callsignNumber(row[2]) <= 340 && RESIDENT_TESTER_PATTERN.test(normalize(functions))) || /TESTER/.test(normalize(functions)) || grantsByDiscord.has(discordId)
+        grantedTests: normalizeTests([...testsForFunctions(functions), ...(parachuteAssigned ? ['Test parașutiști'] : []), ...(storedGrant?.grantedTests || [])]), updatedAt: storedGrant?.updatedAt || '', lastSeen: storedGrant?.lastSeen || '',
+        isTester: ['leadership', 'primar', 'specialist'].includes(gradeGroupFor(callsignNumber(row[2]))) || (callsignNumber(row[2]) >= 301 && callsignNumber(row[2]) <= 340 && RESIDENT_TESTER_PATTERN.test(normalize(functions))) || /TESTER/.test(normalize(functions)) || parachuteAssigned || grantsByDiscord.has(discordId)
       };
     });
     return json(res, 200, { members: result, syncedAt: new Date().toISOString() });

@@ -21,6 +21,11 @@ export function gradeGroupFor(csNum) {
 
 export function normalize(value = '') { return String(value).toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim(); }
 
+export function isSheetCheckboxChecked(value) {
+  if (value === true) return true;
+  return ['TRUE', 'YES', '1', 'X', 'CHECKED', 'DA'].includes(normalize(value));
+}
+
 export function callsignNumber(value = '') { return Number(String(value).replace(/\D/g, '')) || 0; }
 
 export function isLeadershipRow(row) {
@@ -62,18 +67,19 @@ export function testsForFunctions(functions) {
   return [...new Set(assigned)];
 }
 
-export function accessFor(csNum, functions, rank, dept) {
+export function accessFor(csNum, functions, rank, dept, extraTests = []) {
   const leadership = isLeadership(csNum, rank, dept);
   const gradeGroup = gradeGroupFor(csNum);
   const assignedFunctions = functionsForMember(csNum, functions);
+  const explicitlyAssigned = [...new Set((Array.isArray(extraTests) ? extraTests : []).filter(test => catalog.includes(test)))];
   return {
     isConducere: leadership,
     isLeadership: leadership,
     accessLevel: leadership ? 'leadership' : 'tester',
     gradeGroup,
     allowedTests: leadership ? [...catalog] : [],
-    eligibleSpecializations: specializationFor(assignedFunctions),
-    grantedTests: leadership ? [] : testsForFunctions(assignedFunctions)
+    eligibleSpecializations: [...new Set([...specializationFor(assignedFunctions), ...explicitlyAssigned.filter(test => !coreTests.includes(test))])],
+    grantedTests: leadership ? [] : normalizeTests([...testsForFunctions(assignedFunctions), ...explicitlyAssigned])
   };
 }
 

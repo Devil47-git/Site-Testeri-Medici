@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { accessFor, catalog as accessCatalog, coreTests, functionsForMember, isLeadership, normalizeTests, testsForFunctions } from '../api/access/shared.js';
+import { accessFor, catalog as accessCatalog, coreTests, functionsForMember, isLeadership, isSheetCheckboxChecked, normalizeTests, testsForFunctions } from '../api/access/shared.js';
 import { createAdmissionEmbeds, createAlsResultEmbed, createMedicalCertificateEmbeds, medicalCertificateNumberForRow } from '../api/access/test-results.js';
 import { statusFromRow } from '../api/access/directory.js';
 
@@ -31,20 +31,20 @@ function extract(name) {
 const catalog = ['Test admitere', 'Test transfer', 'Adeverință medicală', 'Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști'];
 const definitions = Object.fromEntries(catalog.map(n => [n, { name: n, questions: [] }]));
 
-const names = ['callsignNumber', 'normalizeCallsign', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberHasTestAccess', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'sortMembers', 'gradeGroupFor', 'admissionChecksComplete', 'motoChecksComplete', 'memberStatus', 'testerFunctionsForDisplay', 'isTestFailed', 'maxWrongForTest', 'questionItemHtml', 'parseIdentityCardText', 'mergeIdentityCardDetails', 'displayTestName'];
+const names = ['callsignNumber', 'normalizeCallsign', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberHasTestAccess', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'sortMembers', 'gradeGroupFor', 'admissionChecksComplete', 'motoChecksComplete', 'memberStatus', 'testerFunctionsForDisplay', 'isTestFailed', 'maxWrongForTest', 'cachedUserWithinSession', 'questionItemHtml', 'parseIdentityCardText', 'mergeIdentityCardDetails', 'displayTestName'];
 const srcs = names.map(extract).join('\n');
 const pattern = source.match(/^const RESIDENT_TESTER_PATTERN = .*$/m)?.[0] || 'const RESIDENT_TESTER_PATTERN = /TESTER/;';
 const normalizeTextSrc = extract('normalizeText');
-const fullSrc = `${pattern}\nconst coreTests = ['Test admitere', 'Test transfer', 'Adeverință medicală'];\nconst admissionRequirements = ['Verificarea ținutei', 'Verificarea tatuajelor faciale', 'Verificarea cazierului', 'Minimum 50 de ore jucate', 'Controlul cu stetoscopul', 'Drug-testul'];\nconst motoRequirements = ['Grad Medic-Rezident', 'Certificat S.M.U.L.S.', 'Permis Categoria A'];\n${normalizeTextSrc}\n${srcs}`;
+const fullSrc = `${pattern}\nconst AUTH_SCHEMA_VERSION = 3;\nconst coreTests = ['Test admitere', 'Test transfer', 'Adeverință medicală'];\nconst admissionRequirements = ['Verificarea ținutei', 'Verificarea tatuajelor faciale', 'Verificarea cazierului', 'Minimum 50 de ore jucate', 'Controlul cu stetoscopul', 'Drug-testul'];\nconst motoRequirements = ['Grad Medic-Rezident', 'Certificat S.M.U.L.S.', 'Permis Categoria A'];\n${normalizeTextSrc}\n${srcs}`;
 const testSummaryDefinitions = [['Test SMULS'], ['Test MOTO'], ['Test PILOT'], ['Test ALS'], ['Test parașutiști']];
 const load = new Function(
   'catalog',
   'testDefinitions',
   'testSummaryDefinitions',
-  `${fullSrc}\nreturn { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, admissionChecksComplete, motoChecksComplete, memberStatus, testerFunctionsForDisplay, isTestFailed, maxWrongForTest, questionItemHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName };`,
+  `${fullSrc}\nreturn { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, admissionChecksComplete, motoChecksComplete, memberStatus, testerFunctionsForDisplay, isTestFailed, maxWrongForTest, cachedUserWithinSession, questionItemHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName };`,
 )(catalog, definitions, testSummaryDefinitions);
 
-const { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, admissionChecksComplete, motoChecksComplete, memberStatus, testerFunctionsForDisplay, isTestFailed, maxWrongForTest, questionItemHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName } = load;
+const { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, admissionChecksComplete, motoChecksComplete, memberStatus, testerFunctionsForDisplay, isTestFailed, maxWrongForTest, cachedUserWithinSession, questionItemHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName } = load;
 
 test('callsignNumber strips non-digits and returns 0 for empty', () => {
   assert.equal(callsignNumber('M-007'), 7);
@@ -106,15 +106,29 @@ test('member status follows the status value from column H', () => {
   assert.equal(statusFromRow(['', '', '', '', '', '', '', 'Activ']), 'Activ');
   assert.equal(statusFromRow(['', '', '', '', '', '', '', 'Inactiv']), 'Inactiv');
   assert.equal(statusFromRow(['', '', '', '', '', '', '', 'Concediu']), 'Concediu');
+  assert.equal(statusFromRow(['', '', '', '', '', '', '', 'Co Civil']), 'Co Civil');
   assert.equal(memberStatus({ status: 'Activ', lastSeen: 0 }), 'Activ');
   assert.equal(memberStatus({ status: 'Inactiv', lastSeen: Date.now() }), 'Inactiv');
   assert.equal(memberStatus({ status: 'Concediu' }), 'Concediu');
+  assert.equal(memberStatus({ status: 'Co Civil' }), 'Co Civil');
   assert.equal(memberStatus({ status: '' }), 'Inactiv');
 });
 
 test('member directory shows only the requested tester specializations', () => {
   assert.equal(testerFunctionsForDisplay({ functions: 'Manager M.M.L.S. | A.L.S. | S.M.U.L.S. | TESTER | MOTO | PILOT | PARASUTIST' }), 'A.L.S. | S.M.U.L.S. | Tester | Moto | Pilot | Parasutism');
   assert.equal(testerFunctionsForDisplay({ functions: 'Manager M.M.L.S.' }), '—');
+  assert.equal(testerFunctionsForDisplay({ grantedTests: ['Test parașutiști'] }), 'Parasutism');
+});
+
+test('column M checkbox grants parachutism to non-leadership only', () => {
+  assert.equal(isSheetCheckboxChecked('TRUE'), true);
+  assert.equal(isSheetCheckboxChecked(true), true);
+  assert.equal(isSheetCheckboxChecked('FALSE'), false);
+  assert.equal(isSheetCheckboxChecked(''), false);
+  const parachuteGrant = isSheetCheckboxChecked('TRUE') ? ['Test parașutiști'] : [];
+  assert.ok(accessFor(221, 'TESTER', 'Medic Specialist', '', parachuteGrant).grantedTests.includes('Test parașutiști'));
+  assert.equal(accessFor(221, '', 'Medic Specialist', '', []).grantedTests.includes('Test parașutiști'), false);
+  assert.deepEqual(accessFor(2, '', 'Director Adjunct', '', []).allowedTests, accessCatalog);
 });
 
 test('non-leadership users receive only explicitly granted tests', () => {
@@ -174,6 +188,7 @@ test('Docs-based dashboard filters match dotted SMULS and ALS functions', () => 
   assert.equal(memberCanGiveTest({ functions: 'PILOT' }, 'Test PILOT'), true);
   assert.equal(memberCanGiveTest({ functions: 'PARASUTIST' }, 'Test parașutiști'), true);
   assert.equal(memberCanGiveTest({ functions: 'MOTO' }, 'Test ALS'), false);
+  assert.equal(memberCanGiveTest({ grantedTests: ['Test parașutiști'] }, 'Test parașutiști'), true);
 });
 
 test('sortMembers places leadership first, then by csNum', () => {
@@ -219,6 +234,13 @@ test('Discord session and browser auth cache both last 24 hours', () => {
   assert.match(serverSource, /Max-Age=\$\{SESSION_TTL \/ 1000\}/);
 });
 
+test('an unexpired cached Discord user can reopen the app without a session API roundtrip', () => {
+  const user = { discordId: '123', name: 'Tester' };
+  assert.deepEqual(cachedUserWithinSession({ version: 3, user, expiresAt: 86400001 }, 86400000), user);
+  assert.equal(cachedUserWithinSession({ version: 2, user, expiresAt: 86400001 }, 86400000), null);
+  assert.equal(cachedUserWithinSession({ version: 3, user, expiresAt: 86400000 }, 86400000), null);
+});
+
 test('each question keeps prompt, answer, and wrong checkbox in one box', () => {
   const markup = questionItemHtml({ text: 'Întrebare?', answer: 'Răspunsul corect.' }, 0);
   assert.match(markup, /<fieldset><p class="question-prompt">1\. Întrebare\?<\/p>/);
@@ -235,6 +257,12 @@ test('identity card OCR parser extracts only name and CNP', () => {
 test('parachute test display name is simplified without changing its catalog key', () => {
   assert.equal(displayTestName('Test parașutiști'), 'Test Parasutism');
   assert.equal(displayTestName('Test ALS'), 'Test ALS');
+});
+
+test('a configured test title overrides its default display title', () => {
+  definitions['Test ALS'].title = 'ALS Personalizat';
+  assert.equal(displayTestName('Test ALS'), 'ALS Personalizat');
+  delete definitions['Test ALS'].title;
 });
 
 test('SMULS guide includes the supplied route image as an inline preview', () => {

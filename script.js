@@ -132,6 +132,7 @@ function memberHasTestAccess(member, test) { return !isLeadershipUser(member) &&
 /** @param {any} value @returns {string} */
 function normalizeText(value) { return String(value || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
 function memberCanGiveTest(member, test) {
+  if ((member?.grantedTests || []).includes(test)) return true;
   const functions = normalizeText(member?.functions);
   if (test === 'Test SMULS') return /S\.?\s*M\.?\s*U\.?\s*L\.?\s*S\.?|\s*S\s*\|/.test(functions);
   if (test === 'Test ALS') return /A\.?\s*L\.?\s*S\.?|\s*A\s*\|/.test(functions);
@@ -168,6 +169,7 @@ function memberNameFor(member) { return String(member?.name || '').trim() || nor
 function rankFor(member) { return String(member?.rank || '').trim() || String(member?.gradeGroup || '').trim() || '—'; }
 function memberStatus(member) {
   const status = normalizeText(member?.status);
+  if (status === 'CO CIVIL' || status === 'CO-CIVIL') return 'Co Civil';
   return ['ACTIV', 'INACTIV', 'CONCEDIU'].includes(status) ? status[0] + status.slice(1).toLowerCase() : 'Inactiv';
 }
 function testerFunctionsForDisplay(member) {
@@ -180,11 +182,13 @@ function testerFunctionsForDisplay(member) {
     [/PILOT/, 'Pilot'],
     [/PARASUTIST|PARACHUTIST|PARAȘUTIST/, 'Parasutism']
   ];
-  return visibleFunctions.filter(([pattern]) => pattern.test(functions)).map(([, label]) => label).join(' | ') || '—';
+  const labels = visibleFunctions.filter(([pattern]) => pattern.test(functions)).map(([, label]) => label);
+  if ((member?.grantedTests || []).includes('Test parașutiști') && !labels.includes('Parasutism')) labels.push('Parasutism');
+  return labels.join(' | ') || '—';
 }
 function memberStatusHtml(member) {
   const status = memberStatus(member);
-  const statusClass = status === 'Activ' ? 'online' : status === 'Concediu' ? 'leave' : 'offline';
+  const statusClass = status === 'Activ' ? 'online' : status === 'Concediu' ? 'leave' : status === 'Co Civil' ? 'civil' : 'offline';
   return `<span class="status ${statusClass}"><i></i>${status}</span>`;
 }
 function testerAccessHtml(member) {
@@ -246,6 +250,10 @@ async function loadDirectory() {
   if (!response.ok) return;
   const payload = await response.json();
   directoryMembers = (payload.members || []).filter(member => String(member?.name || '').trim());
+  const currentDirectoryMember = directoryMembers.find(member => member.discordId === currentUser.discordId);
+  if (currentDirectoryMember && !isLeadershipUser(currentUser)) {
+    currentUser.grantedTests = normalizeGrantBundle([...(currentUser.grantedTests || []), ...(currentDirectoryMember.grantedTests || [])]);
+  }
   await loadTestRunCounts();
   if (isLeadershipUser(currentUser)) {
     testers = directoryMembers.filter(member => member.isTester || memberIsTester(member)).map(member => ({ ...member, grantedTests: normalizeGrantBundle([...(member.grantedTests || []), ...docsAssignedTests(member)]) }));
@@ -330,7 +338,10 @@ function wireTestAccessEvents() {
     };
   });
 }
-function displayTestName(testName) { return testName === 'Test parașutiști' ? 'Test Parasutism' : testName; }
+function displayTestName(testName) {
+  const title = String(testDefinitions[testName]?.title || '').trim();
+  return title || (testName === 'Test parașutiști' ? 'Test Parasutism' : testName);
+}
 function renderTestersView() {
   const groups = DASHBOARD_GROUPS.map(group => ({ label: group.label, members: sortMembers(testers.filter(group.members)) })).filter(group => group.members.length);
   const orphan = sortMembers(testers.filter(member => !DASHBOARD_GROUPS.some(group => group.members(member))));
@@ -344,13 +355,19 @@ function renderMembersView() {
   const sections = groups.map(group => {
     const members = sortMembers(directoryMembers.filter(member => gradeGroupForMember(member) === group));
     if (!members.length) return '';
-    const rowsHtml = members.map(member => `<tr><td>${escapeHtml(member.leadershipTitle || leadershipTitleForCallsign(member.callsign) || testerFunctionsForDisplay(member))}</td><td>${escapeHtml(member.name || '—')}</td><td>${escapeHtml(normalizeCallsign(member.callsign))}</td><td>${escapeHtml(member.rank || '—')}</td></tr>`).join('');
-    return `<section class="member-group"><h3>${escapeHtml(group)}</h3><div class="table-wrap"><table><thead><tr><th>FUNCȚIE</th><th>NUME</th><th>CALLSIGN</th><th>GRAD</th></tr></thead><tbody>${rowsHtml}</tbody></table></div></section>`;
+    const rowsHtml = members.map(member => `<tr><td>${escapeHtml(normalizeCallsign(member.callsign))}</td><td>${escapeHtml(member.name || '—')}</td><td>${escapeHtml(member.rank || '—')}</td><td>${escapeHtml(isLeadershipUser(member) ? 'Conducere' : testerFunctionsForDisplay(member))}</td></tr>`).join('');
+    return `<section class="member-group"><h3>${escapeHtml(group)}</h3><div class="table-wrap"><table><thead><tr><th>CALLSIGN</th><th>NUME</th><th>GRAD</th><th>FUNCȚII</th></tr></thead><tbody>${rowsHtml}</tbody></table></div></section>`;
   }).join('');
   return `<div class="panel view-panel"><h2>Membri departament</h2><p class="muted">Membrii departamentului sunt grupați pe grade: conducere, medici primari și medici specialiști.</p>${sections || '<p class="muted">Nu s-a putut încărca lista membrilor.</p>'}</div>`;
 }
 function renderSettingsView(title) {
-  return `<div class="panel view-panel"><h2>${title}</h2><p class="muted">Gestionează preferințele și sesiunea contului tău.</p><div class="settings-list"><p><b>Identitate:</b> ${currentUser?.name || '—'}</p><p><b>Callsign:</b> ${normalizeCallsign(currentUser?.callsign || currentUser?.callSign)}</p><p><b>Nivel acces:</b> ${isLeadershipUser(currentUser) ? 'Conducere' : 'Tester'}</p>${isLeadershipUser(currentUser) ? `<hr><h3>Configurare teste</h3><p class="muted">Poți importa aici textul testului; îl voi transforma automat în întrebări după structura fișierului.</p><label>Test<select id="test-editor-select">${catalog.map(test => `<option value="${test}">${test}</option>`).join('')}</select></label><input id="test-file-input" type="file" accept=".txt,.md,.json"><textarea id="test-editor-json" rows="8"></textarea><button class="primary" id="save-test-definition">Salvează testul</button><span id="test-editor-status" class="muted"></span>` : ''}<hr><button class="outline danger-button" id="logout-btn">Deconectează-te</button></div></div>`;
+  return `<div class="panel view-panel"><h2>${title}</h2><p class="muted">Gestionează preferințele și sesiunea contului tău.</p><div class="settings-list"><p><b>Identitate:</b> ${currentUser?.name || '—'}</p><p><b>Callsign:</b> ${normalizeCallsign(currentUser?.callsign || currentUser?.callSign)}</p><p><b>Nivel acces:</b> ${isLeadershipUser(currentUser) ? 'Conducere' : 'Tester'}</p>${isLeadershipUser(currentUser) ? `<hr><section class="test-editor"><h3>Configurare teste</h3><div class="test-editor-controls"><label>Test<select id="test-editor-select">${catalog.map(test => `<option value="${test}">${displayTestName(test)}</option>`).join('')}</select></label><label>Titlu afișat<input id="test-editor-title" type="text"></label><label>Conținut card<textarea id="test-editor-description" rows="3"></textarea></label><label>Instrucțiuni<textarea id="test-editor-instructions" rows="3"></textarea></label><label>Greșeli permise<input id="test-editor-max-wrong" type="number" min="0" step="1"></label></div><div class="test-editor-question-header"><h4>Întrebări și răspunsuri</h4><button class="outline" id="add-test-question" type="button">＋ Adaugă întrebare</button></div><div id="test-editor-questions" class="test-editor-questions"></div><details class="test-editor-advanced"><summary>Configurare avansată</summary><p class="muted">Pentru cazuri, probe practice și imagini.</p><input id="test-file-input" type="file" accept=".txt,.md,.json"><textarea id="test-editor-json" rows="8" spellcheck="false"></textarea></details><button class="primary" id="save-test-definition">Salvează testul</button><span id="test-editor-status" class="muted" role="status"></span></section>` : ''}<hr><button class="outline danger-button" id="logout-btn">Deconectează-te</button></div></div>`;
+}
+function testQuestionEditorHtml(question, index) {
+  return `<fieldset class="test-editor-question"><legend>Întrebarea ${index + 1}</legend><label>Întrebare<textarea data-question-text rows="2">${escapeHtml(question?.text || '')}</textarea></label><label>Răspuns<textarea data-question-answer rows="2">${escapeHtml(question?.answer || '')}</textarea></label><button type="button" class="outline danger-button" data-remove-question="${index}">Șterge întrebarea</button></fieldset>`;
+}
+function renderTestQuestionEditor(container, questions) {
+  container.innerHTML = questions.map(testQuestionEditorHtml).join('') || '<p class="muted">Nu există întrebări. Adaugă una pentru a începe.</p>';
 }
 function wireTestersEvents() {
   const add = document.querySelector('#view-add'); if (add) add.onclick = () => openAddModal();
@@ -358,8 +375,74 @@ function wireTestersEvents() {
 }
 function wireSettingsEvents() {
   const logout = document.querySelector('#logout-btn'); if (logout) logout.onclick = () => { localStorage.removeItem(AUTH_STORAGE_KEY); window.location.reload(); };
-  const editor = document.querySelector('#test-editor-select'); const editorJson = document.querySelector('#test-editor-json'); const editorStatus = document.querySelector('#test-editor-status');
-  if (editor && editorJson) { const loadDefinition = () => { editorJson.value = JSON.stringify(testDefinitions[editor.value], null, 2); }; editor.onchange = loadDefinition; loadDefinition(); const fileInput = document.querySelector('#test-file-input'); if (fileInput) fileInput.onchange = async () => { const file = fileInput.files?.[0]; if (!file) return; editorJson.value = await file.text(); editorStatus.textContent = 'Fișier încărcat. Verifică și salvează.'; }; document.querySelector('#save-test-definition').onclick = () => { try { const value = JSON.parse(editorJson.value); testDefinitions[editor.value] = { ...value, name: editor.value }; saveTestDefinitions(); editorStatus.textContent = 'Salvat'; renderView('settings'); } catch { editorStatus.textContent = 'Format invalid. Pentru moment folosește JSON; după ce primesc Notepad-ul adaptez importul exact.'; } }; }
+  const editor = document.querySelector('#test-editor-select');
+  const editorJson = document.querySelector('#test-editor-json');
+  const editorTitle = document.querySelector('#test-editor-title');
+  const editorDescription = document.querySelector('#test-editor-description');
+  const editorInstructions = document.querySelector('#test-editor-instructions');
+  const editorMaxWrong = document.querySelector('#test-editor-max-wrong');
+  const questionContainer = document.querySelector('#test-editor-questions');
+  const editorStatus = document.querySelector('#test-editor-status');
+  if (!editor || !editorJson || !questionContainer) return;
+  const readEditorQuestions = () => [...questionContainer.querySelectorAll('.test-editor-question')].map(item => ({
+    text: item.querySelector('[data-question-text]').value.trim(),
+    answer: item.querySelector('[data-question-answer]').value.trim()
+  }));
+  const loadDefinition = definition => {
+    const value = definition || testDefinitions[editor.value] || {};
+    editorTitle.value = value.title || (editor.value === 'Test parașutiști' ? 'Test Parasutism' : editor.value);
+    editorDescription.value = value.description || '';
+    editorInstructions.value = value.instructions || '';
+    editorMaxWrong.value = Number.isFinite(Number(value.maxWrong)) ? value.maxWrong : '';
+    editorJson.value = JSON.stringify(value, null, 2);
+    renderTestQuestionEditor(questionContainer, Array.isArray(value.questions) ? value.questions : []);
+  };
+  editor.onchange = () => loadDefinition();
+  loadDefinition();
+  questionContainer.onclick = event => {
+    const removeButton = event.target.closest('[data-remove-question]');
+    if (!removeButton) return;
+    const questions = readEditorQuestions();
+    questions.splice(Number(removeButton.dataset.removeQuestion), 1);
+    renderTestQuestionEditor(questionContainer, questions);
+  };
+  document.querySelector('#add-test-question').onclick = () => {
+    renderTestQuestionEditor(questionContainer, [...readEditorQuestions(), { text: '', answer: '' }]);
+  };
+  const fileInput = document.querySelector('#test-file-input');
+  if (fileInput) fileInput.onchange = async () => {
+    const file = fileInput.files?.[0];
+    if (!file) return;
+    try {
+      const imported = JSON.parse(await file.text());
+      if (!imported || typeof imported !== 'object' || Array.isArray(imported)) throw new Error('Format JSON invalid');
+      editorJson.value = JSON.stringify(imported, null, 2);
+      loadDefinition(imported);
+      editorStatus.textContent = 'Fișier încărcat. Verifică rubricile și salvează.';
+    } catch { editorStatus.textContent = 'Fișierul trebuie să conțină o definiție JSON validă.'; }
+  };
+  document.querySelector('#save-test-definition').onclick = () => {
+    try {
+      const advanced = JSON.parse(editorJson.value);
+      if (!advanced || typeof advanced !== 'object' || Array.isArray(advanced)) throw new Error('Format JSON invalid');
+      const value = {
+        ...advanced,
+        name: editor.value,
+        title: editorTitle.value.trim() || editor.value,
+        description: editorDescription.value.trim(),
+        instructions: editorInstructions.value.trim(),
+        questions: readEditorQuestions()
+      };
+      if (editorMaxWrong.value.trim() === '') delete value.maxWrong;
+      else value.maxWrong = Number(editorMaxWrong.value);
+      if (!Number.isFinite(value.maxWrong) && value.maxWrong !== undefined) throw new Error('Număr maxim de greșeli invalid');
+      testDefinitions[editor.value] = value;
+      saveTestDefinitions();
+      editorJson.value = JSON.stringify(value, null, 2);
+      editorStatus.textContent = 'Test salvat local.';
+      renderRows();
+    } catch (error) { editorStatus.textContent = error.message || 'Definiție JSON invalidă.'; }
+  };
 }
 function renderView(view) {
   const overview = document.querySelector('#overview-view');
@@ -947,22 +1030,16 @@ async function exchangeCallbackCode(){
   const stored={version:AUTH_SCHEMA_VERSION,user:payload.user,expiresAt:Date.now()+AUTH_TTL}; localStorage.setItem(AUTH_STORAGE_KEY,JSON.stringify(stored));
   window.history.replaceState({},document.title,window.location.pathname); return payload.user;
 }
-async function verifyCachedUser(user) {
-  if (!user?.discordId) return false;
-  try {
-    const response = await fetch('/api/session', { credentials: 'same-origin' });
-    if (response.status === 401) return false;
-    if (!response.ok) return false;
-    const payload = await response.json().catch(() => null);
-    return Boolean(payload?.authorized);
-  } catch { return false; }
+function cachedUserWithinSession(cached, now = Date.now()) {
+  return cached?.version === AUTH_SCHEMA_VERSION && cached?.user?.discordId && Number(cached.expiresAt) > now ? cached.user : null;
 }
 async function startSession(){
   if(DEV_LOGIN_ENABLED){ return enterApp({ ...DEV_LOGIN_USER }); }
   try{
     const callbackUser=await exchangeCallbackCode(); if(callbackUser) return enterApp(callbackUser);
     const cached=readStored(AUTH_STORAGE_KEY, null);
-    if(cached?.version===AUTH_SCHEMA_VERSION&&cached?.user&&cached.expiresAt>Date.now()&&await verifyCachedUser(cached.user)) return enterApp(cached.user);
+    const cachedUser=cachedUserWithinSession(cached);
+    if(cachedUser) return enterApp(cachedUser);
     localStorage.removeItem(AUTH_STORAGE_KEY); throw new Error('not-authorized');
   }catch(error){appShell.classList.remove('ready');const message=error.message==='not-authorized'?'Conectează-te cu Discord pentru a verifica accesul.':error.message;showAuthError(message)}
 }
