@@ -351,24 +351,32 @@ function admissionChecklistHtml() {
 function admissionChecksComplete(checks) { return checks.length === admissionRequirements.length && checks.every(Boolean); }
 function isTestFailed(wrong, maxWrong) { return wrong > maxWrong; }
 function maxWrongForTest(testName, maxWrong) { return testName === 'Test admitere' ? 2 : Number(maxWrong ?? Infinity); }
+function questionItemHtml(question, index) {
+  return `<fieldset><p class="question-prompt">${index + 1}. ${question.text}</p><div class="correct-answer"><span>${question.answer || 'Verifică ghidul.'}</span><label class="answer-check"><input type="checkbox" data-wrong="${index}"> Răspuns greșit</label></div></fieldset>`;
+}
 function parseIdentityCardText(text) {
-  const lines = String(text || '').split(/\r?\n/).map(line => line.trim()).filter(Boolean);
-  const valueAfterLabel = (pattern, nextLabel) => {
+  const rawText = String(text || '');
+  const lines = rawText.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
+  const valueAfterLabel = (pattern, labelPattern, nextLabel) => {
     const index = lines.findIndex(line => pattern.test(line));
     if (index < 0) return '';
-    const inline = lines[index].replace(pattern, '').replace(/^[:\s-]+/, '').trim();
+    let inline = lines[index].slice(lines[index].search(pattern)).replace(labelPattern, '').trim();
+    const nextField = inline.search(nextLabel);
+    if (nextField >= 0) inline = inline.slice(0, nextField).trim();
     if (inline) return inline;
-    return lines.slice(index + 1).find(line => !nextLabel.test(line)) || '';
+    return lines.slice(index + 1).find(line => !nextLabel.test(line) && !labelPattern.test(line)) || '';
   };
-  const lastName = valueAfterLabel(/Nume.*Last\s*name|Last\s*name/i, /Prenume|First\s*name|CNP|SERIA|SERIE/i);
-  const firstName = valueAfterLabel(/Prenume.*First\s*name|First\s*name/i, /CNP|SERIA|SERIE/i);
-  const cnpLine = String(text || '').match(/CNP[^0-9]{0,16}((?:\d[\s.-]?){12}\d)/i)?.[1] || '';
-  const cnp = cnpLine.replace(/\D/g, '').slice(0, 13);
-  const idMatch = String(text || '').match(/\bSERIA?\s+([A-Z0-9]{1,3})\s*(?:NR\.?|NO\.?)\s*(\d{4,8})/i);
-  return { name: [lastName, firstName].filter(Boolean).join(' '), cnp, id: idMatch ? `${idMatch[1]} ${idMatch[2]}` : '' };
+  const lastName = valueAfterLabel(/\bNume\b|\bNom\b|\bLast\s*name\b/i, /^(?:(?:Nume|Nom|Last\s*name)(?:\s*[\/|]\s*(?:Nume|Nom|Last\s*name))*)\s*[:\-]?\s*/i, /\bPrenume\b|\bPrenom\b|\bFirst\s*name\b|\bCNP\b|\bSERIE?\b|\bID\b/i);
+  const firstName = valueAfterLabel(/\bPrenume\b|\bPrenom\b|\bFirst\s*name\b/i, /^(?:(?:Prenume|Prenom|First\s*name)(?:\s*[\/|]\s*(?:Prenume|Prenom|First\s*name))*)\s*[:\-]?\s*/i, /\bCNP\b|\bSERIE?\b|\bID\b/i);
+  const digitText = rawText.replace(/[OoQ]/g, '0').replace(/[Il|]/g, '1');
+  const cnpLabel = digitText.search(/C\s*N\s*P/i);
+  const cnpText = cnpLabel >= 0 ? digitText.slice(cnpLabel, cnpLabel + 100) : digitText;
+  const cnpCandidates = [...cnpText.matchAll(/(?:\d[\s.-]*){13}/g)].map(match => match[0].replace(/\D/g, '')).filter(value => value.length === 13);
+  const cnp = (cnpCandidates[0] || (cnpText === digitText ? '' : [...digitText.matchAll(/(?:\d[\s.-]*){13}/g)].map(match => match[0].replace(/\D/g, '')).find(value => value.length === 13))) || '';
+  return { name: [lastName, firstName].filter(Boolean).join(' '), cnp };
 }
 function admissionCandidateDetailsHtml() {
-  return `<section class="admission-candidate-details" aria-labelledby="admission-candidate-title"><h3 id="admission-candidate-title">Date candidat</h3><div class="admission-candidate-grid"><label>Nume și prenume<input id="candidate-name" type="text" autocomplete="name"></label><label>CNP<input id="candidate-cnp" type="text" inputmode="numeric" maxlength="13" autocomplete="off"></label><label>ID / serie și număr<input id="candidate-id" type="text" autocomplete="off"></label><label>Callsign atribuit<input id="candidate-callsign" type="text" placeholder="M-510" autocomplete="off"></label></div><label class="candidate-document-upload">Fotografie buletin<input id="candidate-document" type="file" accept="image/*"></label><label class="admission-photo-consent"><input id="candidate-photo-consent" type="checkbox"> Candidatul a fost informat și este de acord ca fotografia buletinului să fie trimisă pe Discord.</label><p id="candidate-document-status" class="muted" aria-live="polite"></p></section>`;
+  return `<section class="admission-candidate-details" aria-labelledby="admission-candidate-title"><h3 id="admission-candidate-title">Date candidat</h3><div class="admission-candidate-grid"><label>Nume și prenume<input id="candidate-name" type="text" autocomplete="name"></label><label>CNP<input id="candidate-cnp" type="text" inputmode="numeric" maxlength="13" autocomplete="off"></label><label>ID candidat<input id="candidate-id" type="text" autocomplete="off"></label><label>Callsign atribuit<input id="candidate-callsign" type="text" placeholder="M-510" autocomplete="off"></label></div><label class="candidate-document-upload">Fotografie buletin<input id="candidate-document" type="file" accept="image/*"></label><p id="candidate-document-status" class="muted" aria-live="polite"></p></section>`;
 }
 function admissionCandidateSummary(result) {
   const value = selector => document.querySelector(selector)?.value?.trim() || '—';
@@ -388,10 +396,15 @@ async function loadIdentityOcr() {
 }
 async function readIdentityCard(file) {
   const tesseract = await loadIdentityOcr();
-  const worker = await tesseract.createWorker('eng');
+  const worker = await tesseract.createWorker('ron+eng');
   try {
-    const result = await worker.recognize(file);
-    return parseIdentityCardText(result.data.text);
+    let details = parseIdentityCardText((await worker.recognize(file)).data.text);
+    if (!details.name || !details.cnp) {
+      await worker.setParameters({ tessedit_pageseg_mode: '11' });
+      const retryDetails = parseIdentityCardText((await worker.recognize(file)).data.text);
+      details = { name: details.name || retryDetails.name, cnp: details.cnp || retryDetails.cnp };
+    }
+    return details;
   } finally {
     await worker.terminate();
   }
@@ -428,7 +441,7 @@ function buildTestMarkup(testName, definition, questions) {
   const practical = (definition.practical || []).map((item, index) => `<option value="${index}">${item.name}</option>`).join('');
   const candidateCallsign = isAdmissionTest ? '' : '<label class="candidate-call-sign">Callsign candidat<input id="candidate-callsign" type="text" placeholder="510 sau M-510"></label>';
   const candidateDocument = !isAdmissionTest && (testName === 'Test transfer' || testName === 'Adeverință medicală') ? '<label>Imagine document candidat<input id="candidate-document" type="file" accept="image/*"></label><p class="muted">Imaginea este disponibilă testerului pentru verificare manuală.</p>' : '';
-  const questionForm = questions.length ? `<form id="test-form" class="question-list">${candidateCallsign}<div id="candidate-summary" class="candidate-summary"></div>${candidateDocument}${questions.map((question, index) => `<fieldset><legend>${index + 1}. ${question.text}</legend><div class="correct-answer"><b>Răspuns:</b><span>${question.answer || 'Verifică ghidul.'}</span></div><label class="answer-check"><input type="checkbox" data-wrong="${index}"> Răspuns greșit</label></fieldset>`).join('')}<p>Greșeli: <strong id="wrong-count">0</strong> / ${Number.isFinite(maxWrong) ? maxWrong : '—'}</p><button class="primary" type="submit">Finalizează evaluarea</button></form>` : '<div class="test-runner"><p>Acest ghid nu are întrebări teoretice configurate.</p></div>';
+  const questionForm = questions.length ? `<form id="test-form" class="question-list">${candidateCallsign}<div id="candidate-summary" class="candidate-summary"></div>${candidateDocument}${questions.map(questionItemHtml).join('')}<p>Greșeli: <strong id="wrong-count">0</strong> / ${Number.isFinite(maxWrong) ? maxWrong : '—'}</p><button class="primary" type="submit">Finalizează evaluarea</button></form>` : '<div class="test-runner"><p>Acest ghid nu are întrebări teoretice configurate.</p></div>';
   const gatedQuestionForm = isAdmissionTest && questions.length ? `<div id="admission-test-content" hidden>${questionForm}</div>` : questionForm;
   return `<div class="panel view-panel"><div class="panel-head"><div><p class="eyebrow">GHID PENTRU TESTER</p><h2>${testName}</h2><p class="muted">Acces permanent pentru testerul conectat: ${normalizeCallsign(currentUser?.callsign)}.</p></div><button class="outline" id="back-to-tests">← Înapoi</button></div>${candidateDetails}${admissionChecks}<p class="muted">${description}</p><p class="test-instructions">${definition.instructions || ''}</p>${images ? `<div class="test-images">${images}</div>` : ''}${cases ? `<label>Cazul ales de candidat<select id="case-select">${cases}</select></label><div id="case-steps" class="case-steps"></div>` : ''}${practical ? `<label>Probă practică<select id="practical-select">${practical}</select></label><div id="practical-steps" class="case-steps"></div>` : ''}${gatedQuestionForm}</div>`;
 }
@@ -454,8 +467,7 @@ function wireTestEvents(testName, definition) {
         const details = await readIdentityCard(file);
         if (details.name) document.querySelector('#candidate-name').value = details.name;
         if (details.cnp) document.querySelector('#candidate-cnp').value = details.cnp;
-        if (details.id) document.querySelector('#candidate-id').value = details.id;
-        documentStatus.textContent = details.name || details.cnp || details.id
+        documentStatus.textContent = details.name || details.cnp
           ? 'Datele au fost completate automat. Verifică-le înainte de continuare.'
           : 'Nu am putut identifica datele. Completează câmpurile manual.';
       } catch (error) {
@@ -474,23 +486,23 @@ function wireTestEvents(testName, definition) {
     event.preventDefault();
     const wrong = wrongInputs.filter(item => item.checked).length;
     const limit = maxWrongForTest(testName, definition.maxWrong);
-    const result = isTestFailed(wrong, limit) ? 'Respins (CS)' : 'Admis';
+    const result = isTestFailed(wrong, limit) ? 'Respins' : 'Admis';
     const member = directoryMembers.find(item => normalizeCallsign(item.callsign) === normalizeCallsign(candidateInput?.value));
     let admissionDetails = {};
     let status = 'Testul a fost înregistrat.';
     if (testName === 'Test admitere') {
       const candidateName = document.querySelector('#candidate-name').value.trim();
+      const candidateId = document.querySelector('#candidate-id').value.trim();
       const candidateCallsign = document.querySelector('#candidate-callsign').value.trim();
       const photo = document.querySelector('#candidate-document').files?.[0];
-      const consent = document.querySelector('#candidate-photo-consent').checked;
       const statusElement = document.querySelector('#candidate-document-status');
-      if (!candidateName || !candidateCallsign || !photo || !consent) {
-        statusElement.textContent = 'Completează numele și callsign-ul, încarcă buletinul și confirmă acordul candidatului.';
+      if (!candidateName || !candidateId || !photo || (result === 'Admis' && !candidateCallsign)) {
+        statusElement.textContent = 'Completează numele și ID-ul, încarcă fotografia buletinului și introdu callsign-ul dacă persoana a fost admisă.';
         statusElement.classList.add('error-text');
         return;
       }
       try {
-        admissionDetails = { candidateName, candidateCallsign, identityConsent: true, identityImage: await encodeIdentityPhoto(photo) };
+        admissionDetails = { candidateName, candidateId, candidateCallsign, identityImage: await encodeIdentityPhoto(photo) };
       } catch (error) {
         statusElement.textContent = error.message;
         statusElement.classList.add('error-text');

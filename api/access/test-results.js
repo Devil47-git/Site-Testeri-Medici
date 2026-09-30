@@ -80,20 +80,39 @@ async function sendWebhookMessage(url, content) {
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ content, allowed_mentions: { parse: [] } })
+    body: JSON.stringify({ embeds: [content], allowed_mentions: { parse: [] } })
   });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
 }
 
-async function sendWebhookImage(url, content, image) {
+async function sendWebhookImage(url, embed, image) {
   const form = new FormData();
-  form.set('payload_json', JSON.stringify({ content, allowed_mentions: { parse: [] }, attachments: [{ id: 0, filename: 'buletin-candidat.jpg' }] }));
+  form.set('payload_json', JSON.stringify({ embeds: [embed], allowed_mentions: { parse: [] }, attachments: [{ id: 0, filename: 'buletin-candidat.jpg' }] }));
   form.set('files[0]', new Blob([image.buffer], { type: image.mimeType }), 'buletin-candidat.jpg');
   const response = await fetch(url, { method: 'POST', body: form });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
 }
 
-async function sendAdmissionNotifications(testerName, candidateName, result, image) {
+export function createAdmissionEmbeds({ testerName, candidateName, candidateId, candidateCallsign, result }) {
+  const summaryFields = [
+    { name: 'Nume Tester', value: testerName || '—', inline: false },
+    { name: 'Nume Candidat', value: candidateName || '—', inline: false },
+    { name: 'Rezultat', value: result || '—', inline: false }
+  ];
+  const testersFields = [
+    { name: 'Nume Tester', value: testerName || '—', inline: false },
+    { name: 'Nume Candidat', value: candidateName || '—', inline: false },
+    { name: 'ID', value: candidateId || '—', inline: false },
+    { name: 'Rezultat', value: result || '—', inline: false }
+  ];
+  if (result === 'Admis' && candidateCallsign) testersFields.push({ name: 'Callsign', value: candidateCallsign, inline: false });
+  return {
+    admission: { title: 'Admitere', color: 0x23A2E8, fields: summaryFields },
+    testers: { title: 'Test Admitere', color: 0x23A2E8, fields: testersFields, thumbnail: { url: 'attachment://buletin-candidat.jpg' } }
+  };
+}
+
+async function sendAdmissionNotifications(details, image) {
   const admissionSetting = process.env.DISCORD_ADMISSION_WEBHOOK;
   const testersSetting = process.env.DISCORD_TESTERS_WEBHOOK;
   const missing = [
@@ -110,10 +129,10 @@ async function sendAdmissionNotifications(testerName, candidateName, result, ima
   ].filter(Boolean);
   if (invalid.length) return { sent: false, error: `URL invalid pentru: ${invalid.join(', ')}.` };
 
-  const message = `Test admitere | Tester: ${testerName} | Candidat: ${candidateName} | Rezultat: ${result}`;
+  const embeds = createAdmissionEmbeds(details);
   const deliveries = await Promise.all([
-    sendWebhookMessage(admissionWebhook, message).then(() => null, error => `Canalul de rezultate: ${error.message.startsWith('HTTP ') ? error.message : 'eroare de rețea Discord'}.`),
-    sendWebhookImage(testersWebhook, message, image).then(() => null, error => `Canalul testerilor: ${error.message.startsWith('HTTP ') ? error.message : 'eroare de rețea Discord'}.`)
+    sendWebhookMessage(admissionWebhook, embeds.admission).then(() => null, error => `Canalul de rezultate: ${error.message.startsWith('HTTP ') ? error.message : 'eroare de rețea Discord'}.`),
+    sendWebhookImage(testersWebhook, embeds.testers, image).then(() => null, error => `Canalul testerilor: ${error.message.startsWith('HTTP ') ? error.message : 'eroare de rețea Discord'}.`)
   ]);
   const errors = deliveries.filter(Boolean);
   return { sent: errors.length === 0, error: errors.join(' ') };
@@ -139,14 +158,15 @@ export default async function handler(req, res) {
       let admissionDetails = null;
       if (testName === 'Test admitere') {
         const candidateName = String(req.body?.candidateName || '').trim().slice(0, 100);
-        const callsign = String(req.body?.candidateCallsign || '').trim().slice(0, 24);
+        const candidateId = String(req.body?.candidateId || '').trim().slice(0, 24);
+        const candidateCallsign = String(req.body?.candidateCallsign || '').trim().slice(0, 24);
         const result = String(req.body?.result || '').trim();
         const image = parseIdentityImage(req.body?.identityImage);
-        if (!candidateName || !callsign || !image || req.body?.identityConsent !== true) {
-          return json(res, 400, { error: 'Candidate name, assigned callsign, consent, and ID image are required' });
+        if (!['Admis', 'Respins'].includes(result)) return json(res, 400, { error: 'Invalid admission result' });
+        if (!candidateName || !candidateId || !image || (result === 'Admis' && !candidateCallsign)) {
+          return json(res, 400, { error: 'Candidate name, ID, and ID image are required; admitted candidates also need a callsign' });
         }
-        if (!['Admis', 'Respins (CS)'].includes(result)) return json(res, 400, { error: 'Invalid admission result' });
-        admissionDetails = { candidateName, result, image };
+        admissionDetails = { candidateName, candidateId, candidateCallsign, result, image };
       }
       await ensureResultsHeader(sheets);
       const title = sheetTitle().replace(/'/g, "''");
@@ -158,7 +178,7 @@ export default async function handler(req, res) {
         requestBody: { values: [[discordId, String(member[2] || '').trim(), testName, String(req.body?.result || '').slice(0, 32), new Date().toISOString()]] }
       });
       const discordNotifications = admissionDetails
-        ? await sendAdmissionNotifications(String(member[3] || '').trim().slice(0, 100), admissionDetails.candidateName, admissionDetails.result, admissionDetails.image)
+        ? await sendAdmissionNotifications({ testerName: String(member[3] || '').trim().slice(0, 100), ...admissionDetails }, admissionDetails.image)
         : undefined;
       return json(res, 200, { success: true, ...(admissionDetails ? { discordNotificationsSent: discordNotifications.sent, discordNotificationError: discordNotifications.error } : {}) });
     }

@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { accessFor, catalog as accessCatalog, coreTests, functionsForMember, isLeadership, normalizeTests, testsForFunctions } from '../api/access/shared.js';
+import { createAdmissionEmbeds } from '../api/access/test-results.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const source = readFileSync(join(here, '..', 'script.js'), 'utf8');
@@ -28,7 +29,7 @@ function extract(name) {
 const catalog = ['Test admitere', 'Test transfer', 'Adeverință medicală', 'Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști'];
 const definitions = Object.fromEntries(catalog.map(n => [n, { name: n, questions: [] }]));
 
-const names = ['callsignNumber', 'normalizeCallsign', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'sortMembers', 'gradeGroupFor', 'admissionChecksComplete', 'isTestFailed', 'maxWrongForTest', 'parseIdentityCardText'];
+const names = ['callsignNumber', 'normalizeCallsign', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'sortMembers', 'gradeGroupFor', 'admissionChecksComplete', 'isTestFailed', 'maxWrongForTest', 'questionItemHtml', 'parseIdentityCardText'];
 const srcs = names.map(extract).join('\n');
 const pattern = source.match(/^const RESIDENT_TESTER_PATTERN = .*$/m)?.[0] || 'const RESIDENT_TESTER_PATTERN = /TESTER/;';
 const normalizeTextSrc = extract('normalizeText');
@@ -38,10 +39,10 @@ const load = new Function(
   'catalog',
   'testDefinitions',
   'testSummaryDefinitions',
-  `${fullSrc}\nreturn { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, admissionChecksComplete, isTestFailed, maxWrongForTest, parseIdentityCardText };`,
+  `${fullSrc}\nreturn { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, admissionChecksComplete, isTestFailed, maxWrongForTest, questionItemHtml, parseIdentityCardText };`,
 )(catalog, definitions, testSummaryDefinitions);
 
-const { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberIsTester, memberCanGiveTest, sortMembers, gradeGroupFor, admissionChecksComplete, isTestFailed, maxWrongForTest, parseIdentityCardText } = load;
+const { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberIsTester, memberCanGiveTest, sortMembers, gradeGroupFor, admissionChecksComplete, isTestFailed, maxWrongForTest, questionItemHtml, parseIdentityCardText } = load;
 
 test('callsignNumber strips non-digits and returns 0 for empty', () => {
   assert.equal(callsignNumber('M-007'), 7);
@@ -182,7 +183,30 @@ test('admission test rejects the third mistake', () => {
   assert.equal(maxWrongForTest('Test transfer', 2), 2);
 });
 
-test('identity card OCR parser extracts name, CNP and series number', () => {
+test('each question keeps prompt, answer, and wrong checkbox in one box', () => {
+  const markup = questionItemHtml({ text: 'Întrebare?', answer: 'Răspunsul corect.' }, 0);
+  assert.match(markup, /<fieldset><p class="question-prompt">1\. Întrebare\?<\/p>/);
+  assert.match(markup, /<span>Răspunsul corect\.<\/span><label class="answer-check">/);
+  assert.match(markup, /data-wrong="0"/);
+  assert.doesNotMatch(markup, /Răspuns:/);
+});
+
+test('identity card OCR parser extracts only name and CNP', () => {
   const details = parseIdentityCardText('CNP 1060825927178\nNume/Nom/Last name\nCartier\nPrenume/Prenom/First name\nMohammed\nSERIA LS NR 92717');
-  assert.deepEqual(details, { name: 'Cartier Mohammed', cnp: '1060825927178', id: 'LS 92717' });
+  assert.deepEqual(details, { name: 'Cartier Mohammed', cnp: '1060825927178' });
+});
+
+test('identity card OCR parser handles inline labels and spaced or confused CNP digits', () => {
+  const details = parseIdentityCardText('Nume/Nom/Last name Cartier Prenume/Prenom/First name Mohammed\nCNP: 1O60 8259 27178');
+  assert.deepEqual(details, { name: 'Cartier Mohammed', cnp: '1060825927178' });
+});
+
+test('admission Discord embeds use vertical fields and hide callsign on rejection', () => {
+  const rejected = createAdmissionEmbeds({ testerName: 'Tester', candidateName: 'Candidat', candidateId: '12345', candidateCallsign: '', result: 'Respins' });
+  assert.deepEqual(rejected.admission.fields.map(field => field.name), ['Nume Tester', 'Nume Candidat', 'Rezultat']);
+  assert.deepEqual(rejected.testers.fields.map(field => field.name), ['Nume Tester', 'Nume Candidat', 'ID', 'Rezultat']);
+  assert.deepEqual(rejected.testers.fields[2], { name: 'ID', value: '12345', inline: false });
+  const admitted = createAdmissionEmbeds({ testerName: 'Tester', candidateName: 'Candidat', candidateId: '12345', candidateCallsign: 'M-302', result: 'Admis' });
+  assert.equal(admitted.testers.fields.at(-1).name, 'Callsign');
+  assert.equal(admitted.testers.thumbnail.url, 'attachment://buletin-candidat.jpg');
 });
