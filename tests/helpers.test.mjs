@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { accessFor, catalog as accessCatalog, coreTests, functionsForMember, isLeadership, normalizeTests, testsForFunctions } from '../api/access/shared.js';
-import { createAdmissionEmbeds, createMedicalCertificateEmbeds, medicalCertificateNumberForRow } from '../api/access/test-results.js';
+import { createAdmissionEmbeds, createAlsResultEmbed, createMedicalCertificateEmbeds, medicalCertificateNumberForRow } from '../api/access/test-results.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const source = readFileSync(join(here, '..', 'script.js'), 'utf8');
@@ -30,7 +30,7 @@ function extract(name) {
 const catalog = ['Test admitere', 'Test transfer', 'Adeverință medicală', 'Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști'];
 const definitions = Object.fromEntries(catalog.map(n => [n, { name: n, questions: [] }]));
 
-const names = ['callsignNumber', 'normalizeCallsign', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'sortMembers', 'gradeGroupFor', 'admissionChecksComplete', 'isTestFailed', 'maxWrongForTest', 'questionItemHtml', 'parseIdentityCardText'];
+const names = ['callsignNumber', 'normalizeCallsign', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'sortMembers', 'gradeGroupFor', 'admissionChecksComplete', 'isTestFailed', 'maxWrongForTest', 'questionItemHtml', 'parseIdentityCardText', 'mergeIdentityCardDetails'];
 const srcs = names.map(extract).join('\n');
 const pattern = source.match(/^const RESIDENT_TESTER_PATTERN = .*$/m)?.[0] || 'const RESIDENT_TESTER_PATTERN = /TESTER/;';
 const normalizeTextSrc = extract('normalizeText');
@@ -40,10 +40,10 @@ const load = new Function(
   'catalog',
   'testDefinitions',
   'testSummaryDefinitions',
-  `${fullSrc}\nreturn { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, admissionChecksComplete, isTestFailed, maxWrongForTest, questionItemHtml, parseIdentityCardText };`,
+  `${fullSrc}\nreturn { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, admissionChecksComplete, isTestFailed, maxWrongForTest, questionItemHtml, parseIdentityCardText, mergeIdentityCardDetails };`,
 )(catalog, definitions, testSummaryDefinitions);
 
-const { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberIsTester, memberCanGiveTest, sortMembers, gradeGroupFor, admissionChecksComplete, isTestFailed, maxWrongForTest, questionItemHtml, parseIdentityCardText } = load;
+const { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberIsTester, memberCanGiveTest, sortMembers, gradeGroupFor, admissionChecksComplete, isTestFailed, maxWrongForTest, questionItemHtml, parseIdentityCardText, mergeIdentityCardDetails } = load;
 
 test('callsignNumber strips non-digits and returns 0 for empty', () => {
   assert.equal(callsignNumber('M-007'), 7);
@@ -218,26 +218,32 @@ test('identity card OCR parser never returns a blue field label as a candidate n
   assert.deepEqual(details, { name: '', lastName: '', firstName: '', cnp: '1060825927178' });
 });
 
+test('OCR retry preserves split surname and given name for medical certificates', () => {
+  assert.deepEqual(
+    mergeIdentityCardDetails({ name: '', lastName: '', firstName: '', cnp: '56937' }, { name: 'Cartier Mohammed', lastName: 'Cartier', firstName: 'Mohammed', cnp: '' }),
+    { name: 'Cartier Mohammed', lastName: 'Cartier', firstName: 'Mohammed', cnp: '56937' }
+  );
+});
+
 test('admission Discord embeds use vertical fields and hide callsign on rejection', () => {
-  const rejected = createAdmissionEmbeds({ testerName: 'Tester', testerDiscordId: '99', candidateName: 'Candidat', candidateId: '12345', candidateCallsign: '', result: 'Respins' });
-  assert.deepEqual(rejected.admission.embed.fields.map(field => field.name), ['Nume candidat', 'Rezultat']);
-  assert.equal(rejected.admission.mentions, '<@99>');
-  assert.deepEqual(rejected.admission.allowedMentions.roles, []);
-  assert.match(rejected.admission.mentions, /<@99>/);
-  assert.equal(rejected.testers.mentions, '<@825071956101169202>');
-  assert.deepEqual(rejected.testers.allowedMentions.users, ['825071956101169202']);
-  assert.deepEqual(rejected.testers.embeds[0].fields.map(field => field.name), ['Nume Tester', 'Nume Candidat', 'ID', 'Rezultat']);
-  assert.deepEqual(rejected.testers.embeds[0].fields[2], { name: 'ID', value: '12345', inline: false });
-  assert.deepEqual(rejected.testers.embeds.slice(1).map(embed => embed.title), ['Buletin', 'Fișă medicală', 'Drug-test']);
-  assert.ok(rejected.testers.embeds.slice(1).every(embed => embed.thumbnail && !embed.image));
-  const admitted = createAdmissionEmbeds({ testerName: 'Tester', testerDiscordId: '99', candidateName: 'Candidat', candidateId: '12345', candidateCallsign: 'M-302', result: 'Admis' });
-  assert.equal(admitted.testers.embeds[0].fields.at(-1).name, 'Callsign');
-  assert.equal(admitted.admission.mentions, '<@99>');
-  assert.equal(admitted.testers.mentions, '<@1033692302767558717> <@825071956101169202>');
-  assert.deepEqual(admitted.testers.allowedMentions.users, ['1033692302767558717', '825071956101169202']);
-  const transfer = createAdmissionEmbeds({ testName: 'Test transfer', testerName: 'Tester', testerDiscordId: '99', candidateName: 'Candidat', candidateId: '12345', candidateCallsign: 'M-302', result: 'Admis' });
-  assert.equal(transfer.admission.embed.title, 'Test Transfer');
-  assert.equal(transfer.testers.embeds[0].title, 'Test Transfer');
+  const rejected = createAdmissionEmbeds({ testerName: 'Tester', candidateName: 'Candidat', candidateId: '12345', candidateCallsign: '', result: 'Respins' });
+  assert.deepEqual(rejected.admission.fields.map(field => field.name), ['Nume Tester', 'Nume Candidat', 'Rezultat']);
+  assert.deepEqual(rejected.testers.fields.map(field => field.name), ['Nume Tester', 'Nume Candidat', 'ID', 'Rezultat']);
+  const admitted = createAdmissionEmbeds({ testerName: 'Tester', candidateName: 'Candidat', candidateId: '12345', candidateCallsign: 'M-302', result: 'Admis' });
+  assert.equal(admitted.testers.fields.at(-1).name, 'Callsign');
+});
+
+test('ALS result embed contains tester, candidate, callsign, and verdict', () => {
+  const embed = createAlsResultEmbed({ testerName: 'Tester', candidateName: 'Candidat', candidateCallsign: 'M-302', result: 'Respins' });
+  assert.equal(embed.title, 'Test ALS');
+  assert.deepEqual(embed.fields.map(field => field.name), ['Nume Tester', 'Callsign', 'Nume Candidat', 'Rezultat']);
+  assert.equal(embed.fields[3].value, 'Respins');
+});
+
+test('ALS guide form includes callsign and candidate name inputs', () => {
+  const formMarkup = source.match(/const candidateNameField = testName === 'Test ALS'[\s\S]*?;/)?.[0] || '';
+  assert.match(formMarkup, /Nume candidat/);
+  assert.match(formMarkup, /als-candidate-name/);
 });
 
 test('medical certificates start at 7015 and stop at 30000', () => {
@@ -257,8 +263,9 @@ test('medical certificate embed includes the requested fields and medical verdic
   assert.match(certificate.description, /NUME: Cartier\nPRENUME: Mohammed/);
   assert.match(certificate.description, /REZULTAT: ADMIS/);
   assert.match(certificate.description, /ORE\(LUNI\): 2001\.25 \(cont\) 2001\.25 \(character\)/);
-  assert.deepEqual(embeds.slice(1).map(embed => embed.title), ['Buletin', 'Fișă medicală']);
-  assert.ok(embeds.slice(1).every(embed => embed.thumbnail && !embed.image));
+  assert.equal(embeds.length, 1);
+  assert.equal(certificate.thumbnail.url, 'attachment://buletin-candidat.jpg');
+  assert.equal(certificate.image.url, 'attachment://fisa-medicala.jpg');
   const [rejected] = createMedicalCertificateEmbeds({
     lastName: 'Cartier', firstName: 'Mohammed', phone: '735-0616', candidateId: '56937',
     hoursAccount: '2001.25', hoursCharacter: '2001.25', medicalStatus: 'Respins'

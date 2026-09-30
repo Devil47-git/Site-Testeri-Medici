@@ -97,12 +97,9 @@ window.MEDICAL_TESTS = {
   },
   'Test ALS': {
     description: 'Certificare ALS Eclipse. Verifică certificatul BLS, permisul categoria B și faptul că au trecut minimum 3 zile de la ultimul test Radio sau BLS. Candidatul trebuie să efectueze minimum 7 interacțiuni /me la punctul R.A.R.',
-    instructions: 'Proba are maximum 2 greșeli; la a 3-a candidatul este respins. Testerul este victima. Verifică folosirea completă a tărgii și cazul ales de candidat. Locația R.A.R.: https://imgur.com/a/KBRtGxU. Parcarea testului: https://imgur.com/a/xAfJ4NC.',
+    instructions: 'Proba are maximum 2 greșeli; la a 3-a candidatul este respins. Testerul este victima. Verifică folosirea completă a tărgii și cazul ales de candidat.',
     maxWrong: 2,
-    images: [
-      { label: 'Punctul R.A.R.', url: 'https://imgur.com/a/KBRtGxU' },
-      { label: 'Parcarea testului', url: 'https://imgur.com/a/xAfJ4NC' }
-    ],
+    images: [],
     cases: [
       { title: 'Cazul 1 — Fractură', minimumMe: 7, steps: ['/me examinează pacientul', '/me verifică prin metoda P.A.S. (Privește, Ascultă, Simte)', '/me observă că are puls', '/me scoate un guler cervical', '/me verifică rănile vizibile', '/me observă fractura', '/me scoate atela ghipsată', '/me montează atela', '/me strânge atela', '/me curăță și dezinfectează rănile', '/me bandajează pacientul', '/me îl ajută să urce pe targă', '/me îl fixează pentru transport'] },
       { title: 'Cazul 2 — Șoc anafilactic', minimumMe: 7, steps: ['/me examinează pacientul', '/me verifică prin metoda P.A.S.', '/me observă că nu respiră', '/me constată blocarea căilor respiratorii', '/me folosește aspiratorul', '/me observă inflamația feței', '/me constată respirația îngreunată', '/me verifică funcțiile vitale', '/me constată șocul anafilactic', '/me pregătește seringa sterilă', '/me administrează hidrocortizon', '/me așteaptă revenirea pacientului', '/me îl pune în poziția de siguranță'] },
