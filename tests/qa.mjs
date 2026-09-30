@@ -12,6 +12,7 @@ export default async function run(page, ui) {
     departmentName: document.querySelector('#profile-member-name')?.textContent.trim(),
     departmentRank: document.querySelector('#profile-member-rank')?.textContent.trim(),
     profileTests: document.querySelectorAll('#profile-tests .tag').length,
+    profileCountCards: document.querySelectorAll('#profile-test-history .statistics-test-count').length,
     profileTagsUppercase: [...document.querySelectorAll('#profile-tests .tag')].every(tag => getComputedStyle(tag).textTransform === 'uppercase' && Number(getComputedStyle(tag).fontWeight) >= 700),
     adminPanelVisible: !document.querySelector('#admin-panel')?.hidden,
     hasStatisticsNav: Boolean(document.querySelector('[data-view="statistics"]')),
@@ -32,16 +33,20 @@ export default async function run(page, ui) {
   const statisticsState = await page.evaluate(() => ({
     heading: document.querySelector('.statistics-view > .panel-head h2')?.textContent.trim(),
     testers: document.querySelectorAll('.statistics-tester').length,
-    firstFields: [...document.querySelectorAll('.statistics-tester-fields dt')].slice(0, 3).map(dt => dt.textContent.trim())
+    firstFields: [...document.querySelectorAll('.statistics-tester-fields dt')].slice(0, 3).map(dt => dt.textContent.trim()),
+    countCardsInList: document.querySelectorAll('.tester-statistics-list .statistics-test-count').length
   }));
   const memberToggle = page.locator('.statistics-tester').filter({ hasText: 'Radu Test' }).locator('[data-statistics-member]').first();
   const memberDetailExists = await memberToggle.count();
   if (memberDetailExists) await memberToggle.click();
+  const memberProfileRoute = page.url().includes('#tester-profile-');
   const memberDetail = await page.evaluate(() => ({
-    expanded: document.querySelector('.statistics-tester [data-statistics-member][aria-expanded="true"]')?.getAttribute('data-statistics-member') || '',
-    tests: [...document.querySelectorAll('.statistics-test-count > span')].map(label => label.textContent.trim()),
-    counts: [...document.querySelectorAll('.statistics-test-count > strong')].map(count => count.textContent.trim())
+    name: document.querySelector('.tester-profile-view > .panel-head h2')?.textContent.trim(),
+    tests: [...document.querySelectorAll('.tester-profile-view .profile-test-history .statistics-test-count > span')].map(label => label.textContent.trim()),
+    counts: [...document.querySelectorAll('.tester-profile-view .profile-test-history .statistics-test-count > strong')].map(count => count.textContent.trim())
   }));
+  await page.click('#back-to-testers');
+  const returnedToStatistics = await page.locator('.statistics-view').count() === 1;
   const resultCountState = await page.evaluate(async () => {
     const discordId = '5';
     const testName = 'Test SMULS';
@@ -115,5 +120,5 @@ export default async function run(page, ui) {
   }));
   await page.click('#close-remove-modal');
 
-  return { errs, initialState, adminAddOpens, adminRemoveOpens, adminSettingsOpens, statisticsState, availableTestsState, selectedTestState, memberProfileMenuCount, testerProfileRoute, testerProfileState, subtitleRemoved, ownProfilePreserved, docsGrantSelected, removeState, memberDetail, resultCountState };
+  return { errs, initialState, adminAddOpens, adminRemoveOpens, adminSettingsOpens, statisticsState, memberProfileRoute, memberDetail, returnedToStatistics, availableTestsState, selectedTestState, memberProfileMenuCount, testerProfileRoute, testerProfileState, subtitleRemoved, ownProfilePreserved, docsGrantSelected, removeState, resultCountState };
 }

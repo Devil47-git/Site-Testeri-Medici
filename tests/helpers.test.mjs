@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { accessFor, catalog as accessCatalog, coreTests, functionsForMember, isLeadership, normalizeTests, testsForFunctions } from '../api/access/shared.js';
+import { accessFor, catalog as accessCatalog, coreTests, effectiveTestsForMember, functionsForMember, isLeadership, normalizeTests, testsForFunctions } from '../api/access/shared.js';
 import { createAdmissionEmbeds, createAlsResultEmbed, createMedicalCertificateEmbeds, medicalCertificateNumberForRow } from '../api/access/test-results.js';
 import { statusFromRow } from '../api/access/directory.js';
 
@@ -196,6 +196,23 @@ test('promotion to specialist or primary automatically assigns Tester function',
 
 test('eligible specializations do not override revoked grants', () => {
   assert.deepEqual(allowedForUser({ eligibleSpecializations: ['Test MOTO'], grantedTests: [] }), []);
+});
+
+test('explicit test grants override Docs defaults while legacy grants remain additive', () => {
+  assert.deepEqual(effectiveTestsForMember('S.M.U.L.S.', { grantMode: 'override', grantedTests: [] }), []);
+  assert.deepEqual(effectiveTestsForMember('S.M.U.L.S.', { grantMode: 'override', grantedTests: ['Test ALS'] }), ['Test ALS']);
+  assert.deepEqual(effectiveTestsForMember('S.M.U.L.S.', { grantedTests: ['Test ALS'] }), ['Test SMULS', 'Test ALS']);
+  assert.deepEqual(effectiveTestsForMember('S.M.U.L.S.', null), ['Test SMULS']);
+});
+
+test('explicit grant overrides keep revoked Docs specializations hidden', () => {
+  const revoked = { csNum: 320, functions: 'S.M.U.L.S.', grantMode: 'override', grantedTests: [] };
+  assert.deepEqual(docsAssignedTests(revoked), []);
+  assert.deepEqual(allowedForUser(revoked), []);
+  assert.equal(memberCanGiveTest(revoked, 'Test SMULS'), false);
+  const restored = { ...revoked, grantedTests: ['Test SMULS'] };
+  assert.deepEqual(allowedForUser(restored), ['Test SMULS']);
+  assert.equal(memberCanGiveTest(restored, 'Test SMULS'), true);
 });
 
 test('memberIsTester handles missing csNum without NaN', () => {

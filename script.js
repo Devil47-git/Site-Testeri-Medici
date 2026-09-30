@@ -41,7 +41,6 @@ let currentUser = null;
 /** @type {Member[]} */
 let testers = readStored(GRANTS_KEY, []).filter(member => String(member?.name || '').trim()).map(member => ({ ...member, grantedTests: normalizeGrantBundle(member.grantedTests || []) }));
 let testRunCounts = {};
-let expandedStatisticTester = '';
 function saveTesters() { localStorage.setItem(GRANTS_KEY, JSON.stringify(testers)); }
 function refreshCurrentView() {
   renderAvailableTestsSubmenu();
@@ -83,13 +82,20 @@ async function loadRemoteGrants() {
     testers = directoryMembers.length
       ? directoryMembers.filter(member => String(member.name || '').trim() && (member.isTester || memberIsTester(member))).map(member => {
           const grant = grants.find(item => item.discordId === member.discordId);
-          return { ...member, ...grant, grantedTests: normalizeGrantBundle([...(member.grantedTests || []), ...docsAssignedTests(member), ...(grant?.grantedTests || [])]) };
+          const grantMode = grant?.grantMode || member.grantMode || '';
+          const grantedTests = grantMode === 'override'
+            ? (grant?.grantedTests || member.grantedTests || [])
+            : [...(member.grantedTests || []), ...docsAssignedTests(member), ...(grant?.grantedTests || [])];
+          return { ...member, ...grant, grantMode, grantedTests: normalizeGrantBundle(grantedTests) };
         })
       : grants.map(grant => ({ ...grant, grantedTests: normalizeGrantBundle(grant.grantedTests || []) }));
   } else {
     const ownGrant = grantsPayload.find(grant => grant.discordId === currentUser.discordId);
-    currentUser.grantedTests = ownGrant?.grantedTests || currentUser.grantedTests || [];
-    testers = ownGrant ? [ownGrant] : [];
+    currentUser.grantMode = ownGrant?.grantMode || currentUser.grantMode || '';
+    currentUser.grantedTests = currentUser.grantMode === 'override'
+      ? (ownGrant?.grantedTests || currentUser.grantedTests || [])
+      : normalizeGrantBundle([...(currentUser.grantedTests || []), ...(ownGrant?.grantedTests || [])]);
+    testers = ownGrant ? [{ ...currentUser, ...ownGrant, grantMode: currentUser.grantMode, grantedTests: currentUser.grantedTests }] : [];
   }
   saveTesters();
   renderRows();
@@ -144,6 +150,7 @@ function memberHasTestAccess(member, test) { return !isLeadershipUser(member) &&
 /** @param {any} value @returns {string} */
 function normalizeText(value) { return String(value || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
 function memberCanGiveTest(member, test) {
+  if (member?.grantMode === 'override') return (member.grantedTests || []).includes(test);
   if ((member?.grantedTests || []).includes(test)) return true;
   const functions = normalizeText(member?.functions);
   if (test === 'Test SMULS') return /S\.?\s*M\.?\s*U\.?\s*L\.?\s*S\.?|\s*S\s*\|/.test(functions);
@@ -154,6 +161,7 @@ function memberCanGiveTest(member, test) {
   return false;
 }
 function docsAssignedTests(member) {
+  if (member?.grantMode === 'override') return [];
   const assigned = testSummaryDefinitions.map(([test]) => test).filter(test => memberCanGiveTest(member, test));
   if (/\bTESTER\b/.test(normalizeText(member?.functions))) assigned.unshift(...coreTests);
   return [...new Set(assigned)];
@@ -265,7 +273,10 @@ async function loadDirectory() {
   directoryMembers = (payload.members || []).filter(member => String(member?.name || '').trim());
   const currentDirectoryMember = directoryMembers.find(member => member.discordId === currentUser.discordId);
   if (currentDirectoryMember && !isLeadershipUser(currentUser)) {
-    currentUser.grantedTests = normalizeGrantBundle([...(currentUser.grantedTests || []), ...(currentDirectoryMember.grantedTests || [])]);
+    currentUser.grantMode = currentDirectoryMember.grantMode || '';
+    currentUser.grantedTests = currentUser.grantMode === 'override'
+      ? (currentDirectoryMember.grantedTests || [])
+      : normalizeGrantBundle([...(currentUser.grantedTests || []), ...(currentDirectoryMember.grantedTests || [])]);
   }
   await loadTestRunCounts();
   if (isLeadershipUser(currentUser)) {
@@ -282,12 +293,7 @@ function renderDashboardData() {
     const members = sortMembers(testers);
     testerList.innerHTML = members.length ? members.map(member => {
       const key = String(member.discordId || normalizeCallsign(member.callsign));
-      const tests = allowedForUser(member);
-      const expanded = expandedStatisticTester === key;
-      const details = tests.length
-        ? `<div class="statistics-test-grid">${tests.map((test, index) => `<div class="statistics-test-count"><span>${escapeHtml(displayTestName(test))}</span><strong>${Number(testRunCounts[member.discordId]?.[test]) || 0}</strong></div>`).join('')}</div>`
-        : '<p class="statistics-no-tests muted">Nu are teste alocate.</p>';
-      return `<article class="statistics-tester"><div class="statistics-tester-row"><dl class="statistics-tester-fields"><div><dt>CALLSIGN</dt><dd>${escapeHtml(normalizeCallsign(member.callsign))}</dd></div><div><dt>NUME</dt><dd>${escapeHtml(memberNameFor(member))}</dd></div><div><dt>GRAD</dt><dd>${escapeHtml(rankFor(member))}</dd></div></dl><button type="button" class="outline statistics-tests-toggle" data-statistics-member="${escapeHtml(key)}" aria-expanded="${expanded}">Teste <span aria-hidden="true">${expanded ? '⌃' : '⌄'}</span></button></div>${expanded ? details : ''}</article>`;
+      return `<article class="statistics-tester"><div class="statistics-tester-row"><dl class="statistics-tester-fields"><div><dt>CALLSIGN</dt><dd>${escapeHtml(normalizeCallsign(member.callsign))}</dd></div><div><dt>NUME</dt><dd>${escapeHtml(memberNameFor(member))}</dd></div><div><dt>GRAD</dt><dd>${escapeHtml(rankFor(member))}</dd></div></dl><button type="button" class="outline statistics-tests-toggle" data-statistics-member="${escapeHtml(key)}">Teste</button></div></article>`;
     }).join('') : '<div class="empty-state">Nu există testeri.</div>';
   }
   const overview = document.querySelector('#overview-view');
@@ -299,7 +305,11 @@ function renderStatisticsView() {
 function renderProfileData() {
   if (!currentUser) return;
   const directoryMember = directoryMembers.find(member => member.discordId === currentUser.discordId || normalizeCallsign(member.callsign) === normalizeCallsign(currentUser.callsign || currentUser.callSign));
-  const profile = { ...currentUser, ...(directoryMember || {}), name: currentUser.discordDisplayName || currentUser.discordUsername || currentUser.displayName || directoryMember?.name || currentUser.name, avatar: currentUser.avatar || directoryMember?.avatar, grantedTests: normalizeGrantBundle([...(currentUser.grantedTests || []), ...(directoryMember?.grantedTests || []), ...docsAssignedTests(directoryMember || currentUser)]) };
+  const grantMode = directoryMember?.grantMode || currentUser.grantMode || '';
+  const profileGrantedTests = grantMode === 'override'
+    ? (directoryMember?.grantMode === 'override' ? directoryMember.grantedTests : currentUser.grantedTests)
+    : [...(currentUser.grantedTests || []), ...(directoryMember?.grantedTests || []), ...docsAssignedTests(directoryMember || currentUser)];
+  const profile = { ...currentUser, ...(directoryMember || {}), grantMode, name: currentUser.discordDisplayName || currentUser.discordUsername || currentUser.displayName || directoryMember?.name || currentUser.name, avatar: currentUser.avatar || directoryMember?.avatar, grantedTests: normalizeGrantBundle(profileGrantedTests || []) };
   const name = memberNameFor(profile);
   const callsign = normalizeCallsign(profile.callsign || profile.callSign);
   const avatar = document.querySelector('#profile-avatar');
@@ -310,6 +320,14 @@ function renderProfileData() {
   document.querySelector('#profile-member-rank').textContent = String(directoryMember?.rank || currentUser.rank || '—').trim();
   const profileTests = document.querySelector('#profile-tests');
   if (profileTests) profileTests.innerHTML = profileTestTagsHtml(profile);
+  const profileHistory = document.querySelector('#profile-test-history');
+  if (profileHistory) profileHistory.innerHTML = testerTestCountGridHtml(profile);
+}
+function testerTestCountGridHtml(member) {
+  const tests = allowedForUser(member);
+  return tests.length
+    ? tests.map(test => `<div class="statistics-test-count"><span>${escapeHtml(displayTestName(test))}</span><strong>${Number(testRunCounts[member.discordId]?.[test]) || 0}</strong></div>`).join('')
+    : '<p class="statistics-no-tests muted">Nu are teste alocate.</p>';
 }
 function profileTestTagsHtml(member) {
   const grantedTests = normalizeGrantBundle([...(member.grantedTests || []), ...docsAssignedTests(member)]);
@@ -388,7 +406,8 @@ function renderTestersView() {
 function renderTesterProfileView(member) {
   const callsign = normalizeCallsign(member.callsign || member.callSign);
   const name = memberNameFor(member);
-  return `<div class="tester-profile-view"><div class="panel-head"><div><p class="eyebrow">PROFIL TESTER</p><h2>${escapeHtml(name)}</h2></div><button class="outline" id="back-to-testers" type="button">← Înapoi</button></div><div class="profile-layout"><section class="panel profile-card"><div class="profile-identity"><div>${avatarFor(member)}</div><div><h1>${escapeHtml(name)}</h1></div></div><dl class="profile-details"><div><dt>CALLSIGN</dt><dd>${escapeHtml(callsign || '—')}</dd></div><div><dt>NUME</dt><dd>${escapeHtml(member.name || '—')}</dd></div><div><dt>GRAD</dt><dd>${escapeHtml(member.rank || '—')}</dd></div></dl></section><section class="panel profile-certifications"><div class="panel-head"><div><h2>Grade de test</h2><p class="muted">Certificările și testele alocate contului tău</p></div></div><div class="tags profile-test-tags">${profileTestTagsHtml(member)}</div></section></div></div>`;
+  const testCountGrid = testerTestCountGridHtml(member);
+  return `<div class="tester-profile-view"><div class="panel-head"><div><p class="eyebrow">PROFIL TESTER</p><h2>${escapeHtml(name)}</h2></div><button class="outline" id="back-to-testers" type="button">← Înapoi</button></div><div class="profile-layout"><section class="panel profile-card"><div class="profile-identity"><div>${avatarFor(member)}</div><div><h1>${escapeHtml(name)}</h1></div></div><dl class="profile-details"><div><dt>CALLSIGN</dt><dd>${escapeHtml(callsign || '—')}</dd></div><div><dt>NUME</dt><dd>${escapeHtml(member.name || '—')}</dd></div><div><dt>GRAD</dt><dd>${escapeHtml(member.rank || '—')}</dd></div></dl></section><section class="panel profile-certifications"><div class="panel-head"><div><h2>Grade de test</h2><p class="muted">Certificările și testele alocate contului tău</p></div></div><div class="tags profile-test-tags">${profileTestTagsHtml(member)}</div></section></div><section class="panel profile-test-history"><div class="panel-head"><div><h2>Statistica Teste</h2></div></div><div class="statistics-test-grid">${testCountGrid}</div></section></div>`;
 }
 function openTesterProfile(member, { push = true, previousView: requestedPreviousView } = {}) {
   if (!hasLeadershipCallsign(currentUser)) return;
@@ -411,7 +430,7 @@ function openTesterProfile(member, { push = true, previousView: requestedPreviou
   document.querySelector('#back-to-testers').onclick = () => {
     if (window.history.state?.canReturnHistory) window.history.back();
     else {
-      const destination = previousView === 'testers' ? 'testers' : 'overview';
+      const destination = labels[previousView] ? previousView : 'overview';
       window.history.replaceState({ view: destination }, '', `#${destination}`);
       navigateTo(destination, { push: false });
     }
@@ -1000,7 +1019,7 @@ document.querySelector('#confirm-remove-btn')?.addEventListener('click', async e
     const grant = saved?.grant || { ...member, grantedTests: next, updatedAt: new Date().toISOString() };
     const refreshed = await loadDirectory();
     const updated = testers.find(item => normalizeCallsign(item.callsign) === normalizeCallsign(member.callsign));
-    if (updated) { updated.grantedTests = grant.grantedTests || next; updated.updatedAt = grant.updatedAt; }
+    if (updated) { updated.grantedTests = grant.grantedTests || next; updated.grantMode = grant.grantMode || 'override'; updated.updatedAt = grant.updatedAt; }
     else testers.push({ ...member, ...grant });
     saveTesters();
     renderRows();
@@ -1021,7 +1040,11 @@ async function lookupMember() {
     const member = directoryMembers.find(item => normalizeCallsign(item.callsign) === normalized && String(item.name || '').trim());
     const local = testers.find(item => normalizeCallsign(item.callsign) === normalized);
     if (!member) return { normalized, member: null };
-    return { normalized, member: { ...member, ...local, callsign: normalized, name: member.name, functions: member.functions, grantedTests: normalizeGrantBundle([...(member.grantedTests || []), ...(local?.grantedTests || [])]) } };
+    const grantMode = local?.grantMode || member.grantMode || '';
+    const grantedTests = grantMode === 'override'
+      ? (local?.grantMode === 'override' ? local.grantedTests : member.grantedTests)
+      : normalizeGrantBundle([...(member.grantedTests || []), ...(local?.grantedTests || [])]);
+    return { normalized, member: { ...member, ...local, callsign: normalized, name: member.name, functions: member.functions, grantMode, grantedTests: normalizeGrantBundle(grantedTests || []) } };
   });
   selectedMembers = found.filter(item => item.member).map(item => item.member);
   const missing = found.filter(item => !item.member).map(item => item.normalized);
@@ -1072,8 +1095,9 @@ document.querySelector('#invite-btn').onclick = async () => {
 viewContent.addEventListener('click', event => {
   const button = event.target.closest('[data-statistics-member]');
   if (!button) return;
-  expandedStatisticTester = expandedStatisticTester === button.dataset.statisticsMember ? '' : button.dataset.statisticsMember;
-  renderDashboardData();
+  if (!hasLeadershipCallsign(currentUser) && normalizeCallsign(currentUser?.callsign || currentUser?.callSign) !== normalizeCallsign(button.dataset.statisticsMember)) return;
+  const member = testers.find(item => String(item.discordId || normalizeCallsign(item.callsign)) === button.dataset.statisticsMember);
+  if (member) openTesterProfile(member, { previousView: 'statistics' });
 });
 const testFilterBtn = document.querySelector('#filter-btn');
 const testFilterMenu = document.querySelector('#test-filter-menu');

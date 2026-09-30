@@ -53,7 +53,9 @@ export default async function handler(req, res) {
       const grantsData = await grantsRes.json();
       const grant = (Array.isArray(grantsData.values) ? grantsData.values : []).slice(1).filter(item => Array.isArray(item)).find(item => String(item[0] || '').trim() === String(discordUser.id));
       if (grant) {
-        user.grantedTests = normalizeTests([...(user.grantedTests || []), ...String(grant[2] || '').split('|').filter(Boolean)]);
+        user.grantMode = String(grant[5] || '').trim();
+        const storedTests = normalizeTests(String(grant[2] || '').split('|'));
+        user.grantedTests = user.grantMode === 'override' ? storedTests : normalizeTests([...(user.grantedTests || []), ...storedTests]);
       }
     }
     return res.status(200).json({ success: true, user });

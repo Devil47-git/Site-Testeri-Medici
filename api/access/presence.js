@@ -1,6 +1,6 @@
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:T400';
-const GRANTS_RANGE = process.env.GOOGLE_GRANTS_RANGE || 'GRANTS!A1:E';
+const GRANTS_RANGE = process.env.GOOGLE_GRANTS_RANGE || 'GRANTS!A1:F';
 function json(res, status, body) { return res.status(status).json(body); }
 function number(value = '') { return Number(String(value).replace(/\D/g, '')) || 0; }
 async function client() {
@@ -23,9 +23,9 @@ export default async function handler(req, res) {
     const rows = values.slice(1).filter(Array.isArray).map(row => [...row]);
     const index = rows.findIndex(row => String(row[0] || '').trim() === discordId);
     const now = new Date().toISOString();
-    if (index === -1) rows.push([discordId, String(member[2] || '').trim(), '', now]);
+    if (index === -1) rows.push([discordId, String(member[2] || '').trim(), '', now, '', '']);
     else rows[index][4] = now;
-    await sheets.spreadsheets.values.update({ spreadsheetId: SHEET_ID, range: GRANTS_RANGE, valueInputOption: 'RAW', requestBody: { values: [['discordId', 'callsign', 'grantedTests', 'updatedAt', 'lastSeen'], ...rows] } });
+    await sheets.spreadsheets.values.update({ spreadsheetId: SHEET_ID, range: GRANTS_RANGE, valueInputOption: 'RAW', requestBody: { values: [['discordId', 'callsign', 'grantedTests', 'updatedAt', 'lastSeen', 'grantMode'], ...rows] } });
     return json(res, 200, { success: true, lastSeen: now });
   } catch (error) {
     console.error('Presence update failed:', error);

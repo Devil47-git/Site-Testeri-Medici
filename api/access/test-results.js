@@ -1,8 +1,8 @@
-import { catalog, callsignNumber, functionsForMember, isLeadershipRow, normalizeTests, testsForFunctions } from './shared.js';
+import { catalog, callsignNumber, effectiveTestsForMember, functionsForMember, isLeadershipRow, normalizeTests } from './shared.js';
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:T400';
-const GRANTS_RANGE = process.env.GOOGLE_GRANTS_RANGE || 'GRANTS!A1:E';
+const GRANTS_RANGE = process.env.GOOGLE_GRANTS_RANGE || 'GRANTS!A1:F';
 const RESULTS_RANGE = process.env.GOOGLE_TEST_RESULTS_RANGE || 'TEST_HISTORY!A1:E';
 const MEDICAL_CERTIFICATES_RANGE = process.env.GOOGLE_MEDICAL_CERTIFICATES_RANGE || 'MEDICAL_CERTIFICATES!A1:K';
 const RESULTS_HEADER = ['discordId', 'callsign', 'testName', 'result', 'createdAt'];
@@ -57,10 +57,10 @@ async function findRequester(sheets, discordId) {
 
 async function canRecordTest(sheets, member, discordId, testName) {
   if (isLeadershipRow(member)) return true;
-  if (testsForFunctions(functionsForMember(callsignNumber(member[2]), member[10])).includes(testName)) return true;
   const grants = (await readValues(sheets, GRANTS_RANGE).catch(() => [])).slice(1);
   const grant = grants.find(row => String(row[0] || '').trim() === discordId);
-  return normalizeTests(String(grant?.[2] || '').split('|')).includes(testName);
+  const storedGrant = grant ? { grantMode: String(grant[5] || '').trim(), grantedTests: normalizeTests(String(grant[2] || '').split('|')) } : null;
+  return effectiveTestsForMember(functionsForMember(callsignNumber(member[2]), member[10]), storedGrant).includes(testName);
 }
 
 function webhookUrl(value) {

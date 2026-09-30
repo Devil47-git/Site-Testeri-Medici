@@ -2,7 +2,7 @@ import { normalize, callsignNumber, isLeadershipRow, normalizeTests } from './sh
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:T400';
-const GRANTS_RANGE = process.env.GOOGLE_GRANTS_RANGE || 'GRANTS!A1:E';
+const GRANTS_RANGE = process.env.GOOGLE_GRANTS_RANGE || 'GRANTS!A1:F';
 function isLeadership(row) { return isLeadershipRow(row); }
 function authConfig() {
   if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON && !process.env.GOOGLE_APPLICATION_CREDENTIALS) throw new Error('Google Sheets service account is not configured');
@@ -14,8 +14,8 @@ async function sheetsClient() {
   const auth = new google.auth.GoogleAuth({ credentials, scopes: ['https://www.googleapis.com/auth/spreadsheets'] });
   return google.sheets({ version: 'v4', auth });
 }
-const GRANTS_WRITE_HEADER = ['discordId', 'callsign', 'grantedTests', 'updatedAt', 'lastSeen'];
-function grantRowValues(grant) { return [grant.discordId, grant.callsign, normalizeTests(grant.grantedTests).join('|'), grant.updatedAt, grant.lastSeen || '']; }
+const GRANTS_WRITE_HEADER = ['discordId', 'callsign', 'grantedTests', 'updatedAt', 'lastSeen', 'grantMode'];
+function grantRowValues(grant) { return [grant.discordId, grant.callsign, normalizeTests(grant.grantedTests).join('|'), grant.updatedAt, grant.lastSeen || '', grant.grantMode === 'override' ? 'override' : '']; }
 function grantsSheetTitle() { return GRANTS_RANGE.split('!')[0].replace(/^'|'$/g, '') || 'GRANTS'; }
 async function ensureGrantsSheet(sheets) {
   const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: SHEET_ID, fields: 'sheets.properties.title' });
@@ -48,7 +48,7 @@ async function readGrants(sheets) {
   try {
     await ensureGrantsSheet(sheets);
     const rows = await readValues(sheets, GRANTS_RANGE);
-    return rows.slice(1).filter(Array.isArray).map(row => ({ discordId: String(row[0] || '').trim(), callsign: String(row[1] || '').trim(), grantedTests: normalizeTests(String(row[2] || '').split('|')), updatedAt: String(row[3] || '').trim(), lastSeen: String(row[4] || '').trim() }));
+    return rows.slice(1).filter(Array.isArray).map(row => ({ discordId: String(row[0] || '').trim(), callsign: String(row[1] || '').trim(), grantedTests: normalizeTests(String(row[2] || '').split('|')), updatedAt: String(row[3] || '').trim(), lastSeen: String(row[4] || '').trim(), grantMode: String(row[5] || '').trim() }));
   } catch (error) {
     if (String(error.message || '').includes('Unable to parse range')) return [];
     throw error;
@@ -56,17 +56,17 @@ async function readGrants(sheets) {
 }
 async function writeGrants(sheets, grants) {
   await ensureGrantsSheet(sheets);
-  const existingRows = await readValues(sheets, grantsSheetTitle() + '!A1:E');
+  const existingRows = await readValues(sheets, grantsSheetTitle() + '!A1:F');
   const hasHeader = String(existingRows[0] && existingRows[0][0] || '').trim() === 'discordId';
   const body = hasHeader ? existingRows.slice(1) : existingRows;
-  if (!hasHeader) await sheets.spreadsheets.values.update({ spreadsheetId: SHEET_ID, range: grantsSheetTitle() + '!A1:E1', valueInputOption: 'RAW', requestBody: { values: [GRANTS_WRITE_HEADER] } });
+  if (!hasHeader || String(existingRows[0]?.[5] || '').trim() !== 'grantMode') await sheets.spreadsheets.values.update({ spreadsheetId: SHEET_ID, range: grantsSheetTitle() + '!A1:F1', valueInputOption: 'RAW', requestBody: { values: [GRANTS_WRITE_HEADER] } });
   const existingById = new Map(body.map((row, index) => [String(row && row[0] || '').trim(), index + (hasHeader ? 2 : 1)]));
   const updates = [];
   const appends = [];
   for (const grant of grants) {
     const rowNumber = existingById.get(String(grant.discordId).trim());
     if (rowNumber === undefined) appends.push(grantRowValues(grant));
-    else updates.push({ range: grantsSheetTitle() + '!A' + rowNumber + ':E' + rowNumber, values: [grantRowValues(grant)] });
+    else updates.push({ range: grantsSheetTitle() + '!A' + rowNumber + ':F' + rowNumber, values: [grantRowValues(grant)] });
   }
   if (updates.length) await sheets.spreadsheets.values.batchUpdate({ spreadsheetId: SHEET_ID, requestBody: { valueInputOption: 'RAW', data: updates } });
   if (appends.length) await sheets.spreadsheets.values.append({ spreadsheetId: SHEET_ID, range: grantsSheetTitle() + '!A1', valueInputOption: 'RAW', insertDataOption: 'INSERT_ROWS', requestBody: { values: appends } });
@@ -106,7 +106,7 @@ export default async function handler(req, res) {
       await writeGrants(sheets, next);
       return json(res, 200, { success: true, removed: true, discordId: targetDiscordId });
     }
-    const updated = { discordId: targetDiscordId, callsign: String(target[2] || targetCallsign).trim(), grantedTests: normalizeTests(req.body.grantedTests), updatedAt: new Date().toISOString(), lastSeen: '' };
+    const updated = { discordId: targetDiscordId, callsign: String(target[2] || targetCallsign).trim(), grantedTests: normalizeTests(req.body.grantedTests), updatedAt: new Date().toISOString(), lastSeen: '', grantMode: 'override' };
     await writeGrants(sheets, [...next, updated]);
     return json(res, 200, { success: true, grant: updated });
   } catch (error) {

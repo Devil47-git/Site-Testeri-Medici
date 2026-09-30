@@ -1,10 +1,10 @@
-import { normalize, callsignNumber, isLeadershipRow, gradeGroupFor, GRADE_GROUPS, LEADERSHIP_MAX, testsForFunctions, normalizeTests, functionsForMember } from './shared.js';
+import { normalize, callsignNumber, isLeadershipRow, gradeGroupFor, GRADE_GROUPS, LEADERSHIP_MAX, effectiveTestsForMember, normalizeTests, functionsForMember } from './shared.js';
 
 const RESIDENT_TESTER_PATTERN = /S\.?\s*M\.?\s*U\.?\s*L\.?\s*S\.?|MOTO|A\.?\s*L\.?\s*S\.?|PILOT/;
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:U400';
-const GRANTS_RANGE = process.env.GOOGLE_GRANTS_RANGE || 'GRANTS!A1:E';
+const GRANTS_RANGE = process.env.GOOGLE_GRANTS_RANGE || 'GRANTS!A1:F';
 function isLeadership(row) { return isLeadershipRow(row); }
 function readTests(value = '') { return String(value).split('|').filter(Boolean); }
 function relevantMember(row) {
@@ -55,17 +55,18 @@ export default async function handler(req, res) {
     const requester = members.find(row => String(row[19] || '').trim() === requesterId);
     if (!requester) return json(res, 403, { error: 'Requester is not a department member' });
     const grants = (await readPublic(GRANTS_RANGE).catch(() => [])).slice(1).filter(Array.isArray);
-    const grantsByDiscord = new Map(grants.map(row => [String(row[0] || '').trim(), { grantedTests: readTests(row[2]), updatedAt: String(row[3] || '').trim(), lastSeen: String(row[4] || '').trim() }]));
+    const grantsByDiscord = new Map(grants.map(row => [String(row[0] || '').trim(), { grantedTests: readTests(row[2]), updatedAt: String(row[3] || '').trim(), lastSeen: String(row[4] || '').trim(), grantMode: String(row[5] || '').trim() }]));
     const result = members.filter(row => String(row[3] || '').trim() && (relevantMember(row) || isLeadership(row))).map(row => {
       const discordId = String(row[19] || '').trim();
       const storedGrant = grantsByDiscord.get(discordId);
       const functions = functionsForMember(callsignNumber(row[2]), row[10]);
       const isConducere = isLeadership(row);
       const status = statusFromRow(row);
+      const grantedTests = effectiveTestsForMember(functions, storedGrant);
       return {
         discordId, name: String(row[3] || '').trim(), callsign: String(row[2] || '').trim(), csNum: callsignNumber(row[2]), rank: String(row[4] || '').trim(), dept: String(row[5] || '').trim(), functions, status, gradeGroup: groupLabel(row),
         isLeadership: isConducere, leadershipTitle: isConducere ? leadershipTitle(row) : '', avatar: row[20] ? `https://cdn.discordapp.com/avatars/${discordId}/${String(row[20] || '').trim()}.png` : '',
-        grantedTests: normalizeTests([...testsForFunctions(functions), ...(storedGrant?.grantedTests || [])]), updatedAt: storedGrant?.updatedAt || '', lastSeen: storedGrant?.lastSeen || '',
+        grantedTests, grantMode: storedGrant?.grantMode || '', updatedAt: storedGrant?.updatedAt || '', lastSeen: storedGrant?.lastSeen || '',
         isTester: ['leadership', 'primar', 'specialist'].includes(gradeGroupFor(callsignNumber(row[2]))) || (callsignNumber(row[2]) >= 301 && callsignNumber(row[2]) <= 340 && RESIDENT_TESTER_PATTERN.test(normalize(functions))) || /TESTER/.test(normalize(functions)) || grantsByDiscord.has(discordId)
       };
     });

@@ -61,6 +61,12 @@ export function testsForFunctions(functions) {
   return [...new Set(assigned)];
 }
 
+export function effectiveTestsForMember(functions, grant = null) {
+  const storedTests = normalizeTests(grant?.grantedTests || []);
+  if (grant?.grantMode === 'override') return storedTests;
+  return normalizeTests([...testsForFunctions(functions), ...storedTests]);
+}
+
 export function accessFor(csNum, functions, rank, dept) {
   const leadership = isLeadership(csNum, rank, dept);
   const gradeGroup = gradeGroupFor(csNum);
