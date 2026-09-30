@@ -10,6 +10,7 @@ import { statusFromRow } from '../api/access/directory.js';
 const here = dirname(fileURLToPath(import.meta.url));
 const source = readFileSync(join(here, '..', 'script.js'), 'utf8');
 const serverSource = readFileSync(join(here, '..', 'server.js'), 'utf8');
+const testCatalogSource = readFileSync(join(here, '..', 'tests.js'), 'utf8');
 
 /** Extracts a top-level function declaration by name from the app bundle. */
 function extract(name) {
@@ -31,20 +32,21 @@ function extract(name) {
 const catalog = ['Test admitere', 'Test transfer', 'Adeverință medicală', 'Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști'];
 const definitions = Object.fromEntries(catalog.map(n => [n, { name: n, questions: [] }]));
 
-const names = ['callsignNumber', 'normalizeCallsign', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberHasTestAccess', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'sortMembers', 'gradeGroupFor', 'admissionChecksComplete', 'motoChecksComplete', 'memberStatus', 'testerFunctionsForDisplay', 'isTestFailed', 'maxWrongForTest', 'cachedUserWithinSession', 'questionItemHtml', 'parseIdentityCardText', 'mergeIdentityCardDetails', 'displayTestName'];
+const names = ['callsignNumber', 'normalizeCallsign', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberHasTestAccess', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'sortMembers', 'gradeGroupFor', 'admissionChecksComplete', 'motoChecksComplete', 'memberStatus', 'testerFunctionsForDisplay', 'isTestFailed', 'maxWrongForTest', 'cachedUserWithinSession', 'questionItemHtml', 'evaluationStageHtml', 'parseIdentityCardText', 'mergeIdentityCardDetails', 'displayTestName'];
 const srcs = names.map(extract).join('\n');
 const pattern = source.match(/^const RESIDENT_TESTER_PATTERN = .*$/m)?.[0] || 'const RESIDENT_TESTER_PATTERN = /TESTER/;';
 const normalizeTextSrc = extract('normalizeText');
-const fullSrc = `${pattern}\nconst AUTH_SCHEMA_VERSION = 3;\nconst coreTests = ['Test admitere', 'Test transfer', 'Adeverință medicală'];\nconst admissionRequirements = ['Verificarea ținutei', 'Verificarea tatuajelor faciale', 'Verificarea cazierului', 'Minimum 50 de ore jucate', 'Controlul cu stetoscopul', 'Drug-testul'];\nconst motoRequirements = ['Grad Medic-Rezident', 'Certificat S.M.U.L.S.', 'Permis Categoria A'];\n${normalizeTextSrc}\n${srcs}`;
+const escapeHtmlSrc = extract('escapeHtml');
+const fullSrc = `${pattern}\nconst AUTH_SCHEMA_VERSION = 3;\nconst coreTests = ['Test admitere', 'Test transfer', 'Adeverință medicală'];\nconst admissionRequirements = ['Verificarea ținutei', 'Verificarea tatuajelor faciale', 'Verificarea cazierului', 'Minimum 50 de ore jucate', 'Controlul cu stetoscopul', 'Drug-testul'];\nconst motoRequirements = ['Grad Medic-Rezident', 'Certificat S.M.U.L.S.', 'Permis Categoria A'];\n${normalizeTextSrc}\n${escapeHtmlSrc}\n${srcs}`;
 const testSummaryDefinitions = [['Test SMULS'], ['Test MOTO'], ['Test PILOT'], ['Test ALS'], ['Test parașutiști']];
 const load = new Function(
   'catalog',
   'testDefinitions',
   'testSummaryDefinitions',
-  `${fullSrc}\nreturn { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, admissionChecksComplete, motoChecksComplete, memberStatus, testerFunctionsForDisplay, isTestFailed, maxWrongForTest, cachedUserWithinSession, questionItemHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName };`,
+  `${fullSrc}\nreturn { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, admissionChecksComplete, motoChecksComplete, memberStatus, testerFunctionsForDisplay, isTestFailed, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName };`,
 )(catalog, definitions, testSummaryDefinitions);
 
-const { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, admissionChecksComplete, motoChecksComplete, memberStatus, testerFunctionsForDisplay, isTestFailed, maxWrongForTest, cachedUserWithinSession, questionItemHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName } = load;
+const { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, admissionChecksComplete, motoChecksComplete, memberStatus, testerFunctionsForDisplay, isTestFailed, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName } = load;
 
 test('callsignNumber strips non-digits and returns 0 for empty', () => {
   assert.equal(callsignNumber('M-007'), 7);
@@ -122,13 +124,17 @@ test('member status follows the status value from column H', () => {
 test('member directory shows only the requested tester specializations', () => {
   assert.equal(testerFunctionsForDisplay({ functions: 'Manager M.M.L.S. | A.L.S. | S.M.U.L.S. | TESTER | MOTO | PILOT | PARASUTIST' }), 'A.L.S. | S.M.U.L.S. | Tester | Moto | Pilot');
   assert.equal(testerFunctionsForDisplay({ functions: 'Manager M.M.L.S.' }), '—');
-  assert.equal(testerFunctionsForDisplay({ grantedTests: ['Test parașutiști'] }), 'Parasutism');
+  assert.equal(testerFunctionsForDisplay({ grantedTests: ['Test parașutiști'] }), 'Test Parasutism');
 });
 
 test('parachutism requires a manual grant while leadership keeps full access', () => {
   assert.equal(accessFor(221, 'PARASUTIST', 'Medic Specialist', '').grantedTests.includes('Test parașutiști'), false);
   assert.equal(memberHasTestAccess({ grantedTests: ['Test parașutiști'] }, 'Test parașutiști'), true);
   assert.deepEqual(accessFor(2, '', 'Director Adjunct', '').allowedTests, accessCatalog);
+});
+
+test('parachutism access label is displayed as Test Parasutism', () => {
+  assert.equal(displayTestName('Test parașutiști'), 'Test Parasutism');
 });
 
 test('non-leadership users receive only explicitly granted tests', () => {
@@ -218,6 +224,24 @@ test('admission test unlocks only after all six requirements are checked', () =>
 test('Moto test unlocks only after all three prerequisites are checked', () => {
   assert.equal(motoChecksComplete([true, true, false]), false);
   assert.equal(motoChecksComplete([true, true, true]), true);
+});
+
+test('Moto and Pilot staged practical content is present in test definitions', () => {
+  assert.match(testCatalogSource, /practicalStage:[\s\S]*?5:40 minute \(MOTO/);
+  assert.match(testCatalogSource, /evaluationStages:[\s\S]*?Proba 2: Locațiile Pacific/);
+  assert.match(testCatalogSource, /Proba 3: Pick-Up la Spitalul Sandy Shores/);
+  assert.match(testCatalogSource, /Proba 4: Pick-Up de pe Chiliad/);
+});
+
+test('evaluation stage cards include conditions and explicit pass/fail actions', () => {
+  const markup = evaluationStageHtml({ title: 'Proba 2', paragraphs: ['Detaliu'], conditions: ['Condiție'] }, [
+    { result: 'Admis', text: 'Admis Proba 2' },
+    { result: 'Respins', text: 'Respins Proba 2' }
+  ]);
+  assert.match(markup, /Proba 2/);
+  assert.match(markup, /Condiție/);
+  assert.match(markup, /Admis Proba 2/);
+  assert.match(markup, /Respins Proba 2/);
 });
 
 test('admission test rejects the fourth mistake', () => {

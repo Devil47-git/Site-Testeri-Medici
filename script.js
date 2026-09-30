@@ -21,7 +21,7 @@ const admissionRequirements = ['Verificarea ținutei', 'Verificarea tatuajelor f
 const motoRequirements = ['Grad Medic-Rezident', 'Certificat S.M.U.L.S.', 'Permis Categoria A'];
 const specialtyTests = ['Test ALS','Test SMULS','Test MOTO','Test PILOT','Test parașutiști'];
 const docsTesterFilters = ['Test SMULS', 'Test ALS'];
-const testSummaryDefinitions = [['Test SMULS', 'Test S.M.U.L.S.'], ['Test MOTO', 'Test MOTO'], ['Test PILOT', 'Test PILOT'], ['Test ALS', 'Test A.L.S.'], ['Test parașutiști', 'Test parașutism']];
+const testSummaryDefinitions = [['Test SMULS', 'Test S.M.U.L.S.'], ['Test MOTO', 'Test MOTO'], ['Test PILOT', 'Test PILOT'], ['Test ALS', 'Test A.L.S.'], ['Test parașutiști', 'Test Parasutism']];
 const catalog = [...coreTests, ...specialtyTests];
 const TEST_CATALOG_KEY = 'medici-test-catalog-v4';
 /** @param {string} key @param {any} fallback @returns {any} */
@@ -180,10 +180,10 @@ function testerFunctionsForDisplay(member) {
     [/\bTESTER\b/, 'Tester'],
     [/MOTO/, 'Moto'],
     [/PILOT/, 'Pilot'],
-    [/PARACHUTIST|PARAȘUTISM/, 'Parasutism']
+    [/PARACHUTIST|PARAȘUTISM/, 'Test Parasutism']
   ];
   const labels = visibleFunctions.filter(([pattern]) => pattern.test(functions)).map(([, label]) => label);
-  if ((member?.grantedTests || []).includes('Test parașutiști') && !labels.includes('Parasutism')) labels.push('Parasutism');
+  if ((member?.grantedTests || []).includes('Test parașutiști') && !labels.includes('Test Parasutism')) labels.push('Test Parasutism');
   return labels.join(' | ') || '—';
 }
 function memberStatusHtml(member) {
@@ -197,7 +197,7 @@ function testerAccessHtml(member) {
   const hasTesterBundle = coreTests.every(test => assignedTests.includes(test));
   const visibleTests = [...(hasTesterBundle ? ['Tester'] : []), ...assignedTests.filter(test => !hasTesterBundle || !coreTests.includes(test))];
   return visibleTests.length
-    ? visibleTests.map((test, i) => `<span class="tag ${i % 3 === 1 ? 'orange' : i % 3 === 2 ? 'cyan' : ''}">${escapeHtml(test)}</span>`).join('')
+    ? visibleTests.map((test, i) => `<span class="tag ${i % 3 === 1 ? 'orange' : i % 3 === 2 ? 'cyan' : ''}">${escapeHtml(displayTestName(test))}</span>`).join('')
     : '<span class="muted">Fără teste alocate</span>';
 }
 function testerRowHtml(member, index) {
@@ -205,7 +205,7 @@ function testerRowHtml(member, index) {
   return `<tr><td><div class="tester">${avatarFor(member)}<span>${escapeHtml(memberNameFor(member))}</span></div></td><td>${escapeHtml(normalizeCallsign(member.callsign))}</td><td>${escapeHtml(rankFor(member))}</td><td><div class="tags">${tags}</div></td><td>${memberStatusHtml(member)}</td><td><button class="more" data-member-menu="${escapeHtml(normalizeCallsign(member.callsign))}">•••</button></td></tr>`;
 }
 function testerTableHtml(members) {
-  return `<div class="table-wrap"><table><thead><tr><th>TESTER</th><th>CALLSIGN</th><th>RANK</th><th>TESTE ALOCATE</th><th>STATUS</th><th></th></tr></thead><tbody>${members.map((member, index) => testerRowHtml(member, index)).join('')}</tbody></table></div>`;
+  return `<div class="table-wrap"><table class="tester-access-table"><thead><tr><th>TESTER</th><th>CALLSIGN</th><th>RANK</th><th>TESTE ALOCATE</th><th>STATUS</th><th></th></tr></thead><tbody>${members.map((member, index) => testerRowHtml(member, index)).join('')}</tbody></table></div>`;
 }
 function currentFilteredTesters() {
   const q = String(document.querySelector('#search')?.value || '').trim().toLowerCase();
@@ -286,7 +286,7 @@ function testerSummaryDetailHtml(member) {
   const counts = catalog.map(test => {
     const count = testRunCounts[member.discordId]?.[test] || 0;
     const hasAccess = isLeadershipUser(member) || assignedTests.includes(test);
-    return `<div class="summary-test-count"><span>${escapeHtml(test)}</span><small>${hasAccess ? 'Acces activ' : 'Fără acces'}</small><strong>${count}</strong></div>`;
+    return `<div class="summary-test-count"><span>${escapeHtml(displayTestName(test))}</span><small>${hasAccess ? 'Acces activ' : 'Fără acces'}</small><strong>${count}</strong></div>`;
   }).join('');
   return `<div class="summary-member-detail"><div class="summary-member-roles"><strong>Roluri tester</strong><div class="tags">${roleBadges}</div></div><div class="summary-test-counts">${counts}</div></div>`;
 }
@@ -346,7 +346,7 @@ function renderTestersView() {
   const orphan = sortMembers(testers.filter(member => !DASHBOARD_GROUPS.some(group => group.members(member))));
   if (orphan.length) groups.push({ label: 'Alți membri', members: orphan });
   const actions = isLeadershipUser(currentUser) ? '<div class="welcome-actions"><button class="primary" id="view-add">＋ Adaugă tester</button><button class="primary" id="view-remove">－ Scoatere Tester</button></div>' : '';
-  const sections = groups.map(group => `<section class="tester-group"><h3>${escapeHtml(group.label)}</h3><div class="table-wrap"><table><thead><tr><th>TESTER</th><th>CALLSIGN</th><th>RANK</th><th>TESTE ALOCATE</th><th>STATUS</th><th></th></tr></thead><tbody>${group.members.map((member, index) => testerRowHtml(member, index)).join('')}</tbody></table></div></section>`).join('');
+  const sections = groups.map(group => `<section class="tester-group"><h3>${escapeHtml(group.label)}</h3><div class="table-wrap"><table class="tester-access-table"><thead><tr><th>TESTER</th><th>CALLSIGN</th><th>RANK</th><th>TESTE ALOCATE</th><th>STATUS</th><th></th></tr></thead><tbody>${group.members.map((member, index) => testerRowHtml(member, index)).join('')}</tbody></table></div></section>`).join('');
   return `<div class="panel view-panel"><div class="panel-head"><div><h2>Testerii departamentului</h2><p class="muted">Aceiași testeri ca pe dashboard, grupați pe grade.</p></div>${actions}</div>${sections || '<div class="empty-state">Nu există testeri.</div>'}</div>`;
 }
 function renderMembersView() {
@@ -481,6 +481,18 @@ function maxWrongForTest(testName, maxWrong) { return testName === 'Test admiter
 function questionItemHtml(question, index) {
   return `<fieldset><p class="question-prompt">${index + 1}. ${question.text}</p><div class="correct-answer"><span>${question.answer || 'Verifică ghidul.'}</span><label class="answer-check"><input type="checkbox" data-wrong="${index}"> Răspuns greșit</label></div></fieldset>`;
 }
+function evaluationStageHtml(stage, verdictLabels) {
+  const paragraphs = (stage.paragraphs || []).map(text => `<p>${escapeHtml(text)}</p>`).join('');
+  const conditions = stage.conditions?.length ? `<h4>Condiții</h4><ul>${stage.conditions.map(condition => `<li>${escapeHtml(condition)}</li>`).join('')}</ul>` : '';
+  const buttons = verdictLabels.map(label => `<button type="button" class="primary evaluation-verdict" data-evaluation-result="${label.result}">${escapeHtml(label.text)}</button>`).join('');
+  return `<section class="evaluation-stage-card"><h3>${escapeHtml(stage.title)}</h3>${paragraphs}${conditions}<div class="evaluation-stage-actions">${buttons}</div></section>`;
+}
+function pilotTheoryStageHtml() {
+  return evaluationStageHtml({ title: 'Verdict Proba Teoretică', paragraphs: ['Alege rezultatul teoriei pentru a continua evaluarea Pilot.'] }, [
+    { result: 'Admis', text: 'Admis Proba Teoretică' },
+    { result: 'Respins', text: 'Respins Proba Teoretică' }
+  ]);
+}
 function parseIdentityCardText(text) {
   const rawText = String(text || '');
   const lines = rawText.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
@@ -597,8 +609,9 @@ function buildTestMarkup(testName, definition, questions) {
   const candidateDocument = !isApplicationTest && !isMedicalCertificate && testName === 'Adeverință medicală' ? '<label>Imagine document candidat<input id="candidate-document" type="file" accept="image/*"></label><p class="muted">Imaginea este disponibilă testerului pentru verificare manuală.</p>' : '';
   const questionForm = questions.length ? `<form id="test-form" class="question-list">${candidateCallsign}${candidateNameField}<div id="candidate-summary" class="candidate-summary"></div>${candidateDocument}${questions.map(questionItemHtml).join('')}<p>Greșeli: <strong id="wrong-count">0</strong> / ${Number.isFinite(maxWrong) ? maxWrong : '—'}</p><button class="primary" type="submit">Finalizează evaluarea</button></form>` : '<div class="test-runner"><p>Acest ghid nu are întrebări teoretice configurate.</p></div>';
   const gatedQuestionForm = (isAdmissionTest || isMotoTest) && questions.length ? `<div id="${isAdmissionTest ? 'admission-test-content' : 'moto-test-content'}" hidden>${questionForm}</div>` : questionForm;
+  const evaluationStageFlow = ['Test PILOT', 'Test MOTO'].includes(testName) ? '<div id="evaluation-stage-flow" hidden></div>' : '';
   const instructions = isAdmissionTest || testName === 'Test transfer' || isMedicalCertificate || !definition.instructions ? '' : `<p class="test-instructions">${definition.instructions}</p>`;
-  const guideBody = `${candidateDetails}${admissionChecks}${motoChecks}<p class="muted">${description}</p>${instructions}${cases ? `<label>Cazul ales de candidat<select id="case-select">${cases}</select></label><div id="case-steps" class="case-steps"></div>` : ''}${practical ? `<label>Probă practică<select id="practical-select">${practical}</select></label><div id="practical-steps" class="case-steps"></div>` : ''}${gatedQuestionForm}`;
+  const guideBody = `${candidateDetails}${admissionChecks}${motoChecks}<p class="muted">${description}</p>${instructions}${cases ? `<label>Cazul ales de candidat<select id="case-select">${cases}</select></label><div id="case-steps" class="case-steps"></div>` : ''}${practical ? `<label>Probă practică<select id="practical-select">${practical}</select></label><div id="practical-steps" class="case-steps"></div>` : ''}${gatedQuestionForm}${evaluationStageFlow}`;
   const content = testName === 'Test SMULS' && images
     ? `<div class="test-with-map"><div class="test-main-column">${guideBody}</div><aside class="test-map-column">${images}</aside></div>`
     : `${guideBody}${images ? `<div class="test-images">${images}</div>` : ''}`;
@@ -766,6 +779,58 @@ function wireTestEvents(testName, definition) {
       }
       submissionDetails = { candidateCallsign, candidateName };
     }
+    if (testName === 'Test PILOT' || isMotoTest) {
+      const stageFlow = document.querySelector('#evaluation-stage-flow');
+      const disableTheoryInputs = () => form.querySelectorAll('input,button').forEach(input => { input.disabled = true; });
+      const finishStagedTest = async finalResult => {
+        stageFlow.innerHTML = '<p class="muted">Se înregistrează rezultatul...</p>';
+        try {
+          await recordTestRun(testName, finalResult);
+          const candidate = candidateInput?.value?.trim() || '—';
+          stageFlow.innerHTML = `<pre class="candidate-summary">Test: ${escapeHtml(displayTestName(testName))}\nCallsign: ${escapeHtml(candidate)}\nRezultat: ${finalResult}</pre><p class="muted">Testul a fost înregistrat.</p>`;
+        } catch (error) {
+          stageFlow.innerHTML = `<p class="error-text">Rezultatul nu s-a putut înregistra: ${escapeHtml(error.message)}</p>`;
+        }
+      };
+      disableTheoryInputs();
+      stageFlow.hidden = false;
+      if (testName === 'Test PILOT') {
+        if (result === 'Respins') { await finishStagedTest(result); return; }
+        const stages = definition.evaluationStages || [];
+        let stageIndex = 0;
+        const renderPilotStage = () => {
+          const stage = stages[stageIndex];
+          stageFlow.innerHTML = evaluationStageHtml(stage, [
+            { result: 'Admis', text: `Admis Proba ${stageIndex + 2}` },
+            { result: 'Respins', text: `Respins Proba ${stageIndex + 2}` }
+          ]);
+          stageFlow.querySelectorAll('[data-evaluation-result]').forEach(button => button.onclick = async () => {
+            if (button.dataset.evaluationResult === 'Respins') { await finishStagedTest('Respins'); return; }
+            if (stageIndex === stages.length - 1) { await finishStagedTest('Admis'); return; }
+            stageIndex += 1;
+            renderPilotStage();
+          });
+        };
+        if (stages.length) renderPilotStage();
+        else await finishStagedTest('Admis');
+        return;
+      }
+
+      const practicalStage = definition.practicalStage;
+      stageFlow.innerHTML = evaluationStageHtml({ title: 'Proba Teoretică', paragraphs: ['Alege rezultatul probei teoretice pentru a continua evaluarea Moto.'] }, [
+        { result: 'Admis', text: 'Admis Proba Teoretică' },
+        { result: 'Respins', text: 'Respins Proba Teoretică' }
+      ]);
+      stageFlow.querySelectorAll('[data-evaluation-result]').forEach(button => button.onclick = async () => {
+        if (button.dataset.evaluationResult === 'Respins') { await finishStagedTest('Respins'); return; }
+        stageFlow.innerHTML = evaluationStageHtml(practicalStage, [
+          { result: 'Admis', text: 'Admis Proba Practică' },
+          { result: 'Respins', text: 'Respins Proba Practică' }
+        ]);
+        stageFlow.querySelectorAll('[data-evaluation-result]').forEach(practicalButton => practicalButton.onclick = async () => finishStagedTest(practicalButton.dataset.evaluationResult));
+      });
+      return;
+    }
     let certificateNumber = null;
     try {
       const saved = await recordTestRun(testName, result, submissionDetails);
@@ -821,9 +886,9 @@ function renderRemoveTestChecks() {
   const hasTesterBundle = coreTests.every(test => granted.includes(test));
   const otherTests = granted.filter(test => !coreTests.includes(test));
   removeTestChecks.innerHTML = hasTesterBundle
-    ? `<label><input type="checkbox" value="${TESTER_BUNDLE_KEY}"> Tester (admitere, transfer, adeverință)</label>${otherTests.map(test => `<label><input type="checkbox" value="${escapeHtml(test)}"> ${escapeHtml(test)}</label>`).join('')}`
+    ? `<label><input type="checkbox" value="${TESTER_BUNDLE_KEY}"> Tester (admitere, transfer, adeverință)</label>${otherTests.map(test => `<label><input type="checkbox" value="${escapeHtml(test)}"> ${escapeHtml(displayTestName(test))}</label>`).join('')}`
     : granted.length
-      ? granted.map(test => `<label><input type="checkbox" value="${escapeHtml(test)}"> ${escapeHtml(test)}</label>`).join('')
+      ? granted.map(test => `<label><input type="checkbox" value="${escapeHtml(test)}"> ${escapeHtml(displayTestName(test))}</label>`).join('')
       : '<p class="muted">Acest tester nu are teste alocate.</p>';
   removeResult.textContent = member ? `Teste active: ${granted.length}` : '';
 }
@@ -882,7 +947,7 @@ async function lookupMember() {
 function renderGrantChecks(options) {
   const hasTesterBundle = coreTests.every(test => selectedGrantDraft.includes(test));
   const otherTests = options.filter(test => !coreTests.includes(test));
-  grantChecks.innerHTML = `<button type="button" class="grant-preset" id="tester-preset">Preia testele din Docs</button><label><input type="checkbox" value="${TESTER_BUNDLE_KEY}" ${hasTesterBundle ? 'checked' : ''}> Tester (admitere, transfer, adeverință)</label>${otherTests.map(test => `<label><input type="checkbox" value="${escapeHtml(test)}" ${selectedGrantDraft.includes(test) ? 'checked' : ''}> ${escapeHtml(test)}</label>`).join('')}`;
+  grantChecks.innerHTML = `<button type="button" class="grant-preset" id="tester-preset">Preia testele din Docs</button><label><input type="checkbox" value="${TESTER_BUNDLE_KEY}" ${hasTesterBundle ? 'checked' : ''}> Tester (admitere, transfer, adeverință)</label>${otherTests.map(test => `<label><input type="checkbox" value="${escapeHtml(test)}" ${selectedGrantDraft.includes(test) ? 'checked' : ''}> ${escapeHtml(displayTestName(test))}</label>`).join('')}`;
   grantChecks.querySelectorAll('input[type="checkbox"]').forEach(input => input.onchange = () => {
     const checked = [...grantChecks.querySelectorAll('input:checked')].flatMap(item => item.value === TESTER_BUNDLE_KEY ? coreTests : [item.value]);
     selectedGrantDraft = normalizeGrantBundle(checked);

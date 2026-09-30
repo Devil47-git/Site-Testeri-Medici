@@ -70,7 +70,11 @@ window.MEDICAL_TESTS = {
       ['Care este viteza maximă off-road și extrem off-road?', '60–100 km/h off-road și 60 km/h extrem off-road.'],
       ['Este permisă utilizarea motorului fără cască?', 'Nu.'],
       ['Ce ai voie să tunezi la motor/ATV?', 'Doar performanța.']
-    ]
+    ],
+    practicalStage: {
+      title: 'Proba 2: Proba Practică',
+      paragraphs: ['Timpul de execuție a traseului vara: 5:40 minute (MOTO, fără zăpadă).', 'Timpul de execuție a traseului iarna: 7:00 minute (ATV, cu zăpadă).']
+    }
   },
   'Test PILOT': {
     description: 'Certificarea Pilot are 4 probe. Verifică licența de pilot. Elicopterul se poate repara după probe, dar dacă motorul ajunge galben/roșu candidatul este respins.',
@@ -82,6 +86,41 @@ window.MEDICAL_TESTS = {
       ['Câte unități aeriene pot survola zona unui jaf?', 'O singură unitate.'],
       ['Când este permisă aterizarea pe clădiri fără helipad?', 'Doar la jafuri sau BK-uri.'],
       ['Este permisă părăsirea elicopterului la Sandy pentru apeluri cu autospeciala?', 'Nu.']
+    ],
+    evaluationStages: [
+      {
+        title: 'Proba 2: Locațiile Pacific',
+        paragraphs: [
+          'Instructorul va scoate elicopterul Buckingham Swift, îi va da candidatului cheile și îi va cere să se deplaseze deasupra Băncii Pacific. Ajunși acolo, candidatul trebuie să aterizeze pe toate clădirile în ordine aleatorie.',
+          'Exemplu: instructorul cere aterizarea pe clădirea A, dă startul (3, 2, 1, START) și pornește cronometrul. Candidatul aterizează drept pe clădire, coboară pentru confirmare, apoi se urcă în elicopter și repetă pentru o altă clădire.',
+          'Nu este permisă aterizarea pe gurile de ventilație sau pe marginea clădirilor.'
+        ],
+        conditions: [
+          'Este permisă o singură greșeală; la a doua candidatul este respins.',
+          'Candidatul are 30 de secunde pentru aterizarea pe clădire.',
+          'Este greșeală aterizarea pe altă clădire decât cea solicitată sau depășirea celor 30 de secunde.',
+          'Candidatul este respins dacă instructorul cade de pe clădire în timpul aterizării.'
+        ]
+      },
+      {
+        title: 'Proba 3: Pick-Up la Spitalul Sandy Shores',
+        paragraphs: ['Candidatul trebuie să treacă pe sub pod înainte de Pick-Up, fără să atingă podul sau copacii. După ce instructorul se urcă în elicopter, acesta va trece pe sub pod și va ateriza pe helipadul Spitalului Sandy Shores.'],
+        conditions: [
+          'Atingerea podului sau a copacilor duce la respingere.',
+          'Scufundarea sau explodarea elicopterului duce la respingere.',
+          'Candidatul este respins dacă motorul ajunge galben/roșu sau nu aterizează corect pe helipad.'
+        ]
+      },
+      {
+        title: 'Proba 4: Pick-Up de pe Chiliad',
+        paragraphs: ['Instructorul îi cere candidatului să îl lase pe platforma muntelui Chiliad, apoi să meargă la helipadul Spitalului Sandy Shores. De acolo, candidatul revine pentru Pick-Up fără să aterizeze pe platformă. După preluare, îl transportă pe instructor înapoi la helipadul Spitalului Sandy Shores.'],
+        conditions: [
+          'Candidatul trebuie să aterizeze pentru a-l lăsa pe instructor.',
+          'La revenire, candidatul trebuie să aterizeze pe helipadul Spitalului Sandy Shores.',
+          'La Pick-Up nu are voie să scoată roțile, să aterizeze sau să atingă platforma.',
+          'Explodarea elicopterului, motorul galben/roșu sau ratarea aterizării corecte la întoarcere duc la respingere.'
+        ]
+      }
     ]
   },
   'Test SMULS': {
