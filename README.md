@@ -5,10 +5,10 @@
 Configure these server-side environment variables in the deployment settings:
 
 - `DISCORD_ADMISSION_WEBHOOK`: webhook for the admission result log.
-- `DISCORD_TESTERS_WEBHOOK`: webhook for the testers channel; this receives the same result and the consented ID photo.
+- `DISCORD_TESTERS_WEBHOOK`: webhook for the testers channel; this receives the result and the ID, medical-sheet, and drug-test images in order.
 
 For local use, add newly generated webhook URLs to the ignored `.env` file (see `.env.example`). `npm start` loads that file. The checked-in example intentionally contains no credentials.
 
-Never put webhook URLs in browser code or commit them to the repository. Rotate any webhook URL that has been shared in chat or other public places. The image is resized in the browser and is not stored in the test-history sheet; CNP is not sent as separate message text.
+Never put webhook URLs in browser code or commit them to the repository. Rotate any webhook URL that has been shared in chat or other public places. The admission page accepts all three images by file selection or clipboard paste. Images are resized in the browser and are not stored in the test-history sheet; CNP is not sent as separate message text. Role mentions are posted separately below the admission-result embed.
 
 The local `tests/dev-server.mjs` is a UI mock and intentionally does not send Discord messages. Real delivery requires the deployed API endpoint and both webhook environment variables to be configured.

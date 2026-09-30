@@ -5,7 +5,7 @@ const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:T4
 const GRANTS_RANGE = process.env.GOOGLE_GRANTS_RANGE || 'GRANTS!A1:E';
 const RESULTS_RANGE = process.env.GOOGLE_TEST_RESULTS_RANGE || 'TEST_HISTORY!A1:E';
 const RESULTS_HEADER = ['discordId', 'callsign', 'testName', 'result', 'createdAt'];
-const MAX_IDENTITY_IMAGE_BYTES = 2 * 1024 * 1024;
+const MAX_IDENTITY_IMAGE_BYTES = 600 * 1024;
 
 export const config = { api: { bodyParser: { sizeLimit: '4mb' } } };
 
@@ -76,27 +76,26 @@ function parseIdentityImage(value) {
   return { buffer, mimeType: `image/${match[1]}` };
 }
 
-async function sendWebhookMessage(url, content) {
+async function sendWebhookMessage(url, body) {
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ embeds: [content], allowed_mentions: { parse: [] } })
+    body: JSON.stringify(body)
   });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
 }
 
-async function sendWebhookImage(url, embed, image) {
+async function sendWebhookImages(url, payload, images) {
   const form = new FormData();
-  form.set('payload_json', JSON.stringify({ embeds: [embed], allowed_mentions: { parse: [] }, attachments: [{ id: 0, filename: 'buletin-candidat.jpg' }] }));
-  form.set('files[0]', new Blob([image.buffer], { type: image.mimeType }), 'buletin-candidat.jpg');
+  form.set('payload_json', JSON.stringify({ ...payload, attachments: images.map((image, id) => ({ id, filename: image.filename })) }));
+  images.forEach((image, id) => form.set(`files[${id}]`, new Blob([image.buffer], { type: image.mimeType }), image.filename));
   const response = await fetch(url, { method: 'POST', body: form });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
 }
 
-export function createAdmissionEmbeds({ testerName, candidateName, candidateId, candidateCallsign, result }) {
+export function createAdmissionEmbeds({ testerName, testerDiscordId, candidateName, candidateId, candidateCallsign, result }) {
   const summaryFields = [
-    { name: 'Nume Tester', value: testerName || '—', inline: false },
-    { name: 'Nume Candidat', value: candidateName || '—', inline: false },
+    { name: 'Nume candidat', value: candidateName || '—', inline: false },
     { name: 'Rezultat', value: result || '—', inline: false }
   ];
   const testersFields = [
@@ -106,13 +105,32 @@ export function createAdmissionEmbeds({ testerName, candidateName, candidateId, 
     { name: 'Rezultat', value: result || '—', inline: false }
   ];
   if (result === 'Admis' && candidateCallsign) testersFields.push({ name: 'Callsign', value: candidateCallsign, inline: false });
+  const roleIds = result === 'Admis'
+    ? ['1033692302767558717', '825071956101169202']
+    : ['825071956101169202'];
+  const mentions = [
+    ...roleIds.map(id => `<@&${id}>`),
+    /^\d+$/.test(String(testerDiscordId || '')) ? `<@${testerDiscordId}>` : ''
+  ].filter(Boolean).join(' ');
+  const allowedMentions = { parse: [], roles: roleIds, users: /^\d+$/.test(String(testerDiscordId || '')) ? [String(testerDiscordId)] : [] };
+  const photoEmbeds = [
+    ['Buletin', 'buletin-candidat.jpg'],
+    ['Fișă medicală', 'fisa-medicala.jpg'],
+    ['Drug-test', 'drug-test.jpg']
+  ].map(([title, filename]) => ({ title, color: 0x23A2E8, image: { url: `attachment://${filename}` } }));
   return {
-    admission: { title: 'Admitere', color: 0x23A2E8, fields: summaryFields },
-    testers: { title: 'Test Admitere', color: 0x23A2E8, fields: testersFields, thumbnail: { url: 'attachment://buletin-candidat.jpg' } }
+    admission: {
+      embed: { title: 'Test Admitere', color: 0x23A2E8, fields: summaryFields },
+      mentions,
+      allowedMentions
+    },
+    testers: {
+      embeds: [{ title: 'Test Admitere', color: 0x23A2E8, fields: testersFields }, ...photoEmbeds]
+    }
   };
 }
 
-async function sendAdmissionNotifications(details, image) {
+async function sendAdmissionNotifications(details) {
   const admissionSetting = process.env.DISCORD_ADMISSION_WEBHOOK;
   const testersSetting = process.env.DISCORD_TESTERS_WEBHOOK;
   const missing = [
@@ -130,9 +148,17 @@ async function sendAdmissionNotifications(details, image) {
   if (invalid.length) return { sent: false, error: `URL invalid pentru: ${invalid.join(', ')}.` };
 
   const embeds = createAdmissionEmbeds(details);
+  const images = [
+    { ...details.identityImage, filename: 'buletin-candidat.jpg' },
+    { ...details.medicalSheetImage, filename: 'fisa-medicala.jpg' },
+    { ...details.drugTestImage, filename: 'drug-test.jpg' }
+  ];
   const deliveries = await Promise.all([
-    sendWebhookMessage(admissionWebhook, embeds.admission).then(() => null, error => `Canalul de rezultate: ${error.message.startsWith('HTTP ') ? error.message : 'eroare de rețea Discord'}.`),
-    sendWebhookImage(testersWebhook, embeds.testers, image).then(() => null, error => `Canalul testerilor: ${error.message.startsWith('HTTP ') ? error.message : 'eroare de rețea Discord'}.`)
+    (async () => {
+      await sendWebhookMessage(admissionWebhook, { embeds: [embeds.admission.embed], allowed_mentions: { parse: [] } });
+      await sendWebhookMessage(admissionWebhook, { content: embeds.admission.mentions, allowed_mentions: embeds.admission.allowedMentions });
+    })().then(() => null, error => `Canalul de admitere: ${error.message.startsWith('HTTP ') ? error.message : 'eroare de rețea Discord'}.`),
+    sendWebhookImages(testersWebhook, { embeds: embeds.testers.embeds, allowed_mentions: { parse: [] } }, images).then(() => null, error => `Canalul testerilor: ${error.message.startsWith('HTTP ') ? error.message : 'eroare de rețea Discord'}.`)
   ]);
   const errors = deliveries.filter(Boolean);
   return { sent: errors.length === 0, error: errors.join(' ') };
@@ -161,12 +187,14 @@ export default async function handler(req, res) {
         const candidateId = String(req.body?.candidateId || '').trim().slice(0, 24);
         const candidateCallsign = String(req.body?.candidateCallsign || '').trim().slice(0, 24);
         const result = String(req.body?.result || '').trim();
-        const image = parseIdentityImage(req.body?.identityImage);
+        const identityImage = parseIdentityImage(req.body?.identityImage);
+        const medicalSheetImage = parseIdentityImage(req.body?.medicalSheetImage);
+        const drugTestImage = parseIdentityImage(req.body?.drugTestImage);
         if (!['Admis', 'Respins'].includes(result)) return json(res, 400, { error: 'Invalid admission result' });
-        if (!candidateName || !candidateId || !image || (result === 'Admis' && !candidateCallsign)) {
-          return json(res, 400, { error: 'Candidate name, ID, and ID image are required; admitted candidates also need a callsign' });
+        if (!candidateName || !candidateId || !identityImage || !medicalSheetImage || !drugTestImage || (result === 'Admis' && !candidateCallsign)) {
+          return json(res, 400, { error: 'Candidate name, ID, all three images, and an admitted candidate callsign are required' });
         }
-        admissionDetails = { candidateName, candidateId, candidateCallsign, result, image };
+        admissionDetails = { candidateName, candidateId, candidateCallsign, result, identityImage, medicalSheetImage, drugTestImage };
       }
       await ensureResultsHeader(sheets);
       const title = sheetTitle().replace(/'/g, "''");
@@ -178,7 +206,7 @@ export default async function handler(req, res) {
         requestBody: { values: [[discordId, String(member[2] || '').trim(), testName, String(req.body?.result || '').slice(0, 32), new Date().toISOString()]] }
       });
       const discordNotifications = admissionDetails
-        ? await sendAdmissionNotifications({ testerName: String(member[3] || '').trim().slice(0, 100), ...admissionDetails }, admissionDetails.image)
+        ? await sendAdmissionNotifications({ testerName: String(member[3] || '').trim().slice(0, 100), testerDiscordId: discordId, ...admissionDetails })
         : undefined;
       return json(res, 200, { success: true, ...(admissionDetails ? { discordNotificationsSent: discordNotifications.sent, discordNotificationError: discordNotifications.error } : {}) });
     }

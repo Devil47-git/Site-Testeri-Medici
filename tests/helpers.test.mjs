@@ -175,11 +175,11 @@ test('admission test unlocks only after all six requirements are checked', () =>
   assert.equal(admissionChecksComplete([true, true, true, true, true]), false);
 });
 
-test('admission test rejects the third mistake', () => {
-  const limit = maxWrongForTest('Test admitere', 3);
-  assert.equal(limit, 2);
-  assert.equal(isTestFailed(2, limit), false);
-  assert.equal(isTestFailed(3, limit), true);
+test('admission test rejects the fourth mistake', () => {
+  const limit = maxWrongForTest('Test admitere', 2);
+  assert.equal(limit, 3);
+  assert.equal(isTestFailed(3, limit), false);
+  assert.equal(isTestFailed(4, limit), true);
   assert.equal(maxWrongForTest('Test transfer', 2), 2);
 });
 
@@ -201,12 +201,21 @@ test('identity card OCR parser handles inline labels and spaced or confused CNP 
   assert.deepEqual(details, { name: 'Cartier Mohammed', cnp: '1060825927178' });
 });
 
+test('identity card OCR parser skips misread blue labels before reading the values below', () => {
+  const details = parseIdentityCardText('iLast name\nCartier\niFirst name\nMohammed\nCNP\n1060825927178');
+  assert.deepEqual(details, { name: 'Cartier Mohammed', cnp: '1060825927178' });
+});
+
 test('admission Discord embeds use vertical fields and hide callsign on rejection', () => {
-  const rejected = createAdmissionEmbeds({ testerName: 'Tester', candidateName: 'Candidat', candidateId: '12345', candidateCallsign: '', result: 'Respins' });
-  assert.deepEqual(rejected.admission.fields.map(field => field.name), ['Nume Tester', 'Nume Candidat', 'Rezultat']);
-  assert.deepEqual(rejected.testers.fields.map(field => field.name), ['Nume Tester', 'Nume Candidat', 'ID', 'Rezultat']);
-  assert.deepEqual(rejected.testers.fields[2], { name: 'ID', value: '12345', inline: false });
-  const admitted = createAdmissionEmbeds({ testerName: 'Tester', candidateName: 'Candidat', candidateId: '12345', candidateCallsign: 'M-302', result: 'Admis' });
-  assert.equal(admitted.testers.fields.at(-1).name, 'Callsign');
-  assert.equal(admitted.testers.thumbnail.url, 'attachment://buletin-candidat.jpg');
+  const rejected = createAdmissionEmbeds({ testerName: 'Tester', testerDiscordId: '99', candidateName: 'Candidat', candidateId: '12345', candidateCallsign: '', result: 'Respins' });
+  assert.deepEqual(rejected.admission.embed.fields.map(field => field.name), ['Nume candidat', 'Rezultat']);
+  assert.match(rejected.admission.mentions, /<@&825071956101169202>/);
+  assert.doesNotMatch(rejected.admission.mentions, /1033692302767558717/);
+  assert.match(rejected.admission.mentions, /<@99>/);
+  assert.deepEqual(rejected.testers.embeds[0].fields.map(field => field.name), ['Nume Tester', 'Nume Candidat', 'ID', 'Rezultat']);
+  assert.deepEqual(rejected.testers.embeds[0].fields[2], { name: 'ID', value: '12345', inline: false });
+  assert.deepEqual(rejected.testers.embeds.slice(1).map(embed => embed.title), ['Buletin', 'Fișă medicală', 'Drug-test']);
+  const admitted = createAdmissionEmbeds({ testerName: 'Tester', testerDiscordId: '99', candidateName: 'Candidat', candidateId: '12345', candidateCallsign: 'M-302', result: 'Admis' });
+  assert.equal(admitted.testers.embeds[0].fields.at(-1).name, 'Callsign');
+  assert.match(admitted.admission.mentions, /<@&1033692302767558717>/);
 });

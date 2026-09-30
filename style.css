@@ -40,6 +40,9 @@ body.dark-mode{--ink:#edf0fa;--muted:#a5aec3;--line:#30374a;--bg:#151925;backgro
 .admission-candidate-grid input{width:100%;min-height:36px;padding:0 10px;border:1px solid var(--line);border-radius:6px;background:transparent;color:var(--ink);font:500 12px 'DM Sans'}
 .admission-candidate-grid input:focus{outline:2px solid #79cbbd;outline-offset:1px}
 .candidate-document-upload input{max-width:360px;color:var(--muted);font:12px 'DM Sans'}
+.candidate-photo-field{display:grid;gap:7px;max-width:520px}
+.image-paste-target{padding:10px 12px;border:1px dashed #23A2E8;border-radius:6px;background:#eef8fc;color:#315367;font-size:12px;cursor:pointer}
+.image-paste-target:hover,.image-paste-target:focus-visible{border-style:solid;background:#e0f2fb;outline:2px solid #23A2E8;outline-offset:1px}
 .error-text{color:#d1453b!important}
 #candidate-document-status{min-height:16px;margin:0}
 @media(max-width:620px){.admission-candidate-grid{grid-template-columns:minmax(0,1fr)}}
