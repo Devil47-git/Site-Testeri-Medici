@@ -499,7 +499,7 @@ function wireTestEvents(testName, definition) {
     }
     try {
       const saved = await recordTestRun(testName, result, admissionDetails);
-      if (testName === 'Test admitere' && !saved.discordNotificationsSent) status = 'Rezultatul a fost salvat, dar notificările Discord nu au fost trimise. Verifică setările webhook.';
+      if (testName === 'Test admitere' && !saved.discordNotificationsSent) status = `Rezultatul a fost salvat, dar notificările Discord nu au fost trimise. ${saved.discordNotificationError || 'Verifică setările webhook.'}`;
     }
     catch (error) { status = `Rezultatul a fost afișat, dar numărătoarea nu s-a salvat: ${error.message}`; }
     const summary = testName === 'Test admitere' ? admissionCandidateSummary(result) : candidateSummary(member, result) || `Rezultat: ${result}`;

@@ -21,7 +21,7 @@ http.createServer(async (req, res) => {
   if (url.pathname.startsWith('/api/access/test-results')) {
     if (req.method === 'POST') { let body = ''; for await (const chunk of req) body += chunk; try { testResults.push(JSON.parse(body)); } catch {} }
     const counts = testResults.map(result => ({ discordId: result.requesterId, callsign: '001', testName: result.testName, count: testResults.filter(item => item.requesterId === result.requesterId && item.testName === result.testName).length }));
-    res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ counts })); return;
+    res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ counts, ...(req.method === 'POST' ? { success: true, discordNotificationsSent: false, discordNotificationError: 'Serverul demo local nu trimite notificari Discord.' } : {}) })); return;
   }
   if (url.pathname.startsWith('/api/')) { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ grants: [] })); return; }
   const file = path.resolve(ROOT, url.pathname === '/' ? 'index.html' : '.' + url.pathname);

@@ -82,7 +82,7 @@ async function sendWebhookMessage(url, content) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ content, allowed_mentions: { parse: [] } })
   });
-  if (!response.ok) throw new Error('Discord webhook rejected the message');
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
 }
 
 async function sendWebhookImage(url, content, image) {
@@ -90,20 +90,33 @@ async function sendWebhookImage(url, content, image) {
   form.set('payload_json', JSON.stringify({ content, allowed_mentions: { parse: [] }, attachments: [{ id: 0, filename: 'buletin-candidat.jpg' }] }));
   form.set('files[0]', new Blob([image.buffer], { type: image.mimeType }), 'buletin-candidat.jpg');
   const response = await fetch(url, { method: 'POST', body: form });
-  if (!response.ok) throw new Error('Discord webhook rejected the image');
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
 }
 
 async function sendAdmissionNotifications(testerName, candidateName, result, image) {
-  const admissionWebhook = webhookUrl(process.env.DISCORD_ADMISSION_WEBHOOK);
-  const testersWebhook = webhookUrl(process.env.DISCORD_TESTERS_WEBHOOK);
-  if (!admissionWebhook || !testersWebhook) return false;
+  const admissionSetting = process.env.DISCORD_ADMISSION_WEBHOOK;
+  const testersSetting = process.env.DISCORD_TESTERS_WEBHOOK;
+  const missing = [
+    !admissionSetting && 'DISCORD_ADMISSION_WEBHOOK',
+    !testersSetting && 'DISCORD_TESTERS_WEBHOOK'
+  ].filter(Boolean);
+  if (missing.length) return { sent: false, error: `Lipsesc setările: ${missing.join(', ')}.` };
+
+  const admissionWebhook = webhookUrl(admissionSetting);
+  const testersWebhook = webhookUrl(testersSetting);
+  const invalid = [
+    !admissionWebhook && 'DISCORD_ADMISSION_WEBHOOK',
+    !testersWebhook && 'DISCORD_TESTERS_WEBHOOK'
+  ].filter(Boolean);
+  if (invalid.length) return { sent: false, error: `URL invalid pentru: ${invalid.join(', ')}.` };
 
   const message = `Test admitere | Tester: ${testerName} | Candidat: ${candidateName} | Rezultat: ${result}`;
-  const deliveries = await Promise.allSettled([
-    sendWebhookMessage(admissionWebhook, message),
-    sendWebhookImage(testersWebhook, message, image)
+  const deliveries = await Promise.all([
+    sendWebhookMessage(admissionWebhook, message).then(() => null, error => `Canalul de rezultate: ${error.message.startsWith('HTTP ') ? error.message : 'eroare de rețea Discord'}.`),
+    sendWebhookImage(testersWebhook, message, image).then(() => null, error => `Canalul testerilor: ${error.message.startsWith('HTTP ') ? error.message : 'eroare de rețea Discord'}.`)
   ]);
-  return deliveries.every(delivery => delivery.status === 'fulfilled');
+  const errors = deliveries.filter(Boolean);
+  return { sent: errors.length === 0, error: errors.join(' ') };
 }
 
 export default async function handler(req, res) {
@@ -144,10 +157,10 @@ export default async function handler(req, res) {
         insertDataOption: 'INSERT_ROWS',
         requestBody: { values: [[discordId, String(member[2] || '').trim(), testName, String(req.body?.result || '').slice(0, 32), new Date().toISOString()]] }
       });
-      const discordNotificationsSent = admissionDetails
+      const discordNotifications = admissionDetails
         ? await sendAdmissionNotifications(String(member[3] || '').trim().slice(0, 100), admissionDetails.candidateName, admissionDetails.result, admissionDetails.image)
         : undefined;
-      return json(res, 200, { success: true, ...(admissionDetails ? { discordNotificationsSent } : {}) });
+      return json(res, 200, { success: true, ...(admissionDetails ? { discordNotificationsSent: discordNotifications.sent, discordNotificationError: discordNotifications.error } : {}) });
     }
 
     const rows = await ensureResultsHeader(sheets);
