@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { accessFor, catalog as accessCatalog, coreTests, isLeadership, normalizeTests, testsForFunctions } from '../api/access/shared.js';
+import { accessFor, catalog as accessCatalog, coreTests, functionsForMember, isLeadership, normalizeTests, testsForFunctions } from '../api/access/shared.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const source = readFileSync(join(here, '..', 'script.js'), 'utf8');
@@ -28,20 +28,20 @@ function extract(name) {
 const catalog = ['Test admitere', 'Test transfer', 'Adeverință medicală', 'Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști'];
 const definitions = Object.fromEntries(catalog.map(n => [n, { name: n, questions: [] }]));
 
-const names = ['callsignNumber', 'normalizeCallsign', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'sortMembers', 'gradeGroupFor'];
+const names = ['callsignNumber', 'normalizeCallsign', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'sortMembers', 'gradeGroupFor', 'admissionChecksComplete'];
 const srcs = names.map(extract).join('\n');
 const pattern = source.match(/^const RESIDENT_TESTER_PATTERN = .*$/m)?.[0] || 'const RESIDENT_TESTER_PATTERN = /TESTER/;';
 const normalizeTextSrc = extract('normalizeText');
-const fullSrc = `${pattern}\n${normalizeTextSrc}\n${srcs}`;
+const fullSrc = `${pattern}\nconst admissionRequirements = ['Verificarea ținutei', 'Verificarea tatuajelor faciale', 'Verificarea cazierului', 'Minimum 50 de ore jucate', 'Controlul cu stetoscopul', 'Drug-testul'];\n${normalizeTextSrc}\n${srcs}`;
 const testSummaryDefinitions = [['Test SMULS'], ['Test MOTO'], ['Test PILOT'], ['Test ALS'], ['Test parașutiști']];
 const load = new Function(
   'catalog',
   'testDefinitions',
   'testSummaryDefinitions',
-  `${fullSrc}\nreturn { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor };`,
+  `${fullSrc}\nreturn { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, admissionChecksComplete };`,
 )(catalog, definitions, testSummaryDefinitions);
 
-const { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberIsTester, memberCanGiveTest, sortMembers, gradeGroupFor } = load;
+const { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberIsTester, memberCanGiveTest, sortMembers, gradeGroupFor, admissionChecksComplete } = load;
 
 test('callsignNumber strips non-digits and returns 0 for empty', () => {
   assert.equal(callsignNumber('M-007'), 7);
@@ -112,6 +112,15 @@ test('Tester Docs role maps to the complete three-test bundle', () => {
   assert.deepEqual(normalizeTests(['Test transfer']), coreTests);
 });
 
+test('promotion to specialist or primary automatically assigns Tester function', () => {
+  assert.equal(functionsForMember(101, ''), 'TESTER');
+  assert.equal(functionsForMember(230, 'A.L.S.'), 'A.L.S. | TESTER');
+  assert.equal(functionsForMember(205, 'TESTER | MOTO'), 'TESTER | MOTO');
+  assert.equal(functionsForMember(300, ''), '');
+  assert.deepEqual(accessFor(105, '', 'Medic Primar', '').grantedTests, coreTests);
+  assert.deepEqual(accessFor(205, '', 'Medic Specialist', '').grantedTests, coreTests);
+});
+
 test('eligible specializations do not override revoked grants', () => {
   assert.deepEqual(allowedForUser({ eligibleSpecializations: ['Test MOTO'], grantedTests: [] }), []);
 });
@@ -157,4 +166,10 @@ test('gradeGroupFor splits conducere, primari and specialisti', () => {
   assert.equal(gradeGroupFor(201), 'Medici Specialisti (201-230)');
   assert.equal(gradeGroupFor(230), 'Medici Specialisti (201-230)');
   assert.equal(gradeGroupFor(231), '');
+});
+
+test('admission test unlocks only after all six requirements are checked', () => {
+  assert.equal(admissionChecksComplete([true, true, true, true, true, false]), false);
+  assert.equal(admissionChecksComplete([true, true, true, true, true, true]), true);
+  assert.equal(admissionChecksComplete([true, true, true, true, true]), false);
 });

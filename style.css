@@ -12,6 +12,19 @@ body.dark-mode{--ink:#edf0fa;--muted:#a5aec3;--line:#30374a;--bg:#151925;backgro
 
 /* ===== Grupare dashboard, filtre, avataruri, centrare ===== */
 .welcome-actions{display:flex;gap:10px;align-items:center}
+.admission-checklist{display:grid;gap:8px;margin:18px 0;padding:14px;border:1px solid var(--line);border-radius:8px}
+.admission-checklist h3{margin:0 0 4px;font-size:13px}
+.admission-check-row{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:38px;padding:7px 10px;border-radius:6px;background:#E8FCF9}
+.admission-check-control{display:flex;align-items:center;gap:8px;flex:none}
+.admission-check-control input{appearance:none;display:grid;place-items:center;width:20px;height:20px;margin:0;border:1px solid #79cbbd;border-radius:4px;background:#E8FCF9;cursor:pointer}
+.admission-check-control input:checked::after{content:'✓';color:#176c62;font-size:14px;font-weight:800;line-height:1}
+.admission-check-control input:focus-visible{outline:2px solid #176c62;outline-offset:2px}
+.admission-check-error{display:none;color:#d1453b;font-size:18px;font-weight:800;line-height:1}
+.admission-check-row.is-incomplete .admission-check-error{display:inline}
+.candidate-call-sign{display:grid;gap:7px;max-width:320px}
+.candidate-call-sign input{width:100%;min-height:36px;padding:0 12px;border:1px solid var(--line);border-radius:6px;background:transparent;color:var(--ink);font:600 12px 'DM Sans'}
+.candidate-call-sign input:focus{outline:2px solid #79cbbd;outline-offset:1px}
+#admission-test-content[hidden]{display:none}
 .avatar.has-photo{overflow:hidden;padding:0}
 .avatar.has-photo img{width:100%;height:100%;object-fit:cover;display:block}
 .content-grid{grid-template-columns:minmax(0,1fr);justify-items:center}

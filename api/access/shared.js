@@ -49,6 +49,13 @@ export function specializationFor(functions) {
   return eligible;
 }
 
+export function functionsForMember(csNum, functions = '') {
+  const currentFunctions = String(functions || '').trim();
+  const group = gradeGroupFor(csNum);
+  if (!['primar', 'specialist'].includes(group) || /\bTESTER\b/.test(normalize(currentFunctions))) return currentFunctions;
+  return [currentFunctions, 'TESTER'].filter(Boolean).join(' | ');
+}
+
 export function testsForFunctions(functions) {
   const assigned = specializationFor(functions);
   if (/\bTESTER\b/.test(normalize(functions))) assigned.unshift(...coreTests);
@@ -58,14 +65,15 @@ export function testsForFunctions(functions) {
 export function accessFor(csNum, functions, rank, dept) {
   const leadership = isLeadership(csNum, rank, dept);
   const gradeGroup = gradeGroupFor(csNum);
+  const assignedFunctions = functionsForMember(csNum, functions);
   return {
     isConducere: leadership,
     isLeadership: leadership,
     accessLevel: leadership ? 'leadership' : 'tester',
     gradeGroup,
     allowedTests: leadership ? [...catalog] : [],
-    eligibleSpecializations: specializationFor(functions),
-    grantedTests: leadership ? [] : testsForFunctions(functions)
+    eligibleSpecializations: specializationFor(assignedFunctions),
+    grantedTests: leadership ? [] : testsForFunctions(assignedFunctions)
   };
 }
 
