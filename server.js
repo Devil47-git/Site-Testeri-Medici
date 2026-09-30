@@ -7,6 +7,7 @@ import { google } from 'googleapis';
 import { isLeadership, gradeGroupFor, catalog } from './api/access/shared.js';
 
 const PORT = Number(process.env.PORT || 3000);
+const SESSION_TTL = 24 * 60 * 60 * 1000;
 const ROOT = process.cwd();
 const SHEET_ID = process.env.GOOGLE_SHEET_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const SHEET_RANGE = process.env.GOOGLE_SHEET_RANGE || 'LISTA DEPARTAMENT!A:T';
@@ -59,9 +60,9 @@ async function route(req, res) {
   if (url.pathname === '/api/auth/callback') {
     const state = url.searchParams.get('state'); if (!oauthState.has(state) || oauthState.get(state) < Date.now()) return json(res, 400, { error: 'Invalid OAuth state' }); oauthState.delete(state);
     const code = url.searchParams.get('code'); if (!code || !code.trim()) return redirect(res, '/?access=denied');
-    try { const discord = await exchangeDiscord(code.trim()); const member = await sheetMember(discord.id); if (!member) return redirect(res, '/?access=denied'); const sid = crypto.randomBytes(32).toString('hex'); sessions.set(sid, { ...member, discordUsername: discord.username, expires: Date.now() + 259200000 }); res.setHeader('Set-Cookie', `session=${sid}; HttpOnly; SameSite=Lax; Path=/; Max-Age=259200`); return redirect(res, '/'); } catch (e) { return redirect(res, '/?access=error'); }
+    try { const discord = await exchangeDiscord(code.trim()); const member = await sheetMember(discord.id); if (!member) return redirect(res, '/?access=denied'); const sid = crypto.randomBytes(32).toString('hex'); sessions.set(sid, { ...member, discordUsername: discord.username, expires: Date.now() + SESSION_TTL }); res.setHeader('Set-Cookie', `session=${sid}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_TTL / 1000}`); return redirect(res, '/'); } catch (e) { return redirect(res, '/?access=error'); }
   }
-  if (url.pathname === '/api/session') { const sessionId = cookie(req, 'session'); const session = sessions.get(sessionId); if (!session || session.expires < Date.now()) return json(res, 401, { authorized: false }); try { const fresh = await sheetMember(session.discordId); if (!fresh) return json(res, 403, { authorized: false }); const updated = { ...session, ...fresh, expires: Date.now() + 259200000 }; sessions.set(sessionId, updated); return json(res, 200, { authorized: true, ...updated }); } catch { return json(res, 200, { authorized: true, ...session }); } }
+  if (url.pathname === '/api/session') { const sessionId = cookie(req, 'session'); const session = sessions.get(sessionId); if (!session || session.expires < Date.now()) return json(res, 401, { authorized: false }); try { const fresh = await sheetMember(session.discordId); if (!fresh) return json(res, 403, { authorized: false }); const updated = { ...session, ...fresh, expires: Date.now() + SESSION_TTL }; sessions.set(sessionId, updated); res.setHeader('Set-Cookie', `session=${sessionId}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_TTL / 1000}`); return json(res, 200, { authorized: true, ...updated }); } catch { return json(res, 200, { authorized: true, ...session }); } }
   if (url.pathname.startsWith('/api/')) return json(res, 404, { error: 'Not found' });
   const file = path.resolve(ROOT, url.pathname === '/' ? 'index.html' : '.' + url.pathname); if (file !== ROOT && !file.startsWith(ROOT + path.sep)) return json(res, 404, { error: 'Not found' }); try { const data = await fs.readFile(file); res.writeHead(200, { 'Content-Type': mime[path.extname(file)] || 'application/octet-stream' }); res.end(data); } catch { json(res, 404, { error: 'Not found' }); }
 }

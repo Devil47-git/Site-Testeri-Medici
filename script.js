@@ -360,10 +360,10 @@ function parseIdentityCardText(text) {
   const valueAfterLabel = (pattern, labelPattern, nextLabel) => {
     const index = lines.findIndex(line => pattern.test(line));
     if (index < 0) return '';
-    let inline = lines[index].slice(lines[index].search(pattern)).replace(labelPattern, '').trim();
+    let inline = lines[index].slice(lines[index].search(pattern)).replace(labelPattern, '').replace(/^[\s:;,.|/_-]+|[\s:;,.|/_-]+$/g, '').trim();
     const nextField = inline.search(nextLabel);
     if (nextField >= 0) inline = inline.slice(0, nextField).trim();
-    if (inline) return inline;
+    if (inline && /[\p{L}\p{N}]/u.test(inline) && !pattern.test(inline)) return inline;
     return lines.slice(index + 1).find(line => !nextLabel.test(line) && !labelPattern.test(line)) || '';
   };
   const lastNameLabels = '(?:Nume|Nom|Last\\s*name)';
@@ -450,7 +450,8 @@ function buildTestMarkup(testName, definition, questions) {
   const candidateDocument = !isAdmissionTest && (testName === 'Test transfer' || testName === 'Adeverință medicală') ? '<label>Imagine document candidat<input id="candidate-document" type="file" accept="image/*"></label><p class="muted">Imaginea este disponibilă testerului pentru verificare manuală.</p>' : '';
   const questionForm = questions.length ? `<form id="test-form" class="question-list">${candidateCallsign}<div id="candidate-summary" class="candidate-summary"></div>${candidateDocument}${questions.map(questionItemHtml).join('')}<p>Greșeli: <strong id="wrong-count">0</strong> / ${Number.isFinite(maxWrong) ? maxWrong : '—'}</p><button class="primary" type="submit">Finalizează evaluarea</button></form>` : '<div class="test-runner"><p>Acest ghid nu are întrebări teoretice configurate.</p></div>';
   const gatedQuestionForm = isAdmissionTest && questions.length ? `<div id="admission-test-content" hidden>${questionForm}</div>` : questionForm;
-  return `<div class="panel view-panel"><div class="panel-head"><div><p class="eyebrow">GHID PENTRU TESTER</p><h2>${testName}</h2><p class="muted">Acces permanent pentru testerul conectat: ${normalizeCallsign(currentUser?.callsign)}.</p></div><button class="outline" id="back-to-tests">← Înapoi</button></div>${candidateDetails}${admissionChecks}<p class="muted">${description}</p><p class="test-instructions">${definition.instructions || ''}</p>${images ? `<div class="test-images">${images}</div>` : ''}${cases ? `<label>Cazul ales de candidat<select id="case-select">${cases}</select></label><div id="case-steps" class="case-steps"></div>` : ''}${practical ? `<label>Probă practică<select id="practical-select">${practical}</select></label><div id="practical-steps" class="case-steps"></div>` : ''}${gatedQuestionForm}</div>`;
+  const instructions = isAdmissionTest || !definition.instructions ? '' : `<p class="test-instructions">${definition.instructions}</p>`;
+  return `<div class="panel view-panel"><div class="panel-head"><div><p class="eyebrow">GHID PENTRU TESTER</p><h2>${testName}</h2><p class="muted">Acces permanent pentru testerul conectat: ${normalizeCallsign(currentUser?.callsign)}.</p></div><button class="outline" id="back-to-tests">← Înapoi</button></div>${candidateDetails}${admissionChecks}<p class="muted">${description}</p>${instructions}${images ? `<div class="test-images">${images}</div>` : ''}${cases ? `<label>Cazul ales de candidat<select id="case-select">${cases}</select></label><div id="case-steps" class="case-steps"></div>` : ''}${practical ? `<label>Probă practică<select id="practical-select">${practical}</select></label><div id="practical-steps" class="case-steps"></div>` : ''}${gatedQuestionForm}</div>`;
 }
 function wireTestEvents(testName, definition) {
   document.querySelector('#back-to-tests').onclick = () => renderView('tests');
@@ -747,7 +748,7 @@ const AUTH_API_ENDPOINT='/api/auth/discord';
 const LOGIN_ENDPOINT='/api/auth/login';
 const AUTH_STORAGE_KEY='medici-auth';
 const AUTH_SCHEMA_VERSION=3;
-const AUTH_TTL=2*24*60*60*1000;
+const AUTH_TTL=24*60*60*1000;
 // ===== BANDAL TEMPORAR PENTRU TESTARE =====
 // Set to true only for a local preview; production uses Discord authentication.
 const DEV_LOGIN_ENABLED=['localhost','127.0.0.1','[::1]'].includes(window.location.hostname);

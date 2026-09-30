@@ -108,23 +108,22 @@ export function createAdmissionEmbeds({ testerName, testerDiscordId, candidateNa
   const roleIds = result === 'Admis'
     ? ['1033692302767558717', '825071956101169202']
     : ['825071956101169202'];
-  const mentions = [
-    ...roleIds.map(id => `<@&${id}>`),
-    /^\d+$/.test(String(testerDiscordId || '')) ? `<@${testerDiscordId}>` : ''
-  ].filter(Boolean).join(' ');
-  const allowedMentions = { parse: [], roles: roleIds, users: /^\d+$/.test(String(testerDiscordId || '')) ? [String(testerDiscordId)] : [] };
+  const validTesterId = /^\d+$/.test(String(testerDiscordId || '')) ? String(testerDiscordId) : '';
+  const admissionMention = validTesterId ? `<@${validTesterId}>` : '';
   const photoEmbeds = [
     ['Buletin', 'buletin-candidat.jpg'],
     ['Fișă medicală', 'fisa-medicala.jpg'],
     ['Drug-test', 'drug-test.jpg']
-  ].map(([title, filename]) => ({ title, color: 0x23A2E8, image: { url: `attachment://${filename}` } }));
+  ].map(([title, filename]) => ({ title, color: 0x23A2E8, thumbnail: { url: `attachment://${filename}` } }));
   return {
     admission: {
       embed: { title: 'Test Admitere', color: 0x23A2E8, fields: summaryFields },
-      mentions,
-      allowedMentions
+      mentions: admissionMention,
+      allowedMentions: { parse: [], roles: [], users: validTesterId ? [validTesterId] : [] }
     },
     testers: {
+      mentions: roleIds.map(id => `<@&${id}>`).join(' '),
+      allowedMentions: { parse: [], roles: roleIds, users: [] },
       embeds: [{ title: 'Test Admitere', color: 0x23A2E8, fields: testersFields }, ...photoEmbeds]
     }
   };
@@ -158,7 +157,7 @@ async function sendAdmissionNotifications(details) {
       await sendWebhookMessage(admissionWebhook, { embeds: [embeds.admission.embed], allowed_mentions: { parse: [] } });
       await sendWebhookMessage(admissionWebhook, { content: embeds.admission.mentions, allowed_mentions: embeds.admission.allowedMentions });
     })().then(() => null, error => `Canalul de admitere: ${error.message.startsWith('HTTP ') ? error.message : 'eroare de rețea Discord'}.`),
-    sendWebhookImages(testersWebhook, { embeds: embeds.testers.embeds, allowed_mentions: { parse: [] } }, images).then(() => null, error => `Canalul testerilor: ${error.message.startsWith('HTTP ') ? error.message : 'eroare de rețea Discord'}.`)
+    sendWebhookImages(testersWebhook, { content: embeds.testers.mentions, embeds: embeds.testers.embeds, allowed_mentions: embeds.testers.allowedMentions }, images).then(() => null, error => `Canalul testerilor: ${error.message.startsWith('HTTP ') ? error.message : 'eroare de rețea Discord'}.`)
   ]);
   const errors = deliveries.filter(Boolean);
   return { sent: errors.length === 0, error: errors.join(' ') };
