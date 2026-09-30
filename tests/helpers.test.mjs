@@ -85,10 +85,12 @@ test('normalizeCallsign pads to three digits', () => {
   assert.equal(normalizeCallsign(undefined), '');
 });
 
-test('isLeadershipUser accepts csNum 1-15 and leadership flags', () => {
+test('isLeadershipUser accepts csNum 1-20 and leadership flags', () => {
   assert.equal(isLeadershipUser({ csNum: 1 }), true);
   assert.equal(isLeadershipUser({ csNum: 15 }), true);
-  assert.equal(isLeadershipUser({ csNum: 16 }), false);
+  assert.equal(isLeadershipUser({ csNum: 16 }), true);
+  assert.equal(isLeadershipUser({ csNum: 20 }), true);
+  assert.equal(isLeadershipUser({ csNum: 21 }), false);
   assert.equal(isLeadershipUser({ csNum: 10 }), true);
   assert.equal(isLeadershipUser({ csNum: 11 }), true);
   assert.equal(isLeadershipUser({ accessLevel: 'leadership', csNum: 900 }), true);
@@ -169,6 +171,9 @@ test('non-leadership users receive only explicitly granted tests', () => {
 
 test('leadership alone receives general catalog access', () => {
   assert.deepEqual(accessFor(1, '', 'Medic Inspector', '').allowedTests, accessCatalog);
+  assert.deepEqual(accessFor(16, '', 'Medic Chirurg', '').allowedTests, accessCatalog);
+  assert.deepEqual(accessFor(20, '', 'Medic Chirurg', '').allowedTests, accessCatalog);
+  assert.equal(isLeadership(21, 'Medic Specialist', 'Departamentul Medical'), false);
   assert.deepEqual(allowedForUser({ csNum: 1, grantedTests: [] }), catalog);
   assert.equal(isLeadership(210, 'Medic Specialist', 'Departamentul Medical'), false);
   assert.equal(isLeadership(4, 'Director Adjunct', 'Departamentul Medical'), true);
@@ -228,7 +233,9 @@ test('gradeGroupFor splits conducere, primari and specialisti', () => {
   assert.equal(gradeGroupFor(1), 'Conducerea departamentului');
   assert.equal(gradeGroupFor(10), 'Conducerea departamentului');
   assert.equal(gradeGroupFor(15), 'Conducerea departamentului');
-  assert.equal(gradeGroupFor(16), '');
+  assert.equal(gradeGroupFor(16), 'Conducerea departamentului');
+  assert.equal(gradeGroupFor(20), 'Conducerea departamentului');
+  assert.equal(gradeGroupFor(21), '');
   assert.equal(gradeGroupFor(101), 'Medici Primari (101-115)');
   assert.equal(gradeGroupFor(115), 'Medici Primari (101-115)');
   assert.equal(gradeGroupFor(116), '');

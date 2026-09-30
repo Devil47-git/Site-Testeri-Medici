@@ -3,13 +3,13 @@ export const coreTests = ['Test admitere', 'Test transfer', 'Adeverință medica
 export const LEADERSHIP_RANK_KEYWORDS = ['DIRECTOR', 'INSPECTOR', 'CONDUCERE', 'MANAGER', 'COORDONATOR'];
 export const LEADERSHIP_DEPT_KEYWORDS = ['CONDUCERE'];
 
-// Grade groups: conducere (001-015), medic primar (101-115), medic specialist (201-230).
+// Grade groups: conducere (001-020), medic primar (101-115), medic specialist (201-230).
 export const GRADE_GROUPS = {
-  leadership: { label: 'Conducerea departamentului', min: 1, max: 15 },
+  leadership: { label: 'Conducerea departamentului', min: 1, max: 20 },
   primar: { label: 'Medici Primari (101-115)', min: 101, max: 115 },
   specialist: { label: 'Medici Specialisti (201-230)', min: 201, max: 230 }
 };
-export const LEADERSHIP_MAX = 15;
+export const LEADERSHIP_MAX = 20;
 
 export function gradeGroupFor(csNum) {
   const n = Number(csNum) || 0;

@@ -105,7 +105,7 @@ function normalizeCallsign(value) { const number = String(value || '').replace(/
 /** @param {any} value @returns {number} */
 function callsignNumber(value) { const digits = String(value == null ? '' : value).replace(/\D/g, ''); const n = Number(digits); return Number.isFinite(n) ? n : 0; }
 /** @param {any} user @returns {boolean} */
-function isLeadershipUser(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return Boolean(user?.accessLevel === 'leadership' || user?.isConducere || user?.isLeadership || (cs >= 1 && cs <= 15)); }
+function isLeadershipUser(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return Boolean(user?.accessLevel === 'leadership' || user?.isConducere || user?.isLeadership || (cs >= 1 && cs <= 20)); }
 /** @param {any} member @returns {boolean} */
 function memberIsLeadership(member) { return isLeadershipUser(member); }
 /** @param {any} value @returns {string} */
@@ -118,7 +118,7 @@ function leadershipTitleForCallsign(value) { const cs = callsignNumber(value);
 }
 const GRADE_GROUP_ORDER = ['Conducerea departamentului', 'Medici Primari (101-115)', 'Medici Specialisti (201-230)'];
 function gradeGroupFor(csNum) { const n = callsignNumber(csNum);
-  if (n >= 1 && n <= 15) return 'Conducerea departamentului';
+  if (n >= 1 && n <= 20) return 'Conducerea departamentului';
   if (n >= 101 && n <= 115) return 'Medici Primari (101-115)';
   if (n >= 201 && n <= 230) return 'Medici Specialisti (201-230)';
   return '';
@@ -218,7 +218,7 @@ function currentFilteredTesters() {
 }
 const RESIDENT_TESTER_PATTERN = /S\.?\s*M\.?\s*U\.?\s*L\.?\s*S\.?|MOTO|A\.?\s*L\.?\s*S\.?|PILOT/;
 const DASHBOARD_GROUPS = [
-  { label: 'Conducere', members: member => (callsignNumber(member?.csNum) >= 1 && callsignNumber(member?.csNum) <= 15) },
+  { label: 'Conducere', members: member => (callsignNumber(member?.csNum) >= 1 && callsignNumber(member?.csNum) <= 20) },
   { label: 'Medici Primari', members: member => { const cs = callsignNumber(member?.csNum); return cs >= 101 && cs <= 115; } },
   { label: 'Medici Specialisti', members: member => { const cs = callsignNumber(member?.csNum); return cs >= 201 && cs <= 230; } },
   { label: 'Medici Rezidenți', members: member => { const cs = callsignNumber(member?.csNum); return cs >= 301 && cs <= 340 && RESIDENT_TESTER_PATTERN.test(normalizeText(member?.functions)); } }
@@ -298,7 +298,7 @@ function renderProfileData() {
   document.querySelector('#profile-grade').textContent = rank;
   const profileTests = document.querySelector('#profile-tests');
   if (profileTests) {
-    const assignedTests = profile.grantedTests.filter(test => catalog.includes(test));
+    const assignedTests = (isLeadershipUser(profile) ? allowedForUser(profile) : profile.grantedTests).filter(test => catalog.includes(test));
     const hasTesterBundle = coreTests.every(test => assignedTests.includes(test));
     const visibleTests = [...(hasTesterBundle ? ['Tester'] : []), ...assignedTests.filter(test => !hasTesterBundle || !coreTests.includes(test))];
     profileTests.innerHTML = visibleTests.length
