@@ -11,6 +11,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const source = readFileSync(join(here, '..', 'script.js'), 'utf8');
 const serverSource = readFileSync(join(here, '..', 'server.js'), 'utf8');
 const testCatalogSource = readFileSync(join(here, '..', 'tests.js'), 'utf8');
+const discordAuthSource = readFileSync(join(here, '..', 'api', 'auth', 'discord.js'), 'utf8');
 
 /** Extracts a top-level function declaration by name from the app bundle. */
 function extract(name) {
@@ -37,7 +38,7 @@ const srcs = names.map(extract).join('\n');
 const pattern = source.match(/^const RESIDENT_TESTER_PATTERN = .*$/m)?.[0] || 'const RESIDENT_TESTER_PATTERN = /TESTER/;';
 const normalizeTextSrc = extract('normalizeText');
 const escapeHtmlSrc = extract('escapeHtml');
-const fullSrc = `${pattern}\nconst AUTH_SCHEMA_VERSION = 3;\nconst coreTests = ['Test admitere', 'Test transfer', 'Adeverință medicală'];\nconst admissionRequirements = ['Verificarea ținutei', 'Verificarea tatuajelor faciale', 'Verificarea cazierului', 'Minimum 50 de ore jucate', 'Controlul cu stetoscopul', 'Drug-testul'];\nconst motoRequirements = ['Grad Medic-Rezident', 'Certificat S.M.U.L.S.', 'Permis Categoria A'];\n${normalizeTextSrc}\n${escapeHtmlSrc}\n${srcs}`;
+const fullSrc = `${pattern}\nconst AUTH_SCHEMA_VERSION = 4;\nconst coreTests = ['Test admitere', 'Test transfer', 'Adeverință medicală'];\nconst admissionRequirements = ['Verificarea ținutei', 'Verificarea tatuajelor faciale', 'Verificarea cazierului', 'Minimum 50 de ore jucate', 'Controlul cu stetoscopul', 'Drug-testul'];\nconst motoRequirements = ['Grad Medic-Rezident', 'Certificat S.M.U.L.S.', 'Permis Categoria A'];\n${normalizeTextSrc}\n${escapeHtmlSrc}\n${srcs}`;
 const testSummaryDefinitions = [['Test SMULS'], ['Test MOTO'], ['Test PILOT'], ['Test ALS'], ['Test parașutiști']];
 const load = new Function(
   'catalog',
@@ -47,6 +48,27 @@ const load = new Function(
 )(catalog, definitions, testSummaryDefinitions);
 
 const { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, admissionChecksComplete, motoChecksComplete, memberStatus, testerFunctionsForDisplay, isTestFailed, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName } = load;
+
+test('Discord auth preserves the Discord display name, username, and avatar', () => {
+  const mapperSource = discordAuthSource.match(/function mapSheetRowToUser\(row, discordUser\) \{[\s\S]*?^\}/m)?.[0];
+  assert.ok(mapperSource, 'mapSheetRowToUser must exist');
+  const mapDiscordUser = new Function('accessFor', 'avatarUrl', `${mapperSource}; return mapSheetRowToUser;`)(
+    accessFor,
+    (discordId, hash) => hash ? `https://cdn.discordapp.com/avatars/${discordId}/${hash}.png` : '',
+  );
+  const sheetRow = [];
+  sheetRow[1] = 'member-id';
+  sheetRow[2] = '125';
+  sheetRow[3] = 'Department Name';
+  sheetRow[4] = 'Medic Specialist';
+  sheetRow[5] = 'DMLS';
+  sheetRow[10] = 'MOTO';
+  const mappedUser = mapDiscordUser(sheetRow, { id: 'discord-id', username: 'discord_user', global_name: 'Discord Display Name', avatar: 'avatar-hash' });
+  assert.equal(mappedUser.name, 'Department Name');
+  assert.equal(mappedUser.discordDisplayName, 'Discord Display Name');
+  assert.equal(mappedUser.discordUsername, 'discord_user');
+  assert.equal(mappedUser.avatar, 'https://cdn.discordapp.com/avatars/discord-id/avatar-hash.png');
+});
 
 test('callsignNumber strips non-digits and returns 0 for empty', () => {
   assert.equal(callsignNumber('M-007'), 7);
@@ -260,9 +282,9 @@ test('Discord session and browser auth cache both last 24 hours', () => {
 
 test('an unexpired cached Discord user can reopen the app without a session API roundtrip', () => {
   const user = { discordId: '123', name: 'Tester' };
-  assert.deepEqual(cachedUserWithinSession({ version: 3, user, expiresAt: 86400001 }, 86400000), user);
-  assert.equal(cachedUserWithinSession({ version: 2, user, expiresAt: 86400001 }, 86400000), null);
-  assert.equal(cachedUserWithinSession({ version: 3, user, expiresAt: 86400000 }, 86400000), null);
+  assert.deepEqual(cachedUserWithinSession({ version: 4, user, expiresAt: 86400001 }, 86400000), user);
+  assert.equal(cachedUserWithinSession({ version: 3, user, expiresAt: 86400001 }, 86400000), null);
+  assert.equal(cachedUserWithinSession({ version: 4, user, expiresAt: 86400000 }, 86400000), null);
 });
 
 test('each question keeps prompt, answer, and wrong checkbox in one box', () => {

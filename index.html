@@ -36,8 +36,9 @@
             <button class="brand brand-button" id="brand-settings" type="button" title="Deschide setările"><span class="brand-mark">✦</span><span><b>DEPARTAMENTUL MEDICAL LOS SANTOS</b><small>SUB-DEPARTAMENTUL TESTERILOR</small></span></button>
             <div class="workspace-label">SPAȚIUL TĂU</div>
             <nav>
-                <button class="nav-item active" data-view="overview"><span>▦</span> Dashboard</button>
+                <button class="nav-item active" data-view="overview"><span>♙</span> Profilul tău</button>
                 <button class="nav-item" data-view="testers"><span>♙</span> Testerii departamentului <em id="tester-count">0</em></button>
+                <button class="nav-item" data-view="statistics"><span>▤</span> Statistica Teste</button>
                 <button class="nav-item" data-view="tests"><span>▤</span> Teste disponibile</button>
             </nav>
             <div class="workspace-label lower">ADMINISTRARE</div>
@@ -47,56 +48,29 @@
             </nav>
             <div class="sidebar-bottom">
                                 <button class="user-mini" id="user-menu" type="button" title="Deschide setările">
-                    <div class="avatar purple">AM</div>
+                    <div class="user-mini-avatar" id="user-avatar"></div>
                     <div><b id="user-name">Alex M.</b><small id="user-role">Conducere</small></div><span>⌄</span>
                 </button>
             </div>
         </aside>
         <main class="main-content">
             <header class="topbar"><button class="mobile-menu">☰</button>
-                <div class="crumb"><b id="section-label">Spațiul tău</b> <span>/</span> <b id="page-label">Dashboard</b></div>
-                <div class="top-actions"><button class="help" id="help-btn" type="button" aria-label="Ajutor" title="Ajutor">?</button>
-                    <button class="avatar purple avatar-button" id="top-avatar" type="button" title="Deschide setările">AM</button>
-                </div>
+                <div class="crumb"><b id="section-label">Spațiul tău</b> <span>/</span> <b id="page-label">Profilul tău</b></div>
+                <div class="top-actions"><button class="help" id="help-btn" type="button" aria-label="Ajutor" title="Ajutor">?</button></div>
             </header>
             <section class="page-wrap" id="app">
                 <div id="overview-view">
-                <div class="welcome">
-                    <div>
-                        <p class="eyebrow" id="today-label"></p>
-                        <h1>Bună, <span id="welcome-name">Alex</span> <span>👋</span></h1>
-                        <p class="muted" id="welcome-subtitle">Datele vor apărea după sincronizarea cu sursa departamentului.</p>
-                    </div><div class="welcome-actions"><button class="primary" id="add-btn">＋ Adaugă tester</button><button class="primary" id="remove-btn" hidden>－ Scoatere Tester</button></div>
-                </div>
-                <div class="stats-grid">
-                    <div class="stat-card">
-                        <div class="stat-icon cyan">♙</div>
-                        <p>TESTERI CU ACCES</p><strong id="active-count">0</strong><span class="trend neutral">Din datele sincronizate</span>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-icon violet">▤</div>
-                        <p>TESTE CONFIGURATE</p><strong id="test-count">0</strong><span class="trend neutral">Din catalogul local</span>
-                    </div>
-                </div>
-                <div class="content-grid">
-                    <section class="panel testers-panel">
-                        <div class="panel-head">
-                            <div>
-                                <h2>Testerii activi</h2>
-                                <p class="muted">Persoanele care au acces în acest moment</p>
-                            </div><button class="text-btn" data-view="testers">Vezi toți <span>→</span></button>
-                        </div>
-                        <div class="toolbar">
-                            <div class="search">⌕<input id="search" placeholder="Caută după nume sau callsign..."></div>
-                            <div class="test-filter" id="test-filter">
-                                <button class="filter" id="filter-btn" aria-expanded="false">Filtrează testerii <span>☷</span></button>
-                                <div class="test-filter-menu" id="test-filter-menu" hidden></div>
-                            </div>
-                        </div>
-                        <div id="tester-groups" class="tester-groups"></div>
+                <div class="profile-layout">
+                    <section class="panel profile-card">
+                        <p class="eyebrow profile-datetime"><span id="today-label"></span><time id="local-time" aria-label="Ora României"></time></p>
+                        <div class="profile-identity"><div id="profile-avatar"></div><div><h1 id="profile-name">Profilul tău</h1><p class="muted" id="profile-rank">Se încarcă datele din departament...</p></div></div>
+                        <dl class="profile-details"><div><dt>CALLSIGN</dt><dd id="profile-callsign">—</dd></div><div><dt>GRAD</dt><dd id="profile-grade">—</dd></div></dl>
+                    </section>
+                    <section class="panel profile-certifications">
+                        <div class="panel-head"><div><h2>Grade de test</h2><p class="muted">Certificările și testele alocate contului tău</p></div></div>
+                        <div class="tags" id="profile-tests"></div>
                     </section>
                 </div>
-                <section class="test-summary-grid" id="test-summary-grid" aria-label="Teste susținute"></section>
                 </div>
                 <section class="view-content" id="view-content" hidden></section>
             </section>

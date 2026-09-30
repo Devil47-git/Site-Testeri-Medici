@@ -97,5 +97,5 @@ function mapSheetRowToUser(row, discordUser) {
   const csNum = parseInt(callSignRaw.replace(/\D/g, ''), 10) || 0;
   const functions = String(row[10] || '').trim(); const rank = String(row[4] || '').trim(); const dept = String(row[5] || '').trim();
   const access = accessFor(csNum, functions, rank, dept);
-  return { id: String(row[1] || '').trim(), name: String(row[3] || discordUser.username || '').trim(), callsign: callSignRaw, callSign: callSignRaw, csNum, rank, dept, functions, discordId: discordUser.id, avatar: avatarUrl(discordUser.id, row[20] || discordUser.avatar), ...access };
+  return { id: String(row[1] || '').trim(), name: String(row[3] || discordUser.username || '').trim(), discordDisplayName: String(discordUser.global_name || discordUser.username || '').trim(), discordUsername: String(discordUser.username || '').trim(), callsign: callSignRaw, callSign: callSignRaw, csNum, rank, dept, functions, discordId: discordUser.id, avatar: avatarUrl(discordUser.id, row[20] || discordUser.avatar), ...access };
 }

@@ -7,46 +7,20 @@ export default async function run(page, ui) {
 
   const initialState = await page.evaluate(() => ({
     shellReady: document.querySelector('#app-shell')?.className,
-    emptySearchPrompt: document.querySelector('#tester-groups')?.textContent.trim(),
-    hasThemeToggle: Boolean(document.querySelector('#theme-toggle')),
-    darkMode: document.body.classList.contains('dark-mode'),
-    tables: document.querySelectorAll('#tester-groups table').length,
-    summaryCards: [...document.querySelectorAll('#test-summary-grid .test-summary-card h2')].map(h => h.textContent),
-    removeBtnVisible: !document.querySelector('#remove-btn')?.hidden,
-    addBtnVisible: !document.querySelector('#add-btn')?.hidden
+    profileName: document.querySelector('#profile-name')?.textContent.trim(),
+    profileRank: document.querySelector('#profile-grade')?.textContent.trim(),
+    profileCallsign: document.querySelector('#profile-callsign')?.textContent.trim(),
+    profileTests: document.querySelectorAll('#profile-tests .tag').length,
+    hasStatisticsNav: Boolean(document.querySelector('[data-view="statistics"]')),
+    summaryCardsOnProfile: document.querySelectorAll('#overview-view #test-summary-grid').length
   }));
 
-  await page.click('#filter-btn');
-  await page.waitForTimeout(100);
-  const filterState = await page.evaluate(() => ({
-    open: !document.querySelector('#test-filter-menu')?.hidden,
-    options: [...document.querySelectorAll('[data-test-filter]')].map(o => o.textContent.trim())
+  await page.click('[data-view="statistics"]');
+  const statisticsState = await page.evaluate(() => ({
+    heading: document.querySelector('.statistics-view > .panel-head h2')?.textContent.trim(),
+    cards: document.querySelectorAll('#test-summary-grid .test-summary-card').length,
+    certifications: [...document.querySelectorAll('#test-summary-grid .test-summary-card h2')].map(h => h.textContent.trim())
   }));
-  await page.click('[data-test-filter="Test ALS"]');
-  await page.fill('#search', 'Elena Stan');
-  await page.waitForTimeout(300);
-  const searchState = await page.evaluate(() => ({
-    results: [...document.querySelectorAll('#tester-groups .tester-search-result')].map(item => item.textContent.trim()),
-    tables: document.querySelectorAll('#tester-groups table').length
-  }));
-  await page.fill('#search', 'M-004');
-  const vacantState = await page.locator('#tester-groups .tester-search-result').count();
-
-  await page.click('#add-btn');
-  await page.locator('#callsign').fill('210');
-  await page.waitForTimeout(400);
-  const docsGrantSelected = await page.locator('#grant-checks input[value="Test ALS"]').isChecked();
-  await page.click('#close-modal');
-
-  await page.click('#remove-btn');
-  await page.waitForTimeout(300);
-  const removeState = await page.evaluate(() => ({
-    open: document.querySelector('#remove-modal')?.classList.contains('open'),
-    title: document.querySelector('#remove-modal h2')?.textContent
-  }));
-  await page.click('#close-remove-modal');
-
-  await page.fill('#search', '');
   const memberToggle = page.locator('#test-summary-grid .test-summary-card').filter({ hasText: 'Test A.L.S.' }).locator('[data-summary-member]').first();
   const memberDetailExists = await memberToggle.count();
   if (memberDetailExists) await memberToggle.click();
@@ -57,5 +31,20 @@ export default async function run(page, ui) {
     counts: [...document.querySelectorAll('#test-summary-grid .summary-test-count > strong')].map(count => count.textContent.trim())
   }));
 
-  return { errs, initialState, filterState, searchState, vacantState, docsGrantSelected, removeState, memberDetail };
+  await page.click('[data-view="testers"]');
+  await page.click('#view-add');
+  await page.locator('#callsign').fill('210');
+  await page.waitForTimeout(400);
+  const docsGrantSelected = await page.locator('#grant-checks input[value="Test ALS"]').isChecked();
+  await page.click('#close-modal');
+
+  await page.click('#view-remove');
+  await page.waitForTimeout(300);
+  const removeState = await page.evaluate(() => ({
+    open: document.querySelector('#remove-modal')?.classList.contains('open'),
+    title: document.querySelector('#remove-modal h2')?.textContent
+  }));
+  await page.click('#close-remove-modal');
+
+  return { errs, initialState, statisticsState, docsGrantSelected, removeState, memberDetail };
 }

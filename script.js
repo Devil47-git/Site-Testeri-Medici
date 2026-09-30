@@ -162,7 +162,7 @@ function avatarFor(member) {
   const url = String(member?.avatar || '').trim();
   const colorClass = roleColors[(callsignNumber(member?.csNum) || 0) % roleColors.length];
   return url
-    ? `<div class="avatar ${colorClass} has-photo"><img src="${escapeHtml(url)}" alt="${initials}" loading="lazy" onerror="this.remove()"></div>`
+    ? `<div class="avatar ${colorClass} has-photo"><img src="${escapeHtml(url)}" alt="${initials}" loading="lazy" onerror="this.parentElement.textContent='${initials}'"></div>`
     : `<div class="avatar ${colorClass}">${initials}</div>`;
 }
 function memberNameFor(member) { return String(member?.name || '').trim() || normalizeCallsign(member?.callsign) || '—'; }
@@ -279,6 +279,32 @@ function renderDashboardData() {
   }).join('');
   const overview = document.querySelector('#overview-view');
   if (overview) overview.dataset.updatedAt = new Date().toISOString();
+}
+function renderStatisticsView() {
+  return `<div class="statistics-view"><div class="panel-head"><div><h2>Statistica Teste</h2><p class="muted">Testerii autorizați și numărul de teste înregistrate pentru fiecare certificare.</p></div></div><section class="test-summary-grid" id="test-summary-grid" aria-label="Statistica testelor"></section></div>`;
+}
+function renderProfileData() {
+  if (!currentUser) return;
+  const directoryMember = directoryMembers.find(member => member.discordId === currentUser.discordId || normalizeCallsign(member.callsign) === normalizeCallsign(currentUser.callsign || currentUser.callSign));
+  const profile = { ...currentUser, ...(directoryMember || {}), name: currentUser.discordDisplayName || currentUser.discordUsername || currentUser.displayName || directoryMember?.name || currentUser.name, avatar: currentUser.avatar || directoryMember?.avatar, grantedTests: normalizeGrantBundle([...(currentUser.grantedTests || []), ...(directoryMember?.grantedTests || []), ...docsAssignedTests(directoryMember || currentUser)]) };
+  const name = memberNameFor(profile);
+  const rank = rankFor(profile);
+  const callsign = normalizeCallsign(profile.callsign || profile.callSign);
+  const avatar = document.querySelector('#profile-avatar');
+  if (avatar) avatar.innerHTML = avatarFor(profile);
+  document.querySelector('#profile-name').textContent = name;
+  document.querySelector('#profile-rank').textContent = rank;
+  document.querySelector('#profile-callsign').textContent = callsign || '—';
+  document.querySelector('#profile-grade').textContent = rank;
+  const profileTests = document.querySelector('#profile-tests');
+  if (profileTests) {
+    const assignedTests = profile.grantedTests.filter(test => catalog.includes(test));
+    const hasTesterBundle = coreTests.every(test => assignedTests.includes(test));
+    const visibleTests = [...(hasTesterBundle ? ['Tester'] : []), ...assignedTests.filter(test => !hasTesterBundle || !coreTests.includes(test))];
+    profileTests.innerHTML = visibleTests.length
+      ? visibleTests.map((test, index) => `<span class="tag ${index % 3 === 1 ? 'orange' : index % 3 === 2 ? 'cyan' : ''}">${escapeHtml(displayTestName(test))}</span>`).join('')
+      : '<span class="muted">Nu ai certificări sau teste alocate.</span>';
+  }
 }
 function testerSummaryDetailHtml(member) {
   const assignedTests = normalizeGrantBundle([...(member.grantedTests || []), ...docsAssignedTests(member)]);
@@ -450,11 +476,12 @@ function renderView(view) {
   overview.hidden = !isOverview;
   viewContent.style.display = isOverview ? 'none' : 'block';
   overview.style.display = isOverview ? 'block' : 'none';
-  if (isOverview) return;
+  if (isOverview) { renderProfileData(); return; }
   const title = labels[view] || 'Spațiul tău';
-  document.querySelector('#section-label').textContent = view === 'settings' || view === 'members' ? 'Administrare' : 'Generale';
+  document.querySelector('#section-label').textContent = view === 'settings' || view === 'members' ? 'Administrare' : 'Spațiul tău';
   if (view === 'tests') { viewContent.innerHTML = renderTestsView(title); wireTestAccessEvents(); }
   else if (view === 'testers') { viewContent.innerHTML = renderTestersView(); wireTestersEvents(); }
+  else if (view === 'statistics') { viewContent.innerHTML = renderStatisticsView(); renderDashboardData(); }
   else if (view === 'members') viewContent.innerHTML = renderMembersView();
   else { viewContent.innerHTML = renderSettingsView(title); wireSettingsEvents(); }
   // redundant remove-member wiring; handled by wireTestersEvents()
@@ -871,7 +898,7 @@ function openAddModal(member) {
     memberResult.textContent = `${memberNameFor(member)} · ${normalizeCallsign(member.callsign)}`;
   } else { selectedMembers = []; selectedGrantDraft = []; memberResult.textContent = ''; lookupMember(); }
 }
-document.querySelector('#add-btn').onclick = () => openAddModal();
+document.querySelector('#add-btn')?.addEventListener('click', () => openAddModal());
 document.querySelector('#close-modal').onclick = () => modal.classList.remove('open');
 modal.onclick = e => { if (e.target === modal) modal.classList.remove('open') };
 
@@ -988,8 +1015,7 @@ document.querySelector('#invite-btn').onclick = async () => {
   } catch (error) { memberResult.textContent = error.message || 'Salvarea a eșuat.'; }
   finally { button.disabled = false; button.innerHTML = 'Salvează accesul →'; }
 };
-document.querySelector('#search').oninput = () => renderRows();
-document.querySelector('#test-summary-grid')?.addEventListener('click', event => {
+viewContent.addEventListener('click', event => {
   const button = event.target.closest('[data-summary-member]');
   if (!button) return;
   expandedSummaryMember = expandedSummaryMember === button.dataset.summaryMember ? '' : button.dataset.summaryMember;
@@ -1006,17 +1032,16 @@ function renderTestFilterMenu() {
 }
 if (testFilterBtn) { testFilterBtn.onclick = event => { event.stopPropagation(); if (!testFilterMenu) return; testFilterMenu.hidden = !testFilterMenu.hidden; testFilterBtn.setAttribute('aria-expanded', String(!testFilterMenu.hidden)); if (!testFilterMenu.hidden) renderTestFilterMenu(); }; }
 document.addEventListener('click', event => { if (testFilterMenu && !testFilterMenu.hidden && !document.querySelector('#test-filter')?.contains(event.target)) { testFilterMenu.hidden = true; testFilterBtn?.setAttribute('aria-expanded', 'false'); } });
-testerGroups?.addEventListener('click', event => { const button = event.target.closest('[data-member-menu]'); if (!button) return; const member = testers.find(item => normalizeCallsign(item.callsign) === button.dataset.memberMenu); if (member) { selectedMember = member; openAddModal(member); } }); rows?.addEventListener('click', event => { const button = event.target.closest('[data-member-menu]'); if (!button) return; const member = testers.find(item => normalizeCallsign(item.callsign) === button.dataset.memberMenu); if (member) { selectedMember = member; openAddModal(member); } }); document.querySelector('#brand-settings').onclick = () => navigateTo('settings'); document.querySelector('#user-menu').onclick = () => navigateTo('settings'); document.querySelector('#top-avatar').onclick = () => navigateTo('settings'); document.querySelector('#help-btn').onclick = () => alert('Folosește meniul din stânga pentru a naviga.');
-const labels = { overview: 'Dashboard', testers: 'Testerii departamentului', tests: 'Teste disponibile', members: 'Membri departament', settings: 'Setări' };
+testerGroups?.addEventListener('click', event => { const button = event.target.closest('[data-member-menu]'); if (!button) return; const member = testers.find(item => normalizeCallsign(item.callsign) === button.dataset.memberMenu); if (member) { selectedMember = member; openAddModal(member); } }); rows?.addEventListener('click', event => { const button = event.target.closest('[data-member-menu]'); if (!button) return; const member = testers.find(item => normalizeCallsign(item.callsign) === button.dataset.memberMenu); if (member) { selectedMember = member; openAddModal(member); } }); document.querySelector('#brand-settings').onclick = () => navigateTo('settings'); document.querySelector('#user-menu').onclick = () => navigateTo('settings'); document.querySelector('#help-btn').onclick = () => alert('Folosește meniul din stânga pentru a naviga.');
+const labels = { overview: 'Profilul tău', testers: 'Testerii departamentului', statistics: 'Statistica Teste', tests: 'Teste disponibile', members: 'Membri departament', settings: 'Setări' };
 function navigateTo(view, { push = true } = {}) {
   if (!labels[view]) return;
   if (push && window.history.state?.view !== view) window.history.pushState({ view }, '', `#${view}`);
   document.querySelectorAll('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.view === view));
   document.querySelector('#page-label').textContent = labels[view];
-  document.querySelector('#section-label').textContent = view === 'settings' || view === 'members' ? 'Administrare' : 'Generale';
+  document.querySelector('#section-label').textContent = view === 'settings' || view === 'members' ? 'Administrare' : 'Spațiul tău';
   document.querySelector('.sidebar').classList.remove('open');
   renderView(view);
-  if (view === 'tests') document.querySelector('#test-count').textContent = allowedForUser(currentUser).length;
 }
 document.querySelectorAll('[data-view]').forEach(btn => btn.addEventListener('click', () => navigateTo(btn.dataset.view)));
 window.addEventListener('popstate', event => {
@@ -1032,7 +1057,17 @@ window.addEventListener('hashchange', () => {
 document.querySelector('.mobile-menu').onclick = () => document.querySelector('.sidebar').classList.toggle('open');
 window.setInterval(() => { markPresence(); sendPresence(); renderRows(); }, 30000);
 window.setInterval(async () => { if (!currentUser) return; try { await loadDirectory(); await loadRemoteGrants(); } catch { /* următoarea sincronizare va reîncerca */ } }, 60*60*1000);
-const today=new Intl.DateTimeFormat('ro-RO',{weekday:'long',day:'numeric',month:'long',year:'numeric'}).format(new Date());document.querySelector('#today-label').textContent=today.toUpperCase();document.querySelector('#test-count').textContent=catalog.length;
+const profileDateFormatter = new Intl.DateTimeFormat('ro-RO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Bucharest' });
+const romaniaTimeFormatter = new Intl.DateTimeFormat('ro-RO', { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23', timeZone: 'Europe/Bucharest' });
+function updateProfileDateTime() {
+  const now = new Date();
+  document.querySelector('#today-label').textContent = profileDateFormatter.format(now).toUpperCase();
+  const localTime = document.querySelector('#local-time');
+  localTime.dateTime = now.toISOString();
+  localTime.textContent = romaniaTimeFormatter.format(now);
+}
+updateProfileDateTime();
+window.setInterval(updateProfileDateTime, 1000);
 
 // Fluxul OAuth: Discord redirecționează înapoi cu ?code=..., apoi codul este trimis server-side către API-ul Vercel.
 const authScreen=document.querySelector('#auth-screen');
@@ -1041,7 +1076,7 @@ const authError=document.querySelector('#auth-error');
 const AUTH_API_ENDPOINT='/api/auth/discord';
 const LOGIN_ENDPOINT='/api/auth/login';
 const AUTH_STORAGE_KEY='medici-auth';
-const AUTH_SCHEMA_VERSION=3;
+const AUTH_SCHEMA_VERSION=4;
 const AUTH_TTL=24*60*60*1000;
 // ===== BANDAL TEMPORAR PENTRU TESTARE =====
 // Set to true only for a local preview; production uses Discord authentication.
@@ -1053,20 +1088,16 @@ function markPresence() { if (!currentUser?.discordId) return; const presence = 
 async function sendPresence() { if (!currentUser?.discordId) return; await fetch('/api/access/presence', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ discordId: currentUser.discordId }) }).catch(() => {}); }
 window.addEventListener('storage', event => { if (event.key === PRESENCE_KEY) { renderRows(); refreshCurrentView(); } });
 function initialsFrom(name='User'){return name.split(/\s+/).map(x=>x[0]).join('').slice(0,2).toUpperCase()}
-/** @param {any} user @returns {{name:string, initials:string, callsign:string}} */
+/** @param {any} user @returns {{name:string, callsign:string}} */
 function setWelcomeHeader(user){
   const name = user.name || user.displayName || 'Utilizator';
-  const initials = initialsFrom(name);
-  const first = name.split(/\s+/)[0];
   const callsign = normalizeCallsign(user.callsign || user.callSign);
   user.callsign = callsign;
-  document.querySelector('#welcome-name').textContent = first;
   document.querySelector('#user-name').textContent = name;
   document.querySelector('#user-role').textContent = isLeadershipUser(user) ? 'Conducere' : 'Tester';
-  document.querySelector('#top-avatar').textContent = initials;
-  document.querySelector('.user-mini .avatar').textContent = initials;
-  if (callsign) document.querySelector('.welcome .muted').textContent = `${callsign} · Acces sincronizat din departament.`;
-  return { name, initials, callsign };
+  document.querySelector('#user-avatar').innerHTML = avatarFor(user);
+  renderProfileData();
+  return { name, callsign };
 }
 /** @param {any} user @returns {void} */
 function setVisibilityPermissions(user){
