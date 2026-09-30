@@ -1,10 +1,13 @@
-import { catalog, isLeadershipRow, normalizeTests, testsForFunctions } from './shared.js';
+import { catalog, callsignNumber, functionsForMember, isLeadershipRow, normalizeTests, testsForFunctions } from './shared.js';
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:T400';
 const GRANTS_RANGE = process.env.GOOGLE_GRANTS_RANGE || 'GRANTS!A1:E';
 const RESULTS_RANGE = process.env.GOOGLE_TEST_RESULTS_RANGE || 'TEST_HISTORY!A1:E';
 const RESULTS_HEADER = ['discordId', 'callsign', 'testName', 'result', 'createdAt'];
+const MAX_IDENTITY_IMAGE_BYTES = 2 * 1024 * 1024;
+
+export const config = { api: { bodyParser: { sizeLimit: '4mb' } } };
 
 function json(res, status, body) { return res.status(status).json(body); }
 
@@ -50,10 +53,57 @@ async function findRequester(sheets, discordId) {
 
 async function canRecordTest(sheets, member, discordId, testName) {
   if (isLeadershipRow(member)) return true;
-  if (testsForFunctions(member[10]).includes(testName)) return true;
+  if (testsForFunctions(functionsForMember(callsignNumber(member[2]), member[10])).includes(testName)) return true;
   const grants = (await readValues(sheets, GRANTS_RANGE).catch(() => [])).slice(1);
   const grant = grants.find(row => String(row[0] || '').trim() === discordId);
   return normalizeTests(String(grant?.[2] || '').split('|')).includes(testName);
+}
+
+function webhookUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && url.hostname === 'discord.com' && url.pathname.startsWith('/api/webhooks/') ? url.toString() : '';
+  } catch {
+    return '';
+  }
+}
+
+function parseIdentityImage(value) {
+  const match = /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/.exec(String(value || ''));
+  if (!match) return null;
+  const buffer = Buffer.from(match[2], 'base64');
+  if (!buffer.length || buffer.length > MAX_IDENTITY_IMAGE_BYTES) return null;
+  return { buffer, mimeType: `image/${match[1]}` };
+}
+
+async function sendWebhookMessage(url, content) {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content, allowed_mentions: { parse: [] } })
+  });
+  if (!response.ok) throw new Error('Discord webhook rejected the message');
+}
+
+async function sendWebhookImage(url, content, image) {
+  const form = new FormData();
+  form.set('payload_json', JSON.stringify({ content, allowed_mentions: { parse: [] }, attachments: [{ id: 0, filename: 'buletin-candidat.jpg' }] }));
+  form.set('files[0]', new Blob([image.buffer], { type: image.mimeType }), 'buletin-candidat.jpg');
+  const response = await fetch(url, { method: 'POST', body: form });
+  if (!response.ok) throw new Error('Discord webhook rejected the image');
+}
+
+async function sendAdmissionNotifications(testerName, candidateName, result, image) {
+  const admissionWebhook = webhookUrl(process.env.DISCORD_ADMISSION_WEBHOOK);
+  const testersWebhook = webhookUrl(process.env.DISCORD_TESTERS_WEBHOOK);
+  if (!admissionWebhook || !testersWebhook) return false;
+
+  const message = `Test admitere | Tester: ${testerName} | Candidat: ${candidateName} | Rezultat: ${result}`;
+  const deliveries = await Promise.allSettled([
+    sendWebhookMessage(admissionWebhook, message),
+    sendWebhookImage(testersWebhook, message, image)
+  ]);
+  return deliveries.every(delivery => delivery.status === 'fulfilled');
 }
 
 export default async function handler(req, res) {
@@ -73,6 +123,18 @@ export default async function handler(req, res) {
       const testName = String(req.body?.testName || '').trim();
       if (!catalog.includes(testName)) return json(res, 400, { error: 'Unknown test' });
       if (!await canRecordTest(sheets, member, discordId, testName)) return json(res, 403, { error: 'This test is not assigned to the requester' });
+      let admissionDetails = null;
+      if (testName === 'Test admitere') {
+        const candidateName = String(req.body?.candidateName || '').trim().slice(0, 100);
+        const callsign = String(req.body?.candidateCallsign || '').trim().slice(0, 24);
+        const result = String(req.body?.result || '').trim();
+        const image = parseIdentityImage(req.body?.identityImage);
+        if (!candidateName || !callsign || !image || req.body?.identityConsent !== true) {
+          return json(res, 400, { error: 'Candidate name, assigned callsign, consent, and ID image are required' });
+        }
+        if (!['Admis', 'Respins (CS)'].includes(result)) return json(res, 400, { error: 'Invalid admission result' });
+        admissionDetails = { candidateName, result, image };
+      }
       await ensureResultsHeader(sheets);
       const title = sheetTitle().replace(/'/g, "''");
       await sheets.spreadsheets.values.append({
@@ -82,7 +144,10 @@ export default async function handler(req, res) {
         insertDataOption: 'INSERT_ROWS',
         requestBody: { values: [[discordId, String(member[2] || '').trim(), testName, String(req.body?.result || '').slice(0, 32), new Date().toISOString()]] }
       });
-      return json(res, 200, { success: true });
+      const discordNotificationsSent = admissionDetails
+        ? await sendAdmissionNotifications(String(member[3] || '').trim().slice(0, 100), admissionDetails.candidateName, admissionDetails.result, admissionDetails.image)
+        : undefined;
+      return json(res, 200, { success: true, ...(admissionDetails ? { discordNotificationsSent } : {}) });
     }
 
     const rows = await ensureResultsHeader(sheets);

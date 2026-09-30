@@ -1,8 +1,8 @@
 window.MEDICAL_TESTS = {
   'Test admitere': {
-    description: 'Verifică ținuta, tatuajele faciale, cazierul, minimum 50 de ore, controlul cu stetoscopul și drug-testul înainte de proba teoretică. Candidatul are voie la maximum 3 greșeli; la a 4-a este respins. Promovare: minimum 17/20.',
+    description: 'Verifică ținuta, tatuajele faciale, cazierul, minimum 50 de ore, controlul cu stetoscopul și drug-testul înainte de proba teoretică. Candidatul poate greși de maximum 2 ori; la a 3-a greșeală este respins. Promovare: minimum 17/20.',
     instructions: 'Candidatul trebuie să confirme: „Da, sunt de acord!”. Testerul compară răspunsurile cu ghidul și bifează greșelile. Notează calificativul și folosește /me ADMIS / RESPINS semnat GRAD+NUME.',
-    maxWrong: 3,
+    maxWrong: 2,
     questions: [
       ['Este permis unui medic să țină echipament medical asupra sa OFF-DY dacă nu îl folosește?', 'Nu. Este strict interzis.'],
       ['Un medic poate merge cu mașina departamentului OFF-DUTY dacă o duce la garaj sau o mută?', 'Nu. Este interzisă folosirea vehiculelor departamentului OFF-DUTY.'],

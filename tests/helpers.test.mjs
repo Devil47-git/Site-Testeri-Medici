@@ -28,7 +28,7 @@ function extract(name) {
 const catalog = ['Test admitere', 'Test transfer', 'Adeverință medicală', 'Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști'];
 const definitions = Object.fromEntries(catalog.map(n => [n, { name: n, questions: [] }]));
 
-const names = ['callsignNumber', 'normalizeCallsign', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'sortMembers', 'gradeGroupFor', 'admissionChecksComplete'];
+const names = ['callsignNumber', 'normalizeCallsign', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'sortMembers', 'gradeGroupFor', 'admissionChecksComplete', 'isTestFailed', 'maxWrongForTest', 'parseIdentityCardText'];
 const srcs = names.map(extract).join('\n');
 const pattern = source.match(/^const RESIDENT_TESTER_PATTERN = .*$/m)?.[0] || 'const RESIDENT_TESTER_PATTERN = /TESTER/;';
 const normalizeTextSrc = extract('normalizeText');
@@ -38,10 +38,10 @@ const load = new Function(
   'catalog',
   'testDefinitions',
   'testSummaryDefinitions',
-  `${fullSrc}\nreturn { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, admissionChecksComplete };`,
+  `${fullSrc}\nreturn { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, admissionChecksComplete, isTestFailed, maxWrongForTest, parseIdentityCardText };`,
 )(catalog, definitions, testSummaryDefinitions);
 
-const { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberIsTester, memberCanGiveTest, sortMembers, gradeGroupFor, admissionChecksComplete } = load;
+const { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberIsTester, memberCanGiveTest, sortMembers, gradeGroupFor, admissionChecksComplete, isTestFailed, maxWrongForTest, parseIdentityCardText } = load;
 
 test('callsignNumber strips non-digits and returns 0 for empty', () => {
   assert.equal(callsignNumber('M-007'), 7);
@@ -172,4 +172,17 @@ test('admission test unlocks only after all six requirements are checked', () =>
   assert.equal(admissionChecksComplete([true, true, true, true, true, false]), false);
   assert.equal(admissionChecksComplete([true, true, true, true, true, true]), true);
   assert.equal(admissionChecksComplete([true, true, true, true, true]), false);
+});
+
+test('admission test rejects the third mistake', () => {
+  const limit = maxWrongForTest('Test admitere', 3);
+  assert.equal(limit, 2);
+  assert.equal(isTestFailed(2, limit), false);
+  assert.equal(isTestFailed(3, limit), true);
+  assert.equal(maxWrongForTest('Test transfer', 2), 2);
+});
+
+test('identity card OCR parser extracts name, CNP and series number', () => {
+  const details = parseIdentityCardText('CNP 1060825927178\nNume/Nom/Last name\nCartier\nPrenume/Prenom/First name\nMohammed\nSERIA LS NR 92717');
+  assert.deepEqual(details, { name: 'Cartier Mohammed', cnp: '1060825927178', id: 'LS 92717' });
 });

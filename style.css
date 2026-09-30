@@ -12,9 +12,9 @@ body.dark-mode{--ink:#edf0fa;--muted:#a5aec3;--line:#30374a;--bg:#151925;backgro
 
 /* ===== Grupare dashboard, filtre, avataruri, centrare ===== */
 .welcome-actions{display:flex;gap:10px;align-items:center}
-.admission-checklist{display:grid;gap:8px;margin:18px 0;padding:14px;border:1px solid var(--line);border-radius:8px}
+.admission-checklist{display:grid;gap:8px;width:fit-content;max-width:100%;margin:18px 0;padding:14px;border:1px solid var(--line);border-radius:8px}
 .admission-checklist h3{margin:0 0 4px;font-size:13px}
-.admission-check-row{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:38px;padding:7px 10px;border-radius:6px;background:#E8FCF9}
+.admission-check-row{display:flex;align-items:center;justify-content:space-between;gap:16px;width:max-content;max-width:100%;min-height:38px;padding:7px 10px;border-radius:6px;background:#E8FCF9;color:#17213b}
 .admission-check-control{display:flex;align-items:center;gap:8px;flex:none}
 .admission-check-control input{appearance:none;display:grid;place-items:center;width:20px;height:20px;margin:0;border:1px solid #79cbbd;border-radius:4px;background:#E8FCF9;cursor:pointer}
 .admission-check-control input:checked::after{content:'✓';color:#176c62;font-size:14px;font-weight:800;line-height:1}
@@ -24,6 +24,18 @@ body.dark-mode{--ink:#edf0fa;--muted:#a5aec3;--line:#30374a;--bg:#151925;backgro
 .candidate-call-sign{display:grid;gap:7px;max-width:320px}
 .candidate-call-sign input{width:100%;min-height:36px;padding:0 12px;border:1px solid var(--line);border-radius:6px;background:transparent;color:var(--ink);font:600 12px 'DM Sans'}
 .candidate-call-sign input:focus{outline:2px solid #79cbbd;outline-offset:1px}
+.admission-candidate-details{display:grid;gap:12px;max-width:640px;margin:16px 0 20px}
+.admission-candidate-details h3{margin:0;font-size:13px}
+.admission-candidate-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px}
+.admission-candidate-grid label,.candidate-document-upload{display:grid;gap:6px;color:var(--ink);font-size:12px;font-weight:600}
+.admission-candidate-grid input{width:100%;min-height:36px;padding:0 10px;border:1px solid var(--line);border-radius:6px;background:transparent;color:var(--ink);font:500 12px 'DM Sans'}
+.admission-candidate-grid input:focus{outline:2px solid #79cbbd;outline-offset:1px}
+.candidate-document-upload input{max-width:360px;color:var(--muted);font:12px 'DM Sans'}
+.admission-photo-consent{display:flex;align-items:flex-start;gap:8px;max-width:520px;color:var(--muted);font-size:11px;line-height:1.5}
+.admission-photo-consent input{flex:none;margin:2px 0 0;accent-color:#176c62}
+.error-text{color:#d1453b!important}
+#candidate-document-status{min-height:16px;margin:0}
+@media(max-width:620px){.admission-candidate-grid{grid-template-columns:minmax(0,1fr)}}
 #admission-test-content[hidden]{display:none}
 .avatar.has-photo{overflow:hidden;padding:0}
 .avatar.has-photo img{width:100%;height:100%;object-fit:cover;display:block}
