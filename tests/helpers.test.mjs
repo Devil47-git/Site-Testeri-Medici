@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { accessFor, catalog as accessCatalog, coreTests, functionsForMember, isLeadership, normalizeTests, testsForFunctions } from '../api/access/shared.js';
-import { createAdmissionEmbeds } from '../api/access/test-results.js';
+import { createAdmissionEmbeds, createMedicalCertificateEmbeds, medicalCertificateNumberForRow } from '../api/access/test-results.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const source = readFileSync(join(here, '..', 'script.js'), 'utf8');
@@ -200,17 +200,22 @@ test('each question keeps prompt, answer, and wrong checkbox in one box', () => 
 
 test('identity card OCR parser extracts only name and CNP', () => {
   const details = parseIdentityCardText('CNP 1060825927178\nNume/Nom/Last name\nCartier\nPrenume/Prenom/First name\nMohammed\nSERIA LS NR 92717');
-  assert.deepEqual(details, { name: 'Cartier Mohammed', cnp: '1060825927178' });
+  assert.deepEqual(details, { name: 'Cartier Mohammed', lastName: 'Cartier', firstName: 'Mohammed', cnp: '1060825927178' });
 });
 
 test('identity card OCR parser handles inline labels and spaced or confused CNP digits', () => {
   const details = parseIdentityCardText('Nume/Nom/Last name Cartier Prenume/Prenom/First name Mohammed\nCNP: 1O60 8259 27178');
-  assert.deepEqual(details, { name: 'Cartier Mohammed', cnp: '1060825927178' });
+  assert.deepEqual(details, { name: 'Cartier Mohammed', lastName: 'Cartier', firstName: 'Mohammed', cnp: '1060825927178' });
 });
 
 test('identity card OCR parser skips misread blue labels before reading the values below', () => {
   const details = parseIdentityCardText('iLast name.\nCartier\niFirst name.\nMohammed\nCNP\n1060825927178');
-  assert.deepEqual(details, { name: 'Cartier Mohammed', cnp: '1060825927178' });
+  assert.deepEqual(details, { name: 'Cartier Mohammed', lastName: 'Cartier', firstName: 'Mohammed', cnp: '1060825927178' });
+});
+
+test('identity card OCR parser never returns a blue field label as a candidate name', () => {
+  const details = parseIdentityCardText('iLast name.\niFirst name.\nCNP\n1060825927178');
+  assert.deepEqual(details, { name: '', lastName: '', firstName: '', cnp: '1060825927178' });
 });
 
 test('admission Discord embeds use vertical fields and hide callsign on rejection', () => {
@@ -219,8 +224,8 @@ test('admission Discord embeds use vertical fields and hide callsign on rejectio
   assert.equal(rejected.admission.mentions, '<@99>');
   assert.deepEqual(rejected.admission.allowedMentions.roles, []);
   assert.match(rejected.admission.mentions, /<@99>/);
-  assert.match(rejected.testers.mentions, /<@&825071956101169202>/);
-  assert.doesNotMatch(rejected.testers.mentions, /1033692302767558717/);
+  assert.equal(rejected.testers.mentions, '<@825071956101169202>');
+  assert.deepEqual(rejected.testers.allowedMentions.users, ['825071956101169202']);
   assert.deepEqual(rejected.testers.embeds[0].fields.map(field => field.name), ['Nume Tester', 'Nume Candidat', 'ID', 'Rezultat']);
   assert.deepEqual(rejected.testers.embeds[0].fields[2], { name: 'ID', value: '12345', inline: false });
   assert.deepEqual(rejected.testers.embeds.slice(1).map(embed => embed.title), ['Buletin', 'Fișă medicală', 'Drug-test']);
@@ -228,6 +233,35 @@ test('admission Discord embeds use vertical fields and hide callsign on rejectio
   const admitted = createAdmissionEmbeds({ testerName: 'Tester', testerDiscordId: '99', candidateName: 'Candidat', candidateId: '12345', candidateCallsign: 'M-302', result: 'Admis' });
   assert.equal(admitted.testers.embeds[0].fields.at(-1).name, 'Callsign');
   assert.equal(admitted.admission.mentions, '<@99>');
-  assert.match(admitted.testers.mentions, /<@&1033692302767558717>/);
-  assert.match(admitted.testers.mentions, /<@&825071956101169202>/);
+  assert.equal(admitted.testers.mentions, '<@1033692302767558717> <@825071956101169202>');
+  assert.deepEqual(admitted.testers.allowedMentions.users, ['1033692302767558717', '825071956101169202']);
+  const transfer = createAdmissionEmbeds({ testName: 'Test transfer', testerName: 'Tester', testerDiscordId: '99', candidateName: 'Candidat', candidateId: '12345', candidateCallsign: 'M-302', result: 'Admis' });
+  assert.equal(transfer.admission.embed.title, 'Test Transfer');
+  assert.equal(transfer.testers.embeds[0].title, 'Test Transfer');
+});
+
+test('medical certificates start at 7015 and stop at 30000', () => {
+  assert.equal(medicalCertificateNumberForRow(1), null);
+  assert.equal(medicalCertificateNumberForRow(2), 7015);
+  assert.equal(medicalCertificateNumberForRow(22987), 30000);
+  assert.equal(medicalCertificateNumberForRow(22988), null);
+});
+
+test('medical certificate embed includes the requested fields and medical verdict', () => {
+  const embeds = createMedicalCertificateEmbeds({
+    lastName: 'Cartier', firstName: 'Mohammed', phone: '735-0616', candidateId: '56937',
+    hoursAccount: '2001.25', hoursCharacter: '2001.25', medicalStatus: 'Admis'
+  }, 7015);
+  const [certificate] = embeds;
+  assert.equal(certificate.title, 'D.M.L.S. - EVIDENTA MEDICALA NR. 7015');
+  assert.match(certificate.description, /NUME: Cartier\nPRENUME: Mohammed/);
+  assert.match(certificate.description, /REZULTAT: ADMIS/);
+  assert.match(certificate.description, /ORE\(LUNI\): 2001\.25 \(cont\) 2001\.25 \(character\)/);
+  assert.deepEqual(embeds.slice(1).map(embed => embed.title), ['Buletin', 'Fișă medicală']);
+  assert.ok(embeds.slice(1).every(embed => embed.thumbnail && !embed.image));
+  const [rejected] = createMedicalCertificateEmbeds({
+    lastName: 'Cartier', firstName: 'Mohammed', phone: '735-0616', candidateId: '56937',
+    hoursAccount: '2001.25', hoursCharacter: '2001.25', medicalStatus: 'Respins'
+  }, 7016);
+  assert.match(rejected.description, /REZULTAT: RESPINS/);
 });

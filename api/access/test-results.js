@@ -4,7 +4,11 @@ const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4
 const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:T400';
 const GRANTS_RANGE = process.env.GOOGLE_GRANTS_RANGE || 'GRANTS!A1:E';
 const RESULTS_RANGE = process.env.GOOGLE_TEST_RESULTS_RANGE || 'TEST_HISTORY!A1:E';
+const MEDICAL_CERTIFICATES_RANGE = process.env.GOOGLE_MEDICAL_CERTIFICATES_RANGE || 'MEDICAL_CERTIFICATES!A1:K';
 const RESULTS_HEADER = ['discordId', 'callsign', 'testName', 'result', 'createdAt'];
+const MEDICAL_CERTIFICATES_HEADER = ['number', 'testerDiscordId', 'testerName', 'candidateId', 'lastName', 'firstName', 'phone', 'hoursAccount', 'hoursCharacter', 'result', 'createdAt'];
+const MEDICAL_CERTIFICATE_LAST_NUMBER = 7014;
+const MEDICAL_CERTIFICATE_MAX_NUMBER = 30000;
 const MAX_IDENTITY_IMAGE_BYTES = 600 * 1024;
 
 export const config = { api: { bodyParser: { sizeLimit: '4mb' } } };
@@ -44,6 +48,49 @@ async function ensureResultsHeader(sheets) {
     return [RESULTS_HEADER];
   }
   return rows;
+}
+
+async function ensureMedicalCertificatesSheet(sheets) {
+  const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: SHEET_ID, fields: 'sheets.properties.sheetId,sheets.properties.title' });
+  const sheet = (spreadsheet.data.sheets || []).find(item => item.properties?.title === MEDICAL_CERTIFICATES_RANGE.split('!')[0]);
+  if (!sheet) {
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SHEET_ID,
+      requestBody: { requests: [{ addSheet: { properties: { title: MEDICAL_CERTIFICATES_RANGE.split('!')[0] } } }] }
+    });
+  }
+  const rows = await readValues(sheets, MEDICAL_CERTIFICATES_RANGE);
+  if (!rows.length) {
+    const title = MEDICAL_CERTIFICATES_RANGE.split('!')[0];
+    await sheets.spreadsheets.values.update({ spreadsheetId: SHEET_ID, range: `'${title}'!A1:K1`, valueInputOption: 'RAW', requestBody: { values: [MEDICAL_CERTIFICATES_HEADER] } });
+    return [MEDICAL_CERTIFICATES_HEADER];
+  }
+  return rows;
+}
+
+async function appendMedicalCertificate(sheets, details, tester) {
+  const rows = await ensureMedicalCertificatesSheet(sheets);
+  if (rows.length >= MEDICAL_CERTIFICATE_MAX_NUMBER - MEDICAL_CERTIFICATE_LAST_NUMBER + 1) {
+    throw new Error('Numărul maxim de adeverințe, 30000, a fost atins.');
+  }
+  const title = MEDICAL_CERTIFICATES_RANGE.split('!')[0].replace(/'/g, "''");
+  const appended = await sheets.spreadsheets.values.append({
+    spreadsheetId: SHEET_ID,
+    range: `'${title}'!A1:K`,
+    valueInputOption: 'RAW',
+    insertDataOption: 'INSERT_ROWS',
+    requestBody: { values: [['', tester.discordId, tester.name, details.candidateId, details.lastName, details.firstName, details.phone, details.hoursAccount, details.hoursCharacter, details.medicalStatus, new Date().toISOString()]] }
+  });
+  const rowNumber = Number(appended.data.updates?.updatedRange?.match(/![A-Z]+(\d+):/i)?.[1]);
+  const certificateNumber = medicalCertificateNumberForRow(rowNumber);
+  if (!certificateNumber) throw new Error('Nu s-a putut aloca numărul adeverinței.');
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SHEET_ID,
+    range: `'${title}'!A${rowNumber}:A${rowNumber}`,
+    valueInputOption: 'RAW',
+    requestBody: { values: [[certificateNumber]] }
+  });
+  return certificateNumber;
 }
 
 async function findRequester(sheets, discordId) {
@@ -93,7 +140,8 @@ async function sendWebhookImages(url, payload, images) {
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
 }
 
-export function createAdmissionEmbeds({ testerName, testerDiscordId, candidateName, candidateId, candidateCallsign, result }) {
+export function createAdmissionEmbeds({ testName = 'Test admitere', testerName, testerDiscordId, candidateName, candidateId, candidateCallsign, result }) {
+  const displayTestName = testName === 'Test transfer' ? 'Test Transfer' : 'Test Admitere';
   const summaryFields = [
     { name: 'Nume candidat', value: candidateName || '—', inline: false },
     { name: 'Rezultat', value: result || '—', inline: false }
@@ -105,7 +153,7 @@ export function createAdmissionEmbeds({ testerName, testerDiscordId, candidateNa
     { name: 'Rezultat', value: result || '—', inline: false }
   ];
   if (result === 'Admis' && candidateCallsign) testersFields.push({ name: 'Callsign', value: candidateCallsign, inline: false });
-  const roleIds = result === 'Admis'
+  const notifiedUserIds = result === 'Admis'
     ? ['1033692302767558717', '825071956101169202']
     : ['825071956101169202'];
   const validTesterId = /^\d+$/.test(String(testerDiscordId || '')) ? String(testerDiscordId) : '';
@@ -117,14 +165,14 @@ export function createAdmissionEmbeds({ testerName, testerDiscordId, candidateNa
   ].map(([title, filename]) => ({ title, color: 0x23A2E8, thumbnail: { url: `attachment://${filename}` } }));
   return {
     admission: {
-      embed: { title: 'Test Admitere', color: 0x23A2E8, fields: summaryFields },
+      embed: { title: displayTestName, color: 0x23A2E8, fields: summaryFields },
       mentions: admissionMention,
       allowedMentions: { parse: [], roles: [], users: validTesterId ? [validTesterId] : [] }
     },
     testers: {
-      mentions: roleIds.map(id => `<@&${id}>`).join(' '),
-      allowedMentions: { parse: [], roles: roleIds, users: [] },
-      embeds: [{ title: 'Test Admitere', color: 0x23A2E8, fields: testersFields }, ...photoEmbeds]
+      mentions: notifiedUserIds.map(id => `<@${id}>`).join(' '),
+      allowedMentions: { parse: [], roles: [], users: notifiedUserIds },
+      embeds: [{ title: displayTestName, color: 0x23A2E8, fields: testersFields }, ...photoEmbeds]
     }
   };
 }
@@ -181,7 +229,8 @@ export default async function handler(req, res) {
       if (!catalog.includes(testName)) return json(res, 400, { error: 'Unknown test' });
       if (!await canRecordTest(sheets, member, discordId, testName)) return json(res, 403, { error: 'This test is not assigned to the requester' });
       let admissionDetails = null;
-      if (testName === 'Test admitere') {
+      let certificateDetails = null;
+      if (['Test admitere', 'Test transfer'].includes(testName)) {
         const candidateName = String(req.body?.candidateName || '').trim().slice(0, 100);
         const candidateId = String(req.body?.candidateId || '').trim().slice(0, 24);
         const candidateCallsign = String(req.body?.candidateCallsign || '').trim().slice(0, 24);
@@ -193,7 +242,26 @@ export default async function handler(req, res) {
         if (!candidateName || !candidateId || !identityImage || !medicalSheetImage || !drugTestImage || (result === 'Admis' && !candidateCallsign)) {
           return json(res, 400, { error: 'Candidate name, ID, all three images, and an admitted candidate callsign are required' });
         }
-        admissionDetails = { candidateName, candidateId, candidateCallsign, result, identityImage, medicalSheetImage, drugTestImage };
+        admissionDetails = { testName, candidateName, candidateId, candidateCallsign, result, identityImage, medicalSheetImage, drugTestImage };
+      }
+      if (testName === 'Adeverință medicală') {
+        const details = {
+          lastName: String(req.body?.lastName || '').trim().slice(0, 80),
+          firstName: String(req.body?.firstName || '').trim().slice(0, 80),
+          candidateId: String(req.body?.candidateId || '').trim().slice(0, 24),
+          phone: String(req.body?.phone || '').trim().slice(0, 32),
+          hoursAccount: String(req.body?.hoursAccount || '').trim().slice(0, 16),
+          hoursCharacter: String(req.body?.hoursCharacter || '').trim().slice(0, 16),
+          medicalStatus: String(req.body?.medicalStatus || '').trim(),
+          identityImage: parseIdentityImage(req.body?.identityImage),
+          medicalSheetImage: parseIdentityImage(req.body?.medicalSheetImage)
+        };
+        const validHours = value => /^\d+(?:\.\d{1,2})?$/.test(value);
+        if (!details.lastName || !details.firstName || !details.candidateId || !details.phone || !validHours(details.hoursAccount) || !validHours(details.hoursCharacter) || !details.identityImage || !details.medicalSheetImage) {
+          return json(res, 400, { error: 'Adeverința necesită nume, prenume, ID, telefon, ore valide și ambele imagini.' });
+        }
+        if (!['Admis', 'Respins'].includes(details.medicalStatus)) return json(res, 400, { error: 'Invalid medical status' });
+        certificateDetails = details;
       }
       await ensureResultsHeader(sheets);
       const title = sheetTitle().replace(/'/g, "''");
@@ -207,7 +275,17 @@ export default async function handler(req, res) {
       const discordNotifications = admissionDetails
         ? await sendAdmissionNotifications({ testerName: String(member[3] || '').trim().slice(0, 100), testerDiscordId: discordId, ...admissionDetails })
         : undefined;
-      return json(res, 200, { success: true, ...(admissionDetails ? { discordNotificationsSent: discordNotifications.sent, discordNotificationError: discordNotifications.error } : {}) });
+      let certificateNumber;
+      let certificateNotification;
+      if (certificateDetails) {
+        certificateNumber = await appendMedicalCertificate(sheets, certificateDetails, { discordId, name: String(member[3] || '').trim().slice(0, 100) });
+        certificateNotification = await sendMedicalCertificateNotification(certificateDetails, certificateNumber);
+      }
+      return json(res, 200, {
+        success: true,
+        ...(admissionDetails ? { discordNotificationsSent: discordNotifications.sent, discordNotificationError: discordNotifications.error } : {}),
+        ...(certificateDetails ? { certificateNumber, discordNotificationsSent: certificateNotification.sent, discordNotificationError: certificateNotification.error } : {})
+      });
     }
 
     const rows = await ensureResultsHeader(sheets);
@@ -225,5 +303,52 @@ export default async function handler(req, res) {
   } catch (error) {
     console.error('Test history failed:', error);
     return json(res, 500, { error: 'Test history unavailable' });
+  }
+}
+
+export function medicalCertificateNumberForRow(rowNumber) {
+  const row = Number(rowNumber);
+  if (!Number.isInteger(row) || row < 2) return null;
+  const number = MEDICAL_CERTIFICATE_LAST_NUMBER + row - 1;
+  return number <= MEDICAL_CERTIFICATE_MAX_NUMBER ? number : null;
+}
+
+export function createMedicalCertificateEmbeds(details, number) {
+  const result = details.medicalStatus === 'Admis' ? 'ADMIS' : 'RESPINS';
+  const description = [
+    'SECTIA DE PSIHOLOGIE & PSIHIATRIE',
+    'SECTIUNEA I: DETALII PERSONALE (IC-IN CHARACTER)',
+    `NUME: ${details.lastName}`,
+    `PRENUME: ${details.firstName}`,
+    `NR DE TELEFON: ${details.phone}`,
+    `REZULTAT: ${result}`,
+    'ELIBERATA DE: SPITALUL MUNICIPAL ECLIPSE',
+    'SECTIUNEA II: DETALII (OOC-OUT OF CHARACTER)',
+    `ID (CNP): ${details.candidateId}`,
+    `ORE(LUNI): ${details.hoursAccount} (cont) ${details.hoursCharacter} (character)`
+  ].join('\n');
+  return [
+    { title: `D.M.L.S. - EVIDENTA MEDICALA NR. ${number}`, description: `\`\`\`text\n${description}\n\`\`\``, color: 0x23A2E8 },
+    { title: 'Buletin', color: 0x23A2E8, thumbnail: { url: 'attachment://buletin-candidat.jpg' } },
+    { title: 'Fișă medicală', color: 0x23A2E8, thumbnail: { url: 'attachment://fisa-medicala.jpg' } }
+  ];
+}
+
+async function sendMedicalCertificateNotification(details, certificateNumber) {
+  const setting = process.env.DISCORD_MEDICAL_CERTIFICATES_WEBHOOK;
+  if (!setting) return { sent: false, error: 'Lipsește DISCORD_MEDICAL_CERTIFICATES_WEBHOOK.' };
+  const url = webhookUrl(setting);
+  if (!url) return { sent: false, error: 'URL invalid pentru DISCORD_MEDICAL_CERTIFICATES_WEBHOOK.' };
+  try {
+    await sendWebhookImages(url, {
+      embeds: createMedicalCertificateEmbeds(details, certificateNumber),
+      allowed_mentions: { parse: [] }
+    }, [
+      { ...details.identityImage, filename: 'buletin-candidat.jpg' },
+      { ...details.medicalSheetImage, filename: 'fisa-medicala.jpg' }
+    ]);
+    return { sent: true, error: '' };
+  } catch (error) {
+    return { sent: false, error: `Canalul de adeverințe: ${error.message.startsWith('HTTP ') ? error.message : 'eroare de rețea Discord'}.` };
   }
 }

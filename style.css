@@ -37,8 +37,8 @@ body.dark-mode{--ink:#edf0fa;--muted:#a5aec3;--line:#30374a;--bg:#151925;backgro
 .admission-candidate-details h3{margin:0;font-size:13px}
 .admission-candidate-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px}
 .admission-candidate-grid label,.candidate-document-upload{display:grid;gap:6px;color:var(--ink);font-size:12px;font-weight:600}
-.admission-candidate-grid input{width:100%;min-height:36px;padding:0 10px;border:1px solid var(--line);border-radius:6px;background:transparent;color:var(--ink);font:500 12px 'DM Sans'}
-.admission-candidate-grid input:focus{outline:2px solid #79cbbd;outline-offset:1px}
+.admission-candidate-grid input,.admission-candidate-grid select{width:100%;min-height:36px;padding:0 10px;border:1px solid var(--line);border-radius:6px;background:transparent;color:var(--ink);font:500 12px 'DM Sans'}
+.admission-candidate-grid input:focus,.admission-candidate-grid select:focus{outline:2px solid #79cbbd;outline-offset:1px}
 .candidate-document-upload input{max-width:360px;color:var(--muted);font:12px 'DM Sans'}
 .candidate-photo-field{display:grid;gap:7px;max-width:520px}
 .image-paste-target{padding:10px 12px;border:1px solid #fff;border-radius:6px;background:linear-gradient(110deg,#A4D3ED,#23A2E8);box-shadow:0 0 8px #ffffffb0;color:#12344a;font-size:12px;cursor:pointer}
