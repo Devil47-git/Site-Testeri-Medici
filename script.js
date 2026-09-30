@@ -128,7 +128,6 @@ function gradeGroupForMember(member) { return member?.gradeGroup || gradeGroupFo
 function allowedForUser(user) { if (isLeadershipUser(user)) return catalog; return [...new Set([...(user?.grantedTests || []), ...docsAssignedTests(user)])].filter(test => catalog.includes(test) && testDefinitions[test]); }
 function memberHasTestAccess(member, test) { return !isLeadershipUser(member) && allowedForUser(member).includes(test); }
 /** @param {any} value @returns {string} */
-function dateOnly(value) { return value ? new Date(value).toLocaleDateString('ro-RO') : '—'; }
 /** @param {any} member @returns {boolean} */
 /** @param {any} value @returns {string} */
 function normalizeText(value) { return String(value || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
@@ -167,6 +166,27 @@ function avatarFor(member) {
 }
 function memberNameFor(member) { return String(member?.name || '').trim() || normalizeCallsign(member?.callsign) || '—'; }
 function rankFor(member) { return String(member?.rank || '').trim() || String(member?.gradeGroup || '').trim() || '—'; }
+function memberStatus(member) {
+  const status = normalizeText(member?.status);
+  return ['ACTIV', 'INACTIV', 'CONCEDIU'].includes(status) ? status[0] + status.slice(1).toLowerCase() : 'Inactiv';
+}
+function testerFunctionsForDisplay(member) {
+  const functions = normalizeText(member?.functions);
+  const visibleFunctions = [
+    [/A\.?\s*L\.?\s*S\.?/, 'A.L.S.'],
+    [/S\.?\s*M\.?\s*U\.?\s*L\.?\s*S\.?/, 'S.M.U.L.S.'],
+    [/\bTESTER\b/, 'Tester'],
+    [/MOTO/, 'Moto'],
+    [/PILOT/, 'Pilot'],
+    [/PARASUTIST|PARACHUTIST|PARAȘUTIST/, 'Parasutism']
+  ];
+  return visibleFunctions.filter(([pattern]) => pattern.test(functions)).map(([, label]) => label).join(' | ') || '—';
+}
+function memberStatusHtml(member) {
+  const status = memberStatus(member);
+  const statusClass = status === 'Activ' ? 'online' : status === 'Concediu' ? 'leave' : 'offline';
+  return `<span class="status ${statusClass}"><i></i>${status}</span>`;
+}
 function testerAccessHtml(member) {
   const assignedTests = normalizeGrantBundle(member.grantedTests || []);
   if (isLeadershipUser(member)) return '<span class="muted">Acces general</span>';
@@ -178,10 +198,10 @@ function testerAccessHtml(member) {
 }
 function testerRowHtml(member, index) {
   const tags = testerAccessHtml(member);
-  return `<tr><td><div class="tester">${avatarFor(member)}<span>${escapeHtml(memberNameFor(member))}</span></div></td><td>${escapeHtml(normalizeCallsign(member.callsign))}</td><td>${escapeHtml(rankFor(member))}</td><td><div class="tags">${tags}</div></td><td>${dateOnly(member.updatedAt)}</td><td><span class="status ${isActive(member) ? 'online' : 'offline'}"><i></i>${isActive(member) ? 'Activ' : 'Inactiv'}</span></td><td><button class="more" data-member-menu="${escapeHtml(normalizeCallsign(member.callsign))}">•••</button></td></tr>`;
+  return `<tr><td><div class="tester">${avatarFor(member)}<span>${escapeHtml(memberNameFor(member))}</span></div></td><td>${escapeHtml(normalizeCallsign(member.callsign))}</td><td>${escapeHtml(rankFor(member))}</td><td><div class="tags">${tags}</div></td><td>${memberStatusHtml(member)}</td><td><button class="more" data-member-menu="${escapeHtml(normalizeCallsign(member.callsign))}">•••</button></td></tr>`;
 }
 function testerTableHtml(members) {
-  return `<div class="table-wrap"><table><thead><tr><th>TESTER</th><th>CALLSIGN</th><th>RANK</th><th>TESTE ALOCATE</th><th>ULTIMA ACTIVITATE</th><th>STATUS</th><th></th></tr></thead><tbody>${members.map((member, index) => testerRowHtml(member, index)).join('')}</tbody></table></div>`;
+  return `<div class="table-wrap"><table><thead><tr><th>TESTER</th><th>CALLSIGN</th><th>RANK</th><th>TESTE ALOCATE</th><th>STATUS</th><th></th></tr></thead><tbody>${members.map((member, index) => testerRowHtml(member, index)).join('')}</tbody></table></div>`;
 }
 function currentFilteredTesters() {
   const q = String(document.querySelector('#search')?.value || '').trim().toLowerCase();
@@ -216,8 +236,7 @@ function renderRows(list = testers) {
   if (active) active.textContent = list.length;
 }
 function testerSearchResultHtml(member) {
-  const status = isActive(member) ? 'online' : 'offline';
-  return `<article class="tester-search-result"><div class="search-result-person">${avatarFor(member)}<div><strong>${escapeHtml(memberNameFor(member))}</strong><small>${escapeHtml(normalizeCallsign(member.callsign))} · ${escapeHtml(rankFor(member))}</small></div></div><div class="search-result-tests tags">${testerAccessHtml(member)}</div><span class="status ${status}"><i></i>${isActive(member) ? 'Activ' : 'Inactiv'}</span></article>`;
+  return `<article class="tester-search-result"><div class="search-result-person">${avatarFor(member)}<div><strong>${escapeHtml(memberNameFor(member))}</strong><small>${escapeHtml(normalizeCallsign(member.callsign))} · ${escapeHtml(rankFor(member))}</small></div></div><div class="search-result-tests tags">${testerAccessHtml(member)}</div>${memberStatusHtml(member)}</article>`;
 }
 /** @type {Member[]} */
 let directoryMembers = [];
@@ -317,7 +336,7 @@ function renderTestersView() {
   const orphan = sortMembers(testers.filter(member => !DASHBOARD_GROUPS.some(group => group.members(member))));
   if (orphan.length) groups.push({ label: 'Alți membri', members: orphan });
   const actions = isLeadershipUser(currentUser) ? '<div class="welcome-actions"><button class="primary" id="view-add">＋ Adaugă tester</button><button class="primary" id="view-remove">－ Scoatere Tester</button></div>' : '';
-  const sections = groups.map(group => `<section class="tester-group"><h3>${escapeHtml(group.label)}</h3><div class="table-wrap"><table><thead><tr><th>TESTER</th><th>CALLSIGN</th><th>RANK</th><th>TESTE ALOCATE</th><th>ULTIMA ACTIVITATE</th><th>STATUS</th><th></th></tr></thead><tbody>${group.members.map((member, index) => testerRowHtml(member, index)).join('')}</tbody></table></div></section>`).join('');
+  const sections = groups.map(group => `<section class="tester-group"><h3>${escapeHtml(group.label)}</h3><div class="table-wrap"><table><thead><tr><th>TESTER</th><th>CALLSIGN</th><th>RANK</th><th>TESTE ALOCATE</th><th>STATUS</th><th></th></tr></thead><tbody>${group.members.map((member, index) => testerRowHtml(member, index)).join('')}</tbody></table></div></section>`).join('');
   return `<div class="panel view-panel"><div class="panel-head"><div><h2>Testerii departamentului</h2><p class="muted">Aceiași testeri ca pe dashboard, grupați pe grade.</p></div>${actions}</div>${sections || '<div class="empty-state">Nu există testeri.</div>'}</div>`;
 }
 function renderMembersView() {
@@ -325,7 +344,7 @@ function renderMembersView() {
   const sections = groups.map(group => {
     const members = sortMembers(directoryMembers.filter(member => gradeGroupForMember(member) === group));
     if (!members.length) return '';
-    const rowsHtml = members.map(member => `<tr><td>${escapeHtml(member.leadershipTitle || leadershipTitleForCallsign(member.callsign) || member.functions || '—')}</td><td>${escapeHtml(member.name || '—')}</td><td>${escapeHtml(normalizeCallsign(member.callsign))}</td><td>${escapeHtml(member.rank || '—')}</td></tr>`).join('');
+    const rowsHtml = members.map(member => `<tr><td>${escapeHtml(member.leadershipTitle || leadershipTitleForCallsign(member.callsign) || testerFunctionsForDisplay(member))}</td><td>${escapeHtml(member.name || '—')}</td><td>${escapeHtml(normalizeCallsign(member.callsign))}</td><td>${escapeHtml(member.rank || '—')}</td></tr>`).join('');
     return `<section class="member-group"><h3>${escapeHtml(group)}</h3><div class="table-wrap"><table><thead><tr><th>FUNCȚIE</th><th>NUME</th><th>CALLSIGN</th><th>GRAD</th></tr></thead><tbody>${rowsHtml}</tbody></table></div></section>`;
   }).join('');
   return `<div class="panel view-panel"><h2>Membri departament</h2><p class="muted">Membrii departamentului sunt grupați pe grade: conducere, medici primari și medici specialiști.</p>${sections || '<p class="muted">Nu s-a putut încărca lista membrilor.</p>'}</div>`;
@@ -874,7 +893,6 @@ const DEV_LOGIN_USER={ id:'DEV-001', discordId:'0', name:'Tester Local', display
 // ===== SFÂRȘIT BANDAL =====
 const PRESENCE_KEY='medici-presence';
 function markPresence() { if (!currentUser?.discordId) return; const presence = readStored(PRESENCE_KEY, {}); presence[currentUser.discordId] = Date.now(); localStorage.setItem(PRESENCE_KEY, JSON.stringify(presence)); }
-function isActive(member) { return Number(member.lastSeen || 0) > Date.now() - 120000; }
 async function sendPresence() { if (!currentUser?.discordId) return; await fetch('/api/access/presence', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ discordId: currentUser.discordId }) }).catch(() => {}); }
 window.addEventListener('storage', event => { if (event.key === PRESENCE_KEY) { renderRows(); refreshCurrentView(); } });
 function initialsFrom(name='User'){return name.split(/\s+/).map(x=>x[0]).join('').slice(0,2).toUpperCase()}

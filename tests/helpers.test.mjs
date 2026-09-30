@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { accessFor, catalog as accessCatalog, coreTests, functionsForMember, isLeadership, normalizeTests, testsForFunctions } from '../api/access/shared.js';
 import { createAdmissionEmbeds, createAlsResultEmbed, createMedicalCertificateEmbeds, medicalCertificateNumberForRow } from '../api/access/test-results.js';
+import { statusFromRow } from '../api/access/directory.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const source = readFileSync(join(here, '..', 'script.js'), 'utf8');
@@ -30,7 +31,7 @@ function extract(name) {
 const catalog = ['Test admitere', 'Test transfer', 'Adeverință medicală', 'Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști'];
 const definitions = Object.fromEntries(catalog.map(n => [n, { name: n, questions: [] }]));
 
-const names = ['callsignNumber', 'normalizeCallsign', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberHasTestAccess', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'sortMembers', 'gradeGroupFor', 'admissionChecksComplete', 'motoChecksComplete', 'isTestFailed', 'maxWrongForTest', 'questionItemHtml', 'parseIdentityCardText', 'mergeIdentityCardDetails', 'displayTestName'];
+const names = ['callsignNumber', 'normalizeCallsign', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberHasTestAccess', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'sortMembers', 'gradeGroupFor', 'admissionChecksComplete', 'motoChecksComplete', 'memberStatus', 'testerFunctionsForDisplay', 'isTestFailed', 'maxWrongForTest', 'questionItemHtml', 'parseIdentityCardText', 'mergeIdentityCardDetails', 'displayTestName'];
 const srcs = names.map(extract).join('\n');
 const pattern = source.match(/^const RESIDENT_TESTER_PATTERN = .*$/m)?.[0] || 'const RESIDENT_TESTER_PATTERN = /TESTER/;';
 const normalizeTextSrc = extract('normalizeText');
@@ -40,10 +41,10 @@ const load = new Function(
   'catalog',
   'testDefinitions',
   'testSummaryDefinitions',
-  `${fullSrc}\nreturn { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, admissionChecksComplete, motoChecksComplete, isTestFailed, maxWrongForTest, questionItemHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName };`,
+  `${fullSrc}\nreturn { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, admissionChecksComplete, motoChecksComplete, memberStatus, testerFunctionsForDisplay, isTestFailed, maxWrongForTest, questionItemHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName };`,
 )(catalog, definitions, testSummaryDefinitions);
 
-const { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, admissionChecksComplete, motoChecksComplete, isTestFailed, maxWrongForTest, questionItemHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName } = load;
+const { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, admissionChecksComplete, motoChecksComplete, memberStatus, testerFunctionsForDisplay, isTestFailed, maxWrongForTest, questionItemHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName } = load;
 
 test('callsignNumber strips non-digits and returns 0 for empty', () => {
   assert.equal(callsignNumber('M-007'), 7);
@@ -99,6 +100,21 @@ test('leadership access lists include matching testers but exclude leadership', 
   assert.equal(memberHasTestAccess({ grantedTests: ['Test MOTO'] }, 'Test MOTO'), true);
   assert.equal(memberHasTestAccess({ functions: 'A.L.S.' }, 'Test SMULS'), false);
   assert.equal(memberHasTestAccess({ csNum: 2, isLeadership: true, grantedTests: ['Test ALS'] }, 'Test ALS'), false);
+});
+
+test('member status follows the status value from column H', () => {
+  assert.equal(statusFromRow(['', '', '', '', '', '', '', 'Activ']), 'Activ');
+  assert.equal(statusFromRow(['', '', '', '', '', '', '', 'Inactiv']), 'Inactiv');
+  assert.equal(statusFromRow(['', '', '', '', '', '', '', 'Concediu']), 'Concediu');
+  assert.equal(memberStatus({ status: 'Activ', lastSeen: 0 }), 'Activ');
+  assert.equal(memberStatus({ status: 'Inactiv', lastSeen: Date.now() }), 'Inactiv');
+  assert.equal(memberStatus({ status: 'Concediu' }), 'Concediu');
+  assert.equal(memberStatus({ status: '' }), 'Inactiv');
+});
+
+test('member directory shows only the requested tester specializations', () => {
+  assert.equal(testerFunctionsForDisplay({ functions: 'Manager M.M.L.S. | A.L.S. | S.M.U.L.S. | TESTER | MOTO | PILOT | PARASUTIST' }), 'A.L.S. | S.M.U.L.S. | Tester | Moto | Pilot | Parasutism');
+  assert.equal(testerFunctionsForDisplay({ functions: 'Manager M.M.L.S.' }), '—');
 });
 
 test('non-leadership users receive only explicitly granted tests', () => {

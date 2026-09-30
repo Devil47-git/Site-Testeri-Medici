@@ -12,6 +12,13 @@ body.dark-mode{--ink:#edf0fa;--muted:#a5aec3;--line:#30374a;--bg:#151925;backgro
 
 /* ===== Grupare dashboard, filtre, avataruri, centrare ===== */
 .welcome-actions{display:flex;gap:10px;align-items:center}
+.status.online{color:#20c878}
+.status.online i{background:#20e080;box-shadow:0 0 7px #20e080,0 0 12px #20e08099;animation:status-glow 1.8s ease-in-out infinite alternate}
+.status.offline{color:#ed5965}
+.status.offline i{background:#ed5965;box-shadow:0 0 7px #ed5965,0 0 12px #ed596599}
+.status.leave{color:#49a8ff}
+.status.leave i{background:#49a8ff;box-shadow:0 0 7px #49a8ff,0 0 12px #49a8ff99}
+@keyframes status-glow{from{box-shadow:0 0 3px #20e080}to{box-shadow:0 0 8px #20e080,0 0 14px #20e080aa}}
 .test-image-preview{padding:0;overflow:hidden;border-color:var(--line);max-width:100%}
 .test-image-preview img{display:block;width:min(100%,720px);max-height:420px;object-fit:contain;border-radius:6px}
 .test-card{display:flex;flex-direction:column}

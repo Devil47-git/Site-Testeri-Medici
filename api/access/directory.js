@@ -29,6 +29,12 @@ function groupLabel(row) {
   const group = gradeGroupFor(callsignNumber(row[2]));
   return GRADE_GROUPS[group]?.label || '';
 }
+export function statusFromRow(row) {
+  const status = normalize(row?.[7]);
+  if (status === 'ACTIV') return 'Activ';
+  if (status === 'CONCEDIU') return 'Concediu';
+  return 'Inactiv';
+}
 async function readPublic(range) {
   const key = process.env.GOOGLE_API_KEY;
   if (!key) throw new Error('GOOGLE_API_KEY is not configured');
@@ -54,8 +60,9 @@ export default async function handler(req, res) {
       const storedGrant = grantsByDiscord.get(discordId);
       const functions = functionsForMember(callsignNumber(row[2]), row[10]);
       const isConducere = isLeadership(row);
+      const status = statusFromRow(row);
       return {
-        discordId, name: String(row[3] || '').trim(), callsign: String(row[2] || '').trim(), csNum: callsignNumber(row[2]), rank: String(row[4] || '').trim(), dept: String(row[5] || '').trim(), functions, gradeGroup: groupLabel(row),
+        discordId, name: String(row[3] || '').trim(), callsign: String(row[2] || '').trim(), csNum: callsignNumber(row[2]), rank: String(row[4] || '').trim(), dept: String(row[5] || '').trim(), functions, status, gradeGroup: groupLabel(row),
         isLeadership: isConducere, leadershipTitle: isConducere ? leadershipTitle(row) : '', avatar: row[20] ? `https://cdn.discordapp.com/avatars/${discordId}/${String(row[20] || '').trim()}.png` : '',
         grantedTests: normalizeTests([...testsForFunctions(functions), ...(storedGrant?.grantedTests || [])]), updatedAt: storedGrant?.updatedAt || '', lastSeen: storedGrant?.lastSeen || '',
         isTester: ['leadership', 'primar', 'specialist'].includes(gradeGroupFor(callsignNumber(row[2]))) || (callsignNumber(row[2]) >= 301 && callsignNumber(row[2]) <= 340 && RESIDENT_TESTER_PATTERN.test(normalize(functions))) || /TESTER/.test(normalize(functions)) || grantsByDiscord.has(discordId)
