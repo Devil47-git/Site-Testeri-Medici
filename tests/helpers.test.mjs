@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { accessFor, catalog as accessCatalog, coreTests, functionsForMember, isLeadership, isSheetCheckboxChecked, normalizeTests, testsForFunctions } from '../api/access/shared.js';
+import { accessFor, catalog as accessCatalog, coreTests, functionsForMember, isLeadership, normalizeTests, testsForFunctions } from '../api/access/shared.js';
 import { createAdmissionEmbeds, createAlsResultEmbed, createMedicalCertificateEmbeds, medicalCertificateNumberForRow } from '../api/access/test-results.js';
 import { statusFromRow } from '../api/access/directory.js';
 
@@ -102,6 +102,11 @@ test('leadership access lists include matching testers but exclude leadership', 
   assert.equal(memberHasTestAccess({ csNum: 2, isLeadership: true, grantedTests: ['Test ALS'] }, 'Test ALS'), false);
 });
 
+test('leadership access button label remains the tester count after toggling', () => {
+  assert.match(source, /Vezi cine are acces \(\$\{accessibleMembers\.length\}\)/);
+  assert.doesNotMatch(source, /Ascunde cine are acces/);
+});
+
 test('member status follows the status value from column H', () => {
   assert.equal(statusFromRow(['', '', '', '', '', '', '', 'Activ']), 'Activ');
   assert.equal(statusFromRow(['', '', '', '', '', '', '', 'Inactiv']), 'Inactiv');
@@ -115,20 +120,15 @@ test('member status follows the status value from column H', () => {
 });
 
 test('member directory shows only the requested tester specializations', () => {
-  assert.equal(testerFunctionsForDisplay({ functions: 'Manager M.M.L.S. | A.L.S. | S.M.U.L.S. | TESTER | MOTO | PILOT | PARASUTIST' }), 'A.L.S. | S.M.U.L.S. | Tester | Moto | Pilot | Parasutism');
+  assert.equal(testerFunctionsForDisplay({ functions: 'Manager M.M.L.S. | A.L.S. | S.M.U.L.S. | TESTER | MOTO | PILOT | PARASUTIST' }), 'A.L.S. | S.M.U.L.S. | Tester | Moto | Pilot');
   assert.equal(testerFunctionsForDisplay({ functions: 'Manager M.M.L.S.' }), '—');
   assert.equal(testerFunctionsForDisplay({ grantedTests: ['Test parașutiști'] }), 'Parasutism');
 });
 
-test('column M checkbox grants parachutism to non-leadership only', () => {
-  assert.equal(isSheetCheckboxChecked('TRUE'), true);
-  assert.equal(isSheetCheckboxChecked(true), true);
-  assert.equal(isSheetCheckboxChecked('FALSE'), false);
-  assert.equal(isSheetCheckboxChecked(''), false);
-  const parachuteGrant = isSheetCheckboxChecked('TRUE') ? ['Test parașutiști'] : [];
-  assert.ok(accessFor(221, 'TESTER', 'Medic Specialist', '', parachuteGrant).grantedTests.includes('Test parașutiști'));
-  assert.equal(accessFor(221, '', 'Medic Specialist', '', []).grantedTests.includes('Test parașutiști'), false);
-  assert.deepEqual(accessFor(2, '', 'Director Adjunct', '', []).allowedTests, accessCatalog);
+test('parachutism requires a manual grant while leadership keeps full access', () => {
+  assert.equal(accessFor(221, 'PARASUTIST', 'Medic Specialist', '').grantedTests.includes('Test parașutiști'), false);
+  assert.equal(memberHasTestAccess({ grantedTests: ['Test parașutiști'] }, 'Test parașutiști'), true);
+  assert.deepEqual(accessFor(2, '', 'Director Adjunct', '').allowedTests, accessCatalog);
 });
 
 test('non-leadership users receive only explicitly granted tests', () => {
@@ -186,7 +186,7 @@ test('Docs-based dashboard filters match dotted SMULS and ALS functions', () => 
   assert.equal(memberCanGiveTest({ functions: 'A.L.S.' }, 'Test ALS'), true);
   assert.equal(memberCanGiveTest({ functions: 'MOTO' }, 'Test MOTO'), true);
   assert.equal(memberCanGiveTest({ functions: 'PILOT' }, 'Test PILOT'), true);
-  assert.equal(memberCanGiveTest({ functions: 'PARASUTIST' }, 'Test parașutiști'), true);
+  assert.equal(memberCanGiveTest({ functions: 'PARASUTIST' }, 'Test parașutiști'), false);
   assert.equal(memberCanGiveTest({ functions: 'MOTO' }, 'Test ALS'), false);
   assert.equal(memberCanGiveTest({ grantedTests: ['Test parașutiști'] }, 'Test parașutiști'), true);
 });

@@ -12,6 +12,11 @@ body.dark-mode{--ink:#edf0fa;--muted:#a5aec3;--line:#30374a;--bg:#151925;backgro
 
 /* ===== Grupare dashboard, filtre, avataruri, centrare ===== */
 .welcome-actions{display:flex;gap:10px;align-items:center}
+.tags{gap:6px;align-items:center}
+.tag{display:inline-flex;align-items:center;min-height:22px;padding:4px 8px;border:1px solid #d8d4ff;border-radius:5px;background:#eeecff;color:#4941b8;box-shadow:0 1px 2px #080c1820;font-size:10px}
+.tag.orange{border-color:#f0d2ac;background:#fff1df;color:#87500f}
+.tag.cyan{border-color:#b5dfdc;background:#e0f8f8;color:#196e70}
+.tag.green{border-color:#b6dfc7;background:#e1f7ed;color:#237a4e}
 .status.online{color:#20c878}
 .status.online i{background:#20e080;box-shadow:0 0 7px #20e080,0 0 12px #20e08099;animation:status-glow 1.8s ease-in-out infinite alternate}
 .status.offline{color:#ed5965}

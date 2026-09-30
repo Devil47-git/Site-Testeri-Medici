@@ -138,7 +138,7 @@ function memberCanGiveTest(member, test) {
   if (test === 'Test ALS') return /A\.?\s*L\.?\s*S\.?|\s*A\s*\|/.test(functions);
   if (test === 'Test MOTO') return /MOTO|\s*M\s*\|/.test(functions);
   if (test === 'Test PILOT') return /PILOT|\s*P\s*\|/.test(functions);
-  if (test === 'Test parașutiști') return /PARASUTIST|PARACHUTIST|\s*PT\s*\|/.test(functions);
+  if (test === 'Test parașutiști') return (member?.grantedTests || []).includes(test);
   return false;
 }
 function docsAssignedTests(member) {
@@ -180,7 +180,7 @@ function testerFunctionsForDisplay(member) {
     [/\bTESTER\b/, 'Tester'],
     [/MOTO/, 'Moto'],
     [/PILOT/, 'Pilot'],
-    [/PARASUTIST|PARACHUTIST|PARAȘUTIST/, 'Parasutism']
+    [/PARACHUTIST|PARAȘUTISM/, 'Parasutism']
   ];
   const labels = visibleFunctions.filter(([pattern]) => pattern.test(functions)).map(([, label]) => label);
   if ((member?.grantedTests || []).includes('Test parașutiști') && !labels.includes('Parasutism')) labels.push('Parasutism');
@@ -334,7 +334,6 @@ function wireTestAccessEvents() {
       const expanded = button.getAttribute('aria-expanded') === 'true';
       list.hidden = expanded;
       button.setAttribute('aria-expanded', String(!expanded));
-      button.textContent = `${expanded ? 'Vezi' : 'Ascunde'} cine are acces (${button.dataset.testAccess})`;
     };
   });
 }

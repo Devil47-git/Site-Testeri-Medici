@@ -1,4 +1,4 @@
-import { accessFor, isSheetCheckboxChecked, normalizeTests } from '../access/shared.js';
+import { accessFor, normalizeTests } from '../access/shared.js';
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const SHEET_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:T400';
@@ -96,7 +96,6 @@ function mapSheetRowToUser(row, discordUser) {
   const callSignRaw = String(row[2] || '').trim();
   const csNum = parseInt(callSignRaw.replace(/\D/g, ''), 10) || 0;
   const functions = String(row[10] || '').trim(); const rank = String(row[4] || '').trim(); const dept = String(row[5] || '').trim();
-  const additionalTests = isSheetCheckboxChecked(row[12]) ? ['Test parașutiști'] : [];
-  const access = accessFor(csNum, functions, rank, dept, additionalTests);
+  const access = accessFor(csNum, functions, rank, dept);
   return { id: String(row[1] || '').trim(), name: String(row[3] || discordUser.username || '').trim(), callsign: callSignRaw, callSign: callSignRaw, csNum, rank, dept, functions, discordId: discordUser.id, avatar: avatarUrl(discordUser.id, row[20] || discordUser.avatar), ...access };
 }
