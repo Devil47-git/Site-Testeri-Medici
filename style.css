@@ -14,6 +14,15 @@ body.dark-mode{--ink:#edf0fa;--muted:#a5aec3;--line:#30374a;--bg:#151925;backgro
 .welcome-actions{display:flex;gap:10px;align-items:center}
 .test-image-preview{padding:0;overflow:hidden;border-color:var(--line);max-width:100%}
 .test-image-preview img{display:block;width:min(100%,720px);max-height:420px;object-fit:contain;border-radius:6px}
+.test-card{display:flex;flex-direction:column}
+.test-card>p{flex:1}
+.test-card-actions{display:grid;gap:8px;margin-top:auto}
+.test-card-actions>.primary{width:100%;margin-top:0}
+.test-access-toggle{margin-top:8px}
+.test-access-list{max-height:180px;overflow:auto;margin-top:10px;padding:10px;border-top:1px solid var(--line);border-radius:6px;background:var(--surface-alt)}
+.test-access-list ul{display:grid;gap:8px;margin:0;padding:0;list-style:none}
+.test-access-list li{display:flex;justify-content:space-between;gap:10px;font-size:12px}
+.test-access-list li span{color:var(--muted);white-space:nowrap}
 .test-with-map{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,38%);gap:20px;align-items:start}
 .test-map-column{position:sticky;top:18px;min-width:0}
 .test-map-column .test-images{margin:0}

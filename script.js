@@ -126,6 +126,7 @@ function gradeGroupFor(csNum) { const n = callsignNumber(csNum);
 function gradeGroupForMember(member) { return member?.gradeGroup || gradeGroupFor(member?.csNum || member?.callsign); }
 /** @param {any} user @returns {string[]} */
 function allowedForUser(user) { if (isLeadershipUser(user)) return catalog; return [...new Set([...(user?.grantedTests || []), ...docsAssignedTests(user)])].filter(test => catalog.includes(test) && testDefinitions[test]); }
+function memberHasTestAccess(member, test) { return !isLeadershipUser(member) && allowedForUser(member).includes(test); }
 /** @param {any} value @returns {string} */
 function dateOnly(value) { return value ? new Date(value).toLocaleDateString('ro-RO') : '—'; }
 /** @param {any} member @returns {boolean} */
@@ -289,7 +290,26 @@ async function recordTestRun(testName, result = '', details = {}) {
   return payload;
 }
 function renderTestsView(title) {
-  return `<div class="panel view-panel"><div class="panel-head"><div><h2>${title}</h2><p class="muted">Instrument pentru testeri. Tu poți deschide orice test disponibil oricând.</p></div></div><div class="test-cards">${allowedForUser(currentUser).map(test => `<article class="test-card"><h3>${displayTestName(test)}</h3><p class="muted">${testDefinitions[test]?.description || 'Test disponibil.'}</p><button class="primary" data-test="${test}">Deschide ghidul</button></article>`).join('') || '<div class="empty-state">Nu ai teste disponibile.</div>'}</div></div>`;
+  const leadership = isLeadershipUser(currentUser);
+  const cards = allowedForUser(currentUser).map(test => {
+    const accessibleMembers = leadership ? sortMembers(testers.filter(member => memberHasTestAccess(member, test))) : [];
+    const accessList = leadership
+      ? `<button class="primary test-access-toggle" type="button" data-test-access="${escapeHtml(test)}" aria-expanded="false">Vezi cine are acces (${accessibleMembers.length})</button><div class="test-access-list" hidden>${accessibleMembers.length ? `<ul>${accessibleMembers.map(member => `<li><strong>${escapeHtml(memberNameFor(member))}</strong> <span>${escapeHtml(normalizeCallsign(member.callsign))}</span></li>`).join('')}</ul>` : '<p class="muted">Nu există testeri cu acces.</p>'}</div>`
+      : '';
+    return `<article class="test-card"><h3>${displayTestName(test)}</h3><p class="muted">${testDefinitions[test]?.description || 'Test disponibil.'}</p><div class="test-card-actions"><button class="primary" data-test="${test}">Deschide ghidul</button>${accessList}</div></article>`;
+  }).join('');
+  return `<div class="panel view-panel"><div class="panel-head"><div><h2>${title}</h2><p class="muted">Instrument pentru testeri. Tu poți deschide orice test disponibil oricând.</p></div></div><div class="test-cards">${cards || '<div class="empty-state">Nu ai teste disponibile.</div>'}</div></div>`;
+}
+function wireTestAccessEvents() {
+  viewContent.querySelectorAll('[data-test-access]').forEach(button => {
+    button.onclick = () => {
+      const list = button.nextElementSibling;
+      const expanded = button.getAttribute('aria-expanded') === 'true';
+      list.hidden = expanded;
+      button.setAttribute('aria-expanded', String(!expanded));
+      button.textContent = `${expanded ? 'Vezi' : 'Ascunde'} cine are acces (${button.dataset.testAccess})`;
+    };
+  });
 }
 function displayTestName(testName) { return testName === 'Test parașutiști' ? 'Test Parasutism' : testName; }
 function renderTestersView() {
@@ -332,7 +352,7 @@ function renderView(view) {
   if (isOverview) return;
   const title = labels[view] || 'Spațiul tău';
   document.querySelector('#section-label').textContent = view === 'settings' || view === 'members' ? 'Administrare' : 'Generale';
-  if (view === 'tests') viewContent.innerHTML = renderTestsView(title);
+  if (view === 'tests') { viewContent.innerHTML = renderTestsView(title); wireTestAccessEvents(); }
   else if (view === 'testers') { viewContent.innerHTML = renderTestersView(); wireTestersEvents(); }
   else if (view === 'members') viewContent.innerHTML = renderMembersView();
   else { viewContent.innerHTML = renderSettingsView(title); wireSettingsEvents(); }

@@ -30,20 +30,20 @@ function extract(name) {
 const catalog = ['Test admitere', 'Test transfer', 'Adeverință medicală', 'Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști'];
 const definitions = Object.fromEntries(catalog.map(n => [n, { name: n, questions: [] }]));
 
-const names = ['callsignNumber', 'normalizeCallsign', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'sortMembers', 'gradeGroupFor', 'admissionChecksComplete', 'motoChecksComplete', 'isTestFailed', 'maxWrongForTest', 'questionItemHtml', 'parseIdentityCardText', 'mergeIdentityCardDetails', 'displayTestName'];
+const names = ['callsignNumber', 'normalizeCallsign', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberHasTestAccess', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'sortMembers', 'gradeGroupFor', 'admissionChecksComplete', 'motoChecksComplete', 'isTestFailed', 'maxWrongForTest', 'questionItemHtml', 'parseIdentityCardText', 'mergeIdentityCardDetails', 'displayTestName'];
 const srcs = names.map(extract).join('\n');
 const pattern = source.match(/^const RESIDENT_TESTER_PATTERN = .*$/m)?.[0] || 'const RESIDENT_TESTER_PATTERN = /TESTER/;';
 const normalizeTextSrc = extract('normalizeText');
-const fullSrc = `${pattern}\nconst admissionRequirements = ['Verificarea ținutei', 'Verificarea tatuajelor faciale', 'Verificarea cazierului', 'Minimum 50 de ore jucate', 'Controlul cu stetoscopul', 'Drug-testul'];\nconst motoRequirements = ['Grad Medic-Rezident', 'Certificat S.M.U.L.S.', 'Permis Categoria A'];\n${normalizeTextSrc}\n${srcs}`;
+const fullSrc = `${pattern}\nconst coreTests = ['Test admitere', 'Test transfer', 'Adeverință medicală'];\nconst admissionRequirements = ['Verificarea ținutei', 'Verificarea tatuajelor faciale', 'Verificarea cazierului', 'Minimum 50 de ore jucate', 'Controlul cu stetoscopul', 'Drug-testul'];\nconst motoRequirements = ['Grad Medic-Rezident', 'Certificat S.M.U.L.S.', 'Permis Categoria A'];\n${normalizeTextSrc}\n${srcs}`;
 const testSummaryDefinitions = [['Test SMULS'], ['Test MOTO'], ['Test PILOT'], ['Test ALS'], ['Test parașutiști']];
 const load = new Function(
   'catalog',
   'testDefinitions',
   'testSummaryDefinitions',
-  `${fullSrc}\nreturn { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, admissionChecksComplete, motoChecksComplete, isTestFailed, maxWrongForTest, questionItemHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName };`,
+  `${fullSrc}\nreturn { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, admissionChecksComplete, motoChecksComplete, isTestFailed, maxWrongForTest, questionItemHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName };`,
 )(catalog, definitions, testSummaryDefinitions);
 
-const { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberIsTester, memberCanGiveTest, sortMembers, gradeGroupFor, admissionChecksComplete, motoChecksComplete, isTestFailed, maxWrongForTest, questionItemHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName } = load;
+const { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, admissionChecksComplete, motoChecksComplete, isTestFailed, maxWrongForTest, questionItemHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName } = load;
 
 test('callsignNumber strips non-digits and returns 0 for empty', () => {
   assert.equal(callsignNumber('M-007'), 7);
@@ -91,6 +91,14 @@ test('allowedForUser returns full catalog for leadership', () => {
 test('allowedForUser filters to known, defined tests only', () => {
   const allowed = allowedForUser({ grantedTests: ['Test MOTO', 'Inventat'] });
   assert.deepEqual(allowed, ['Test MOTO']);
+});
+
+test('leadership access lists include matching testers but exclude leadership', () => {
+  assert.equal(memberHasTestAccess({ functions: 'TESTER' }, 'Test admitere'), true);
+  assert.equal(memberHasTestAccess({ functions: 'A.L.S.' }, 'Test ALS'), true);
+  assert.equal(memberHasTestAccess({ grantedTests: ['Test MOTO'] }, 'Test MOTO'), true);
+  assert.equal(memberHasTestAccess({ functions: 'A.L.S.' }, 'Test SMULS'), false);
+  assert.equal(memberHasTestAccess({ csNum: 2, isLeadership: true, grantedTests: ['Test ALS'] }, 'Test ALS'), false);
 });
 
 test('non-leadership users receive only explicitly granted tests', () => {
