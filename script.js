@@ -865,11 +865,11 @@ function openAddModal(member) {
   callsignInput.value = member ? normalizeCallsign(member.callsign) : '';
   grantChecks.innerHTML = '';
   if (member) {
-    selectedMember = { ...member };
+    selectedMembers = [{ ...member }];
     selectedGrantDraft = normalizeGrantBundle([...(member.grantedTests || []), ...docsAssignedTests(member)]);
     renderGrantChecks(catalog);
     memberResult.textContent = `${memberNameFor(member)} · ${normalizeCallsign(member.callsign)}`;
-  } else { selectedMember = null; selectedGrantDraft = []; memberResult.textContent = ''; lookupMember(); }
+  } else { selectedMembers = []; selectedGrantDraft = []; memberResult.textContent = ''; lookupMember(); }
 }
 document.querySelector('#add-btn').onclick = () => openAddModal();
 document.querySelector('#close-modal').onclick = () => modal.classList.remove('open');
@@ -930,18 +930,23 @@ document.querySelector('#confirm-remove-btn')?.addEventListener('click', async e
   } catch (error) { removeResult.textContent = error.message; }
   finally { button.disabled = false; }
 });
-let selectedMember=null;
+let selectedMembers=[];
 let selectedGrantDraft=[];
 async function lookupMember() {
-  const value = callsignInput.value.trim();
-  if (!value) { selectedMember = null; selectedGrantDraft = []; memberResult.textContent = ''; return; }
-  const normalized = normalizeCallsign(value);
-  const member = directoryMembers.find(item => normalizeCallsign(item.callsign) === normalized && String(item.name || '').trim());
-  const local = testers.find(item => normalizeCallsign(item.callsign) === normalized);
-  if (!member) { selectedMember = null; selectedGrantDraft = []; memberResult.textContent = 'Callsign inexistent, liber sau fără nume în lista departamentului.'; grantChecks.innerHTML = ''; return; }
-  selectedMember = { ...member, ...local, callsign: normalized, name: member.name, functions: member.functions, grantedTests: normalizeGrantBundle([...(member.grantedTests || []), ...(local?.grantedTests || [])]) };
-  selectedGrantDraft = normalizeGrantBundle([...selectedMember.grantedTests, ...docsAssignedTests(member)]);
-  memberResult.textContent = `${member.name} · ${normalized}`;
+  const values = callsignInput.value.split(/[\s,;]+/).map(value => normalizeCallsign(value)).filter(Boolean);
+  const uniqueValues = [...new Set(values)];
+  if (!uniqueValues.length) { selectedMembers = []; selectedGrantDraft = []; memberResult.textContent = ''; grantChecks.innerHTML = ''; return; }
+  const found = uniqueValues.map(normalized => {
+    const member = directoryMembers.find(item => normalizeCallsign(item.callsign) === normalized && String(item.name || '').trim());
+    const local = testers.find(item => normalizeCallsign(item.callsign) === normalized);
+    if (!member) return { normalized, member: null };
+    return { normalized, member: { ...member, ...local, callsign: normalized, name: member.name, functions: member.functions, grantedTests: normalizeGrantBundle([...(member.grantedTests || []), ...(local?.grantedTests || [])]) } };
+  });
+  selectedMembers = found.filter(item => item.member).map(item => item.member);
+  const missing = found.filter(item => !item.member).map(item => item.normalized);
+  if (!selectedMembers.length) { selectedGrantDraft = []; memberResult.textContent = 'Niciun callsign valid găsit în lista departamentului.'; grantChecks.innerHTML = ''; return; }
+  selectedGrantDraft = normalizeGrantBundle([...selectedMembers[0].grantedTests, ...docsAssignedTests(selectedMembers[0])]);
+  memberResult.innerHTML = selectedMembers.map(member => `<span class="selected-member">${escapeHtml(memberNameFor(member))} · ${escapeHtml(normalizeCallsign(member.callsign))}</span>`).join('') + (missing.length ? `<span class="lookup-warning">Negăsite: ${escapeHtml(missing.join(', '))}</span>` : '');
   renderGrantChecks(catalog);
 }
 function renderGrantChecks(options) {
@@ -952,24 +957,29 @@ function renderGrantChecks(options) {
     const checked = [...grantChecks.querySelectorAll('input:checked')].flatMap(item => item.value === TESTER_BUNDLE_KEY ? coreTests : [item.value]);
     selectedGrantDraft = normalizeGrantBundle(checked);
   });
-  document.querySelector('#tester-preset').onclick = () => { selectedGrantDraft = normalizeGrantBundle([...(selectedMember?.grantedTests || []), ...docsAssignedTests(selectedMember)]); renderGrantChecks(options); };
+  document.querySelector('#tester-preset').onclick = () => { const member = selectedMembers[0]; selectedGrantDraft = normalizeGrantBundle([...(member?.grantedTests || []), ...docsAssignedTests(member)]); renderGrantChecks(options); };
 }
 callsignInput.onchange=lookupMember;callsignInput.oninput=()=>{clearTimeout(window.lookupTimer);window.lookupTimer=setTimeout(lookupMember,350)};
 document.querySelector('#invite-btn').onclick = async () => {
-  if (!selectedMember) { memberResult.textContent = 'Selectează un membru existent.'; return; }
+  if (!selectedMembers.length) { memberResult.textContent = 'Selectează cel puțin un membru existent.'; return; }
   const checked = [...grantChecks.querySelectorAll('input:checked')].map(input => input.value);
   const granted = normalizeGrantBundle(checked.flatMap(test => test === TESTER_BUNDLE_KEY ? coreTests : [test]));
-  const normalized = normalizeCallsign(selectedMember.callsign);
-  if (!normalized) { memberResult.textContent = 'Callsign invalid.'; return; }
-  if (!selectedMember.discordId) { memberResult.textContent = 'Membrul nu are un Discord ID pe coloana T; nu i se poate salva accesul.'; return; }
+  const withoutDiscord = selectedMembers.find(member => !member.discordId);
+  if (withoutDiscord) { memberResult.textContent = `${memberNameFor(withoutDiscord)} nu are un Discord ID pe coloana T; nu i se poate salva accesul.`; return; }
   const button = document.querySelector('#invite-btn');
   button.disabled = true; button.textContent = 'Se salvează…';
   try {
-    const saved = await saveRemoteGrant(normalized, granted, false, selectedMember.discordId);
-    const grant = saved?.grant || { discordId: selectedMember.discordId, callsign: normalized, grantedTests: granted, updatedAt: new Date().toISOString() };
-    const merged = { ...selectedMember, ...grant, grantedTests: grant.grantedTests || granted, name: selectedMember.name, callsign: normalized };
-    const existing = testers.find(item => normalizeCallsign(item.callsign) === normalized);
-    if (existing) Object.assign(existing, merged); else testers.push(merged);
+    const savedGrants = await Promise.all(selectedMembers.map(async member => {
+      const normalized = normalizeCallsign(member.callsign);
+      const saved = await saveRemoteGrant(normalized, granted, false, member.discordId);
+      const grant = saved?.grant || { discordId: member.discordId, callsign: normalized, grantedTests: granted, updatedAt: new Date().toISOString() };
+      return { member, grant, normalized };
+    }));
+    savedGrants.forEach(({ member, grant, normalized }) => {
+      const merged = { ...member, ...grant, grantedTests: grant.grantedTests || granted, name: member.name, callsign: normalized };
+      const existing = testers.find(item => normalizeCallsign(item.callsign) === normalized);
+      if (existing) Object.assign(existing, merged); else testers.push(merged);
+    });
     saveTesters();
     renderRows();
     renderDashboardData();
