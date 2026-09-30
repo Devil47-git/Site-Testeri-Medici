@@ -195,3 +195,21 @@ body.dark-mode .danger-button:hover{background:#4a2b31}
 .summary-test-count>strong{grid-column:2;grid-row:1/3;font-size:12px;color:var(--ink)}
 @media(max-width:760px){.stats-grid,.test-summary-grid{grid-template-columns:minmax(0,1fr)}}
 .member-result{min-height:18px;margin:12px 0 0;font-size:12px;color:#68748d}
+
+body{background:linear-gradient(135deg,#f8fbfd 0%,#f0f7fb 50%,#e8f3f9 100%) fixed}
+body.dark-mode{background:linear-gradient(125deg,#080f1b 0%,#111a28 48%,#1d171e 100%) fixed}
+
+:root{--purple:#245ab1;--surface:#fff;--surface-alt:#f3f7fa;--surface-border:#d5e1eb;--surface-text:#45566b;--surface-hover:#e8f1f8}
+body.dark-mode{--purple:#cd363c;--surface:#111d2d;--surface-alt:#1b2533;--surface-border:#48323c;--surface-text:#d5dce7;--surface-hover:#302129}
+body:not(.dark-mode) .auth-screen{background:linear-gradient(135deg,#f8fbfd 0%,#f0f7fb 50%,#e8f3f9 100%)}
+body.dark-mode .auth-screen{background:linear-gradient(125deg,#080f1b 0%,#111a28 48%,#1d171e 100%)}
+body:not(.dark-mode) .nav-item.active,body:not(.dark-mode) .nav-item:hover{background:#e8f1f8;color:#245ab1}
+body:not(.dark-mode) .nav-item.active span,body:not(.dark-mode) .nav-item:hover span{color:#245ab1}
+body.dark-mode .sidebar,body.dark-mode .stat-card,body.dark-mode .panel,body.dark-mode .modal,body.dark-mode .auth-card,body.dark-mode .tester-group{background:linear-gradient(135deg,#111d2d 0%,#151e2c 72%,#241a22 100%);border-color:#3b303d}
+body.dark-mode .topbar{background:linear-gradient(100deg,rgba(8,15,27,.97),rgba(25,20,28,.97));border-bottom-color:#352832}
+body.dark-mode .nav-item.active,body.dark-mode .nav-item:hover{background:#2a2029;color:#fff4f3}
+body.dark-mode .nav-item.active{box-shadow:inset 2px 0 var(--purple)}
+body.dark-mode .nav-item.active span,body.dark-mode .nav-item:hover span{color:var(--purple)}
+body.dark-mode .panel-head h2,body.dark-mode .tester-group h3,body.dark-mode .profile-card .eyebrow{color:var(--purple)}
+body.dark-mode .test-filter-option:hover,body.dark-mode .test-filter-option.active{background:#302129;color:#fff4f3}
+body.dark-mode .grant-preset:hover{background:#302129;border-color:#593640;color:#fff4f3}
