@@ -33,21 +33,17 @@
     </div>
     <div class="app-shell" id="app-shell">
         <aside class="sidebar">
-            <button class="brand brand-button" id="brand-settings" type="button" title="Deschide setările"><span class="brand-mark">✦</span><span><b>DEPARTAMENTUL MEDICAL LOS SANTOS</b><small>SUB-DEPARTAMENTUL TESTERILOR</small></span></button>
-            <div class="workspace-label">SPAȚIUL TĂU</div>
+            <button class="brand brand-button" id="brand-settings" type="button" title="Deschide profilul tău"><span class="brand-mark">✦</span><span><b>DEPARTAMENTUL MEDICAL LOS SANTOS</b><small>SUB-DEPARTAMENTUL TESTERILOR</small></span></button>
+            <div class="workspace-label">SITE TESTERI</div>
             <nav>
                 <button class="nav-item active" data-view="overview"><span>♙</span> Profilul tău</button>
                 <button class="nav-item" data-view="testers"><span>♙</span> Testerii departamentului <em id="tester-count">0</em></button>
                 <button class="nav-item" data-view="statistics"><span>▤</span> Statistica Teste</button>
-                <button class="nav-item" data-view="tests"><span>▤</span> Teste disponibile</button>
-            </nav>
-            <div class="workspace-label lower">ADMINISTRARE</div>
-            <nav>
-                <button class="nav-item" data-view="members"><span>♧</span> Membri departament</button>
-                <button class="nav-item" data-view="settings"><span>⚙</span> Setări</button>
+                <button class="nav-item" id="available-tests-toggle" type="button" aria-expanded="false" aria-controls="available-tests-submenu"><span>▤</span> Teste disponibile <span class="nav-chevron" aria-hidden="true">⌄</span></button>
+                <div class="nav-submenu" id="available-tests-submenu" hidden></div>
             </nav>
             <div class="sidebar-bottom">
-                                <button class="user-mini" id="user-menu" type="button" title="Deschide setările">
+                                <button class="user-mini" id="user-menu" type="button" title="Deschide profilul tău">
                     <div class="user-mini-avatar" id="user-avatar"></div>
                     <div><b id="user-name">Alex M.</b><small id="user-role">Conducere</small></div><span>⌄</span>
                 </button>
@@ -62,15 +58,24 @@
                 <div id="overview-view">
                 <div class="profile-layout">
                     <section class="panel profile-card">
+                        <button class="profile-settings-button" id="profile-settings" type="button" aria-label="Setări" title="Setări" hidden><span aria-hidden="true">⚙</span></button>
                         <p class="eyebrow profile-datetime"><span id="today-label"></span><time id="local-time" aria-label="Ora României"></time></p>
-                        <div class="profile-identity"><div id="profile-avatar"></div><div><h1 id="profile-name">Profilul tău</h1><p class="muted" id="profile-rank">Se încarcă datele din departament...</p></div></div>
-                        <dl class="profile-details"><div><dt>CALLSIGN</dt><dd id="profile-callsign">—</dd></div><div><dt>GRAD</dt><dd id="profile-grade">—</dd></div></dl>
+                        <div class="profile-identity"><div id="profile-avatar"></div><div><h1 id="profile-name">Profilul tău</h1></div></div>
+                        <dl class="profile-details"><div><dt>CALLSIGN</dt><dd id="profile-callsign">—</dd></div><div><dt>NUME</dt><dd id="profile-member-name">—</dd></div><div><dt>GRAD</dt><dd id="profile-member-rank">—</dd></div></dl>
                     </section>
                     <section class="panel profile-certifications">
                         <div class="panel-head"><div><h2>Grade de test</h2><p class="muted">Certificările și testele alocate contului tău</p></div></div>
-                        <div class="tags" id="profile-tests"></div>
+                        <div class="tags profile-test-tags" id="profile-tests"></div>
                     </section>
                 </div>
+                <section class="panel admin-panel" id="admin-panel" aria-labelledby="admin-panel-title" hidden>
+                    <h2 id="admin-panel-title"><span aria-hidden="true">◈</span> Panou Administrativ</h2>
+                    <div class="admin-panel-actions" role="group" aria-label="Acțiuni administrative">
+                        <button class="admin-action admin-action-assign" id="admin-add-tester" type="button"><span aria-hidden="true">♧</span> Adaugă Tester</button>
+                        <button class="admin-action admin-action-reset" id="admin-remove-tester" type="button"><span aria-hidden="true">＋</span> Scoatere Tester</button>
+                        <button class="admin-action admin-action-settings" id="admin-settings" type="button"><span aria-hidden="true">⚙</span> Setări</button>
+                    </div>
+                </section>
                 </div>
                 <section class="view-content" id="view-content" hidden></section>
             </section>

@@ -41,9 +41,20 @@ let currentUser = null;
 /** @type {Member[]} */
 let testers = readStored(GRANTS_KEY, []).filter(member => String(member?.name || '').trim()).map(member => ({ ...member, grantedTests: normalizeGrantBundle(member.grantedTests || []) }));
 let testRunCounts = {};
-let expandedSummaryMember = '';
+let expandedStatisticTester = '';
 function saveTesters() { localStorage.setItem(GRANTS_KEY, JSON.stringify(testers)); }
-function refreshCurrentView() { const active = document.querySelector('.nav-item.active')?.dataset.view || 'overview'; renderView(active); }
+function refreshCurrentView() {
+  renderAvailableTestsSubmenu();
+  if (window.history.state?.view === 'test') return;
+  if (window.history.state?.view === 'tester-profile') {
+    const callsign = window.history.state.callsign;
+    const member = testers.find(item => normalizeCallsign(item.callsign) === callsign) || directoryMembers.find(item => normalizeCallsign(item.callsign) === callsign);
+    if (member) openTesterProfile(member, { push: false });
+    return;
+  }
+  const active = document.querySelector('.nav-item.active')?.dataset.view || 'overview';
+  renderView(active);
+}
 function candidateSummary(member, result = 'Admis') { if (!member) return ''; return `Candidat: @[${normalizeCallsign(member.callsign)}] ${member.name || '—'}\nGrad: ${member.rank || '—'}\nRezultat: ${result}`; }
 async function loadRemoteGrants() {
   if (!currentUser?.discordId) return;
@@ -106,6 +117,7 @@ function normalizeCallsign(value) { const number = String(value || '').replace(/
 function callsignNumber(value) { const digits = String(value == null ? '' : value).replace(/\D/g, ''); const n = Number(digits); return Number.isFinite(n) ? n : 0; }
 /** @param {any} user @returns {boolean} */
 function isLeadershipUser(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return Boolean(user?.accessLevel === 'leadership' || user?.isConducere || user?.isLeadership || (cs >= 1 && cs <= 20)); }
+function hasLeadershipCallsign(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return cs >= 1 && cs <= 20; }
 /** @param {any} member @returns {boolean} */
 function memberIsLeadership(member) { return isLeadershipUser(member); }
 /** @param {any} value @returns {string} */
@@ -202,7 +214,8 @@ function testerAccessHtml(member) {
 }
 function testerRowHtml(member, index) {
   const tags = testerAccessHtml(member);
-  return `<tr><td><div class="tester">${avatarFor(member)}<span>${escapeHtml(memberNameFor(member))}</span></div></td><td>${escapeHtml(normalizeCallsign(member.callsign))}</td><td>${escapeHtml(rankFor(member))}</td><td><div class="tags">${tags}</div></td><td>${memberStatusHtml(member)}</td><td><button class="more" data-member-menu="${escapeHtml(normalizeCallsign(member.callsign))}">•••</button></td></tr>`;
+  const profileAction = hasLeadershipCallsign(currentUser) ? `<button class="more" type="button" data-member-profile="${escapeHtml(normalizeCallsign(member.callsign))}" aria-label="Vezi profilul ${escapeHtml(memberNameFor(member))}" title="Vezi profilul">•••</button>` : '';
+  return `<tr><td><div class="tester">${avatarFor(member)}<span>${escapeHtml(memberNameFor(member))}</span></div></td><td>${escapeHtml(normalizeCallsign(member.callsign))}</td><td>${escapeHtml(rankFor(member))}</td><td><div class="tags">${tags}</div></td><td>${memberStatusHtml(member)}</td><td>${profileAction}</td></tr>`;
 }
 function testerTableHtml(members) {
   return `<div class="table-wrap"><table class="tester-access-table"><thead><tr><th>TESTER</th><th>CALLSIGN</th><th>RANK</th><th>TESTE ALOCATE</th><th>STATUS</th><th></th></tr></thead><tbody>${members.map((member, index) => testerRowHtml(member, index)).join('')}</tbody></table></div>`;
@@ -264,57 +277,48 @@ async function loadDirectory() {
   refreshCurrentView();
 }
 function renderDashboardData() {
-  const summaries = document.querySelector('#test-summary-grid');
-  if (summaries) summaries.innerHTML = testSummaryDefinitions.map(([test, label]) => {
-    const members = testers.filter(member => (member.grantedTests || []).includes(test) && memberCanGiveTest(member, test)).sort((a, b) => callsignNumber(a.csNum) - callsignNumber(b.csNum));
-    const rows = members.length
-      ? members.map(member => {
-          const count = testRunCounts[member.discordId]?.[test] || 0;
-          const key = `${test}:${member.discordId || normalizeCallsign(member.callsign)}`;
-          const expanded = expandedSummaryMember === key;
-          return `<div class="test-summary-member"><button type="button" class="test-summary-member-toggle" data-summary-member="${escapeHtml(key)}" aria-expanded="${expanded}"><span class="summary-member-identity"><strong>${escapeHtml(memberNameFor(member))}</strong><small>${escapeHtml(rankFor(member))} · ${escapeHtml(normalizeCallsign(member.callsign))}</small></span><span class="summary-member-count">${count} ${count === 1 ? 'test' : 'teste'} <span aria-hidden="true">${expanded ? '⌃' : '⌄'}</span></span></button>${expanded ? testerSummaryDetailHtml(member) : ''}</div>`;
-        }).join('')
-      : '<p class="muted">Nu există testeri cu acest test alocat.</p>';
-    return `<article class="panel test-summary-card"><header><h2>${escapeHtml(label)}</h2><span>${members.length}</span></header>${rows}</article>`;
-  }).join('');
+  const testerList = document.querySelector('#tester-statistics-list');
+  if (testerList) {
+    const members = sortMembers(testers);
+    testerList.innerHTML = members.length ? members.map(member => {
+      const key = String(member.discordId || normalizeCallsign(member.callsign));
+      const tests = allowedForUser(member);
+      const expanded = expandedStatisticTester === key;
+      const details = tests.length
+        ? `<div class="statistics-test-grid">${tests.map((test, index) => `<div class="statistics-test-count"><span>${escapeHtml(displayTestName(test))}</span><strong>${Number(testRunCounts[member.discordId]?.[test]) || 0}</strong></div>`).join('')}</div>`
+        : '<p class="statistics-no-tests muted">Nu are teste alocate.</p>';
+      return `<article class="statistics-tester"><div class="statistics-tester-row"><dl class="statistics-tester-fields"><div><dt>CALLSIGN</dt><dd>${escapeHtml(normalizeCallsign(member.callsign))}</dd></div><div><dt>NUME</dt><dd>${escapeHtml(memberNameFor(member))}</dd></div><div><dt>GRAD</dt><dd>${escapeHtml(rankFor(member))}</dd></div></dl><button type="button" class="outline statistics-tests-toggle" data-statistics-member="${escapeHtml(key)}" aria-expanded="${expanded}">Teste <span aria-hidden="true">${expanded ? '⌃' : '⌄'}</span></button></div>${expanded ? details : ''}</article>`;
+    }).join('') : '<div class="empty-state">Nu există testeri.</div>';
+  }
   const overview = document.querySelector('#overview-view');
   if (overview) overview.dataset.updatedAt = new Date().toISOString();
 }
 function renderStatisticsView() {
-  return `<div class="statistics-view"><div class="panel-head"><div><h2>Statistica Teste</h2><p class="muted">Testerii autorizați și numărul de teste înregistrate pentru fiecare certificare.</p></div></div><section class="test-summary-grid" id="test-summary-grid" aria-label="Statistica testelor"></section></div>`;
+  return `<div class="statistics-view"><div class="panel-head"><div><h2>Statistica Teste</h2><p class="muted">Testerii și testele înregistrate pentru fiecare persoană.</p></div></div><section class="tester-statistics-list" id="tester-statistics-list" aria-label="Statistica testerilor"></section></div>`;
 }
 function renderProfileData() {
   if (!currentUser) return;
   const directoryMember = directoryMembers.find(member => member.discordId === currentUser.discordId || normalizeCallsign(member.callsign) === normalizeCallsign(currentUser.callsign || currentUser.callSign));
   const profile = { ...currentUser, ...(directoryMember || {}), name: currentUser.discordDisplayName || currentUser.discordUsername || currentUser.displayName || directoryMember?.name || currentUser.name, avatar: currentUser.avatar || directoryMember?.avatar, grantedTests: normalizeGrantBundle([...(currentUser.grantedTests || []), ...(directoryMember?.grantedTests || []), ...docsAssignedTests(directoryMember || currentUser)]) };
   const name = memberNameFor(profile);
-  const rank = rankFor(profile);
   const callsign = normalizeCallsign(profile.callsign || profile.callSign);
   const avatar = document.querySelector('#profile-avatar');
   if (avatar) avatar.innerHTML = avatarFor(profile);
   document.querySelector('#profile-name').textContent = name;
-  document.querySelector('#profile-rank').textContent = rank;
   document.querySelector('#profile-callsign').textContent = callsign || '—';
-  document.querySelector('#profile-grade').textContent = rank;
+  document.querySelector('#profile-member-name').textContent = String(directoryMember?.name || currentUser.name || '—').trim();
+  document.querySelector('#profile-member-rank').textContent = String(directoryMember?.rank || currentUser.rank || '—').trim();
   const profileTests = document.querySelector('#profile-tests');
-  if (profileTests) {
-    const assignedTests = (isLeadershipUser(profile) ? allowedForUser(profile) : profile.grantedTests).filter(test => catalog.includes(test));
-    const hasTesterBundle = coreTests.every(test => assignedTests.includes(test));
-    const visibleTests = [...(hasTesterBundle ? ['Tester'] : []), ...assignedTests.filter(test => !hasTesterBundle || !coreTests.includes(test))];
-    profileTests.innerHTML = visibleTests.length
-      ? visibleTests.map((test, index) => `<span class="tag ${index % 3 === 1 ? 'orange' : index % 3 === 2 ? 'cyan' : ''}">${escapeHtml(displayTestName(test))}</span>`).join('')
-      : '<span class="muted">Nu ai certificări sau teste alocate.</span>';
-  }
+  if (profileTests) profileTests.innerHTML = profileTestTagsHtml(profile);
 }
-function testerSummaryDetailHtml(member) {
-  const assignedTests = normalizeGrantBundle([...(member.grantedTests || []), ...docsAssignedTests(member)]);
-  const roleBadges = isLeadershipUser(member) ? testerAccessHtml(member) : testerAccessHtml({ ...member, grantedTests: assignedTests });
-  const counts = catalog.map(test => {
-    const count = testRunCounts[member.discordId]?.[test] || 0;
-    const hasAccess = isLeadershipUser(member) || assignedTests.includes(test);
-    return `<div class="summary-test-count"><span>${escapeHtml(displayTestName(test))}</span><small>${hasAccess ? 'Acces activ' : 'Fără acces'}</small><strong>${count}</strong></div>`;
-  }).join('');
-  return `<div class="summary-member-detail"><div class="summary-member-roles"><strong>Roluri tester</strong><div class="tags">${roleBadges}</div></div><div class="summary-test-counts">${counts}</div></div>`;
+function profileTestTagsHtml(member) {
+  const grantedTests = normalizeGrantBundle([...(member.grantedTests || []), ...docsAssignedTests(member)]);
+  const assignedTests = (isLeadershipUser(member) ? allowedForUser(member) : grantedTests).filter(test => catalog.includes(test));
+  const hasTesterBundle = coreTests.every(test => assignedTests.includes(test));
+  const visibleTests = [...(hasTesterBundle ? ['Tester'] : []), ...assignedTests.filter(test => !hasTesterBundle || !coreTests.includes(test))];
+  return visibleTests.length
+    ? visibleTests.map((test, index) => `<span class="tag ${index % 3 === 1 ? 'orange' : index % 3 === 2 ? 'cyan' : ''}">${escapeHtml(displayTestName(test))}</span>`).join('')
+    : '<span class="muted">Nu ai certificări sau teste alocate.</span>';
 }
 async function loadTestRunCounts() {
   if (!currentUser?.discordId) { testRunCounts = {}; return; }
@@ -342,16 +346,22 @@ async function recordTestRun(testName, result = '', details = {}) {
   renderDashboardData();
   return payload;
 }
-function renderTestsView(title) {
-  const leadership = isLeadershipUser(currentUser);
-  const cards = allowedForUser(currentUser).map(test => {
-    const accessibleMembers = leadership ? sortMembers(testers.filter(member => memberHasTestAccess(member, test))) : [];
-    const accessList = leadership
-      ? `<button class="primary test-access-toggle" type="button" data-test-access="${escapeHtml(test)}" aria-expanded="false">Vezi cine are acces (${accessibleMembers.length})</button><div class="test-access-list" hidden>${accessibleMembers.length ? `<ul>${accessibleMembers.map(member => `<li><strong>${escapeHtml(memberNameFor(member))}</strong> <span>${escapeHtml(normalizeCallsign(member.callsign))}</span></li>`).join('')}</ul>` : '<p class="muted">Nu există testeri cu acces.</p>'}</div>`
-      : '';
-    return `<article class="test-card"><h3>${displayTestName(test)}</h3><p class="muted">${testDefinitions[test]?.description || 'Test disponibil.'}</p><div class="test-card-actions"><button class="primary" data-test="${test}">Deschide ghidul</button>${accessList}</div></article>`;
-  }).join('');
-  return `<div class="panel view-panel"><div class="panel-head"><div><h2>${title}</h2><p class="muted">Instrument pentru testeri. Tu poți deschide orice test disponibil oricând.</p></div></div><div class="test-cards">${cards || '<div class="empty-state">Nu ai teste disponibile.</div>'}</div></div>`;
+function renderAvailableTestsSubmenu() {
+  const submenu = document.querySelector('#available-tests-submenu');
+  if (!submenu || !currentUser) return;
+  const selectedTest = window.history.state?.testName;
+  const tests = allowedForUser(currentUser);
+  submenu.innerHTML = tests.length
+    ? tests.map(test => `<button type="button" class="nav-subitem ${selectedTest === test ? 'active' : ''}" data-available-test="${escapeHtml(test)}">${escapeHtml(displayTestName(test))}</button>`).join('')
+    : '<span class="nav-submenu-empty">Nu ai teste disponibile.</span>';
+}
+function testAccessMarkup(testName) {
+  if (!isLeadershipUser(currentUser)) return '';
+  const accessibleMembers = sortMembers(testers.filter(member => memberHasTestAccess(member, testName)));
+  const members = accessibleMembers.length
+    ? `<ul>${accessibleMembers.map(member => `<li><strong>${escapeHtml(memberNameFor(member))}</strong> <span>${escapeHtml(normalizeCallsign(member.callsign))}</span></li>`).join('')}</ul>`
+    : '<p class="muted">Nu există testeri cu acces.</p>';
+  return `<div class="test-guide-access"><button class="outline test-access-toggle" type="button" data-test-access="${escapeHtml(testName)}" aria-expanded="false">Vezi cine are acces (${accessibleMembers.length})</button><div class="test-access-list" hidden>${members}</div></div>`;
 }
 function wireTestAccessEvents() {
   viewContent.querySelectorAll('[data-test-access]').forEach(button => {
@@ -373,7 +383,39 @@ function renderTestersView() {
   if (orphan.length) groups.push({ label: 'Alți membri', members: orphan });
   const actions = isLeadershipUser(currentUser) ? '<div class="welcome-actions"><button class="primary" id="view-add">＋ Adaugă tester</button><button class="primary" id="view-remove">－ Scoatere Tester</button></div>' : '';
   const sections = groups.map(group => `<section class="tester-group"><h3>${escapeHtml(group.label)}</h3><div class="table-wrap"><table class="tester-access-table"><thead><tr><th>TESTER</th><th>CALLSIGN</th><th>RANK</th><th>TESTE ALOCATE</th><th>STATUS</th><th></th></tr></thead><tbody>${group.members.map((member, index) => testerRowHtml(member, index)).join('')}</tbody></table></div></section>`).join('');
-  return `<div class="panel view-panel"><div class="panel-head"><div><h2>Testerii departamentului</h2><p class="muted">Aceiași testeri ca pe dashboard, grupați pe grade.</p></div>${actions}</div>${sections || '<div class="empty-state">Nu există testeri.</div>'}</div>`;
+  return `<div class="panel view-panel"><div class="panel-head"><div><h2>Testerii departamentului</h2></div>${actions}</div>${sections || '<div class="empty-state">Nu există testeri.</div>'}</div>`;
+}
+function renderTesterProfileView(member) {
+  const callsign = normalizeCallsign(member.callsign || member.callSign);
+  const name = memberNameFor(member);
+  return `<div class="tester-profile-view"><div class="panel-head"><div><p class="eyebrow">PROFIL TESTER</p><h2>${escapeHtml(name)}</h2></div><button class="outline" id="back-to-testers" type="button">← Înapoi</button></div><div class="profile-layout"><section class="panel profile-card"><div class="profile-identity"><div>${avatarFor(member)}</div><div><h1>${escapeHtml(name)}</h1></div></div><dl class="profile-details"><div><dt>CALLSIGN</dt><dd>${escapeHtml(callsign || '—')}</dd></div><div><dt>NUME</dt><dd>${escapeHtml(member.name || '—')}</dd></div><div><dt>GRAD</dt><dd>${escapeHtml(member.rank || '—')}</dd></div></dl></section><section class="panel profile-certifications"><div class="panel-head"><div><h2>Grade de test</h2><p class="muted">Certificările și testele alocate contului tău</p></div></div><div class="tags profile-test-tags">${profileTestTagsHtml(member)}</div></section></div></div>`;
+}
+function openTesterProfile(member, { push = true, previousView: requestedPreviousView } = {}) {
+  if (!hasLeadershipCallsign(currentUser)) return;
+  const callsign = normalizeCallsign(member.callsign || member.callSign);
+  const currentState = window.history.state || {};
+  const previousView = requestedPreviousView || (currentState.view === 'tester-profile' ? currentState.previousView : document.querySelector('.nav-item.active')?.dataset.view || 'overview');
+  const canReturnHistory = push ? previousView === 'testers' : Boolean(currentState.canReturnHistory);
+  const routeState = { view: 'tester-profile', callsign, previousView, canReturnHistory };
+  const route = `#tester-profile-${encodeURIComponent(callsign)}`;
+  if (push) window.history.pushState(routeState, '', route);
+  else window.history.replaceState(routeState, '', route);
+  const profile = { ...member, grantedTests: normalizeGrantBundle([...(member.grantedTests || []), ...docsAssignedTests(member)]) };
+  document.querySelector('#overview-view').hidden = true;
+  document.querySelector('#overview-view').style.display = 'none';
+  viewContent.hidden = false;
+  viewContent.style.display = 'block';
+  viewContent.innerHTML = renderTesterProfileView(profile);
+  document.querySelector('#section-label').textContent = 'SITE TESTERI';
+  document.querySelector('#page-label').textContent = `Profil: ${memberNameFor(profile)}`;
+  document.querySelector('#back-to-testers').onclick = () => {
+    if (window.history.state?.canReturnHistory) window.history.back();
+    else {
+      const destination = previousView === 'testers' ? 'testers' : 'overview';
+      window.history.replaceState({ view: destination }, '', `#${destination}`);
+      navigateTo(destination, { push: false });
+    }
+  };
 }
 function renderMembersView() {
   const groups = GRADE_GROUP_ORDER.filter(group => directoryMembers.some(member => gradeGroupForMember(member) === group));
@@ -478,21 +520,30 @@ function renderView(view) {
   overview.style.display = isOverview ? 'block' : 'none';
   if (isOverview) { renderProfileData(); return; }
   const title = labels[view] || 'Spațiul tău';
-  document.querySelector('#section-label').textContent = view === 'settings' || view === 'members' ? 'Administrare' : 'Spațiul tău';
-  if (view === 'tests') { viewContent.innerHTML = renderTestsView(title); wireTestAccessEvents(); }
-  else if (view === 'testers') { viewContent.innerHTML = renderTestersView(); wireTestersEvents(); }
+  document.querySelector('#section-label').textContent = view === 'settings' ? 'Administrare' : 'Spațiul tău';
+  if (view === 'testers') { viewContent.innerHTML = renderTestersView(); wireTestersEvents(); }
   else if (view === 'statistics') { viewContent.innerHTML = renderStatisticsView(); renderDashboardData(); }
-  else if (view === 'members') viewContent.innerHTML = renderMembersView();
   else { viewContent.innerHTML = renderSettingsView(title); wireSettingsEvents(); }
   // redundant remove-member wiring; handled by wireTestersEvents()
-  viewContent.querySelectorAll('[data-test]').forEach(button => button.onclick = () => openTest(button.dataset.test));
 }
 function openTest(testName) {
   const definition = testDefinitions[testName] || { description: 'Test disponibil.', questions: [] };
   const questions = Array.isArray(definition.questions) ? definition.questions : [];
-  const previousView = document.querySelector('.nav-item.active')?.dataset.view || 'tests';
+  const currentView = window.history.state?.view;
+  const previousView = currentView === 'test' ? window.history.state.previousView : labels[currentView] ? currentView : document.querySelector('.nav-item.active')?.dataset.view || 'overview';
   if (window.history.state?.view !== 'test') window.history.pushState({ view: 'test', testName, previousView }, '', `#test-${encodeURIComponent(testName)}`);
+  else window.history.replaceState({ ...window.history.state, testName, previousView }, '', `#test-${encodeURIComponent(testName)}`);
+  document.querySelector('#overview-view').hidden = true;
+  document.querySelector('#overview-view').style.display = 'none';
+  viewContent.hidden = false;
+  viewContent.style.display = 'block';
+  document.querySelector('#section-label').textContent = 'Spațiul tău';
+  document.querySelector('#page-label').textContent = displayTestName(testName);
+  document.querySelectorAll('.nav-item').forEach(item => item.classList.toggle('active', item.id === 'available-tests-toggle'));
+  document.querySelectorAll('[data-available-test]').forEach(item => item.classList.toggle('active', item.dataset.availableTest === testName));
+  document.querySelector('.sidebar').classList.remove('open');
   viewContent.innerHTML = buildTestMarkup(testName, definition, questions);
+  wireTestAccessEvents();
   wireTestEvents(testName, definition);
 }
 function admissionChecklistHtml() {
@@ -642,14 +693,17 @@ function buildTestMarkup(testName, definition, questions) {
   const content = testName === 'Test SMULS' && images
     ? `<div class="test-with-map"><div class="test-main-column">${guideBody}</div><aside class="test-map-column">${images}</aside></div>`
     : `${guideBody}${images ? `<div class="test-images">${images}</div>` : ''}`;
-  return `<div class="panel view-panel"><div class="panel-head"><div><p class="eyebrow">GHID PENTRU TESTER</p><h2>${displayTestName(testName)}</h2><p class="muted">Acces permanent pentru testerul conectat: ${normalizeCallsign(currentUser?.callsign)}.</p></div><button class="outline" id="back-to-tests">← Înapoi</button></div>${content}</div>`;
+  return `<div class="panel view-panel"><div class="panel-head"><div><p class="eyebrow">GHID PENTRU TESTER</p><h2>${displayTestName(testName)}</h2><p class="muted">Acces permanent pentru testerul conectat: ${normalizeCallsign(currentUser?.callsign)}.</p></div><button class="outline" id="back-to-tests">← Înapoi</button></div>${testAccessMarkup(testName)}${content}</div>`;
 }
 function wireTestEvents(testName, definition) {
   const isAdmissionTest = testName === 'Test admitere';
   const isMotoTest = testName === 'Test MOTO';
   const isMedicalCertificate = testName === 'Adeverință medicală';
   const isApplicationTest = isAdmissionTest || testName === 'Test transfer';
-  document.querySelector('#back-to-tests').onclick = () => renderView('tests');
+  document.querySelector('#back-to-tests').onclick = () => {
+    if (window.history.state?.view === 'test') window.history.back();
+    else navigateTo('overview');
+  };
   if (isApplicationTest || isMedicalCertificate) {
     if (isAdmissionTest) {
       const checks = [...document.querySelectorAll('[data-admission-check]')];
@@ -1016,9 +1070,9 @@ document.querySelector('#invite-btn').onclick = async () => {
   finally { button.disabled = false; button.innerHTML = 'Salvează accesul →'; }
 };
 viewContent.addEventListener('click', event => {
-  const button = event.target.closest('[data-summary-member]');
+  const button = event.target.closest('[data-statistics-member]');
   if (!button) return;
-  expandedSummaryMember = expandedSummaryMember === button.dataset.summaryMember ? '' : button.dataset.summaryMember;
+  expandedStatisticTester = expandedStatisticTester === button.dataset.statisticsMember ? '' : button.dataset.statisticsMember;
   renderDashboardData();
 });
 const testFilterBtn = document.querySelector('#filter-btn');
@@ -1032,25 +1086,58 @@ function renderTestFilterMenu() {
 }
 if (testFilterBtn) { testFilterBtn.onclick = event => { event.stopPropagation(); if (!testFilterMenu) return; testFilterMenu.hidden = !testFilterMenu.hidden; testFilterBtn.setAttribute('aria-expanded', String(!testFilterMenu.hidden)); if (!testFilterMenu.hidden) renderTestFilterMenu(); }; }
 document.addEventListener('click', event => { if (testFilterMenu && !testFilterMenu.hidden && !document.querySelector('#test-filter')?.contains(event.target)) { testFilterMenu.hidden = true; testFilterBtn?.setAttribute('aria-expanded', 'false'); } });
-testerGroups?.addEventListener('click', event => { const button = event.target.closest('[data-member-menu]'); if (!button) return; const member = testers.find(item => normalizeCallsign(item.callsign) === button.dataset.memberMenu); if (member) { selectedMember = member; openAddModal(member); } }); rows?.addEventListener('click', event => { const button = event.target.closest('[data-member-menu]'); if (!button) return; const member = testers.find(item => normalizeCallsign(item.callsign) === button.dataset.memberMenu); if (member) { selectedMember = member; openAddModal(member); } }); document.querySelector('#brand-settings').onclick = () => navigateTo('settings'); document.querySelector('#user-menu').onclick = () => navigateTo('settings'); document.querySelector('#help-btn').onclick = () => alert('Folosește meniul din stânga pentru a naviga.');
-const labels = { overview: 'Profilul tău', testers: 'Testerii departamentului', statistics: 'Statistica Teste', tests: 'Teste disponibile', members: 'Membri departament', settings: 'Setări' };
+testerGroups?.addEventListener('click', event => { const button = event.target.closest('[data-member-menu]'); if (!button) return; const member = testers.find(item => normalizeCallsign(item.callsign) === button.dataset.memberMenu); if (member) { selectedMember = member; openAddModal(member); } }); rows?.addEventListener('click', event => { const button = event.target.closest('[data-member-menu]'); if (!button) return; const member = testers.find(item => normalizeCallsign(item.callsign) === button.dataset.memberMenu); if (member) { selectedMember = member; openAddModal(member); } }); document.querySelector('#brand-settings').onclick = () => navigateTo('overview'); document.querySelector('#user-menu').onclick = () => navigateTo('overview'); document.querySelector('#profile-settings').onclick = () => navigateTo('settings'); document.querySelector('#help-btn').onclick = () => alert('Folosește meniul din stânga pentru a naviga.');
+viewContent.addEventListener('click', event => {
+  const button = event.target.closest('[data-member-profile]');
+  if (!button || !hasLeadershipCallsign(currentUser)) return;
+  const member = testers.find(item => normalizeCallsign(item.callsign) === button.dataset.memberProfile);
+  if (member) openTesterProfile(member);
+});
+document.querySelector('#admin-add-tester').addEventListener('click', () => openAddModal());
+document.querySelector('#admin-remove-tester').addEventListener('click', () => openRemoveModal());
+document.querySelector('#admin-settings').addEventListener('click', () => navigateTo('settings'));
+document.querySelector('#brand-settings').onclick = () => navigateTo('overview'); document.querySelector('#user-menu').onclick = () => navigateTo('overview'); document.querySelector('#profile-settings').onclick = () => navigateTo('settings'); document.querySelector('#help-btn').onclick = () => alert('Folosește meniul din stânga pentru a naviga.');
+const labels = { overview: 'Profilul tău', testers: 'Testerii departamentului', statistics: 'Statistica Teste', settings: 'Setări' };
 function navigateTo(view, { push = true } = {}) {
   if (!labels[view]) return;
   if (push && window.history.state?.view !== view) window.history.pushState({ view }, '', `#${view}`);
   document.querySelectorAll('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.view === view));
   document.querySelector('#page-label').textContent = labels[view];
-  document.querySelector('#section-label').textContent = view === 'settings' || view === 'members' ? 'Administrare' : 'Spațiul tău';
+  document.querySelector('#section-label').textContent = view === 'settings' ? 'Administrare' : 'Spațiul tău';
   document.querySelector('.sidebar').classList.remove('open');
   renderView(view);
 }
 document.querySelectorAll('[data-view]').forEach(btn => btn.addEventListener('click', () => navigateTo(btn.dataset.view)));
+const availableTestsToggle = document.querySelector('#available-tests-toggle');
+const availableTestsSubmenu = document.querySelector('#available-tests-submenu');
+availableTestsToggle.addEventListener('click', () => {
+  const expanded = availableTestsToggle.getAttribute('aria-expanded') === 'true';
+  availableTestsToggle.setAttribute('aria-expanded', String(!expanded));
+  availableTestsSubmenu.hidden = expanded;
+});
+availableTestsSubmenu.addEventListener('click', event => {
+  const button = event.target.closest('[data-available-test]');
+  if (button) openTest(button.dataset.availableTest);
+});
 window.addEventListener('popstate', event => {
   if (!currentUser) return;
   if (event.state?.view === 'test' && event.state.testName) return openTest(event.state.testName);
+  if (event.state?.view === 'tester-profile') {
+    const member = testers.find(item => normalizeCallsign(item.callsign) === event.state.callsign) || directoryMembers.find(item => normalizeCallsign(item.callsign) === event.state.callsign);
+    return member ? openTesterProfile(member, { push: false }) : navigateTo('testers', { push: false });
+  }
   navigateTo(event.state?.view || 'overview', { push: false });
 });
 window.addEventListener('hashchange', () => {
   if (!currentUser || window.location.hash.startsWith('#test-')) return;
+  const memberProfileMatch = window.location.hash.match(/^#tester-profile-(.+)$/);
+  if (memberProfileMatch) {
+    const callsign = decodeURIComponent(memberProfileMatch[1]);
+    const member = testers.find(item => normalizeCallsign(item.callsign) === callsign) || directoryMembers.find(item => normalizeCallsign(item.callsign) === callsign);
+    if (member) openTesterProfile(member, { push: false });
+    else navigateTo('testers', { push: false });
+    return;
+  }
   const view = window.location.hash.slice(1);
   navigateTo(labels[view] ? view : 'overview', { push: false });
 });
@@ -1104,12 +1191,15 @@ function setVisibilityPermissions(user){
   const leadership = isLeadershipUser(user);
   const addBtn = document.querySelector('#add-btn');
   const removeBtn = document.querySelector('#remove-btn');
-  const membersNav = document.querySelector('[data-view="members"]');
+  const profileSettingsButton = document.querySelector('#profile-settings');
+  const callsign = callsignNumber(user?.csNum || user?.callsign || user?.callSign);
+  const adminPanel = document.querySelector('#admin-panel');
   if (addBtn) addBtn.hidden = !leadership;
   if (removeBtn) removeBtn.hidden = !leadership;
-  if (membersNav) membersNav.hidden = !leadership;
+  if (profileSettingsButton) profileSettingsButton.hidden = callsign < 1 || callsign > 20;
+  if (adminPanel) adminPanel.hidden = callsign < 1 || callsign > 20;
   const sectionLabel = document.querySelector('#section-label');
-  if (sectionLabel) sectionLabel.textContent = leadership ? 'Administrare' : 'Spațiul tău';
+  if (sectionLabel) sectionLabel.textContent = 'Spațiul tău';
 }
 /** @param {any} user @returns {void} */
 function setStats(user){
@@ -1119,10 +1209,10 @@ function setStats(user){
 /** @param {any} user @returns {void} */
 function applyUser(user){
   currentUser = user;
-  setWelcomeHeader(user); setVisibilityPermissions(user); setStats(user);
+  setWelcomeHeader(user); setVisibilityPermissions(user); setStats(user); renderAvailableTestsSubmenu();
 }
 function showAuthError(message){authError.textContent=message;authError.classList.add('show')}
-async function enterApp(user){applyUser(user);markPresence();sendPresence();authScreen.style.display='none';appShell.classList.add('ready');window.history.replaceState({ view: 'overview' }, '', `${window.location.pathname}#overview`);navigateTo('overview', { push: false });try { await loadDirectory(); await loadRemoteGrants(); } catch (error) { setSyncDetail('Sincronizarea a eșuat'); console.error(error); }}
+async function enterApp(user){const requestedProfileMatch=window.location.hash.match(/^#tester-profile-(.+)$/);const requestedProfileCallsign=requestedProfileMatch?decodeURIComponent(requestedProfileMatch[1]):'';applyUser(user);markPresence();sendPresence();authScreen.style.display='none';appShell.classList.add('ready');window.history.replaceState({ view: 'overview' }, '', `${window.location.pathname}#overview`);navigateTo('overview', { push: false });try { await loadDirectory(); await loadRemoteGrants(); if(requestedProfileCallsign){const member=testers.find(item=>normalizeCallsign(item.callsign)===requestedProfileCallsign)||directoryMembers.find(item=>normalizeCallsign(item.callsign)===requestedProfileCallsign);if(member)openTesterProfile(member,{push:false,previousView:'testers'});}} catch (error) { setSyncDetail('Sincronizarea a eșuat'); console.error(error); }}
 const accessError = new URLSearchParams(window.location.search).get('access');
 if (accessError === 'denied') showAuthError('Contul Discord nu există în lista departamentului.');
 if (accessError === 'error') showAuthError('Autentificarea Discord nu a putut fi finalizată.');
