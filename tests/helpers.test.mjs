@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { accessFor, catalog as accessCatalog, coreTests, effectiveTestsForMember, functionsForMember, isLeadership, normalizeTests, testsForFunctions } from '../api/access/shared.js';
-import { createAdmissionEmbeds, createAlsResultEmbed, createMedicalCertificateEmbeds, medicalCertificateNumberForRow } from '../api/access/test-results.js';
+import { createAdmissionEmbeds, createAlsResultEmbed, createSpecialtyResultEmbed, createMedicalCertificateEmbeds, medicalCertificateNumberForRow } from '../api/access/test-results.js';
 import { statusFromRow } from '../api/access/directory.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -324,6 +324,11 @@ test('identity card OCR parser extracts only name and CNP', () => {
   assert.deepEqual(details, { name: 'Cartier Mohammed', lastName: 'Cartier', firstName: 'Mohammed', cnp: '1060825927178' });
 });
 
+test('identity card OCR reads an 18-digit CNP and names below multilingual labels', () => {
+  const details = parseIdentityCardText('CNP 124761832451723176\nNume/Nom/Last name\nRuiz\nPrenume/Prenom/First name\nAlexandro');
+  assert.deepEqual(details, { name: 'Ruiz Alexandro', lastName: 'Ruiz', firstName: 'Alexandro', cnp: '124761832451723176' });
+});
+
 test('parachute test display name is simplified without changing its catalog key', () => {
   assert.equal(displayTestName('Test parașutiști'), 'Test Parasutism');
   assert.equal(displayTestName('Test ALS'), 'Test ALS');
@@ -377,10 +382,18 @@ test('ALS result embed contains tester, candidate, callsign, and verdict', () =>
   assert.equal(embed.fields[3].value, 'Respins');
 });
 
+test('specialty result embeds contain tester, candidate, callsign, and verdict', () => {
+  const embed = createSpecialtyResultEmbed({ testName: 'Test PILOT', testerName: 'Tester', candidateName: 'Candidat', candidateCallsign: 'M-302', result: 'Admis' });
+  assert.equal(embed.title, 'Test PILOT');
+  assert.deepEqual(embed.fields.map(field => field.name), ['Nume Tester', 'Callsign', 'Nume Candidat', 'Rezultat']);
+  assert.equal(embed.fields[3].value, 'Admis');
+});
+
 test('ALS guide form includes callsign and candidate name inputs', () => {
-  const formMarkup = source.match(/const candidateNameField = testName === 'Test ALS'[\s\S]*?;/)?.[0] || '';
+  const formMarkup = source.match(/const candidateNameField = \[[\s\S]*?\.includes\(testName\)[\s\S]*?;/)?.[0] || '';
   assert.match(formMarkup, /Nume candidat/);
   assert.match(formMarkup, /als-candidate-name/);
+  for (const testName of ['Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști']) assert.ok(formMarkup.includes(testName));
 });
 
 test('medical certificates start at 7015 and stop at 30000', () => {

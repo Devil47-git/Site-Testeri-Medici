@@ -608,11 +608,16 @@ function parseIdentityCardText(text) {
   const labelPrefix = '(?:[iIl|]*\\s*)?';
   const lastName = valueAfterLabel(new RegExp(`${labelPrefix}(?:${lastNameLabels})`, 'i'), new RegExp(`^${labelPrefix}(?:${lastNameLabels})(?:\\s*[\\/|]\\s*${lastNameLabels})*\\s*[:\\-]?\\s*`, 'i'), new RegExp(`${labelPrefix}(?:${firstNameLabels}|CNP|SERIE?|ID)`, 'i'));
   const firstName = valueAfterLabel(new RegExp(`${labelPrefix}(?:${firstNameLabels})`, 'i'), new RegExp(`^${labelPrefix}(?:${firstNameLabels})(?:\\s*[\\/|]\\s*${firstNameLabels})*\\s*[:\\-]?\\s*`, 'i'), new RegExp(`${labelPrefix}(?:CNP|SERIE?|ID)`, 'i'));
-  const digitText = rawText.replace(/[OoQ]/g, '0').replace(/[Il|]/g, '1');
-  const cnpLabel = digitText.search(/C\s*N\s*P/i);
-  const cnpText = cnpLabel >= 0 ? digitText.slice(cnpLabel, cnpLabel + 100) : digitText;
-  const cnpCandidates = [...cnpText.matchAll(/(?:\d[\s.-]*){13}/g)].map(match => match[0].replace(/\D/g, '')).filter(value => value.length === 13);
-  const cnp = (cnpCandidates[0] || (cnpText === digitText ? '' : [...digitText.matchAll(/(?:\d[\s.-]*){13}/g)].map(match => match[0].replace(/\D/g, '')).find(value => value.length === 13))) || '';
+  const cnpIndex = lines.findIndex(line => /C\s*N\s*P/i.test(line));
+  const cnpLine = cnpIndex < 0 ? '' : lines[cnpIndex];
+  const cnpLabel = cnpLine.match(/C\s*N\s*P/i);
+  const cnpValue = cnpLabel
+    ? cnpLine.slice(cnpLabel.index + cnpLabel[0].length).trim() || lines[cnpIndex + 1] || ''
+    : '';
+  const normalizedCnp = cnpValue.replace(/[OoQ]/g, '0').replace(/[Il|]/g, '1');
+  const cnp = [...normalizedCnp.matchAll(/(?:\d[\s.-]*){13,24}/g)]
+    .map(match => match[0].replace(/\D/g, ''))
+    .find(value => value.length >= 13 && value.length <= 24) || '';
   return { name: [lastName, firstName].filter(Boolean).join(' '), lastName, firstName, cnp };
 }
 function mergeIdentityCardDetails(primary, retry) {
@@ -628,10 +633,10 @@ function candidateImageFieldHtml(id, label, pasteText) {
 }
 function admissionCandidateDetailsHtml() {
   const photoField = candidateImageFieldHtml;
-  return `<section class="admission-candidate-details" aria-labelledby="admission-candidate-title"><h3 id="admission-candidate-title">Date candidat</h3><div class="admission-candidate-grid"><label>Nume și prenume<input id="candidate-name" type="text" autocomplete="name"></label><label>CNP<input id="candidate-cnp" type="text" inputmode="numeric" maxlength="13" autocomplete="off"></label><label>ID candidat<input id="candidate-id" type="text" autocomplete="off"></label><label>Callsign atribuit<input id="candidate-callsign" type="text" placeholder="M-510" autocomplete="off"></label></div>${photoField('candidate-document', 'Fotografie buletin', 'Lipește poza buletinului aici (Ctrl+V) sau selectează un fișier.')}${photoField('candidate-medical-sheet', 'Fotografie fișă medicală', 'Lipește poza fișei medicale aici (Ctrl+V) sau selectează un fișier.')}${photoField('candidate-drug-test', 'Fotografie drug-test', 'Lipește poza drug-testului aici (Ctrl+V) sau selectează un fișier.')}</section>`;
+  return `<section class="admission-candidate-details" aria-labelledby="admission-candidate-title"><h3 id="admission-candidate-title">Date candidat</h3><div class="admission-candidate-grid"><label>Nume și prenume<input id="candidate-name" type="text" autocomplete="name"></label><label>CNP<input id="candidate-cnp" type="text" inputmode="numeric" maxlength="24" autocomplete="off"></label><label>ID candidat<input id="candidate-id" type="text" autocomplete="off"></label><label>Callsign atribuit<input id="candidate-callsign" type="text" placeholder="M-510" autocomplete="off"></label></div>${photoField('candidate-document', 'Fotografie buletin', 'Lipește poza buletinului aici (Ctrl+V) sau selectează un fișier.')}${photoField('candidate-medical-sheet', 'Fotografie fișă medicală', 'Lipește poza fișei medicale aici (Ctrl+V) sau selectează un fișier.')}${photoField('candidate-drug-test', 'Fotografie drug-test', 'Lipește poza drug-testului aici (Ctrl+V) sau selectează un fișier.')}</section>`;
 }
 function medicalCertificateDetailsHtml() {
-  return `<section class="admission-candidate-details" aria-labelledby="medical-certificate-title"><h3 id="medical-certificate-title">Date adeverință</h3><div class="admission-candidate-grid"><label>Nume<input id="certificate-last-name" type="text" autocomplete="family-name"></label><label>Prenume<input id="certificate-first-name" type="text" autocomplete="given-name"></label><label>CNP<input id="certificate-cnp" type="text" inputmode="numeric" maxlength="13" autocomplete="off"></label><label>ID (CNP)<input id="certificate-id" type="text" inputmode="numeric" autocomplete="off"></label><label>Număr de telefon<input id="certificate-phone" type="tel" autocomplete="tel"></label><label>Ore cont<input id="certificate-hours-account" type="number" min="0" step="0.01" value="2001.25"></label><label>Ore character<input id="certificate-hours-character" type="number" min="0" step="0.01" value="2001.25"></label><label>Apt medical<select id="certificate-medical-status"><option value="Admis">Apt medical</option><option value="Respins">Inapt medical</option></select></label></div>${candidateImageFieldHtml('certificate-document', 'Fotografie buletin', 'Lipește poza buletinului aici (Ctrl+V) sau selectează un fișier.')}${candidateImageFieldHtml('certificate-medical-sheet', 'Fotografie fișă medicală', 'Lipește poza fișei medicale aici (Ctrl+V) sau selectează un fișier.')}</section>`;
+  return `<section class="admission-candidate-details" aria-labelledby="medical-certificate-title"><h3 id="medical-certificate-title">Date adeverință</h3><div class="admission-candidate-grid"><label>Nume<input id="certificate-last-name" type="text" autocomplete="family-name"></label><label>Prenume<input id="certificate-first-name" type="text" autocomplete="given-name"></label><label>CNP<input id="certificate-cnp" type="text" inputmode="numeric" maxlength="24" autocomplete="off"></label><label>ID (CNP)<input id="certificate-id" type="text" inputmode="numeric" autocomplete="off"></label><label>Număr de telefon<input id="certificate-phone" type="tel" autocomplete="tel"></label><label>Ore cont<input id="certificate-hours-account" type="number" min="0" step="0.01" value="2001.25"></label><label>Ore character<input id="certificate-hours-character" type="number" min="0" step="0.01" value="2001.25"></label><label>Apt medical<select id="certificate-medical-status"><option value="Admis">Apt medical</option><option value="Respins">Inapt medical</option></select></label></div>${candidateImageFieldHtml('certificate-document', 'Fotografie buletin', 'Lipește poza buletinului aici (Ctrl+V) sau selectează un fișier.')}${candidateImageFieldHtml('certificate-medical-sheet', 'Fotografie fișă medicală', 'Lipește poza fișei medicale aici (Ctrl+V) sau selectează un fișier.')}</section>`;
 }
 function admissionCandidateSummary(result) {
   const value = selector => document.querySelector(selector)?.value?.trim() || '—';
@@ -702,7 +707,7 @@ function buildTestMarkup(testName, definition, questions) {
   const cases = (definition.cases || []).map((item, index) => `<option value="${index}">${item.title}</option>`).join('');
   const practical = (definition.practical || []).map((item, index) => `<option value="${index}">${item.name}</option>`).join('');
   const candidateCallsign = isApplicationTest || isMedicalCertificate ? '' : '<label class="candidate-call-sign">Callsign candidat<input id="candidate-callsign" type="text" placeholder="510 sau M-510"></label>';
-  const candidateNameField = testName === 'Test ALS' ? '<label class="candidate-call-sign">Nume candidat<input id="als-candidate-name" type="text" autocomplete="name"></label>' : '';
+  const candidateNameField = ['Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști'].includes(testName) ? '<label class="candidate-call-sign">Nume candidat<input id="als-candidate-name" type="text" autocomplete="name"></label>' : '';
   const candidateDocument = !isApplicationTest && !isMedicalCertificate && testName === 'Adeverință medicală' ? '<label>Imagine document candidat<input id="candidate-document" type="file" accept="image/*"></label><p class="muted">Imaginea este disponibilă testerului pentru verificare manuală.</p>' : '';
   const questionForm = questions.length ? `<form id="test-form" class="question-list">${candidateCallsign}${candidateNameField}<div id="candidate-summary" class="candidate-summary"></div>${candidateDocument}${questions.map(questionItemHtml).join('')}<p>Greșeli: <strong id="wrong-count">0</strong> / ${Number.isFinite(maxWrong) ? maxWrong : '—'}</p><button class="primary" type="submit">Finalizează evaluarea</button></form>` : '<div class="test-runner"><p>Acest ghid nu are întrebări teoretice configurate.</p></div>';
   const gatedQuestionForm = (isAdmissionTest || isMotoTest) && questions.length ? `<div id="${isAdmissionTest ? 'admission-test-content' : 'moto-test-content'}" hidden>${questionForm}</div>` : questionForm;
@@ -869,7 +874,7 @@ function wireTestEvents(testName, definition) {
         statusElement.classList.add('error-text');
         return;
       }
-    } else if (testName === 'Test ALS') {
+    } else if (['Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști'].includes(testName)) {
       const candidateCallsign = candidateInput?.value?.trim() || '';
       const candidateName = alsCandidateNameInput?.value?.trim() || '';
       if (!candidateCallsign || !candidateName) {
@@ -885,9 +890,10 @@ function wireTestEvents(testName, definition) {
       const finishStagedTest = async finalResult => {
         stageFlow.innerHTML = '<p class="muted">Se înregistrează rezultatul...</p>';
         try {
-          await recordTestRun(testName, finalResult);
+          const saved = await recordTestRun(testName, finalResult, submissionDetails);
           const candidate = candidateInput?.value?.trim() || '—';
-          stageFlow.innerHTML = `<pre class="candidate-summary">Test: ${escapeHtml(displayTestName(testName))}\nCallsign: ${escapeHtml(candidate)}\nRezultat: ${finalResult}</pre><p class="muted">Testul a fost înregistrat.</p>`;
+          const notificationStatus = saved.discordNotificationsSent ? 'Notificarea Discord a fost trimisă.' : `Notificarea Discord nu a fost trimisă. ${saved.discordNotificationError || ''}`;
+          stageFlow.innerHTML = `<pre class="candidate-summary">Test: ${escapeHtml(displayTestName(testName))}\nCallsign: ${escapeHtml(candidate)}\nRezultat: ${finalResult}</pre><p class="muted">Testul a fost înregistrat. ${escapeHtml(notificationStatus)}</p>`;
         } catch (error) {
           stageFlow.innerHTML = `<p class="error-text">Rezultatul nu s-a putut înregistra: ${escapeHtml(error.message)}</p>`;
         }
@@ -934,7 +940,7 @@ function wireTestEvents(testName, definition) {
     let certificateNumber = null;
     try {
       const saved = await recordTestRun(testName, result, submissionDetails);
-      if ((isApplicationTest || isMedicalCertificate || testName === 'Test ALS') && !saved.discordNotificationsSent) status = `Rezultatul a fost salvat, dar notificările Discord nu au fost trimise. ${saved.discordNotificationError || 'Verifică setările webhook.'}`;
+      if ((isApplicationTest || isMedicalCertificate || Object.hasOwn({ 'Test ALS': true, 'Test SMULS': true, 'Test MOTO': true, 'Test PILOT': true, 'Test parașutiști': true }, testName)) && !saved.discordNotificationsSent) status = `Rezultatul a fost salvat, dar notificările Discord nu au fost trimise. ${saved.discordNotificationError || 'Verifică setările webhook.'}`;
       if (isMedicalCertificate) {
         certificateNumber = saved.certificateNumber;
         if (saved.discordNotificationsSent) status = `Adeverința cu numărul ${certificateNumber} a fost trimisă.`;

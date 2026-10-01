@@ -10,6 +10,13 @@ const MEDICAL_CERTIFICATES_HEADER = ['number', 'testerDiscordId', 'testerName', 
 const MEDICAL_CERTIFICATE_LAST_NUMBER = 7014;
 const MEDICAL_CERTIFICATE_MAX_NUMBER = 30000;
 const MAX_IDENTITY_IMAGE_BYTES = 2 * 1024 * 1024;
+const SPECIALTY_WEBHOOKS = {
+  'Test ALS': 'DISCORD_ALS_WEBHOOK',
+  'Test SMULS': 'DISCORD_SMULS_WEBHOOK',
+  'Test MOTO': 'DISCORD_MOTO_WEBHOOK',
+  'Test PILOT': 'DISCORD_PILOT_WEBHOOK',
+  'Test parașutiști': 'DISCORD_PARASUTIST_WEBHOOK'
+};
 
 export const config = { api: { bodyParser: { sizeLimit: '4mb' } } };
 
@@ -163,16 +170,33 @@ export function createAlsResultEmbed({ testerName, candidateName, candidateCalls
   };
 }
 
-async function sendAlsNotification(details) {
-  const setting = process.env.DISCORD_ALS_WEBHOOK;
-  if (!setting) return { sent: false, error: 'Lipsește DISCORD_ALS_WEBHOOK.' };
+export function createSpecialtyResultEmbed({ testName, testerName, candidateName, candidateCallsign, result }) {
+  return {
+    title: testName,
+    color: 0x23A2E8,
+    fields: [
+      { name: 'Nume Tester', value: testerName || '—', inline: false },
+      { name: 'Callsign', value: candidateCallsign || '—', inline: false },
+      { name: 'Nume Candidat', value: candidateName || '—', inline: false },
+      { name: 'Rezultat', value: result || '—', inline: false }
+    ]
+  };
+}
+
+async function sendSpecialtyNotification(testName, details) {
+  const settingName = SPECIALTY_WEBHOOKS[testName];
+  const setting = process.env[settingName];
+  if (!setting) return { sent: false, error: `Lipsește ${settingName}.` };
   const url = webhookUrl(setting);
-  if (!url) return { sent: false, error: 'URL invalid pentru DISCORD_ALS_WEBHOOK.' };
+  if (!url) return { sent: false, error: `URL invalid pentru ${settingName}.` };
   try {
-    await sendWebhookMessage(url, createAlsResultEmbed(details));
+    const embed = testName === 'Test ALS'
+      ? createAlsResultEmbed(details)
+      : createSpecialtyResultEmbed({ testName, ...details });
+    await sendWebhookMessage(url, embed);
     return { sent: true, error: '' };
   } catch (error) {
-    return { sent: false, error: `Canalul ALS: ${error.message.startsWith('HTTP ') ? error.message : 'eroare de rețea Discord'}.` };
+    return { sent: false, error: `Canalul ${testName}: ${error.message.startsWith('HTTP ') ? error.message : 'eroare de rețea Discord'}.` };
   }
 }
 
@@ -211,7 +235,7 @@ export default async function handler(req, res) {
       if (!catalog.includes(testName)) return json(res, 400, { error: 'Unknown test' });
       if (!await canRecordTest(sheets, member, discordId, testName)) return json(res, 403, { error: 'This test is not assigned to the requester' });
       let admissionDetails = null;
-      let alsDetails = null;
+      let specialtyDetails = null;
       let certificateDetails = null;
       if (testName === 'Test admitere') {
         const candidateName = String(req.body?.candidateName || '').trim().slice(0, 100);
@@ -225,13 +249,13 @@ export default async function handler(req, res) {
         }
         admissionDetails = { candidateName, candidateId, candidateCallsign, result, image };
       }
-      if (testName === 'Test ALS') {
+      if (Object.hasOwn(SPECIALTY_WEBHOOKS, testName)) {
         const candidateName = String(req.body?.candidateName || '').trim().slice(0, 100);
         const candidateCallsign = String(req.body?.candidateCallsign || '').trim().slice(0, 24);
         const result = String(req.body?.result || '').trim();
-        if (!candidateName || !candidateCallsign) return json(res, 400, { error: 'Testul ALS necesită numele și callsign-ul candidatului.' });
-        if (!['Admis', 'Respins'].includes(result)) return json(res, 400, { error: 'Invalid ALS result' });
-        alsDetails = { candidateName, candidateCallsign, result };
+        if (!candidateName || !candidateCallsign) return json(res, 400, { error: 'Testul necesită numele și callsign-ul candidatului.' });
+        if (!['Admis', 'Respins'].includes(result)) return json(res, 400, { error: 'Invalid test result' });
+        specialtyDetails = { candidateName, candidateCallsign, result };
       }
       if (testName === 'Adeverință medicală') {
         const details = {
@@ -264,8 +288,8 @@ export default async function handler(req, res) {
       const discordNotifications = admissionDetails
         ? await sendAdmissionNotifications({ testerName: String(member[3] || '').trim().slice(0, 100), ...admissionDetails }, admissionDetails.image)
         : undefined;
-      const alsNotification = alsDetails
-        ? await sendAlsNotification({ testerName: String(member[3] || '').trim().slice(0, 100), ...alsDetails })
+      const specialtyNotification = specialtyDetails
+        ? await sendSpecialtyNotification(testName, { testerName: String(member[3] || '').trim().slice(0, 100), ...specialtyDetails })
         : undefined;
       let certificateNumber;
       let certificateNotification;
@@ -276,7 +300,7 @@ export default async function handler(req, res) {
       return json(res, 200, {
         success: true,
         ...(admissionDetails ? { discordNotificationsSent: discordNotifications.sent, discordNotificationError: discordNotifications.error } : {}),
-        ...(alsDetails ? { discordNotificationsSent: alsNotification.sent, discordNotificationError: alsNotification.error } : {}),
+        ...(specialtyDetails ? { discordNotificationsSent: specialtyNotification.sent, discordNotificationError: specialtyNotification.error } : {}),
         ...(certificateDetails ? { certificateNumber, discordNotificationsSent: certificateNotification.sent, discordNotificationError: certificateNotification.error } : {})
       });
     }
