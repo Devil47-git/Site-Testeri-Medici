@@ -594,8 +594,14 @@ function parseIdentityCardText(text) {
   const rawText = String(text || '');
   const lines = rawText.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
   const fieldMarker = /\b(?:Nume|Nom|Last|name|Prenume|Prenom|Pren\w*|First|CNP|SERIE?|ID|Nationality|Sex|Birth)\b/i;
+  const cleanNameValue = value => {
+    const words = (String(value || '').match(/[\p{L}][\p{L}'’\-]*/gu) || []).filter(word => !fieldMarker.test(word));
+    const meaningfulWords = words.filter(word => word.length > 2);
+    if (meaningfulWords.length) return meaningfulWords.join(' ');
+    return words.length === 1 ? words[0] : '';
+  };
   const isNameValue = value => {
-    const candidate = String(value || '').replace(/^[\s:;,.|/_-]+|[\s:;,.|/_-]+$/g, '').trim();
+    const candidate = cleanNameValue(value);
     return Boolean(candidate && !fieldMarker.test(candidate) && /^[\p{L}][\p{L}'’ -]{0,79}$/u.test(candidate) && candidate.split(/\s+/).length <= 5);
   };
   const labelPrefix = '^\\s*(?:[iIl|]*\\s*)?';
@@ -619,13 +625,12 @@ function parseIdentityCardText(text) {
       : lines[index].slice(labelMatch.index + labelMatch[0].length).replace(stripPattern, '');
     const nextField = inline.search(stopPattern);
     if (nextField >= 0) inline = inline.slice(0, nextField);
-    if (isNameValue(inline)) return inline.replace(/^[\s:;,.|/_-]+|[\s:;,.|/_-]+$/g, '').trim();
     for (const line of lines.slice(index + 1)) {
       if (anyLabelAtStart.test(line)) break;
       if (fuzzyFirstNamePattern.test(line)) break;
-      if (isNameValue(line)) return line.replace(/^[\s:;,.|/_-]+|[\s:;,.|/_-]+$/g, '').trim();
+      if (isNameValue(line)) return cleanNameValue(line);
     }
-    return '';
+    return isNameValue(inline) ? cleanNameValue(inline) : '';
   };
   const lastName = extractName(
     lastNamePattern,
@@ -694,67 +699,54 @@ async function readIdentityCard(file) {
   const worker = await tesseract.createWorker('ron+eng');
   try {
     const image = await createImageBitmap(file);
-    const makeFieldCrop = (topRatio, heightRatio) => {
-      const sourceX = Math.round(image.width * 0.28);
-      const sourceY = Math.round(image.height * topRatio);
-      const sourceWidth = Math.round(image.width * 0.67);
-      const sourceHeight = Math.round(image.height * heightRatio);
-      const scale = 4;
-      const canvas = document.createElement('canvas');
-      canvas.width = sourceWidth * scale;
-      canvas.height = sourceHeight * scale;
-      const context = canvas.getContext('2d', { willReadFrequently: true });
-      context.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, canvas.width, canvas.height);
-      const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
-      const histogram = new Uint32Array(256);
-      for (let index = 0; index < pixels.data.length; index += 4) {
-        const gray = Math.round(pixels.data[index] * 0.299 + pixels.data[index + 1] * 0.587 + pixels.data[index + 2] * 0.114);
-        histogram[gray] += 1;
+    const sourceX = Math.round(image.width * 0.28);
+    const sourceY = Math.round(image.height * 0.15);
+    const sourceWidth = Math.round(image.width * 0.43);
+    const sourceHeight = Math.round(image.height * 0.4);
+    const scale = 4;
+    const crop = document.createElement('canvas');
+    crop.width = sourceWidth * scale;
+    crop.height = sourceHeight * scale;
+    const context = crop.getContext('2d', { willReadFrequently: true });
+    context.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, crop.width, crop.height);
+    const pixels = context.getImageData(0, 0, crop.width, crop.height);
+    const histogram = new Uint32Array(256);
+    for (let index = 0; index < pixels.data.length; index += 4) {
+      const gray = Math.round(pixels.data[index] * 0.299 + pixels.data[index + 1] * 0.587 + pixels.data[index + 2] * 0.114);
+      histogram[gray] += 1;
+    }
+    const pixelCount = pixels.data.length / 4;
+    let sum = 0;
+    for (let value = 0; value < histogram.length; value += 1) sum += value * histogram[value];
+    let backgroundWeight = 0;
+    let backgroundSum = 0;
+    let threshold = 170;
+    let maxVariance = 0;
+    for (let value = 0; value < histogram.length; value += 1) {
+      backgroundWeight += histogram[value];
+      if (!backgroundWeight) continue;
+      const foregroundWeight = pixelCount - backgroundWeight;
+      if (!foregroundWeight) break;
+      backgroundSum += value * histogram[value];
+      const meanBackground = backgroundSum / backgroundWeight;
+      const meanForeground = (sum - backgroundSum) / foregroundWeight;
+      const variance = backgroundWeight * foregroundWeight * (meanBackground - meanForeground) ** 2;
+      if (variance > maxVariance) {
+        maxVariance = variance;
+        threshold = value;
       }
-      const pixelCount = pixels.data.length / 4;
-      let sum = 0;
-      for (let value = 0; value < histogram.length; value += 1) sum += value * histogram[value];
-      let backgroundWeight = 0;
-      let backgroundSum = 0;
-      let threshold = 170;
-      let maxVariance = 0;
-      for (let value = 0; value < histogram.length; value += 1) {
-        backgroundWeight += histogram[value];
-        if (!backgroundWeight) continue;
-        const foregroundWeight = pixelCount - backgroundWeight;
-        if (!foregroundWeight) break;
-        backgroundSum += value * histogram[value];
-        const meanBackground = backgroundSum / backgroundWeight;
-        const meanForeground = (sum - backgroundSum) / foregroundWeight;
-        const variance = backgroundWeight * foregroundWeight * (meanBackground - meanForeground) ** 2;
-        if (variance > maxVariance) {
-          maxVariance = variance;
-          threshold = value;
-        }
-      }
-      for (let index = 0; index < pixels.data.length; index += 4) {
-        const gray = Math.round(pixels.data[index] * 0.299 + pixels.data[index + 1] * 0.587 + pixels.data[index + 2] * 0.114);
-        const color = gray > threshold ? 255 : 0;
-        pixels.data[index] = color;
-        pixels.data[index + 1] = color;
-        pixels.data[index + 2] = color;
-      }
-      context.putImageData(pixels, 0, 0);
-      return canvas;
-    };
-    const cnpCrop = makeFieldCrop(0.17, 0.08);
-    const lastNameCrop = makeFieldCrop(0.27, 0.07);
-    const firstNameCrop = makeFieldCrop(0.34, 0.07);
+    }
+    for (let index = 0; index < pixels.data.length; index += 4) {
+      const gray = Math.round(pixels.data[index] * 0.299 + pixels.data[index + 1] * 0.587 + pixels.data[index + 2] * 0.114);
+      const color = gray > threshold ? 255 : 0;
+      pixels.data[index] = color;
+      pixels.data[index + 1] = color;
+      pixels.data[index + 2] = color;
+    }
+    context.putImageData(pixels, 0, 0);
     image.close();
-    const recognizeField = async (canvas, whitelist) => {
-      await worker.setParameters({ tessedit_pageseg_mode: 6, preserve_interword_spaces: '1', tessedit_char_whitelist: whitelist });
-      return (await worker.recognize(canvas)).data.text;
-    };
-    const cnpText = await recognizeField(cnpCrop, '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ');
-    const nameWhitelist = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzÀÂĂÎȘȚàâăîșț -';
-    const lastNameText = await recognizeField(lastNameCrop, nameWhitelist);
-    const firstNameText = await recognizeField(firstNameCrop, nameWhitelist);
-    const focusedText = `CNP\n${cnpText}\nNume/Nom/Last name\n${lastNameText}\nPrenume/Prenom/First name\n${firstNameText}`;
+    await worker.setParameters({ tessedit_pageseg_mode: 6, preserve_interword_spaces: '1' });
+    const focusedText = (await worker.recognize(crop)).data.text;
     const details = parseIdentityCardText(focusedText);
     return { ...details, name: [details.lastName, details.firstName].filter(Boolean).join(' ') };
   } finally {

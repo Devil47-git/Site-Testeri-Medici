@@ -339,6 +339,17 @@ test('identity card OCR does not interpret embedded label fragments as names', (
   assert.deepEqual(details, { name: '', lastName: '', firstName: '', cnp: '1033124177982' });
 });
 
+test('identity card OCR extracts values beneath labels from a textured card crop', () => {
+  const details = parseIdentityCardText('CNP 1081325869966\nNume/Nom/Last name . wn n\nToporisca ~\nPrenume/Prenom/Fir3t-nsima\nVlad !\nCetatenie/Nationality\nRomana');
+  assert.deepEqual(details, { name: 'Toporisca Vlad', lastName: 'Toporisca', firstName: 'Vlad', cnp: '1081325869966' });
+});
+
+test('identity card OCR drops short trailing noise but preserves a short standalone name', () => {
+  const details = parseIdentityCardText('CNP 1022122252146\nNume/Nom/Last name . ur cu\nHernandez a.\nPrenume/Prenom/First name\nStefan oo');
+  assert.deepEqual(details, { name: 'Hernandez Stefan', lastName: 'Hernandez', firstName: 'Stefan', cnp: '1022122252146' });
+  assert.equal(parseIdentityCardText('Nume/Nom/Last name\nLi').lastName, 'Li');
+});
+
 test('identity card OCR keeps real 13-character alphanumeric CNPs and longer numeric values', () => {
   assert.equal(parseIdentityCardText('CNP 104182531ARZ6').cnp, '104182531ARZ6');
   assert.equal(parseIdentityCardText('CNP 124761832451723176').cnp, '124761832451723176');
