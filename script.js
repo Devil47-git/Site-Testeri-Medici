@@ -19,6 +19,7 @@ const coreTests = ['Test admitere','Test transfer','Adeverință medicală'];
 const TESTER_BUNDLE_KEY = '__tester_bundle__';
 const admissionRequirements = ['Verificarea ținutei', 'Verificarea tatuajelor faciale', 'Verificarea cazierului', 'Minimum 50 de ore jucate', 'Controlul cu stetoscopul', 'Drug-testul'];
 const motoRequirements = ['Grad Medic-Rezident', 'Certificat S.M.U.L.S.', 'Permis Categoria A'];
+const alsRequirements = ['Verificare BLS', 'Verificare Radio', 'Au trecut minimum 3 zile de la promovarea ultimului test Radio sau BLS', 'Permis categoria B'];
 const specialtyTests = ['Test ALS','Test SMULS','Test MOTO','Test PILOT','Test parașutiști'];
 const docsTesterFilters = ['Test SMULS', 'Test ALS'];
 const testSummaryDefinitions = [['Test SMULS', 'Test S.M.U.L.S.'], ['Test MOTO', 'Test MOTO'], ['Test PILOT', 'Test PILOT'], ['Test ALS', 'Test A.L.S.'], ['Test parașutiști', 'Test Parasutism']];
@@ -634,9 +635,31 @@ function admissionChecklistHtml() {
 }
 function admissionChecksComplete(checks) { return checks.length === admissionRequirements.length && checks.every(Boolean); }
 function motoChecklistHtml() {
-  return `<section class="admission-checklist" aria-labelledby="moto-checklist-title"><h3 id="moto-checklist-title">Verificări înainte de test</h3>${motoRequirements.map((requirement, index) => `<label class="admission-check-row"><span>${escapeHtml(requirement)}</span><span class="admission-check-control"><input type="checkbox" data-moto-check="${index}" aria-label="${escapeHtml(requirement)}"><span class="admission-check-error" aria-hidden="true">!</span></span></label>`).join('')}</section>`;
+  return `<section class="admission-checklist moto-checklist" aria-labelledby="moto-checklist-title"><h3 id="moto-checklist-title">Verificări înainte de test</h3>${motoRequirements.map((requirement, index) => `<label class="admission-check-row"><span>${escapeHtml(requirement)}</span><span class="admission-check-control"><input type="checkbox" data-moto-check="${index}" aria-label="${escapeHtml(requirement)}"><span class="admission-check-error" aria-hidden="true">!</span></span></label>`).join('')}</section>`;
+}
+function motoCandidateBriefingHtml(briefing = {}) {
+  const points = (briefing.points || []).map(point => `<li>${escapeHtml(point)}</li>`).join('');
+  return `<section class="moto-candidate-briefing"><h3>Candidatului i se vor aduce la cunoștință următoarele:</h3><ul>${points}</ul><h4>Atenție</h4><p>${escapeHtml(briefing.warning || '')}</p><p>${escapeHtml(briefing.route || '')}</p></section>`;
 }
 function motoChecksComplete(checks) { return checks.length === motoRequirements.length && checks.every(Boolean); }
+function smulsChecklistHtml() {
+  const requirements = ['Verificare test teoretic', 'Licență Navală', 'Permis Categoria B', 'Mașina Stalker full tunată'];
+  return `<section class="admission-checklist smuls-checklist" aria-labelledby="smuls-checklist-title"><h3 id="smuls-checklist-title">Verificări înainte de test</h3>${requirements.map((requirement, index) => `<label class="admission-check-row"><span>${escapeHtml(requirement)}</span><span class="admission-check-control"><input type="checkbox" data-smuls-check="${index}" aria-label="${escapeHtml(requirement)}"><span class="admission-check-error" aria-hidden="true">!</span></span></label>`).join('')}</section>`;
+}
+function smulsChecksComplete(checks) { return checks.length === 4 && checks.every(Boolean); }
+function alsChecklistHtml() {
+  return `<section class="admission-checklist als-checklist" aria-labelledby="als-checklist-title"><h3 id="als-checklist-title">Verificări înainte de test</h3>${alsRequirements.map((requirement, index) => `<label class="admission-check-row"><span>${escapeHtml(requirement)}</span><span class="admission-check-control"><input type="checkbox" data-als-check="${index}" aria-label="${escapeHtml(requirement)}"><span class="admission-check-error" aria-hidden="true">!</span></span></label>`).join('')}</section>`;
+}
+function alsChecksComplete(checks) { return checks.length === alsRequirements.length && checks.every(Boolean); }
+function alsCaseListHtml(cases) {
+  const caseDetails = (cases || []).map((item, index) => `<details class="als-case"><summary>${escapeHtml(item.title || `Cazul ${index + 1}`)}</summary><div class="als-case-content"><p>${escapeHtml(item.description || '')}</p><p class="als-case-count">${Number(item.minimumMe) || 0} /me-uri</p><h4>/me-uri orientative</h4><ol>${(item.steps || []).map(step => `<li>${escapeHtml(step)}</li>`).join('')}</ol></div></details>`).join('');
+  return `<section class="als-case-stage"><h3>PROBA ALS: Cazuri de intervenție</h3><div class="als-case-list">${caseDetails}</div><div class="evaluation-stage-actions"><button type="button" class="primary evaluation-verdict evaluation-verdict-admitted" data-als-result="Admis">Admis ALS</button><button type="button" class="primary evaluation-verdict evaluation-verdict-rejected" data-als-result="Respins">Respins ALS</button></div></section>`;
+}
+function smulsCaseListHtml(cases) {
+  const caseDetails = (cases || []).map(item => `<details class="smuls-case"><summary>${escapeHtml(item.title)}</summary><div class="smuls-case-content"><ol>${(item.steps || []).map(step => `<li>${escapeHtml(step)}</li>`).join('')}</ol></div></details>`).join('');
+  const imageSlots = '<aside class="smuls-descarceration-images" aria-label="Imagini de descarcerare"><div class="smuls-case-image-slot" role="img" aria-label="Imagine 1">Imagine 1</div><div class="smuls-case-image-slot" role="img" aria-label="Imagine 2">Imagine 2</div></aside>';
+  return `<section class="smuls-descarceration-stage"><h3>PROBA 1: Descarcerare</h3><div class="smuls-descarceration-layout"><div class="smuls-descarceration-copy"><div class="smuls-case-list">${caseDetails}</div><div class="evaluation-stage-actions"><button type="button" class="primary evaluation-verdict evaluation-verdict-admitted" data-smuls-descarceration-result="Admis">Admis Descarcerare</button><button type="button" class="primary evaluation-verdict evaluation-verdict-rejected" data-smuls-descarceration-result="Respins">Respins Descarcerare</button></div></div>${imageSlots}</div></section>`;
+}
 function isTestFailed(wrong, maxWrong) { return wrong > maxWrong; }
 function maxWrongForTest(testName, maxWrong) { return testName === 'Test admitere' ? 3 : testName === 'Test PILOT' ? 1 : Number(maxWrong ?? Infinity); }
 function questionItemHtml(question, index) {
@@ -646,7 +669,8 @@ function evaluationStageHtml(stage, verdictLabels) {
   const paragraphs = (stage.paragraphs || []).map(text => `<p>${escapeHtml(text)}</p>`).join('');
   const conditions = stage.conditions?.length ? `<h4>Condiții</h4><ul>${stage.conditions.map(condition => `<li>${escapeHtml(condition)}</li>`).join('')}</ul>` : '';
   const buttons = verdictLabels.map(label => `<button type="button" class="primary evaluation-verdict evaluation-verdict-${label.result === 'Admis' ? 'admitted' : 'rejected'}" data-evaluation-result="${label.result}">${escapeHtml(label.text)}</button>`).join('');
-  const imageSlots = Number(stage.imageSlots) > 0 ? `<aside class="evaluation-stage-images" aria-label="Imagini de referință">${Array.from({ length: Number(stage.imageSlots) }, (_, index) => `<div class="evaluation-stage-image-slot" role="img" aria-label="Imagine de referință ${index + 1}"><span>Imagine ${index + 1}</span></div>`).join('')}</aside>` : '';
+  const imageCount = Number(stage.imageSlots) || 0;
+  const imageSlots = imageCount > 0 ? `<aside class="evaluation-stage-images" aria-label="Imagini de referință" style="--image-slot-count:${imageCount}">${Array.from({ length: imageCount }, (_, index) => `<div class="evaluation-stage-image-slot" role="img" aria-label="Imagine de referință ${index + 1}"><span>Imagine ${index + 1}</span></div>`).join('')}</aside>` : '';
   return `<section class="evaluation-stage-card${imageSlots ? ' has-image-slots' : ''}"><div class="evaluation-stage-copy"><h3>${escapeHtml(stage.title)}</h3>${paragraphs}${conditions}<div class="evaluation-stage-actions">${buttons}</div></div>${imageSlots}</section>`;
 }
 function parseIdentityCardText(text) {
@@ -724,15 +748,22 @@ function mergeIdentityCardDetails(primary, retry) {
     cnp: primary.cnp || retry.cnp
   };
 }
-function candidateImageFieldHtml(id, label, pasteText) {
-  return `<section class="candidate-photo-field"><label class="candidate-document-upload">${label}<input id="${id}" type="file" accept="image/*"></label><div class="image-paste-target" data-paste-for="${id}" tabindex="0" role="button">${pasteText}</div><p id="${id}-status" class="muted" aria-live="polite"></p></section>`;
+function candidateImageFieldHtml(id, label) {
+  return `<section class="candidate-photo-field" data-photo-field="${id}" data-photo-state="empty"><label class="candidate-document-upload">${label}<input id="${id}" type="file" accept="image/*"></label><div class="image-paste-target" data-paste-for="${id}" tabindex="0" role="button" aria-label="${label}: selectează sau lipește o fotografie"><span class="candidate-photo-spinner" aria-hidden="true"></span></div><div class="candidate-photo-progress" role="status" aria-live="polite"><span id="${id}-status">Așteaptă fotografia</span></div></section>`;
+}
+function setCandidatePhotoStatus(id, state, message) {
+  const input = document.querySelector(`#${id}`);
+  const photoField = input?.closest('.candidate-photo-field');
+  const status = document.querySelector(`#${id}-status`);
+  if (photoField) photoField.dataset.photoState = state;
+  if (status) status.textContent = message;
 }
 function admissionCandidateDetailsHtml() {
   const photoField = candidateImageFieldHtml;
-  return `<section class="admission-candidate-details" aria-labelledby="admission-candidate-title"><h3 id="admission-candidate-title">Date candidat</h3><div class="admission-candidate-grid"><label>Nume și prenume<input id="candidate-name" type="text" autocomplete="name"></label><label>CNP<input id="candidate-cnp" type="text" inputmode="numeric" maxlength="24" autocomplete="off"></label><label>ID candidat<input id="candidate-id" type="text" autocomplete="off"></label><label>Callsign atribuit<input id="candidate-callsign" type="text" placeholder="M-510" autocomplete="off"></label></div>${photoField('candidate-document', 'Fotografie buletin', 'Lipește poza buletinului aici (Ctrl+V) sau selectează un fișier.')}${photoField('candidate-medical-sheet', 'Fotografie fișă medicală', 'Lipește poza fișei medicale aici (Ctrl+V) sau selectează un fișier.')}${photoField('candidate-drug-test', 'Fotografie drug-test', 'Lipește poza drug-testului aici (Ctrl+V) sau selectează un fișier.')}</section>`;
+  return `<section class="admission-candidate-details" aria-labelledby="admission-candidate-title"><h3 id="admission-candidate-title">Date candidat</h3><div class="admission-candidate-grid"><label>Nume și prenume<input id="candidate-name" type="text" autocomplete="name"></label><label>CNP<input id="candidate-cnp" type="text" inputmode="numeric" maxlength="24" autocomplete="off"></label><label>ID candidat<input id="candidate-id" type="text" autocomplete="off"></label><label>Callsign atribuit<input id="candidate-callsign" type="text" placeholder="M-510" autocomplete="off"></label></div><div class="candidate-photo-grid">${photoField('candidate-document', 'Fotografie buletin')}${photoField('candidate-medical-sheet', 'Fotografie fișă medicală')}${photoField('candidate-drug-test', 'Fotografie drug-test')}</div></section>`;
 }
 function medicalCertificateDetailsHtml() {
-  return `<section class="admission-candidate-details" aria-labelledby="medical-certificate-title"><h3 id="medical-certificate-title">Date adeverință</h3><div class="admission-candidate-grid"><label>Nume<input id="certificate-last-name" type="text" autocomplete="family-name"></label><label>Prenume<input id="certificate-first-name" type="text" autocomplete="given-name"></label><label>CNP<input id="certificate-cnp" type="text" inputmode="numeric" maxlength="24" autocomplete="off"></label><label>ID (CNP)<input id="certificate-id" type="text" inputmode="numeric" autocomplete="off"></label><label>Număr de telefon<input id="certificate-phone" type="tel" autocomplete="tel"></label><label>Ore cont<input id="certificate-hours-account" type="number" min="0" step="0.01" value="2001.25"></label><label>Ore character<input id="certificate-hours-character" type="number" min="0" step="0.01" value="2001.25"></label><label>Apt medical<select id="certificate-medical-status"><option value="Admis">Apt medical</option><option value="Respins">Inapt medical</option></select></label></div>${candidateImageFieldHtml('certificate-document', 'Fotografie buletin', 'Lipește poza buletinului aici (Ctrl+V) sau selectează un fișier.')}${candidateImageFieldHtml('certificate-medical-sheet', 'Fotografie fișă medicală', 'Lipește poza fișei medicale aici (Ctrl+V) sau selectează un fișier.')}</section>`;
+  return `<section class="admission-candidate-details" aria-labelledby="medical-certificate-title"><h3 id="medical-certificate-title">Date adeverință</h3><div class="admission-candidate-grid"><label>Nume<input id="certificate-last-name" type="text" autocomplete="family-name"></label><label>Prenume<input id="certificate-first-name" type="text" autocomplete="given-name"></label><label>CNP<input id="certificate-cnp" type="text" inputmode="numeric" maxlength="24" autocomplete="off"></label><label>ID (CNP)<input id="certificate-id" type="text" inputmode="numeric" autocomplete="off"></label><label>Număr de telefon<input id="certificate-phone" type="tel" autocomplete="tel"></label><label>Ore cont<input id="certificate-hours-account" type="number" min="0" step="0.01" value="2001.25"></label><label>Ore character<input id="certificate-hours-character" type="number" min="0" step="0.01" value="2001.25"></label><label>Apt medical<select id="certificate-medical-status"><option value="Admis">Apt medical</option><option value="Respins">Inapt medical</option></select></label></div><div class="candidate-photo-grid">${candidateImageFieldHtml('certificate-document', 'Fotografie buletin')}${candidateImageFieldHtml('certificate-medical-sheet', 'Fotografie fișă medicală')}</div></section>`;
 }
 function admissionCandidateSummary(result) {
   const value = selector => document.querySelector(selector)?.value?.trim() || '—';
@@ -835,46 +866,66 @@ async function encodeIdentityPhoto(file) {
 }
 function buildTestMarkup(testName, definition, questions) {
   const isAdmissionTest = testName === 'Test admitere';
+  const isTransferTest = testName === 'Test transfer';
+  const isAlsTest = testName === 'Test ALS';
   const isMotoTest = testName === 'Test MOTO';
+  const isSmulsTest = testName === 'Test SMULS';
   const isMedicalCertificate = testName === 'Adeverință medicală';
   const isApplicationTest = isAdmissionTest || testName === 'Test transfer';
+  const isStagedTest = ['Test PILOT', 'Test MOTO', 'Test SMULS', 'Test ALS'].includes(testName);
+  const hasHeaderAccessControl = isStagedTest || testName === 'Test SMULS';
   const maxWrong = maxWrongForTest(testName, definition.maxWrong);
   const candidateDetails = isApplicationTest ? admissionCandidateDetailsHtml() : isMedicalCertificate ? medicalCertificateDetailsHtml() : '';
   const admissionChecks = isAdmissionTest ? admissionChecklistHtml() : '';
+  const transferChecks = isTransferTest ? admissionChecklistHtml() : '';
   const motoChecks = isMotoTest ? motoChecklistHtml() : '';
   const description = isAdmissionTest ? 'Candidatul poate greși de maximum 3 ori; la a 4-a greșeală este respins. Promovare: minimum 17/20.' : definition.description;
   const images = (definition.images || []).map(image => `<a class="test-image-link${image.inline ? ' test-image-preview' : ''}" href="${image.url}" target="_blank" rel="noopener">${image.inline ? `<img src="${image.url}" alt="${escapeHtml(image.label || testName)}">` : image.label || 'Deschide imaginea'}</a>`).join('');
-  const cases = (definition.cases || []).map((item, index) => `<option value="${index}">${item.title}</option>`).join('');
+  const cases = isSmulsTest || isAlsTest ? '' : (definition.cases || []).map((item, index) => `<option value="${index}">${item.title}</option>`).join('');
   const practical = (definition.practical || []).map((item, index) => `<option value="${index}">${item.name}</option>`).join('');
   const candidateCallsign = isApplicationTest || isMedicalCertificate ? '' : '<label class="candidate-call-sign">Callsign candidat<input id="candidate-callsign" type="text" placeholder="510 sau M-510"></label>';
   const candidateNameField = ['Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști'].includes(testName) ? '<label class="candidate-call-sign">Nume candidat<input id="als-candidate-name" type="text" autocomplete="name" readonly placeholder="Se completează după callsign"></label>' : '';
   const candidateIdentityFields = candidateCallsign && candidateNameField
     ? `<div class="candidate-identity-fields">${candidateCallsign}${candidateNameField}</div>`
     : `${candidateCallsign}${candidateNameField}`;
+  const candidateIdentityBeforeChecks = isMotoTest || isSmulsTest || isAlsTest ? candidateIdentityFields : '';
+  const candidateIdentityInQuiz = isMotoTest || isSmulsTest || isAlsTest ? '' : candidateIdentityFields;
+  const stagedCandidateSummary = isSmulsTest || isAlsTest ? '<div id="candidate-summary" class="candidate-summary"></div>' : '';
+  const smulsChecks = isSmulsTest ? smulsChecklistHtml() : '';
+  const alsChecks = isAlsTest ? alsChecklistHtml() : '';
   const evaluationActions = testName === 'Test PILOT'
     ? '<div class="evaluation-stage-actions"><button class="primary evaluation-verdict evaluation-verdict-admitted" type="submit" data-pilot-theory-result="Admis">Admis Proba Teoretică</button><button class="primary evaluation-verdict evaluation-verdict-rejected" type="submit" data-pilot-theory-result="Respins">Respins Proba Teoretică</button></div>'
+    : isMotoTest
+      ? '<div class="evaluation-stage-actions"><button class="primary evaluation-verdict evaluation-verdict-admitted" type="submit" data-moto-theory-result="Admis">Admis Proba Teoretică</button><button class="primary evaluation-verdict evaluation-verdict-rejected" type="submit" data-moto-theory-result="Respins">Respins Proba Teoretică</button></div>'
     : '<button class="primary" type="submit">Finalizează evaluarea</button>';
   const candidateDocument = !isApplicationTest && !isMedicalCertificate && testName === 'Adeverință medicală' ? '<label>Imagine document candidat<input id="candidate-document" type="file" accept="image/*"></label><p class="muted">Imaginea este disponibilă testerului pentru verificare manuală.</p>' : '';
-  const questionForm = questions.length ? `<form id="test-form" class="question-list">${candidateIdentityFields}<div id="candidate-summary" class="candidate-summary"></div>${candidateDocument}${questions.map(questionItemHtml).join('')}<p>Greșeli: <strong id="wrong-count">0</strong> / ${Number.isFinite(maxWrong) ? maxWrong : '—'}</p>${evaluationActions}</form>` : '<div class="test-runner"><p>Acest ghid nu are întrebări teoretice configurate.</p></div>';
-  const gatedQuestionForm = (isAdmissionTest || isMotoTest) && questions.length ? `<div id="${isAdmissionTest ? 'admission-test-content' : 'moto-test-content'}" hidden>${questionForm}</div>` : questionForm;
-  const evaluationStageFlow = ['Test PILOT', 'Test MOTO'].includes(testName) ? '<div id="evaluation-stage-flow" hidden></div>' : '';
+  const questionForm = isAlsTest || isSmulsTest ? '' : questions.length ? `<form id="test-form" class="question-list">${candidateIdentityInQuiz}<div id="candidate-summary" class="candidate-summary"></div>${candidateDocument}${questions.map(questionItemHtml).join('')}<p>Greșeli: <strong id="wrong-count">0</strong> / ${Number.isFinite(maxWrong) ? maxWrong : '—'}</p>${evaluationActions}</form>` : '<div class="test-runner"><p>Acest ghid nu are întrebări teoretice configurate.</p></div>';
+  const gatedQuestionForm = (isAdmissionTest || isTransferTest || isMotoTest || isSmulsTest || isAlsTest) && questions.length ? `<div id="${isAdmissionTest ? 'admission-test-content' : isTransferTest ? 'transfer-test-content' : isMotoTest ? 'moto-test-content' : isSmulsTest ? 'smuls-test-content' : 'als-test-content'}" hidden>${questionForm}</div>` : questionForm;
+  const evaluationStageFlow = ['Test PILOT', 'Test MOTO', 'Test SMULS', 'Test ALS'].includes(testName) ? '<div id="evaluation-stage-flow" hidden></div>' : '';
   const instructions = isAdmissionTest || testName === 'Test transfer' || isMedicalCertificate || !definition.instructions ? '' : `<p class="test-instructions">${definition.instructions}</p>`;
-  const pilotIntro = testName === 'Test PILOT' ? `<div class="pilot-intro-box"><p class="muted">${description}</p>${instructions}</div>` : `<p class="muted">${description}</p>${instructions}`;
-  const guideBody = `${candidateDetails}${admissionChecks}${motoChecks}${pilotIntro}${cases ? `<label>Cazul ales de candidat<select id="case-select">${cases}</select></label><div id="case-steps" class="case-steps"></div>` : ''}${practical ? `<label>Probă practică<select id="practical-select">${practical}</select></label><div id="practical-steps" class="case-steps"></div>` : ''}${gatedQuestionForm}${evaluationStageFlow}`;
-  const content = testName === 'Test SMULS' && images
+  const introBoxClass = testName === 'Test PILOT' ? 'pilot-intro-box' : isMotoTest ? 'moto-intro-box' : isSmulsTest ? 'smuls-intro-box' : 'als-intro-box';
+  const testIntro = isStagedTest ? `<div class="${introBoxClass}"><p class="muted">${description}</p>${instructions}</div>` : `<p class="muted">${description}</p>${instructions}`;
+  const motoBriefing = isMotoTest ? motoCandidateBriefingHtml(definition.candidateBriefing) : '';
+  const guideBody = `${candidateDetails}${admissionChecks}${transferChecks}${testIntro}${candidateIdentityBeforeChecks}${stagedCandidateSummary}${alsChecks}${motoChecks}${smulsChecks}${motoBriefing}${cases ? `<label>Cazul ales de candidat<select id="case-select">${cases}</select></label><div id="case-steps" class="case-steps"></div>` : ''}${practical ? `<label>Probă practică<select id="practical-select">${practical}</select><div id="practical-steps" class="case-steps"></div>` : ''}${gatedQuestionForm}${isSmulsTest || isAlsTest ? '' : evaluationStageFlow}`;
+  const content = isSmulsTest || isAlsTest
+    ? guideBody
+    : testName === 'Test SMULS' && images
     ? `<div class="test-with-map"><div class="test-main-column">${guideBody}</div><aside class="test-map-column">${images}</aside></div>`
     : `${guideBody}${images ? `<div class="test-images">${images}</div>` : ''}`;
   const testAccessControl = testAccessMarkup(testName);
-  const headerSubtitle = testName === 'Test PILOT' ? '' : `<p class="muted">Acces permanent pentru testerul conectat: ${normalizeCallsign(currentUser?.callsign)}.</p>`;
-  const headerActions = testName === 'Test PILOT'
+  const headerSubtitle = hasHeaderAccessControl ? '' : `<p class="muted">Acces permanent pentru testerul conectat: ${normalizeCallsign(currentUser?.callsign)}.</p>`;
+  const headerActions = hasHeaderAccessControl
     ? `<div class="test-guide-header-actions">${testAccessControl}<button class="outline" id="back-to-tests">← Înapoi</button></div>`
     : '<button class="outline" id="back-to-tests">← Înapoi</button>';
-  const testAccessSection = testName === 'Test PILOT' ? '' : testAccessControl;
-  return `<div class="panel view-panel"><div class="panel-head"><div><p class="eyebrow">GHID PENTRU TESTER</p><h2>${displayTestName(testName)}</h2>${headerSubtitle}</div>${headerActions}</div>${testAccessSection}${content}</div>`;
+  const testAccessSection = hasHeaderAccessControl ? '' : testAccessControl;
+  return `<div class="panel view-panel"><div class="panel-head"><div><p class="eyebrow">GHID PENTRU TESTER</p><h2>${displayTestName(testName)}</h2>${headerSubtitle}</div>${headerActions}</div>${testAccessSection}${content}${isSmulsTest || isAlsTest ? evaluationStageFlow : ''}</div>`;
 }
 function wireTestEvents(testName, definition) {
   const isAdmissionTest = testName === 'Test admitere';
+  const isTransferTest = testName === 'Test transfer';
+  const isAlsTest = testName === 'Test ALS';
   const isMotoTest = testName === 'Test MOTO';
+  const isSmulsTest = testName === 'Test SMULS';
   const isMedicalCertificate = testName === 'Adeverință medicală';
   const isApplicationTest = isAdmissionTest || testName === 'Test transfer';
   document.querySelector('#back-to-tests').onclick = () => {
@@ -882,9 +933,9 @@ function wireTestEvents(testName, definition) {
     else navigateTo('overview');
   };
   if (isApplicationTest || isMedicalCertificate) {
-    if (isAdmissionTest) {
+    if (isAdmissionTest || isTransferTest) {
       const checks = [...document.querySelectorAll('[data-admission-check]')];
-      const testContent = document.querySelector('#admission-test-content');
+      const testContent = document.querySelector(isAdmissionTest ? '#admission-test-content' : '#transfer-test-content');
       const updateAdmissionGate = () => {
         const complete = admissionChecksComplete(checks.map(check => check.checked));
         checks.forEach(check => { check.closest('.admission-check-row').classList.toggle('is-incomplete', !check.checked); });
@@ -903,10 +954,10 @@ function wireTestEvents(testName, definition) {
       if (!input || !pasteTarget || !status) continue;
       input.onchange = async () => {
         const file = input.files?.[0];
-        if (!file) return;
+        if (!file) { setCandidatePhotoStatus(field.id, 'empty', 'Așteaptă fotografia'); return; }
         status.classList.remove('error-text');
         if (!field.readIdentity) {
-          status.textContent = 'Imagine pregătită pentru trimitere.';
+          setCandidatePhotoStatus(field.id, 'ready', 'Fotografie pregătită pentru trimitere.');
           return;
         }
         if (isMedicalCertificate) {
@@ -917,7 +968,7 @@ function wireTestEvents(testName, definition) {
           document.querySelector('#candidate-name').value = '';
           document.querySelector('#candidate-cnp').value = '';
         }
-        status.textContent = 'Se citesc datele de pe buletin în browser...';
+        setCandidatePhotoStatus(field.id, 'loading', 'Se citește buletinul...');
         try {
           const details = await readIdentityCard(file);
           if (isMedicalCertificate) {
@@ -928,12 +979,12 @@ function wireTestEvents(testName, definition) {
             if (details.name) document.querySelector('#candidate-name').value = details.name;
             if (details.cnp) document.querySelector('#candidate-cnp').value = details.cnp;
           }
-          status.textContent = details.name || details.cnp
+          setCandidatePhotoStatus(field.id, 'ready', details.name || details.cnp
             ? 'Datele au fost completate automat. Verifică-le înainte de continuare.'
-            : 'Nu am putut identifica datele. Completează câmpurile manual.';
+            : 'Fotografie pregătită; completează datele manual.');
         } catch (error) {
           console.error('Identity card OCR failed:', error);
-          status.textContent = 'Citirea automată nu este disponibilă. Completează câmpurile manual.';
+          setCandidatePhotoStatus(field.id, 'ready', 'Fotografie pregătită; citirea automată nu este disponibilă.');
         }
       };
       pasteTarget.onclick = () => pasteTarget.focus();
@@ -956,12 +1007,113 @@ function wireTestEvents(testName, definition) {
     const checks = [...document.querySelectorAll('[data-moto-check]')];
     const testContent = document.querySelector('#moto-test-content');
     const updateMotoGate = () => {
-      const complete = motoChecksComplete(checks.map(check => check.checked));
+      const checked = checks.map(check => check.checked);
+      const complete = motoChecksComplete(checked);
       checks.forEach(check => { check.closest('.admission-check-row').classList.toggle('is-incomplete', !check.checked); });
       if (testContent) testContent.hidden = !complete;
     };
     checks.forEach(check => check.onchange = updateMotoGate);
     updateMotoGate();
+  }
+  let refreshSmulsStageGate = () => {};
+  if (isSmulsTest) {
+    const checks = [...document.querySelectorAll('[data-smuls-check]')];
+    const stageFlow = document.querySelector('#evaluation-stage-flow');
+    let stageOpened = false;
+    const finishSmulsTest = async finalResult => {
+      stageFlow.querySelectorAll('button').forEach(button => { button.disabled = true; });
+      stageFlow.innerHTML = '<p class="muted">Se înregistrează rezultatul...</p>';
+      const candidateCallsign = document.querySelector('#candidate-callsign')?.value?.trim() || '';
+      const candidateName = document.querySelector('#als-candidate-name')?.value?.trim() || '';
+      try {
+        const saved = await recordTestRun(testName, finalResult, { candidateCallsign, candidateName });
+        const notificationStatus = saved.discordNotificationsSent ? 'Notificarea Discord a fost trimisă.' : `Notificarea Discord nu a fost trimisă. ${saved.discordNotificationError || ''}`;
+        stageFlow.innerHTML = `<pre class="candidate-summary">Test: ${escapeHtml(displayTestName(testName))}\nCandidat: ${escapeHtml(candidateName)}\nCallsign: ${escapeHtml(candidateCallsign)}\nRezultat: ${finalResult}</pre><p class="muted">Testul a fost înregistrat. ${escapeHtml(notificationStatus)}</p>`;
+      } catch (error) {
+        stageFlow.innerHTML = `<p class="error-text">Rezultatul nu s-a putut înregistra: ${escapeHtml(error.message)}</p>`;
+      }
+    };
+    const showOffroadStage = () => {
+      const verdicts = [
+        { result: 'Admis', text: 'Admis test SMULS' },
+        { result: 'Respins', text: 'Respins test SMULS' }
+      ];
+      const offroadCard = evaluationStageHtml(definition.practicalStage, verdicts);
+      const routeImages = (definition.images || []).map(image => `<a class="test-image-link${image.inline ? ' test-image-preview' : ''}" href="${escapeHtml(image.url)}" target="_blank" rel="noopener">${image.inline ? `<img src="${escapeHtml(image.url)}" alt="${escapeHtml(image.label || testName)}">` : escapeHtml(image.label || 'Deschide imaginea')}</a>`).join('');
+      stageFlow.innerHTML = routeImages
+        ? `<div class="smuls-offroad-layout"><div>${offroadCard}</div><aside class="test-map-column">${routeImages}</aside></div>`
+        : offroadCard;
+      stageFlow.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      stageFlow.querySelectorAll('[data-evaluation-result]').forEach(button => button.onclick = async () => finishSmulsTest(button.dataset.evaluationResult));
+    };
+    refreshSmulsStageGate = () => {
+      const complete = smulsChecksComplete(checks.map(check => check.checked));
+      checks.forEach(check => check.closest('.admission-check-row').classList.toggle('is-incomplete', !check.checked));
+      if (!complete || stageOpened) return;
+      const candidateCallsign = document.querySelector('#candidate-callsign')?.value?.trim() || '';
+      const candidateName = document.querySelector('#als-candidate-name')?.value?.trim() || '';
+      const summary = document.querySelector('#candidate-summary');
+      if (!candidateCallsign || !candidateName) {
+        if (summary) summary.textContent = 'Completează callsign-ul candidatului înainte de continuare.';
+        return;
+      }
+      stageOpened = true;
+      checks.forEach(check => { check.disabled = true; });
+      document.querySelector('#candidate-callsign').disabled = true;
+      document.querySelector('#als-candidate-name').disabled = true;
+      document.querySelector('.view-panel')?.classList.add('smuls-stage-active');
+      stageFlow.hidden = false;
+      stageFlow.innerHTML = smulsCaseListHtml(definition.cases);
+      stageFlow.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      stageFlow.querySelectorAll('[data-smuls-descarceration-result]').forEach(button => button.onclick = async () => {
+        if (button.dataset.smulsDescarcerationResult === 'Respins') await finishSmulsTest('Respins');
+        else showOffroadStage();
+      });
+    };
+    checks.forEach(check => check.onchange = refreshSmulsStageGate);
+    refreshSmulsStageGate();
+  }
+  let refreshAlsStageGate = () => {};
+  if (isAlsTest) {
+    const checks = [...document.querySelectorAll('[data-als-check]')];
+    const stageFlow = document.querySelector('#evaluation-stage-flow');
+    let stageOpened = false;
+    const finishAlsTest = async finalResult => {
+      stageFlow.querySelectorAll('button').forEach(button => { button.disabled = true; });
+      stageFlow.innerHTML = '<p class="muted">Se înregistrează rezultatul...</p>';
+      const candidateCallsign = document.querySelector('#candidate-callsign')?.value?.trim() || '';
+      const candidateName = document.querySelector('#als-candidate-name')?.value?.trim() || '';
+      try {
+        const saved = await recordTestRun(testName, finalResult, { candidateCallsign, candidateName });
+        const notificationStatus = saved.discordNotificationsSent ? 'Notificarea Discord a fost trimisă.' : `Notificarea Discord nu a fost trimisă. ${saved.discordNotificationError || ''}`;
+        stageFlow.innerHTML = `<pre class="candidate-summary">Test: ${escapeHtml(displayTestName(testName))}\nCandidat: ${escapeHtml(candidateName)}\nCallsign: ${escapeHtml(candidateCallsign)}\nRezultat: ${finalResult}</pre><p class="muted">Testul a fost înregistrat. ${escapeHtml(notificationStatus)}</p>`;
+      } catch (error) {
+        stageFlow.innerHTML = `<p class="error-text">Rezultatul nu s-a putut înregistra: ${escapeHtml(error.message)}</p>`;
+      }
+    };
+    refreshAlsStageGate = () => {
+      const complete = alsChecksComplete(checks.map(check => check.checked));
+      checks.forEach(check => check.closest('.admission-check-row').classList.toggle('is-incomplete', !check.checked));
+      if (!complete || stageOpened) return;
+      const candidateCallsign = document.querySelector('#candidate-callsign')?.value?.trim() || '';
+      const candidateName = document.querySelector('#als-candidate-name')?.value?.trim() || '';
+      const summary = document.querySelector('#candidate-summary');
+      if (!candidateCallsign || !candidateName) {
+        if (summary) summary.textContent = 'Completează callsign-ul candidatului înainte de continuare.';
+        return;
+      }
+      stageOpened = true;
+      checks.forEach(check => { check.disabled = true; });
+      document.querySelector('#candidate-callsign').disabled = true;
+      document.querySelector('#als-candidate-name').disabled = true;
+      document.querySelector('.view-panel')?.classList.add('als-stage-active');
+      stageFlow.hidden = false;
+      stageFlow.innerHTML = alsCaseListHtml(definition.cases);
+      stageFlow.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      stageFlow.querySelectorAll('[data-als-result]').forEach(button => button.onclick = async () => finishAlsTest(button.dataset.alsResult));
+    };
+    checks.forEach(check => check.onchange = refreshAlsStageGate);
+    refreshAlsStageGate();
   }
   const caseSelect = document.querySelector('#case-select'); const caseSteps = document.querySelector('#case-steps');
   const renderCase = () => { if (!caseSelect || !caseSteps) return; const item = definition.cases[Number(caseSelect.value)]; caseSteps.innerHTML = `<h3>${item.title}</h3><p>Minimum interacțiuni: ${item.minimumMe || 0} /me</p><ol>${item.steps.map(step => `<li>${step}</li>`).join('')}</ol>`; }; if (caseSelect) { caseSelect.onchange = renderCase; renderCase(); }
@@ -992,6 +1144,8 @@ function wireTestEvents(testName, definition) {
         }
         if (alsCandidateNameInput) alsCandidateNameInput.value = candidate.name;
         if (candidateSummaryEl) candidateSummaryEl.textContent = `Candidat: @[${normalizeCallsign(candidate.callsign)}] ${candidate.name}`;
+        if (isSmulsTest) refreshSmulsStageGate();
+        if (isAlsTest) refreshAlsStageGate();
       } catch (error) {
         if (sequence === candidateLookupSequence && candidateSummaryEl) candidateSummaryEl.textContent = error.message;
       }
@@ -1000,6 +1154,7 @@ function wireTestEvents(testName, definition) {
   const form = document.querySelector('#test-form'); if (form) form.onsubmit = async event => {
     event.preventDefault();
     if (testName === 'Test PILOT' && !event.submitter?.dataset.pilotTheoryResult) return;
+    if (isMotoTest && !event.submitter?.dataset.motoTheoryResult) return;
     const wrong = wrongInputs.filter(item => item.checked).length;
     const limit = maxWrongForTest(testName, definition.maxWrong);
     const result = isMedicalCertificate
@@ -1021,6 +1176,7 @@ function wireTestEvents(testName, definition) {
         statusElement.classList.add('error-text');
         return;
       }
+      for (const id of ['candidate-document', 'candidate-medical-sheet', 'candidate-drug-test']) setCandidatePhotoStatus(id, 'loading', 'Se pregătește fotografia pentru trimitere...');
       try {
         const [identityImage, medicalSheetImage, drugTestImage] = await Promise.all([
           encodeIdentityPhoto(identityPhoto),
@@ -1028,8 +1184,9 @@ function wireTestEvents(testName, definition) {
           encodeIdentityPhoto(drugTestPhoto)
         ]);
         submissionDetails = { candidateName, candidateId, candidateCallsign, identityImage, medicalSheetImage, drugTestImage };
+        for (const id of ['candidate-document', 'candidate-medical-sheet', 'candidate-drug-test']) setCandidatePhotoStatus(id, 'ready', 'Fotografie pregătită pentru trimitere.');
       } catch (error) {
-        statusElement.textContent = error.message;
+        setCandidatePhotoStatus('candidate-document', 'error', error.message);
         statusElement.classList.add('error-text');
         return;
       }
@@ -1066,7 +1223,7 @@ function wireTestEvents(testName, definition) {
       }
       submissionDetails = { candidateCallsign, candidateName };
     }
-    if (testName === 'Test PILOT' || isMotoTest) {
+    if (testName === 'Test PILOT' || isMotoTest || isSmulsTest) {
       const stageFlow = document.querySelector('#evaluation-stage-flow');
       const disableTheoryInputs = () => form.querySelectorAll('input,button').forEach(input => { input.disabled = true; });
       const finishStagedTest = async finalResult => {
@@ -1109,19 +1266,36 @@ function wireTestEvents(testName, definition) {
         else await finishStagedTest('Admis');
         return;
       }
-
-      const practicalStage = definition.practicalStage;
-      stageFlow.innerHTML = evaluationStageHtml({ title: 'Proba Teoretică', paragraphs: ['Alege rezultatul probei teoretice pentru a continua evaluarea Moto.'] }, [
-        { result: 'Admis', text: 'Admis Proba Teoretică' },
-        { result: 'Respins', text: 'Respins Proba Teoretică' }
-      ]);
-      stageFlow.querySelectorAll('[data-evaluation-result]').forEach(button => button.onclick = async () => {
-        if (button.dataset.evaluationResult === 'Respins') { await finishStagedTest('Respins'); return; }
-        stageFlow.innerHTML = evaluationStageHtml(practicalStage, [
-          { result: 'Admis', text: 'Admis Proba Practică' },
-          { result: 'Respins', text: 'Respins Proba Practică' }
+      form.hidden = true;
+      if (isMotoTest) {
+        form.closest('.view-panel')?.classList.add('moto-stage-active');
+        const theoryResult = event.submitter.dataset.motoTheoryResult;
+        if (theoryResult === 'Respins') { await finishStagedTest('Respins'); return; }
+        stageFlow.innerHTML = evaluationStageHtml(definition.practicalStage, [
+          { result: 'Admis', text: 'Admis Proba 2' },
+          { result: 'Respins', text: 'Respins Proba 2' }
         ]);
-        stageFlow.querySelectorAll('[data-evaluation-result]').forEach(practicalButton => practicalButton.onclick = async () => finishStagedTest(practicalButton.dataset.evaluationResult));
+        stageFlow.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        stageFlow.querySelectorAll('[data-evaluation-result]').forEach(button => button.onclick = async () => finishStagedTest(button.dataset.evaluationResult));
+        return;
+      }
+
+      form.closest('.view-panel')?.classList.add('smuls-stage-active');
+      if (result === 'Respins') { await finishStagedTest('Respins'); return; }
+      stageFlow.innerHTML = smulsCaseListHtml(definition.cases);
+      stageFlow.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      stageFlow.querySelectorAll('[data-smuls-descarceration-result]').forEach(button => button.onclick = async () => {
+        if (button.dataset.smulsDescarcerationResult === 'Respins') { await finishStagedTest('Respins'); return; }
+        const routeImages = (definition.images || []).map(image => `<a class="test-image-link${image.inline ? ' test-image-preview' : ''}" href="${escapeHtml(image.url)}" target="_blank" rel="noopener">${image.inline ? `<img src="${escapeHtml(image.url)}" alt="${escapeHtml(image.label || testName)}">` : escapeHtml(image.label || 'Deschide imaginea')}</a>`).join('');
+        const offroadCard = evaluationStageHtml(definition.practicalStage, [
+          { result: 'Admis', text: 'Admis test SMULS' },
+          { result: 'Respins', text: 'Respins test SMULS' }
+        ]);
+        stageFlow.innerHTML = routeImages
+          ? `<div class="smuls-offroad-layout"><div>${offroadCard}</div><aside class="test-map-column">${routeImages}</aside></div>`
+          : offroadCard;
+        stageFlow.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        stageFlow.querySelectorAll('[data-evaluation-result]').forEach(resultButton => resultButton.onclick = async () => finishStagedTest(resultButton.dataset.evaluationResult));
       });
       return;
     }

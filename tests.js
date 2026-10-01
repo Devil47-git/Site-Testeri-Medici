@@ -59,6 +59,20 @@ window.MEDICAL_TESTS = {
   'Test MOTO': {
     description: 'Certificare Moto cu probă teoretică și probă practică. Este disponibilă de la Medic-Rezident; candidatul are nevoie de certificatul S.M.U.L.S. și permis categoria A. Accidentul, căderea, distrugerea motorului sau depășirea condițiilor înseamnă respins.',
     instructions: 'Verifică certificatul SMULS, permisul A, frecvența radio, tunarea unității și condițiile de traseu. Proba teoretică permite 2 greșeli; la a 3-a candidatul este respins.',
+    maxWrong: 2,
+    candidateBriefing: {
+      points: [
+        'Testul conține 2 probe.',
+        'Dacă motorul se strică, candidatul este declarat respins.',
+        'Certificarea poate fi susținută de la gradul de Medic-Rezident.',
+        'Este necesar certificatul S.M.U.L.S. și permis categoria A (a se verifica!).',
+        'Candidatul și testerul intră pe o frecvență radio comună.',
+        'Motorul trebuie să fie tunat full la performanță (test vara).',
+        'ATV-ul trebuie să fie tunat (test iarna).'
+      ],
+      warning: 'A se citi în prezența candidatului: De reținut, pe timpul traseului, în cazul în care candidatul face accident sau cade de pe motor din vina sa, va fi declarat RESPINS pe loc și testarea va lua sfârșit. A se menționa că probele sunt contra timp.',
+      route: 'Candidatul va pleca din fața Spitalului Eclipse, urmărind testerul în mod constant, fără a-l pierde din vizor până la sfârșitul testului. După terminarea probei, testerul va menționa rezultatul ADMIS / RESPINS.'
+    },
     questions: [
       ['Ce faci când ești unitate moto și începe să plouă?', 'Predai unitatea moto.'],
       ['La ce coduri poți interveni ca Medic-Rezident?', 'Cod 4 și BK 78.'],
@@ -73,7 +87,8 @@ window.MEDICAL_TESTS = {
     ],
     practicalStage: {
       title: 'Proba 2: Proba Practică',
-      paragraphs: ['Timpul de execuție a traseului vara: 5:40 minute (MOTO, fără zăpadă).', 'Timpul de execuție a traseului iarna: 7:00 minute (ATV, cu zăpadă).']
+      paragraphs: ['Timpul de execuție traseu vara: 5:40 minute (MOTO) (fără zăpadă).', 'Timpul de execuție traseu iarna: 7:00 minute (ATV) (cu zăpadă).'],
+      imageSlots: 1
     }
   },
   'Test PILOT': {
@@ -129,6 +144,7 @@ window.MEDICAL_TESTS = {
   'Test SMULS': {
     description: 'Certificarea S.M.U.L.S. are două probe: descarcerare și traseu OFF-Road. Verifică testul teoretic, licența navală, permisul categoria B și Stalker-ul full tunat.',
     instructions: 'La descarcerare candidatul alege un număr și efectuează minimum 10 replici /me. Are voie la 2 greșeli; la a 3-a este respins. Traseul are limită de 60 km/h și timp de 5:45 vara sau 6:00 iarna.',
+    maxWrong: 2,
     images: [{ label: 'Hartă traseu S.M.U.L.S.', url: '/image.png', inline: true }],
     cases: [
       { title: '1 — Descarcerare verticală fără scurgeri de combustibil', steps: ['/me securizează zona și verifică scurgerile de combustibil', '/me folosește ecosorbentul', '/me montează triunghiurile de blocare', '/me scoate trusa, foarfeca și cleștele hidraulic', '/me analizează daunele majore', '/me deconectează bateria', '/me taie parbrizul și stâlpii A și B', '/me decopertează plafonul', '/me elimină obiectele periculoase', '/me montează vesta KED și gulerul cervical', '/me poziționează targa spinală', '/me extrage lent victima', '/me examinează leziunile', '/me curăță și dezinfectează rănile', '/me aplică atela ghipsată', '/me urcă victima pe targă și în autospecială', '/me conectează pacientul la aparate și monitorizează semnele vitale'] },
@@ -137,23 +153,27 @@ window.MEDICAL_TESTS = {
       { title: '4 — Descarcerare complexă', steps: ['/me securizează zona și verifică scurgerile', '/me folosește ecosorbentul și montează triunghiurile', '/me scoate foarfeca și cleștele hidraulic', '/me analizează daunele', '/me deconectează bateria', '/me taie parbrizul și sparge geamul', '/me taie stâlpul A și deblochează portiera', '/me acționează cricul hidraulic', '/me taie centura și retrage scaunul', '/me montează vesta KED și gulerul cervical', '/me extrage victima', '/me examinează leziunile și aplică atela', '/me urcă victima pe targă și în autospecială', '/me conectează aparatele și monitorizează pacientul'] },
       { title: '5 — Descarcerare de urgență', steps: ['/me securizează zona și verifică scurgerile', '/me oprește activitățile de tăiere', '/me montează triunghiurile și scoate echipamentul', '/me deconectează bateria și creează acces', '/me constată starea victimei', '/me extrage rapid victima din vehicul', '/me începe resuscitarea dacă este inconștientă', '/me execută 30 compresii și 2 ventilații', '/me administrează atropină', '/me montează gulerul cervical', '/me aplică atela și urcă victima pe targă', '/me transportă victima și monitorizează semnele vitale'] }
     ],
+    practicalStage: {
+      title: 'PROBA 2: Traseu OFF-Road',
+      paragraphs: ['Acesta constă în efectuarea traseului Off-Road mai jos menționat cu autospeciala Dundreary Stalker.'],
+      conditions: [
+        'Timp traseu vară: 5:45 min (fără zăpadă).',
+        'Timp traseu iarnă: 06:00 min (cu zăpadă).',
+        'Candidatul nu va depăși limita de 60 km/h.',
+        'În cazul în care candidatul cade de pe traseu, acesta va fi declarat automat RESPINS.',
+        'Se recomandă folosirea GPS-ului din mașină în metoda simplă (fără zone rău famate).'
+      ]
+    },
   },
   'Test ALS': {
-    description: 'Certificare ALS Eclipse. Verifică certificatul BLS, permisul categoria B și faptul că au trecut minimum 3 zile de la ultimul test Radio sau BLS. Candidatul trebuie să efectueze minimum 7 interacțiuni /me la punctul R.A.R.',
-    instructions: 'Proba are maximum 2 greșeli; la a 3-a candidatul este respins. Testerul este victima. Verifică folosirea completă a tărgii și cazul ales de candidat.',
-    maxWrong: 2,
+    description: 'Certificare ALS Eclipse. Verifică certificatul BLS, certificatul Radio, permisul categoria B și faptul că au trecut minimum 3 zile de la promovarea ultimului test Radio sau BLS.',
+    instructions: 'După verificarea criteriilor, candidatul susține unul dintre cele patru cazuri de intervenție. Testerul este victima.',
     images: [],
     cases: [
-      { title: 'Cazul 1 — Fractură', minimumMe: 7, steps: ['/me examinează pacientul', '/me verifică prin metoda P.A.S. (Privește, Ascultă, Simte)', '/me observă că are puls', '/me scoate un guler cervical', '/me verifică rănile vizibile', '/me observă fractura', '/me scoate atela ghipsată', '/me montează atela', '/me strânge atela', '/me curăță și dezinfectează rănile', '/me bandajează pacientul', '/me îl ajută să urce pe targă', '/me îl fixează pentru transport'] },
-      { title: 'Cazul 2 — Șoc anafilactic', minimumMe: 7, steps: ['/me examinează pacientul', '/me verifică prin metoda P.A.S.', '/me observă că nu respiră', '/me constată blocarea căilor respiratorii', '/me folosește aspiratorul', '/me observă inflamația feței', '/me constată respirația îngreunată', '/me verifică funcțiile vitale', '/me constată șocul anafilactic', '/me pregătește seringa sterilă', '/me administrează hidrocortizon', '/me așteaptă revenirea pacientului', '/me îl pune în poziția de siguranță'] },
-      { title: 'Cazul 3 — Arsuri și stop cardio-respirator', minimumMe: 7, steps: ['/me examinează pacientul', '/me verifică prin metoda P.A.S.', '/me observă lipsa pulsului', '/me constată stopul cardio-respirator', '/me scoate defibrilatorul', '/me aplică patch-urile', '/me setează defibrilatorul automat', '/me îl pornește', '/me constată arsurile de gradul 2', '/me aplică Dermazin', '/me aplică folia pentru arsuri', '/me urcă pacientul pe targă', '/me îl fixează în ambulanță', '/me pornește transportul'] },
-      { title: 'Cazul 4 — Stop cardio-respirator și traumatism cranian', minimumMe: 7, steps: ['/me examinează pacientul', '/me verifică prin metoda P.A.S.', '/me observă lipsa pulsului', '/me constată stopul cardio-respirator', '/me începe masajul cardiac extern', '/me oferă 30 compresii și 2 ventilații', '/me administrează atropină intravenos', '/me așteaptă revenirea pacientului', '/me îl pune în poziția de siguranță', '/me constată durerile', '/me pregătește morfina', '/me administrează tratamentul', '/me îl urcă pe targă', '/me îl conectează la aparate'] }
-    ],
-    questions: [
-      ['A verificat candidatul certificatul BLS, permisul B și minimum 3 zile de la ultimul Radio/BLS?', 'Da, toate verificările sunt obligatorii.'],
-      ['Câte interacțiuni /me sunt necesare pentru promovarea probei practice?', 'Minimum 7 interacțiuni /me.'],
-      ['Cine este victima în timpul prezentării cazului?', 'Testerul este victima.'],
-      ['Ce trebuie făcut cu targa la destinație?', 'Se deschid ușile, se scoate targa, se blochează roțile și se pune complet în ambulanță.']
+      { title: 'Cazul 1 — Fractură la mână/picior', description: 'În urma unui apel la numărul unic de urgență 112, sunteți solicitați pentru a interveni la un accident de motocicletă, unde se regăsește un pacient care prezintă o fractură la mână/picior.', minimumMe: 13, steps: ['/me securizează zona și se apropie de pacient', '/me examinează pacientul', '/me verifică prin metoda P.A.S. (Privește, Ascultă, Simte)', '/me observă că pacientul are puls', '/me montează gulerul cervical', '/me verifică rănile vizibile', '/me identifică fractura', '/me pregătește atela ghipsată', '/me montează atela', '/me fixează atela', '/me curăță și dezinfectează rănile', '/me bandajează pacientul', '/me îl fixează pe targă pentru transport'] },
+      { title: 'Cazul 2 — Șoc anafilactic', description: 'În urma unui apel la numărul unic de urgență 112, sunteți solicitați pentru a interveni în cazul unui pacient care a consumat alune și este în stare de șoc anafilactic, cu căile respiratorii blocate.', minimumMe: 13, steps: ['/me examinează pacientul', '/me verifică prin metoda P.A.S.', '/me observă că pacientul nu respiră normal', '/me constată blocarea căilor respiratorii', '/me folosește aspiratorul pentru eliberarea căilor respiratorii', '/me observă inflamația feței', '/me constată respirația îngreunată', '/me verifică funcțiile vitale', '/me identifică șocul anafilactic', '/me pregătește seringa sterilă', '/me administrează hidrocortizon', '/me monitorizează revenirea pacientului', '/me îl pune în poziția de siguranță'] },
+      { title: 'Cazul 3 — Arsuri și stop cardio-respirator', description: 'În urma unui apel la numărul unic de urgență 112, sunteți solicitați pentru a interveni în cazul unei explozii la o benzinărie, unde un pacient a suferit arsuri de gradul 2 la nivelul membrelor superioare și se află în stop cardio-respirator.', minimumMe: 14, steps: ['/me securizează zona și se apropie de pacient', '/me verifică prin metoda P.A.S.', '/me observă lipsa pulsului', '/me constată stopul cardio-respirator', '/me începe compresiile toracice', '/me execută 30 de compresii și 2 ventilații', '/me scoate defibrilatorul', '/me aplică patch-urile', '/me setează defibrilatorul automat', '/me pornește defibrilatorul și urmează instrucțiunile', '/me constată arsurile de gradul 2 de pe membrele superioare', '/me aplică Dermazin', '/me aplică folia pentru arsuri', '/me pregătește pacientul pentru transport'] },
+      { title: 'Cazul 4 — Stop cardio-respirator și traumatism cranian', description: 'În urma unui apel la numărul unic de urgență 112, sunteți solicitați pentru a interveni în cazul unui pacient aflat în stop cardio-respirator după ce a căzut din barcă, în timpul unei partide de pescuit. Martorii vă comunică faptul că acesta a suferit un traumatism cranian în momentul căzăturii și este posibil să aibă dureri insuportabile.', minimumMe: 18, steps: ['/me securizează zona de intervenție', '/me discută cu martorii despre căderea din barcă', '/me verifică dacă pacientul este în siguranță pe mal', '/me examinează pacientul', '/me verifică prin metoda P.A.S.', '/me observă lipsa pulsului', '/me constată stopul cardio-respirator', '/me imobilizează capul și coloana cervicală', '/me începe masajul cardiac extern', '/me execută 30 de compresii și 2 ventilații', '/me administrează atropină intravenos', '/me reevaluează funcțiile vitale', '/me constată traumatismul cranian', '/me verifică pupilele și nivelul de conștiență', '/me întreabă martorii despre durerile pacientului', '/me pregătește și administrează tratamentul pentru durere', '/me îl fixează cu grijă pe targă', '/me îl conectează la aparate pentru transport'] }
     ]
   },
   'Test parașutiști': {

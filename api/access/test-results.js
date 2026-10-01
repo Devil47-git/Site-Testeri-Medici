@@ -132,11 +132,13 @@ export function createAdmissionEmbeds({ testerName, candidateName, candidateId, 
   if (result === 'Admis' && candidateCallsign) testersFields.push({ name: 'Callsign', value: candidateCallsign, inline: false });
   return {
     admission: { title: 'Admitere', color: 0x23A2E8, fields: summaryFields },
-    testers: { title: 'Test Admitere', color: 0x23A2E8, fields: testersFields, thumbnail: { url: 'attachment://buletin-candidat.jpg' } }
+    testers: { title: 'Test Admitere', color: 0x23A2E8, fields: testersFields, thumbnail: { url: 'attachment://buletin-candidat.jpg' } },
+    medicalSheet: { title: 'Fișă medicală', color: 0x23A2E8, image: { url: 'attachment://fisa-medicala.jpg' } },
+    drugTest: { title: 'Drug-test', color: 0x23A2E8, image: { url: 'attachment://drug-test.jpg' } }
   };
 }
 
-async function sendAdmissionNotifications(details, image) {
+async function sendAdmissionNotifications(details) {
   const admissionSetting = process.env.DISCORD_ADMISSION_WEBHOOK;
   const testersSetting = process.env.DISCORD_TESTERS_WEBHOOK;
   const missing = [
@@ -156,7 +158,11 @@ async function sendAdmissionNotifications(details, image) {
   const embeds = createAdmissionEmbeds(details);
   const deliveries = await Promise.all([
     sendWebhookMessage(admissionWebhook, embeds.admission).then(() => null, error => `Canalul de rezultate: ${error.message.startsWith('HTTP ') ? error.message : 'eroare de rețea Discord'}.`),
-    sendWebhookImage(testersWebhook, embeds.testers, image).then(() => null, error => `Canalul testerilor: ${error.message.startsWith('HTTP ') ? error.message : 'eroare de rețea Discord'}.`)
+    sendWebhookImages(testersWebhook, [embeds.testers, embeds.medicalSheet, embeds.drugTest], [
+      { ...details.identityImage, filename: 'buletin-candidat.jpg' },
+      { ...details.medicalSheetImage, filename: 'fisa-medicala.jpg' },
+      { ...details.drugTestImage, filename: 'drug-test.jpg' }
+    ]).then(() => null, error => `Canalul testerilor: ${error.message.startsWith('HTTP ') ? error.message : 'eroare de rețea Discord'}.`)
   ]);
   const errors = deliveries.filter(Boolean);
   return { sent: errors.length === 0, error: errors.join(' ') };
@@ -192,6 +198,10 @@ export function createSpecialtyResultEmbed({ testName, testerName, candidateName
     footer: { text: 'Rezultat oficial · DMLS' },
     timestamp: new Date().toISOString()
   };
+}
+
+export function specialtyNotificationDetails(candidate, result) {
+  return { candidateCallsign: String(candidate?.callsign || '').trim(), candidateName: String(candidate?.name || '').trim(), result };
 }
 
 async function sendSpecialtyNotification(testName, details) {
@@ -260,12 +270,14 @@ export default async function handler(req, res) {
         const candidateId = String(req.body?.candidateId || '').trim().slice(0, 24);
         const candidateCallsign = String(req.body?.candidateCallsign || '').trim().slice(0, 24);
         const result = String(req.body?.result || '').trim();
-        const image = parseIdentityImage(req.body?.identityImage);
+        const identityImage = parseIdentityImage(req.body?.identityImage);
+        const medicalSheetImage = parseIdentityImage(req.body?.medicalSheetImage);
+        const drugTestImage = parseIdentityImage(req.body?.drugTestImage);
         if (!['Admis', 'Respins'].includes(result)) return json(res, 400, { error: 'Invalid admission result' });
-        if (!candidateName || !candidateId || !image || (result === 'Admis' && !candidateCallsign)) {
-          return json(res, 400, { error: 'Candidate name, ID, and ID image are required; admitted candidates also need a callsign' });
+        if (!candidateName || !candidateId || !identityImage || !medicalSheetImage || !drugTestImage || (result === 'Admis' && !candidateCallsign)) {
+          return json(res, 400, { error: 'Numele, ID-ul și fotografiile buletinului, fișei medicale și drug-testului sunt obligatorii; la Admis este necesar și callsign-ul.' });
         }
-        admissionDetails = { candidateName, candidateId, candidateCallsign, result, image };
+        admissionDetails = { candidateName, candidateId, candidateCallsign, result, identityImage, medicalSheetImage, drugTestImage };
       }
       if (Object.hasOwn(SPECIALTY_WEBHOOKS, testName)) {
         const candidateCallsign = String(req.body?.candidateCallsign || '').trim().slice(0, 24);
@@ -275,7 +287,7 @@ export default async function handler(req, res) {
         const candidateRows = (await readValues(sheets, MEMBER_RANGE)).slice(1).filter(Array.isArray);
         const candidate = candidateForCallsign(candidateRows, candidateCallsign);
         if (!candidate) return json(res, 404, { error: 'Nu a fost găsit un candidat cu acest callsign în coloana C.' });
-        specialtyDetails = { ...candidate, result };
+        specialtyDetails = specialtyNotificationDetails(candidate, result);
       }
       if (testName === 'Adeverință medicală') {
         const details = {
@@ -306,7 +318,7 @@ export default async function handler(req, res) {
         requestBody: { values: [[discordId, String(member[2] || '').trim(), testName, String(req.body?.result || '').slice(0, 32), new Date().toISOString()]] }
       });
       const discordNotifications = admissionDetails
-        ? await sendAdmissionNotifications({ testerName: String(member[3] || '').trim().slice(0, 100), ...admissionDetails }, admissionDetails.image)
+        ? await sendAdmissionNotifications({ testerName: String(member[3] || '').trim().slice(0, 100), ...admissionDetails })
         : undefined;
       const specialtyNotification = specialtyDetails
         ? await sendSpecialtyNotification(testName, { testerName: String(member[3] || '').trim().slice(0, 100), ...specialtyDetails })

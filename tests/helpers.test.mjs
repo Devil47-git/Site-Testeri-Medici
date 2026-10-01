@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { accessFor, candidateForCallsign, catalog as accessCatalog, coreTests, effectiveTestsForMember, functionsForMember, isLeadership, normalizeTests, testsForFunctions } from '../api/access/shared.js';
-import { canResetTestCounts, createAdmissionEmbeds, createAlsResultEmbed, createSpecialtyResultEmbed, createMedicalCertificateEmbeds, medicalCertificateNumberForRow } from '../api/access/test-results.js';
+import { canResetTestCounts, createAdmissionEmbeds, createAlsResultEmbed, createSpecialtyResultEmbed, specialtyNotificationDetails, createMedicalCertificateEmbeds, medicalCertificateNumberForRow } from '../api/access/test-results.js';
 import { statusFromRow } from '../api/access/directory.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -33,21 +33,21 @@ function extract(name) {
 const catalog = ['Test admitere', 'Test transfer', 'Adeverință medicală', 'Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști'];
 const definitions = Object.fromEntries(catalog.map(n => [n, { name: n, questions: [] }]));
 
-const names = ['callsignNumber', 'normalizeCallsign', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberHasTestAccess', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'sortMembers', 'gradeGroupFor', 'admissionChecksComplete', 'motoChecksComplete', 'memberStatus', 'testerFunctionsForDisplay', 'isTestFailed', 'maxWrongForTest', 'cachedUserWithinSession', 'questionItemHtml', 'evaluationStageHtml', 'parseIdentityCardText', 'mergeIdentityCardDetails', 'displayTestName'];
+const names = ['callsignNumber', 'normalizeCallsign', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberHasTestAccess', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'sortMembers', 'gradeGroupFor', 'admissionChecklistHtml', 'admissionChecksComplete', 'motoChecksComplete', 'alsChecklistHtml', 'alsChecksComplete', 'alsCaseListHtml', 'smulsChecklistHtml', 'smulsChecksComplete', 'smulsCaseListHtml', 'memberStatus', 'testerFunctionsForDisplay', 'isTestFailed', 'maxWrongForTest', 'cachedUserWithinSession', 'questionItemHtml', 'evaluationStageHtml', 'parseIdentityCardText', 'mergeIdentityCardDetails', 'displayTestName'];
 const srcs = names.map(extract).join('\n');
 const pattern = source.match(/^const RESIDENT_TESTER_PATTERN = .*$/m)?.[0] || 'const RESIDENT_TESTER_PATTERN = /TESTER/;';
 const normalizeTextSrc = extract('normalizeText');
 const escapeHtmlSrc = extract('escapeHtml');
-const fullSrc = `${pattern}\nconst AUTH_SCHEMA_VERSION = 4;\nconst coreTests = ['Test admitere', 'Test transfer', 'Adeverință medicală'];\nconst admissionRequirements = ['Verificarea ținutei', 'Verificarea tatuajelor faciale', 'Verificarea cazierului', 'Minimum 50 de ore jucate', 'Controlul cu stetoscopul', 'Drug-testul'];\nconst motoRequirements = ['Grad Medic-Rezident', 'Certificat S.M.U.L.S.', 'Permis Categoria A'];\n${normalizeTextSrc}\n${escapeHtmlSrc}\n${srcs}`;
+const fullSrc = `${pattern}\nconst AUTH_SCHEMA_VERSION = 4;\nconst coreTests = ['Test admitere', 'Test transfer', 'Adeverință medicală'];\nconst admissionRequirements = ['Verificarea ținutei', 'Verificarea tatuajelor faciale', 'Verificarea cazierului', 'Minimum 50 de ore jucate', 'Controlul cu stetoscopul', 'Drug-testul'];\nconst motoRequirements = ['Grad Medic-Rezident', 'Certificat S.M.U.L.S.', 'Permis Categoria A'];\nconst alsRequirements = ['Verificare BLS', 'Verificare Radio', 'Au trecut minimum 3 zile de la promovarea ultimului test Radio sau BLS', 'Permis categoria B'];\n${normalizeTextSrc}\n${escapeHtmlSrc}\n${srcs}`;
 const testSummaryDefinitions = [['Test SMULS'], ['Test MOTO'], ['Test PILOT'], ['Test ALS'], ['Test parașutiști']];
 const load = new Function(
   'catalog',
   'testDefinitions',
   'testSummaryDefinitions',
-  `${fullSrc}\nreturn { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, admissionChecksComplete, motoChecksComplete, memberStatus, testerFunctionsForDisplay, isTestFailed, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName };`,
+  `${fullSrc}\nreturn { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, admissionChecklistHtml, admissionChecksComplete, motoChecksComplete, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName };`,
 )(catalog, definitions, testSummaryDefinitions);
 
-const { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, admissionChecksComplete, motoChecksComplete, memberStatus, testerFunctionsForDisplay, isTestFailed, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName } = load;
+const { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, admissionChecklistHtml, admissionChecksComplete, motoChecksComplete, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName } = load;
 
 test('Discord auth preserves the Discord display name, username, and avatar', () => {
   const mapperSource = discordAuthSource.match(/function mapSheetRowToUser\(row, discordUser\) \{[\s\S]*?^\}/m)?.[0];
@@ -283,13 +283,78 @@ test('admission test unlocks only after all six requirements are checked', () =>
   assert.equal(admissionChecksComplete([true, true, true, true, true]), false);
 });
 
+test('Transfer places the six shared pre-test criteria after uploads and gates the questions', () => {
+  const markup = admissionChecklistHtml();
+  for (const criterion of ['Verificarea ținutei', 'Verificarea tatuajelor faciale', 'Verificarea cazierului', 'Minimum 50 de ore jucate', 'Controlul cu stetoscopul', 'Drug-testul']) assert.ok(markup.includes(criterion));
+  assert.match(source, /const transferChecks = isTransferTest \? admissionChecklistHtml\(\) : ''/);
+  assert.match(source, /candidateDetails\}\$\{admissionChecks\}\$\{transferChecks\}\$\{testIntro\}/);
+  assert.match(source, /isAdmissionTest \|\| isTransferTest \|\| isMotoTest \|\| isSmulsTest \|\| isAlsTest/);
+  assert.match(source, /isAdmissionTest \|\| isTransferTest\)/);
+});
+
 test('Moto test unlocks only after all three prerequisites are checked', () => {
   assert.equal(motoChecksComplete([true, true, false]), false);
   assert.equal(motoChecksComplete([true, true, true]), true);
+  assert.equal(maxWrongForTest('Test MOTO', 2), 2);
+});
+
+test('ALS test requires BLS, Radio, three days, and category B checks', () => {
+  assert.equal(alsChecksComplete([true, true, true]), false);
+  assert.equal(alsChecksComplete([true, true, true, true]), true);
+  const markup = alsChecklistHtml();
+  for (const requirement of ['Verificare BLS', 'Verificare Radio', 'minimum 3 zile', 'Permis categoria B']) assert.ok(markup.toLowerCase().includes(requirement.toLowerCase()));
+  assert.match(source, /const isStagedTest = \[[^\]]*'Test ALS'/);
+  assert.match(source, /const isAlsTest = testName === 'Test ALS'/);
+});
+
+test('ALS case accordions include all four requested scenarios and interaction counts', () => {
+  const markup = alsCaseListHtml([{ title: 'Cazul 1', description: 'Fractură', minimumMe: 13, steps: ['/me stabilizează pacientul'] }]);
+  const alsDefinition = testCatalogSource.split("'Test ALS':")[1].split("'Test parașutiști':")[0];
+  assert.match(markup, /<details class="als-case">/);
+  assert.match(markup, /Fractură/);
+  assert.match(markup, /13 \/me-uri/);
+  assert.match(markup, /\/me-uri orientative/);
+  assert.match(markup, /Admis ALS/);
+  assert.match(markup, /Respins ALS/);
+  for (const expectedCase of ['accident de motociclet', 'șoc anafilactic', 'benzinărie', 'barcă']) assert.ok(alsDefinition.toLowerCase().includes(expectedCase.toLowerCase()));
+  assert.match(alsDefinition, /minimumMe: 13[\s\S]*?minimumMe: 13[\s\S]*?minimumMe: 14[\s\S]*?minimumMe: 18/);
+  assert.doesNotMatch(alsDefinition, /questions:/);
+});
+
+test('S.M.U.L.S. unlocks after its four prerequisites are checked', () => {
+  assert.equal(smulsChecksComplete([true, true, true]), false);
+  assert.equal(smulsChecksComplete([true, true, true, true]), true);
+  const markup = smulsChecklistHtml();
+  for (const requirement of ['Verificare test teoretic', 'Licență Navală', 'Permis Categoria B', 'Mașina Stalker full tunată']) assert.ok(markup.includes(requirement));
+  assert.match(source, /isAdmissionTest \|\| isTransferTest \|\| isMotoTest \|\| isSmulsTest \|\| isAlsTest/);
+  assert.match(source, /const gatedQuestionForm = \(isAdmissionTest \|\| isTransferTest \|\| isMotoTest \|\| isSmulsTest \|\| isAlsTest\)/);
+});
+
+test('S.M.U.L.S. case list expands each descarceration and reserves two images', () => {
+  const markup = smulsCaseListHtml([{ title: 'Descarcerare demo', steps: ['/me verifică zona'] }]);
+  assert.match(markup, /<details class="smuls-case">/);
+  assert.match(markup, /Descarcerare demo/);
+  assert.equal((markup.match(/class="smuls-case-image-slot"/g) || []).length, 2);
+  assert.ok(markup.indexOf('smuls-descarceration-images') > markup.indexOf('</details>'));
+  const caseMarkup = markup.slice(markup.indexOf('<details'), markup.indexOf('</details>') + '</details>'.length);
+  assert.doesNotMatch(caseMarkup, /smuls-case-image-slot/);
+  assert.match(markup, /Admis Descarcerare/);
+  assert.match(markup, /Respins Descarcerare/);
+  assert.match(source, /smuls-stage-active/);
 });
 
 test('Moto and Pilot staged practical content is present in test definitions', () => {
+  const alsDefinition = testCatalogSource.split("'Test ALS':")[1].split("'Test parașutiști':")[0];
+  assert.match(alsDefinition, /minimumMe: 13[\s\S]*?minimumMe: 13[\s\S]*?minimumMe: 14[\s\S]*?minimumMe: 18/);
+  for (const scenario of ['accident de motocicletă', 'șoc anafilactic', 'explozii la o benzinărie', 'căzut din barcă']) assert.ok(alsDefinition.includes(scenario));
+  assert.doesNotMatch(alsDefinition, /questions:/);
   assert.match(testCatalogSource, /practicalStage:[\s\S]*?5:40 minute \(MOTO/);
+  assert.match(testCatalogSource, /'Test SMULS':[\s\S]*?maxWrong: 2/);
+  assert.match(testCatalogSource, /5:45 min/);
+  assert.match(testCatalogSource, /06:00 min/);
+  assert.match(testCatalogSource, /Candidatul nu va depăși limita de 60 km\/h/);
+  assert.match(testCatalogSource, /candidateBriefing:[\s\S]*?Testul conține 2 probe[\s\S]*?contra timp[\s\S]*?fără a-l pierde din vizor/);
+  assert.match(testCatalogSource, /title: 'Proba 2: Proba Practică'[\s\S]*?5:40 minute \(MOTO\) \(fără zăpadă\)[\s\S]*?7:00 minute \(ATV\) \(cu zăpadă\)[\s\S]*?imageSlots: 1/);
   assert.match(testCatalogSource, /PROBA 2: Locațiile Pacific/);
   assert.match(testCatalogSource, /Buckingham Swift[\s\S]*?3, 2, 1, START[\s\S]*?30 de secunde/);
   assert.match(testCatalogSource, /PROBA 3: Proba de îndemânare și pick-up[\s\S]*?Paleto[\s\S]*?imageSlots: 2/);
@@ -297,13 +362,43 @@ test('Moto and Pilot staged practical content is present in test definitions', (
 });
 
 test('Pilot certification description and instructions share one intro box', () => {
-  assert.match(source, /testName === 'Test PILOT' \? `<div class="pilot-intro-box"><p class="muted">\$\{description\}<\/p>\$\{instructions\}<\/div>`/);
+  assert.match(source, /const introBoxClass = testName === 'Test PILOT' \? 'pilot-intro-box' : isMotoTest \? 'moto-intro-box' : isSmulsTest \? 'smuls-intro-box' : 'als-intro-box'/);
+  assert.match(source, /const testIntro = isStagedTest \? `<div class="\$\{introBoxClass\}"><p class="muted">\$\{description\}<\/p>\$\{instructions\}<\/div>`/);
 });
 
 test('Pilot hides the permanent-access subtitle and places access controls in its header', () => {
-  assert.match(source, /const headerSubtitle = testName === 'Test PILOT' \? ''/);
+  assert.match(source, /const headerSubtitle = hasHeaderAccessControl \? ''/);
   assert.match(source, /class="test-guide-header-actions">\$\{testAccessControl\}/);
-  assert.match(source, /const testAccessSection = testName === 'Test PILOT' \? ''/);
+  assert.match(source, /const testAccessSection = hasHeaderAccessControl \? ''/);
+});
+
+test('Moto uses direct theory verdict buttons, a header access control, and a practical stage verdict', () => {
+  assert.match(source, /data-moto-theory-result="Admis">Admis Proba Teoretică/);
+  assert.match(source, /data-moto-theory-result="Respins">Respins Proba Teoretică/);
+  assert.match(source, /testName === 'Test PILOT' \? 'pilot-intro-box' : isMotoTest \? 'moto-intro-box' : isSmulsTest \? 'smuls-intro-box' : 'als-intro-box'/);
+  assert.match(source, /const headerSubtitle = hasHeaderAccessControl \? ''/);
+  assert.match(source, /\{ result: 'Admis', text: 'Admis Proba 2' \}/);
+  assert.match(source, /\{ result: 'Respins', text: 'Respins Proba 2' \}/);
+});
+
+test('S.M.U.L.S. access control is placed in the test header', () => {
+  assert.match(source, /const hasHeaderAccessControl = isStagedTest \|\| testName === 'Test SMULS'/);
+  assert.match(source, /const testAccessSection = hasHeaderAccessControl \? ''/);
+});
+
+test('ALS case completion uses the existing Discord result submission path', () => {
+  assert.match(source, /const finishAlsTest = async/);
+  assert.match(source, /recordTestRun\(testName, finalResult, \{ candidateCallsign, candidateName \}\)/);
+  assert.match(source, /data-als-result="Admis">Admis ALS/);
+  assert.match(source, /data-als-result="Respins">Respins ALS/);
+  assert.match(source, /als-stage-active/);
+});
+
+test('Moto candidate fields render before checks while remaining outside the gated quiz', () => {
+  assert.match(source, /const candidateIdentityBeforeChecks = isMotoTest \|\| isSmulsTest \|\| isAlsTest \? candidateIdentityFields : ''/);
+  assert.match(source, /const candidateIdentityInQuiz = isMotoTest \|\| isSmulsTest \|\| isAlsTest \? '' : candidateIdentityFields/);
+  assert.match(source, /testIntro\}\$\{candidateIdentityBeforeChecks\}\$\{stagedCandidateSummary\}\$\{alsChecks\}\$\{motoChecks\}\$\{smulsChecks\}/);
+  assert.match(source, /class="question-list">\$\{candidateIdentityInQuiz\}/);
 });
 
 test('evaluation stage cards include conditions and explicit pass/fail actions', () => {
@@ -331,6 +426,9 @@ test('evaluation stage cards render two right-side image placeholders when reque
   assert.match(markup, /evaluation-stage-card has-image-slots/);
   assert.match(markup, /Imagine de referință 1/);
   assert.match(markup, /Imagine de referință 2/);
+  const motoMarkup = evaluationStageHtml({ title: 'Proba 2', imageSlots: 1 }, []);
+  assert.match(motoMarkup, /style="--image-slot-count:1"/);
+  assert.match(motoMarkup, /Imagine de referință 1/);
 });
 
 test('admission test rejects the fourth mistake', () => {
@@ -448,6 +546,9 @@ test('admission Discord embeds use vertical fields and hide callsign on rejectio
   const rejected = createAdmissionEmbeds({ testerName: 'Tester', candidateName: 'Candidat', candidateId: '12345', candidateCallsign: '', result: 'Respins' });
   assert.deepEqual(rejected.admission.fields.map(field => field.name), ['Nume Tester', 'Nume Candidat', 'Rezultat']);
   assert.deepEqual(rejected.testers.fields.map(field => field.name), ['Nume Tester', 'Nume Candidat', 'ID', 'Rezultat']);
+  assert.equal(rejected.testers.thumbnail.url, 'attachment://buletin-candidat.jpg');
+  assert.equal(rejected.medicalSheet.image.url, 'attachment://fisa-medicala.jpg');
+  assert.equal(rejected.drugTest.image.url, 'attachment://drug-test.jpg');
   const admitted = createAdmissionEmbeds({ testerName: 'Tester', candidateName: 'Candidat', candidateId: '12345', candidateCallsign: 'M-302', result: 'Admis' });
   assert.equal(admitted.testers.fields.at(-1).name, 'Callsign');
 });
@@ -474,12 +575,24 @@ test('specialty result embeds contain tester, candidate, callsign, and verdict',
   assert.equal(embed.footer.text, 'Rezultat oficial · DMLS');
 });
 
+test('specialty notification payload maps the candidate sheet callsign to the Discord embed field', () => {
+  assert.deepEqual(specialtyNotificationDetails({ callsign: '603', name: 'Antonio Shades' }, 'Admis'), {
+    candidateCallsign: '603', candidateName: 'Antonio Shades', result: 'Admis'
+  });
+});
+
 test('ALS guide form includes callsign and candidate name inputs', () => {
   const formMarkup = source.match(/const candidateNameField = \[[\s\S]*?\.includes\(testName\)[\s\S]*?;/)?.[0] || '';
   assert.match(formMarkup, /Nume candidat/);
   assert.match(formMarkup, /als-candidate-name/);
   for (const testName of ['Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști']) assert.ok(formMarkup.includes(testName));
   assert.match(source, /class="candidate-identity-fields">\$\{candidateCallsign\}\$\{candidateNameField\}/);
+});
+
+test('candidate photo upload targets show circular status indicators instead of paste instructions', () => {
+  assert.match(source, /class="image-paste-target"[^>]*><span class="candidate-photo-spinner"/);
+  assert.match(source, /data-photo-state="empty"/);
+  assert.doesNotMatch(source, /Lipește poza buletinului aici/);
 });
 
 test('medical certificates start at 7015 and stop at 30000', () => {
