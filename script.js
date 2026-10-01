@@ -871,61 +871,6 @@ async function encodeIdentityPhoto(file) {
   }
   throw new Error('Fotografia este prea mare pentru trimitere. Încarcă o imagine mai mică.');
 }
-async function combineAdmissionPhotos(medicalSheetData, drugTestData) {
-  const sourceImages = await Promise.all([medicalSheetData, drugTestData].map(async source => {
-    const blob = await fetch(source).then(response => response.blob());
-    return createImageBitmap(blob);
-  }));
-  try {
-    const canvas = document.createElement('canvas');
-    canvas.width = 1400;
-    canvas.height = 820;
-    const context = canvas.getContext('2d');
-    context.fillStyle = '#fff';
-    context.fillRect(0, 0, canvas.width, canvas.height);
-    const padding = 24;
-    const gap = 20;
-    const panelWidth = (canvas.width - padding * 2 - gap) / 2;
-    const panelHeight = canvas.height - padding * 2;
-    const labels = ['FIȘĂ MEDICALĂ', 'DRUG-TEST'];
-    sourceImages.forEach((image, index) => {
-      const left = padding + index * (panelWidth + gap);
-      const top = padding;
-      context.fillStyle = '#f4f1f2';
-      context.fillRect(left, top, panelWidth, panelHeight);
-      context.fillStyle = '#8b2938';
-      context.fillRect(left, top, panelWidth, 72);
-      context.fillStyle = '#fff';
-      context.font = '700 30px "DM Sans", Arial, sans-serif';
-      context.textAlign = 'center';
-      context.textBaseline = 'middle';
-      context.fillText(labels[index], left + panelWidth / 2, top + 36);
-      const maxWidth = panelWidth - 36;
-      const maxHeight = panelHeight - 96;
-      const scale = Math.min(maxWidth / image.width, maxHeight / image.height);
-      const width = image.width * scale;
-      const height = image.height * scale;
-      context.drawImage(image, left + (panelWidth - width) / 2, top + 84 + (maxHeight - height) / 2, width, height);
-      context.strokeStyle = '#c6383d';
-      context.lineWidth = 2;
-      context.strokeRect(left, top, panelWidth, panelHeight);
-    });
-    for (const quality of [0.78, 0.66, 0.54, 0.42]) {
-      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
-      if (blob && blob.size <= 450 * 1024) {
-        return await new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result);
-          reader.onerror = () => reject(new Error('Fotografiile nu au putut fi combinate pentru Discord.'));
-          reader.readAsDataURL(blob);
-        });
-      }
-    }
-    throw new Error('Fotografia combinată este prea mare pentru trimitere.');
-  } finally {
-    sourceImages.forEach(image => image.close());
-  }
-}
 function buildTestMarkup(testName, definition, questions) {
   const isAdmissionTest = testName === 'Test admitere';
   const isTransferTest = testName === 'Test transfer';
@@ -1245,8 +1190,7 @@ function wireTestEvents(testName, definition) {
           encodeIdentityPhoto(medicalSheetPhoto),
           encodeIdentityPhoto(drugTestPhoto)
         ]);
-        const medicalDrugImage = await combineAdmissionPhotos(medicalSheetImage, drugTestImage);
-        submissionDetails = { candidateName, candidateId, candidateCallsign, identityImage, medicalDrugImage };
+        submissionDetails = { candidateName, candidateId, candidateCallsign, identityImage, medicalSheetImage, drugTestImage };
         for (const id of ['candidate-document', 'candidate-medical-sheet', 'candidate-drug-test']) setCandidatePhotoStatus(id, 'ready', 'Fotografie pregătită pentru trimitere.');
       } catch (error) {
         setCandidatePhotoStatus('candidate-document', 'error', error.message);

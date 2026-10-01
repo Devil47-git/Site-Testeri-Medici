@@ -22,6 +22,12 @@ const SPECIALTY_WEBHOOKS = {
 export const config = { api: { bodyParser: { sizeLimit: '4mb' } } };
 
 function json(res, status, body) { return res.status(status).json(body); }
+export function discordTesterMentionPayload(discordId) {
+  const id = String(discordId || '').trim();
+  return /^\d+$/.test(id)
+    ? { content: `<@${id}>`, allowed_mentions: { parse: [], users: [id] } }
+    : { allowed_mentions: { parse: [] } };
+}
 export function canResetTestCounts(member) {
   const callsign = callsignNumber(member?.[2]);
   return callsign >= 1 && callsign <= 20;
@@ -92,26 +98,18 @@ function parseIdentityImage(value) {
   return { buffer, mimeType: `image/${match[1]}` };
 }
 
-async function sendWebhookMessage(url, content) {
+async function sendWebhookMessage(url, embed, testerDiscordId) {
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ embeds: [content], allowed_mentions: { parse: [] } })
+    body: JSON.stringify({ ...discordTesterMentionPayload(testerDiscordId), embeds: [embed] })
   });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
 }
 
-async function sendWebhookImage(url, embed, image) {
+async function sendWebhookImages(url, embeds, images, testerDiscordId) {
   const form = new FormData();
-  form.set('payload_json', JSON.stringify({ embeds: [embed], allowed_mentions: { parse: [] }, attachments: [{ id: 0, filename: 'buletin-candidat.jpg' }] }));
-  form.set('files[0]', new Blob([image.buffer], { type: image.mimeType }), 'buletin-candidat.jpg');
-  const response = await fetch(url, { method: 'POST', body: form });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
-}
-
-async function sendWebhookImages(url, embeds, images) {
-  const form = new FormData();
-  form.set('payload_json', JSON.stringify({ embeds, allowed_mentions: { parse: [] }, attachments: images.map((image, id) => ({ id, filename: image.filename })) }));
+  form.set('payload_json', JSON.stringify({ ...discordTesterMentionPayload(testerDiscordId), embeds, attachments: images.map((image, id) => ({ id, filename: image.filename })) }));
   images.forEach((image, id) => form.set(`files[${id}]`, new Blob([image.buffer], { type: image.mimeType }), image.filename));
   const response = await fetch(url, { method: 'POST', body: form });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -132,7 +130,9 @@ export function createAdmissionEmbeds({ testerName, candidateName, candidateId, 
   if (result === 'Admis' && candidateCallsign) testersFields.push({ name: 'Callsign', value: candidateCallsign, inline: false });
   return {
     admission: { title: 'Admitere', color: 0x23A2E8, fields: summaryFields },
-    testers: { title: 'Test Admitere', color: 0x23A2E8, fields: testersFields, thumbnail: { url: 'attachment://buletin-candidat.jpg' }, image: { url: 'attachment://fisa-medicala-si-drug-test.jpg' } }
+    testers: { title: 'Test Admitere', color: 0x23A2E8, fields: testersFields, thumbnail: { url: 'attachment://buletin-candidat.jpg' } },
+    medicalSheet: { title: 'Fișă medicală', color: 0x23A2E8, thumbnail: { url: 'attachment://fisa-medicala.jpg' } },
+    drugTest: { title: 'Drug-test', color: 0x23A2E8, thumbnail: { url: 'attachment://drug-test.jpg' } }
   };
 }
 
@@ -155,11 +155,12 @@ async function sendAdmissionNotifications(details) {
 
   const embeds = createAdmissionEmbeds(details);
   const deliveries = await Promise.all([
-    sendWebhookMessage(admissionWebhook, embeds.admission).then(() => null, error => `Canalul de rezultate: ${error.message.startsWith('HTTP ') ? error.message : 'eroare de rețea Discord'}.`),
-    sendWebhookImages(testersWebhook, [embeds.testers], [
+    sendWebhookMessage(admissionWebhook, embeds.admission, details.testerDiscordId).then(() => null, error => `Canalul de rezultate: ${error.message.startsWith('HTTP ') ? error.message : 'eroare de rețea Discord'}.`),
+    sendWebhookImages(testersWebhook, [embeds.testers, embeds.medicalSheet, embeds.drugTest], [
       { ...details.identityImage, filename: 'buletin-candidat.jpg' },
-      { ...details.medicalDrugImage, filename: 'fisa-medicala-si-drug-test.jpg' }
-    ]).then(() => null, error => `Canalul testerilor: ${error.message.startsWith('HTTP ') ? error.message : 'eroare de rețea Discord'}.`)
+      { ...details.medicalSheetImage, filename: 'fisa-medicala.jpg' },
+      { ...details.drugTestImage, filename: 'drug-test.jpg' }
+    ], details.testerDiscordId).then(() => null, error => `Canalul testerilor: ${error.message.startsWith('HTTP ') ? error.message : 'eroare de rețea Discord'}.`)
   ]);
   const errors = deliveries.filter(Boolean);
   return { sent: errors.length === 0, error: errors.join(' ') };
@@ -211,14 +212,14 @@ async function sendSpecialtyNotification(testName, details) {
     const embed = testName === 'Test ALS'
       ? createAlsResultEmbed(details)
       : createSpecialtyResultEmbed({ testName, ...details });
-    await sendWebhookMessage(url, embed);
+    await sendWebhookMessage(url, embed, details.testerDiscordId);
     return { sent: true, error: '' };
   } catch (error) {
     return { sent: false, error: `Canalul ${testName}: ${error.message.startsWith('HTTP ') ? error.message : 'eroare de rețea Discord'}.` };
   }
 }
 
-async function sendMedicalCertificateNotification(details, number) {
+async function sendMedicalCertificateNotification(details, number, testerDiscordId) {
   const setting = process.env.DISCORD_MEDICAL_CERTIFICATES_WEBHOOK;
   if (!setting) return { sent: false, error: 'Lipsește DISCORD_MEDICAL_CERTIFICATES_WEBHOOK.' };
   const url = webhookUrl(setting);
@@ -228,7 +229,7 @@ async function sendMedicalCertificateNotification(details, number) {
       { ...details.identityImage, filename: 'buletin-candidat.jpg' },
       { ...details.medicalSheetImage, filename: 'fisa-medicala.jpg' }
     ];
-    await sendWebhookImages(url, createMedicalCertificateEmbeds(details, number), images);
+    await sendWebhookImages(url, createMedicalCertificateEmbeds(details, number), images, testerDiscordId);
     return { sent: true, error: '' };
   } catch (error) {
     return { sent: false, error: `Canalul de adeverințe: ${error.message.startsWith('HTTP ') ? error.message : 'eroare de rețea Discord'}.` };
@@ -268,12 +269,13 @@ export default async function handler(req, res) {
         const candidateCallsign = String(req.body?.candidateCallsign || '').trim().slice(0, 24);
         const result = String(req.body?.result || '').trim();
         const identityImage = parseIdentityImage(req.body?.identityImage);
-        const medicalDrugImage = parseIdentityImage(req.body?.medicalDrugImage);
+        const medicalSheetImage = parseIdentityImage(req.body?.medicalSheetImage);
+        const drugTestImage = parseIdentityImage(req.body?.drugTestImage);
         if (!['Admis', 'Respins'].includes(result)) return json(res, 400, { error: 'Invalid admission result' });
-        if (!candidateName || !candidateId || !identityImage || !medicalDrugImage || (result === 'Admis' && !candidateCallsign)) {
-          return json(res, 400, { error: 'Numele, ID-ul, fotografia buletinului și fotografia combinată a fișei medicale și drug-testului sunt obligatorii; la Admis este necesar și callsign-ul.' });
+        if (!candidateName || !candidateId || !identityImage || !medicalSheetImage || !drugTestImage || (result === 'Admis' && !candidateCallsign)) {
+          return json(res, 400, { error: 'Numele, ID-ul și fotografiile buletinului, fișei medicale și drug-testului sunt obligatorii; la Admis este necesar și callsign-ul.' });
         }
-        admissionDetails = { candidateName, candidateId, candidateCallsign, result, identityImage, medicalDrugImage };
+        admissionDetails = { candidateName, candidateId, candidateCallsign, result, identityImage, medicalSheetImage, drugTestImage };
       }
       if (Object.hasOwn(SPECIALTY_WEBHOOKS, testName)) {
         const candidateCallsign = String(req.body?.candidateCallsign || '').trim().slice(0, 24);
@@ -314,16 +316,16 @@ export default async function handler(req, res) {
         requestBody: { values: [[discordId, String(member[2] || '').trim(), testName, String(req.body?.result || '').slice(0, 32), new Date().toISOString()]] }
       });
       const discordNotifications = admissionDetails
-        ? await sendAdmissionNotifications({ testerName: String(member[3] || '').trim().slice(0, 100), ...admissionDetails })
+        ? await sendAdmissionNotifications({ testerDiscordId: discordId, testerName: String(member[3] || '').trim().slice(0, 100), ...admissionDetails })
         : undefined;
       const specialtyNotification = specialtyDetails
-        ? await sendSpecialtyNotification(testName, { testerName: String(member[3] || '').trim().slice(0, 100), ...specialtyDetails })
+        ? await sendSpecialtyNotification(testName, { testerDiscordId: discordId, testerName: String(member[3] || '').trim().slice(0, 100), ...specialtyDetails })
         : undefined;
       let certificateNumber;
       let certificateNotification;
       if (certificateDetails) {
         certificateNumber = await appendMedicalCertificate(sheets, certificateDetails, { discordId, name: String(member[3] || '').trim().slice(0, 100) });
-        certificateNotification = await sendMedicalCertificateNotification(certificateDetails, certificateNumber);
+        certificateNotification = await sendMedicalCertificateNotification(certificateDetails, certificateNumber, discordId);
       }
       return json(res, 200, {
         success: true,

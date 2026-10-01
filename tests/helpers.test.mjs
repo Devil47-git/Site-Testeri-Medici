@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { accessFor, candidateForCallsign, catalog as accessCatalog, coreTests, effectiveTestsForMember, functionsForMember, isLeadership, normalizeTests, testsForFunctions } from '../api/access/shared.js';
-import { canResetTestCounts, createAdmissionEmbeds, createAlsResultEmbed, createSpecialtyResultEmbed, specialtyNotificationDetails, createMedicalCertificateEmbeds, medicalCertificateNumberForRow } from '../api/access/test-results.js';
+import { canResetTestCounts, discordTesterMentionPayload, createAdmissionEmbeds, createAlsResultEmbed, createSpecialtyResultEmbed, specialtyNotificationDetails, createMedicalCertificateEmbeds, medicalCertificateNumberForRow } from '../api/access/test-results.js';
 import { statusFromRow } from '../api/access/directory.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -76,6 +76,14 @@ test('callsignNumber strips non-digits and returns 0 for empty', () => {
   assert.equal(callsignNumber(''), 0);
   assert.equal(callsignNumber(undefined), 0);
   assert.equal(callsignNumber('abc'), 0);
+});
+
+test('Discord webhook mention targets only the connected tester ID', () => {
+  assert.deepEqual(discordTesterMentionPayload('123456789012345678'), {
+    content: '<@123456789012345678>',
+    allowed_mentions: { parse: [], users: ['123456789012345678'] }
+  });
+  assert.deepEqual(discordTesterMentionPayload(''), { allowed_mentions: { parse: [] } });
 });
 
 test('only callsigns 001 through 020 can reset test counts', () => {
@@ -561,10 +569,11 @@ test('admission Discord embeds use vertical fields and hide callsign on rejectio
   assert.deepEqual(rejected.admission.fields.map(field => field.name), ['Nume Tester', 'Nume Candidat', 'Rezultat']);
   assert.deepEqual(rejected.testers.fields.map(field => field.name), ['Nume Tester', 'Nume Candidat', 'ID', 'Rezultat']);
   assert.equal(rejected.testers.thumbnail.url, 'attachment://buletin-candidat.jpg');
-  assert.equal(rejected.testers.image.url, 'attachment://fisa-medicala-si-drug-test.jpg');
-  assert.deepEqual(Object.keys(rejected), ['admission', 'testers']);
-  assert.match(source, /combineAdmissionPhotos\(medicalSheetImage, drugTestImage\)/);
-  assert.match(source, /submissionDetails = \{ candidateName, candidateId, candidateCallsign, identityImage, medicalDrugImage \}/);
+  assert.equal(rejected.testers.thumbnail.url, 'attachment://buletin-candidat.jpg');
+  assert.equal(rejected.medicalSheet.thumbnail.url, 'attachment://fisa-medicala.jpg');
+  assert.equal(rejected.drugTest.thumbnail.url, 'attachment://drug-test.jpg');
+  assert.deepEqual(Object.keys(rejected), ['admission', 'testers', 'medicalSheet', 'drugTest']);
+  assert.match(source, /submissionDetails = \{ candidateName, candidateId, candidateCallsign, identityImage, medicalSheetImage, drugTestImage \}/);
   const admitted = createAdmissionEmbeds({ testerName: 'Tester', candidateName: 'Candidat', candidateId: '12345', candidateCallsign: 'M-302', result: 'Admis' });
   assert.equal(admitted.testers.fields.at(-1).name, 'Callsign');
 });
