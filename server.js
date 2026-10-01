@@ -13,7 +13,7 @@ const SHEET_ID = process.env.GOOGLE_SHEET_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4A
 const SHEET_RANGE = process.env.GOOGLE_SHEET_RANGE || 'LISTA DEPARTAMENT!A:T';
 const sessions = new Map();
 const oauthState = new Map();
-const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8' };
+const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.gif': 'image/gif' };
 
 function cookie(req, key) { return (req.headers.cookie || '').split(';').map(x => x.trim().split('=')).find(x => x[0] === key)?.[1]; }
 function redirect(res, location) { res.writeHead(302, { Location: location }); res.end(); }

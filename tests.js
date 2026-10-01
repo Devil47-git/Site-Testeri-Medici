@@ -126,7 +126,12 @@ window.MEDICAL_TESTS = {
           'Imediat după ce se urcă instructorul, acesta va trece PE SUB pod și va merge să aterizeze pe Helipad-ul de la Spitalul Sandy Shores.',
           'Candidatul va fi declarat RESPINS dacă atinge podul sau copacii, dacă scufundă elicopterul, dacă explodează elicopterul, dacă motorul acestuia este galben/roșu sau dacă nu aterizează corect pe Helipad.'
         ],
-        imageSlots: 2
+        imageSlots: 3,
+        images: [
+          { label: 'Imagine 1', url: '/Proba_3_test_pilot.png' },
+          { label: 'Imagine 2', url: '/Proba_3_test_pilot_poza_2.png' },
+          { label: 'Imagine 3', url: '/Proba_3_test_pilot_poza_3.png' }
+        ]
       },
       {
         title: 'PROBA 4: Pick-Up de pe Chilliad',

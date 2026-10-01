@@ -39,6 +39,19 @@ function mergeTestDefinitions(defaults, stored) {
       merged.practical = defaultPractical.map((stage, index) => ({ ...stage, ...(storedPractical[index] || {}) }));
       merged.practical.push(...storedPractical.slice(defaultPractical.length));
     }
+    const defaultEvaluationStages = defaults?.[name]?.evaluationStages;
+    const storedEvaluationStages = stored?.[name]?.evaluationStages;
+    if (Array.isArray(defaultEvaluationStages) && Array.isArray(storedEvaluationStages)) {
+      merged.evaluationStages = defaultEvaluationStages.map((stage, index) => {
+        const mergedStage = { ...stage, ...(storedEvaluationStages[index] || {}) };
+        if (stage.images?.length) {
+          mergedStage.images = stage.images;
+          mergedStage.imageSlots = Number(stage.imageSlots) || stage.images.length;
+        }
+        return mergedStage;
+      });
+      merged.evaluationStages.push(...storedEvaluationStages.slice(defaultEvaluationStages.length));
+    }
     return [name, merged];
   }));
 }
@@ -702,7 +715,11 @@ function evaluationStageHtml(stage, verdictLabels) {
   const conditions = stage.conditions?.length ? `<h4>Condiții</h4><ul>${stage.conditions.map(condition => `<li>${escapeHtml(condition)}</li>`).join('')}</ul>` : '';
   const buttons = verdictLabels.map(label => `<button type="button" class="primary evaluation-verdict evaluation-verdict-${label.result === 'Admis' ? 'admitted' : 'rejected'}" data-evaluation-result="${label.result}">${escapeHtml(label.text)}</button>`).join('');
   const imageCount = Number(stage.imageSlots) || 0;
-  const imageSlots = imageCount > 0 ? `<aside class="evaluation-stage-images" aria-label="Imagini de referință" style="--image-slot-count:${imageCount}">${Array.from({ length: imageCount }, (_, index) => `<div class="evaluation-stage-image-slot" role="img" aria-label="Imagine de referință ${index + 1}"><span>Imagine ${index + 1}</span></div>`).join('')}</aside>` : '';
+  const imageSlots = imageCount > 0 ? `<aside class="evaluation-stage-images" aria-label="Imagini de referință" style="--image-slot-count:${imageCount}">${Array.from({ length: imageCount }, (_, index) => {
+    const image = stage.images?.[index];
+    const content = image?.url ? `<img src="${escapeHtml(image.url)}" alt="">` : `<span>Imagine ${index + 1}</span>`;
+    return `<div class="evaluation-stage-image-slot" role="img" aria-label="${escapeHtml(image?.label || `Imagine de referință ${index + 1}`)}">${content}</div>`;
+  }).join('')}</aside>` : '';
   return `<section class="evaluation-stage-card${imageSlots ? ' has-image-slots' : ''}"><div class="evaluation-stage-copy"><h3>${escapeHtml(stage.title)}</h3>${paragraphs}${conditions}<div class="evaluation-stage-actions">${buttons}</div></div>${imageSlots}</section>`;
 }
 function parseIdentityCardText(text) {
@@ -780,8 +797,13 @@ function mergeIdentityCardDetails(primary, retry) {
     cnp: primary.cnp || retry.cnp
   };
 }
+function bulletinGifArtworkHtml() {
+  return '<img class="bulletin-dot-art" src="/gif.gif" alt="" aria-hidden="true" draggable="false">';
+}
 function candidateImageFieldHtml(id, label) {
-  return `<section class="candidate-photo-field" data-photo-field="${id}" data-photo-state="empty"><label class="candidate-document-upload">${label}<input id="${id}" type="file" accept="image/*"></label><div class="image-paste-target" data-paste-for="${id}" tabindex="0" role="button" aria-label="${label}: selectează sau lipește o fotografie"><span class="candidate-photo-spinner" aria-hidden="true"></span></div><div class="candidate-photo-progress" role="status" aria-live="polite"><span id="${id}-status">Așteaptă fotografia</span></div></section>`;
+  const isBulletinPhoto = id === 'candidate-document' || id === 'certificate-document';
+  const bulletinArtwork = isBulletinPhoto ? bulletinGifArtworkHtml() : '';
+  return `<section class="candidate-photo-field" data-photo-field="${id}" data-photo-state="empty"><label class="candidate-document-upload">${label}<input id="${id}" type="file" accept="image/*"></label><div class="image-paste-target${isBulletinPhoto ? ' bulletin-image-target' : ''}" data-paste-for="${id}" tabindex="0" role="button" aria-label="${label}: selectează sau lipește o fotografie">${bulletinArtwork}<span class="candidate-photo-spinner" aria-hidden="true"></span></div><div class="candidate-photo-progress" role="status" aria-live="polite"><span id="${id}-status">Așteaptă fotografia</span></div></section>`;
 }
 function setCandidatePhotoStatus(id, state, message) {
   const input = document.querySelector(`#${id}`);
@@ -895,27 +917,6 @@ async function encodeIdentityPhoto(file) {
     }
   }
   throw new Error('Fotografia este prea mare pentru trimitere. Încarcă o imagine mai mică.');
-}
-async function encodeTestReferencePhoto(file) {
-  const image = await createImageBitmap(file);
-  const scale = Math.min(1, 1000 / Math.max(image.width, image.height));
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.max(1, Math.round(image.width * scale));
-  canvas.height = Math.max(1, Math.round(image.height * scale));
-  canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
-  image.close();
-  for (const quality of [0.72, 0.58, 0.44, 0.32]) {
-    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
-    if (blob && blob.size <= 300 * 1024) {
-      return await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = () => reject(new Error('Fotografia nu a putut fi salvată.'));
-        reader.readAsDataURL(blob);
-      });
-    }
-  }
-  throw new Error('Fotografia este prea mare pentru catalog. Încarcă o imagine mai mică.');
 }
 function buildTestMarkup(testName, definition, questions) {
   const isAdmissionTest = testName === 'Test admitere';
@@ -1183,8 +1184,8 @@ function wireTestEvents(testName, definition) {
       practicalSteps.innerHTML = (definition.practical || []).map((item, caseIndex) => {
         const imageSlots = Array.from({ length: Number(item.imageSlots) || 0 }, (_, imageIndex) => {
           const imageUrl = item.images?.[imageIndex]?.url;
-          const preview = imageUrl ? `<img src="${imageUrl}" alt="Fotografie ${imageIndex + 1} pentru ${escapeHtml(item.name)}">` : '<span class="parachutism-photo-empty">Alege fotografia</span>';
-          return `<label class="parachutism-photo-slot">${preview}<span>Fotografie ${imageIndex + 1}</span><input type="file" accept="image/*" data-parachutism-case="${caseIndex}" data-parachutism-photo="${imageIndex}" aria-label="Fotografie ${imageIndex + 1} pentru ${escapeHtml(item.name)}"></label>`;
+          const preview = imageUrl ? `<img src="${imageUrl}" alt="Fotografie ${imageIndex + 1} pentru ${escapeHtml(item.name)}">` : `<span class="parachutism-photo-empty">Imagine ${imageIndex + 1}</span>`;
+          return `<div class="evaluation-stage-image-slot parachutism-photo-slot" role="img" aria-label="Imagine ${imageIndex + 1} pentru ${escapeHtml(item.name)}">${preview}</div>`;
         }).join('');
         return `<details class="als-case parachutism-case" data-parachutism-case-card="${caseIndex}"${caseIndex === openParachutismCase ? ' open' : ''}><summary>${escapeHtml(item.name)}</summary><div class="als-case-content"><p><b>Locație:</b> ${escapeHtml(item.location)}</p><p><b>Altitudine:</b> ${escapeHtml(item.altitude)}</p><p><b>Aterizare:</b> ${escapeHtml(item.landing)}</p><div class="parachutism-photo-grid" aria-label="Fotografii pentru ${escapeHtml(item.name)}">${imageSlots}</div></div></details>`;
       }).join('');
@@ -1200,29 +1201,6 @@ function wireTestEvents(testName, definition) {
       const caseCard = event.target.closest('[data-parachutism-case-card]');
       if (caseCard?.open) openParachutismCase = Number(caseCard.dataset.parachutismCaseCard);
     }, true);
-    practicalSteps.addEventListener('change', async event => {
-      const input = event.target.closest('[data-parachutism-photo]');
-      const file = input?.files?.[0];
-      if (!input || !file?.type.startsWith('image/')) return;
-      const caseIndex = Number(input.dataset.parachutismCase);
-      const imageIndex = Number(input.dataset.parachutismPhoto);
-      const stage = definition.practical[caseIndex];
-      try {
-        const url = await encodeTestReferencePhoto(file);
-        const images = Array.from({ length: Number(stage.imageSlots) || 0 }, (_, index) => stage.images?.[index] || null);
-        images[imageIndex] = { url, label: `Fotografie ${imageIndex + 1}` };
-        stage.images = images;
-        testDefinitions[testName] = { ...testDefinitions[testName], practical: definition.practical };
-        saveTestDefinitions();
-        openParachutismCase = caseIndex;
-        renderPractical();
-      } catch (error) {
-        if (candidateSummaryEl) {
-          candidateSummaryEl.textContent = error.message;
-          candidateSummaryEl.classList.add('error-text');
-        }
-      }
-    });
   } else if (practicalSelect) {
     practicalSelect.onchange = renderPractical;
     renderPractical();

@@ -119,12 +119,18 @@ test('saved test definitions inherit newly shipped practical stages and cases', 
   const defaults = {
     'Test MOTO': { title: 'MOTO', practicalStage: { title: 'Proba 2' }, questions: [{ text: 'Q' }] },
     'Test SMULS': { cases: [{ title: 'Descarcerare' }], images: [{ url: '/map.png' }] },
-    'Test parașutiști': { practical: [{ name: 'Ușoară', imageSlots: 3 }, { name: 'Medie', imageSlots: 2 }, { name: 'Dificilă', imageSlots: 2 }] }
+    'Test parașutiști': { practical: [{ name: 'Ușoară', imageSlots: 3 }, { name: 'Medie', imageSlots: 2 }, { name: 'Dificilă', imageSlots: 2 }] },
+    'Test PILOT': { evaluationStages: [
+      { title: 'PROBA 2' },
+      { title: 'PROBA 3', imageSlots: 3, images: [{ url: '/one.png' }, { url: '/two.png' }, { url: '/three.png' }] },
+      { title: 'PROBA 4', imageSlots: 2 }
+    ] }
   };
   const merged = mergeTestDefinitions(defaults, {
     'Test MOTO': { title: 'MOTO personalizat' },
     'Test SMULS': { description: 'Text salvat' },
-    'Test parașutiști': { practical: [{ name: 'Ușoară personalizată' }, { name: 'Medie personalizată' }] }
+    'Test parașutiști': { practical: [{ name: 'Ușoară personalizată' }, { name: 'Medie personalizată' }] },
+    'Test PILOT': { evaluationStages: [{ title: 'Proba 2 salvată' }, { title: 'Proba 3 salvată', imageSlots: 2 }, { title: 'Proba 4 salvată' }] }
   });
   assert.equal(merged['Test MOTO'].title, 'MOTO personalizat');
   assert.deepEqual(merged['Test MOTO'].practicalStage, defaults['Test MOTO'].practicalStage);
@@ -137,6 +143,10 @@ test('saved test definitions inherit newly shipped practical stages and cases', 
   assert.equal(merged['Test parașutiști'].practical[0].imageSlots, 3);
   assert.equal(merged['Test parașutiști'].practical[1].imageSlots, 2);
   assert.equal(merged['Test parașutiști'].practical[2].imageSlots, 2);
+  assert.equal(merged['Test PILOT'].evaluationStages[1].title, 'Proba 3 salvată');
+  assert.equal(merged['Test PILOT'].evaluationStages[1].imageSlots, 3);
+  assert.deepEqual(merged['Test PILOT'].evaluationStages[1].images.map(image => image.url), ['/one.png', '/two.png', '/three.png']);
+  assert.equal(merged['Test PILOT'].evaluationStages[2].imageSlots, 2);
 });
 
 test('isLeadershipUser accepts csNum 1-20 and leadership flags', () => {
@@ -221,6 +231,11 @@ test('parachutism theory verdict controls the separate practical panel', () => {
   assert.match(source, /parachutismPracticalStage[\s\S]*?id="parachutism-practical-stage" hidden/);
   assert.match(source, /practicalStage\.hidden = false/);
   assert.match(source, /parachutismResultStageFlow/);
+  assert.match(source, /class="evaluation-stage-image-slot parachutism-photo-slot" role="img" aria-label="Imagine \$\{imageIndex \+ 1\} pentru/);
+  assert.match(source, /parachutism-photo-empty">Imagine \$\{imageIndex \+ 1\}/);
+  const stylesheet = readFileSync(join(here, '..', 'style.css'), 'utf8');
+  assert.doesNotMatch(source, /data-parachutism-photo|encodeTestReferencePhoto/);
+  assert.doesNotMatch(stylesheet, /\.parachutism-photo-slot[^}]*cursor:pointer/);
 });
 
 test('parachutism requirements, information cards, and jump photo slots are configured', () => {
@@ -230,7 +245,7 @@ test('parachutism requirements, information cards, and jump photo slots are conf
   assert.match(testCatalogSource, /name: 'Săritura ușoară'[\s\S]*?imageSlots: 3[\s\S]*?name: 'Săritura medie'[\s\S]*?imageSlots: 2[\s\S]*?name: 'Săritura dificilă'[\s\S]*?imageSlots: 2/);
   assert.match(source, /data-parachutism-check/);
   assert.match(source, /parachutism-test-content/);
-  assert.match(source, /data-parachutism-photo/);
+  assert.doesNotMatch(source, /data-parachutism-photo/);
   assert.match(source, /parachutismInformationHtml/);
 });
 
@@ -415,7 +430,8 @@ test('Moto and Pilot staged practical content is present in test definitions', (
   assert.match(testCatalogSource, /title: 'Proba 2: Proba Practică'[\s\S]*?5:40 minute \(MOTO\) \(fără zăpadă\)[\s\S]*?7:00 minute \(ATV\) \(cu zăpadă\)[\s\S]*?imageSlots: 1/);
   assert.match(testCatalogSource, /PROBA 2: Locațiile Pacific/);
   assert.match(testCatalogSource, /Buckingham Swift[\s\S]*?3, 2, 1, START[\s\S]*?30 de secunde/);
-  assert.match(testCatalogSource, /PROBA 3: Proba de îndemânare și pick-up[\s\S]*?Paleto[\s\S]*?imageSlots: 2/);
+  assert.match(testCatalogSource, /PROBA 3: Proba de îndemânare și pick-up[\s\S]*?Paleto[\s\S]*?imageSlots: 3/);
+  assert.match(testCatalogSource, /url: '\/Proba_3_test_pilot\.png'[\s\S]*?url: '\/Proba_3_test_pilot_poza_2\.png'[\s\S]*?url: '\/Proba_3_test_pilot_poza_3\.png'/);
   assert.match(testCatalogSource, /PROBA 4: Pick-Up de pe Chilliad[\s\S]*?imageSlots: 2/);
 });
 
@@ -480,14 +496,20 @@ test('Pilot verdict buttons isolate the current stage and use distinct verdict s
   assert.match(source, /stageFlow\.replaceChildren\(\)/);
 });
 
-test('evaluation stage cards render two right-side image placeholders when requested', () => {
-  const markup = evaluationStageHtml({ title: 'PROBA 3', imageSlots: 2 }, []);
+test('evaluation stage cards render three right-side image placeholders when requested', () => {
+  const markup = evaluationStageHtml({ title: 'PROBA 3', imageSlots: 3, images: [
+    { label: 'Imagine 1', url: '/first.png' },
+    { label: 'Imagine 2', url: '/second.png' },
+    { label: 'Imagine 3', url: '/third.png' }
+  ] }, []);
   assert.match(markup, /evaluation-stage-card has-image-slots/);
-  assert.match(markup, /Imagine de referință 1/);
-  assert.match(markup, /Imagine de referință 2/);
+  assert.match(markup, /aria-label="Imagine 1"/);
+  assert.match(markup, /aria-label="Imagine 2"/);
+  assert.match(markup, /aria-label="Imagine 3"/);
+  assert.deepEqual([...markup.matchAll(/<img src="([^"]+)"/g)].map(match => match[1]), ['/first.png', '/second.png', '/third.png']);
   const motoMarkup = evaluationStageHtml({ title: 'Proba 2', imageSlots: 1 }, []);
   assert.match(motoMarkup, /style="--image-slot-count:1"/);
-  assert.match(motoMarkup, /Imagine de referință 1/);
+  assert.match(motoMarkup, /Imagine 1/);
 });
 
 test('admission test rejects the fourth mistake', () => {
@@ -656,10 +678,23 @@ test('ALS guide form includes callsign and candidate name inputs', () => {
   assert.match(source, /class="candidate-identity-fields">\$\{candidateCallsign\}\$\{candidateNameField\}/);
 });
 
-test('candidate photo upload targets show circular status indicators instead of paste instructions', () => {
-  assert.match(source, /class="image-paste-target"[^>]*><span class="candidate-photo-spinner"/);
+test('bulletin photo targets use the themed circular GIF without changing other uploads', () => {
+  assert.match(source, /function bulletinGifArtworkHtml\(\)/);
+  assert.match(source, /const isBulletinPhoto = id === 'candidate-document' \|\| id === 'certificate-document'/);
+  assert.match(source, /class="image-paste-target\$\{isBulletinPhoto \? ' bulletin-image-target' : ''\}"/);
+  assert.match(source, /class="bulletin-dot-art" src="\/gif\.gif"/);
+  assert.doesNotMatch(source, /bulletinArtwork\.style\.setProperty\('--hole-/);
+  assert.match(source, /class="candidate-photo-spinner"/);
   assert.match(source, /data-photo-state="empty"/);
   assert.doesNotMatch(source, /Lipește poza buletinului aici/);
+  const stylesheet = readFileSync(join(here, '..', 'style.css'), 'utf8');
+  assert.match(stylesheet, /\.image-paste-target\.bulletin-image-target\{[^}]*border:0[^}]*border-radius:50%/);
+  assert.match(stylesheet, /\.bulletin-dot-art\{[^}]*mix-blend-mode:screen/);
+  assert.doesNotMatch(stylesheet, /mask-image:radial-gradient\(circle 20px at var\(--hole-x,50%\) var\(--hole-y,50%\)/);
+  for (const file of ['server.js', 'tests/dev-server.mjs']) {
+    const server = readFileSync(join(here, '..', file), 'utf8');
+    assert.match(server, /'\.gif': 'image\/gif'/);
+  }
 });
 
 test('medical certificates start at 7015 and stop at 30000', () => {
