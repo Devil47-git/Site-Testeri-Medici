@@ -71,6 +71,7 @@ body.dark-mode .tester-access-table td:nth-child(4) .tag.cyan{border-color:rgba(
 .smuls-case-content ol{display:grid;gap:6px;margin:0;padding-left:22px;line-height:1.5}
 .smuls-descarceration-images{display:grid;grid-template-rows:repeat(2,minmax(150px,1fr));gap:10px;min-width:0}
 .smuls-case-image-slot{display:grid;place-items:center;min-height:150px;border:1px dashed #c6383d;border-radius:6px;background:rgba(198,56,61,.08);color:var(--muted);font-size:12px}
+.smuls-case-image-slot img{display:block;width:100%;height:100%;min-height:150px;object-fit:cover;border-radius:inherit}
 .smuls-descarceration-stage .evaluation-stage-actions{margin-top:4px}
 .als-case-stage{display:grid;gap:12px}
 .als-case-stage>h3{margin:0;color:var(--ink);font-size:16px}
@@ -101,7 +102,7 @@ body.dark-mode .tester-access-table td:nth-child(4) .tag.cyan{border-color:rgba(
 .parachutism-case{background:var(--surface-alt)}
 .parachutism-case summary{font-size:14px}
 .parachutism-photo-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:12px}
-.parachutism-photo-slot{overflow:hidden;min-width:0;padding:0}
+.parachutism-photo-slot{position:relative;overflow:hidden;min-width:0;padding:0}
 .parachutism-photo-slot img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit}
 .parachutism-photo-empty{display:grid;place-items:center;min-height:90px;color:var(--muted);font-weight:500}
 .view-panel.parachutism-stage-active>:not(.panel-head):not(#evaluation-stage-flow):not(#parachutism-practical-stage){display:none}

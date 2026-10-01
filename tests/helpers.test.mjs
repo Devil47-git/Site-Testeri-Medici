@@ -117,9 +117,13 @@ test('candidate lookup matches callsign in column C and returns the name from co
 
 test('saved test definitions inherit newly shipped practical stages and cases', () => {
   const defaults = {
-    'Test MOTO': { title: 'MOTO', practicalStage: { title: 'Proba 2' }, questions: [{ text: 'Q' }] },
+    'Test MOTO': { title: 'MOTO', practicalStage: { title: 'Proba 2', imageSlots: 1, images: [{ label: 'Hartă', url: '/moto-map.png' }] }, questions: [{ text: 'Q' }] },
     'Test SMULS': { cases: [{ title: 'Descarcerare' }], images: [{ url: '/map.png' }] },
-    'Test parașutiști': { practical: [{ name: 'Ușoară', imageSlots: 3 }, { name: 'Medie', imageSlots: 2 }, { name: 'Dificilă', imageSlots: 2 }] },
+    'Test parașutiști': { practical: [
+      { name: 'Ușoară', imageSlots: 3, images: [{ url: '/jump1.png' }, { url: '/jump2.png' }, { url: '/jump3.png' }] },
+      { name: 'Medie', imageSlots: 2, images: [{ url: '/medium-heli.png' }, { url: '/medium-landing.png' }] },
+      { name: 'Dificilă', imageSlots: 3, images: [{ url: '/hard1.png' }, { url: '/hard2.png' }, { url: '/hard3.png' }] }
+    ] },
     'Test PILOT': { evaluationStages: [
       { title: 'PROBA 2' },
       { title: 'PROBA 3', imageSlots: 3, images: [{ url: '/one.png' }, { url: '/two.png' }, { url: '/three.png' }] },
@@ -129,7 +133,7 @@ test('saved test definitions inherit newly shipped practical stages and cases', 
   const merged = mergeTestDefinitions(defaults, {
     'Test MOTO': { title: 'MOTO personalizat' },
     'Test SMULS': { description: 'Text salvat' },
-    'Test parașutiști': { practical: [{ name: 'Ușoară personalizată' }, { name: 'Medie personalizată' }] },
+    'Test parașutiști': { practical: [{ name: 'Ușoară personalizată', images: [] }, { name: 'Medie personalizată', images: [] }, { name: 'Dificilă personalizată', imageSlots: 2, images: [] }] },
     'Test PILOT': { evaluationStages: [{ title: 'Proba 2 salvată' }, { title: 'Proba 3 salvată', imageSlots: 2 }, { title: 'Proba 4 salvată' }] }
   });
   assert.equal(merged['Test MOTO'].title, 'MOTO personalizat');
@@ -141,8 +145,13 @@ test('saved test definitions inherit newly shipped practical stages and cases', 
   assert.equal(merged['Test parașutiști'].practical.length, 3);
   assert.equal(merged['Test parașutiști'].practical[0].name, 'Ușoară personalizată');
   assert.equal(merged['Test parașutiști'].practical[0].imageSlots, 3);
+  assert.deepEqual(merged['Test parașutiști'].practical[0].images.map(image => image.url), ['/jump1.png', '/jump2.png', '/jump3.png']);
   assert.equal(merged['Test parașutiști'].practical[1].imageSlots, 2);
-  assert.equal(merged['Test parașutiști'].practical[2].imageSlots, 2);
+  assert.deepEqual(merged['Test parașutiști'].practical[1].images.map(image => image.url), ['/medium-heli.png', '/medium-landing.png']);
+  assert.equal(merged['Test parașutiști'].practical[2].imageSlots, 3);
+  assert.equal(merged['Test parașutiști'].practical[2].name, 'Dificilă personalizată');
+  assert.equal(merged['Test parașutiști'].practical[2].images.length, 3);
+  assert.equal(merged['Test parașutiști'].practical[2].imageSlots, 3);
   assert.equal(merged['Test PILOT'].evaluationStages[1].title, 'Proba 3 salvată');
   assert.equal(merged['Test PILOT'].evaluationStages[1].imageSlots, 3);
   assert.deepEqual(merged['Test PILOT'].evaluationStages[1].images.map(image => image.url), ['/one.png', '/two.png', '/three.png']);
@@ -242,7 +251,10 @@ test('parachutism requirements, information cards, and jump photo slots are conf
   assert.match(testCatalogSource, /eligibilityCriteria: \['Minim Medic Specialist', 'Licență Pilot'\]/);
   assert.match(testCatalogSource, /candidateInformation: \[[\s\S]*?Testarea pentru certificatul de parașutism va conține două probe\./);
   assert.match(testCatalogSource, /testerInformation: \[[\s\S]*?Filmarea nu trebuie să lipsească\./);
-  assert.match(testCatalogSource, /name: 'Săritura ușoară'[\s\S]*?imageSlots: 3[\s\S]*?name: 'Săritura medie'[\s\S]*?imageSlots: 2[\s\S]*?name: 'Săritura dificilă'[\s\S]*?imageSlots: 2/);
+  assert.match(testCatalogSource, /name: 'Săritura ușoară'[\s\S]*?imageSlots: 3[\s\S]*?name: 'Săritura medie'[\s\S]*?imageSlots: 2[\s\S]*?name: 'Săritura dificilă'[\s\S]*?imageSlots: 3/);
+  assert.match(testCatalogSource, /url: '\/Saritura_Usoara_Aterizare\.png'[\s\S]*?url: '\/Saritura_Usoara_Heli\.png'[\s\S]*?url: '\/Saritura_Usoara_Pozitie\.png'/);
+  assert.match(testCatalogSource, /name: 'Săritura medie'[\s\S]*?url: '\/Saritura_Medie_Heli\.png'[\s\S]*?url: '\/Saritura_Medie_Aterizare\.png'/);
+  assert.match(testCatalogSource, /name: 'Săritura dificilă'[\s\S]*?url: '\/Saritura_Grea_Heli\.png'[\s\S]*?url: '\/helipad_mediu\.png'[\s\S]*?url: '\/Saritura_Usoara_Pozitie\.png'/);
   assert.match(source, /data-parachutism-check/);
   assert.match(source, /parachutism-test-content/);
   assert.doesNotMatch(source, /data-parachutism-photo/);
@@ -413,6 +425,17 @@ test('S.M.U.L.S. case list expands each descarceration and reserves two images',
   assert.doesNotMatch(caseMarkup, /smuls-case-image-slot/);
   assert.match(markup, /Admis Descarcerare/);
   assert.match(markup, /Respins Descarcerare/);
+  for (const file of ['server.js', 'tests/dev-server.mjs']) {
+    const server = readFileSync(join(here, '..', file), 'utf8');
+    assert.match(server, /decodeURIComponent\(url\.pathname\)/);
+    assert.match(server, /'\.png': 'image\/png'/);
+  }
+  const imageMarkup = smulsCaseListHtml([{ title: 'Descarcerare demo', steps: [] }], [
+    { label: 'Locație', url: '/Poza_Locatie.png' },
+    { label: 'Autospeciale', url: '/Poza_Pozitie_Masini.png' }
+  ]);
+  assert.deepEqual([...imageMarkup.matchAll(/<img src="([^"]+)"/g)].map(match => match[1]), ['/Poza_Locatie.png', '/Poza_Pozitie_Masini.png']);
+  assert.match(testCatalogSource, /descarcerationImages: \[[\s\S]*?url: '\/Poza_Locatie\.png'[\s\S]*?url: '\/Poza_Pozitie_Masini\.png'/);
   assert.match(source, /smuls-stage-active/);
 });
 
@@ -428,11 +451,12 @@ test('Moto and Pilot staged practical content is present in test definitions', (
   assert.match(testCatalogSource, /Candidatul nu va depăși limita de 60 km\/h/);
   assert.match(testCatalogSource, /candidateBriefing:[\s\S]*?Testul conține 2 probe[\s\S]*?contra timp[\s\S]*?fără a-l pierde din vizor/);
   assert.match(testCatalogSource, /title: 'Proba 2: Proba Practică'[\s\S]*?5:40 minute \(MOTO\) \(fără zăpadă\)[\s\S]*?7:00 minute \(ATV\) \(cu zăpadă\)[\s\S]*?imageSlots: 1/);
+  assert.match(testCatalogSource, /practicalStage:[\s\S]*?imageSlots: 1[\s\S]*?url: '\/Traseu_test_moto_poza_harta\.png'/);
   assert.match(testCatalogSource, /PROBA 2: Locațiile Pacific/);
   assert.match(testCatalogSource, /Buckingham Swift[\s\S]*?3, 2, 1, START[\s\S]*?30 de secunde/);
   assert.match(testCatalogSource, /PROBA 3: Proba de îndemânare și pick-up[\s\S]*?Paleto[\s\S]*?imageSlots: 3/);
   assert.match(testCatalogSource, /url: '\/Proba_3_test_pilot\.png'[\s\S]*?url: '\/Proba_3_test_pilot_poza_2\.png'[\s\S]*?url: '\/Proba_3_test_pilot_poza_3\.png'/);
-  assert.match(testCatalogSource, /PROBA 4: Pick-Up de pe Chilliad[\s\S]*?imageSlots: 2/);
+  assert.match(testCatalogSource, /PROBA 4: Pick-Up de pe Chilliad[\s\S]*?imageSlots: 3[\s\S]*?url: '\/Proba_4_test_pilot_poza_joc_1\.png'[\s\S]*?url: '\/Proba_4_test_pilot_poza_joc_2\.png'[\s\S]*?url: '\/Proba_4_test_pilot_poza_harta\.png'/);
 });
 
 test('Pilot certification description and instructions share one intro box', () => {

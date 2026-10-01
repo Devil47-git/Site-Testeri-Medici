@@ -13,7 +13,7 @@ const SHEET_ID = process.env.GOOGLE_SHEET_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4A
 const SHEET_RANGE = process.env.GOOGLE_SHEET_RANGE || 'LISTA DEPARTAMENT!A:T';
 const sessions = new Map();
 const oauthState = new Map();
-const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.gif': 'image/gif' };
+const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.gif': 'image/gif', '.png': 'image/png' };
 
 function cookie(req, key) { return (req.headers.cookie || '').split(';').map(x => x.trim().split('=')).find(x => x[0] === key)?.[1]; }
 function redirect(res, location) { res.writeHead(302, { Location: location }); res.end(); }
@@ -64,6 +64,11 @@ async function route(req, res) {
   }
   if (url.pathname === '/api/session') { const sessionId = cookie(req, 'session'); const session = sessions.get(sessionId); if (!session || session.expires < Date.now()) return json(res, 401, { authorized: false }); try { const fresh = await sheetMember(session.discordId); if (!fresh) return json(res, 403, { authorized: false }); const updated = { ...session, ...fresh, expires: Date.now() + SESSION_TTL }; sessions.set(sessionId, updated); res.setHeader('Set-Cookie', `session=${sessionId}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_TTL / 1000}`); return json(res, 200, { authorized: true, ...updated }); } catch { return json(res, 200, { authorized: true, ...session }); } }
   if (url.pathname.startsWith('/api/')) return json(res, 404, { error: 'Not found' });
-  const file = path.resolve(ROOT, url.pathname === '/' ? 'index.html' : '.' + url.pathname); if (file !== ROOT && !file.startsWith(ROOT + path.sep)) return json(res, 404, { error: 'Not found' }); try { const data = await fs.readFile(file); res.writeHead(200, { 'Content-Type': mime[path.extname(file)] || 'application/octet-stream' }); res.end(data); } catch { json(res, 404, { error: 'Not found' }); }
+  let pathname;
+  try { pathname = decodeURIComponent(url.pathname); } catch { return json(res, 400, { error: 'Invalid path' }); }
+  const file = path.resolve(ROOT, pathname === '/' ? 'index.html' : '.' + pathname);
+  if (file !== ROOT && !file.startsWith(ROOT + path.sep)) return json(res, 404, { error: 'Not found' });
+  try { const data = await fs.readFile(file); res.writeHead(200, { 'Content-Type': mime[path.extname(file)] || 'application/octet-stream' }); res.end(data); }
+  catch { json(res, 404, { error: 'Not found' }); }
 }
 http.createServer((req, res) => route(req, res).catch(e => json(res, 500, { error: e.message }))).listen(PORT, () => console.log(`Medici panel: http://localhost:${PORT}`));

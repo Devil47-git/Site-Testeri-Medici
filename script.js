@@ -36,8 +36,24 @@ function mergeTestDefinitions(defaults, stored) {
     const defaultPractical = defaults?.[name]?.practical;
     const storedPractical = stored?.[name]?.practical;
     if (Array.isArray(defaultPractical) && Array.isArray(storedPractical)) {
-      merged.practical = defaultPractical.map((stage, index) => ({ ...stage, ...(storedPractical[index] || {}) }));
+      merged.practical = defaultPractical.map((stage, index) => {
+        const mergedStage = { ...stage, ...(storedPractical[index] || {}) };
+        if (stage.images?.length) {
+          mergedStage.images = stage.images;
+          mergedStage.imageSlots = Number(stage.imageSlots) || stage.images.length;
+        }
+        return mergedStage;
+      });
       merged.practical.push(...storedPractical.slice(defaultPractical.length));
+    }
+    const defaultPracticalStage = defaults?.[name]?.practicalStage;
+    const storedPracticalStage = stored?.[name]?.practicalStage;
+    if (defaultPracticalStage && storedPracticalStage) {
+      merged.practicalStage = { ...defaultPracticalStage, ...storedPracticalStage };
+      if (defaultPracticalStage.images?.length) {
+        merged.practicalStage.images = defaultPracticalStage.images;
+        merged.practicalStage.imageSlots = Number(defaultPracticalStage.imageSlots) || defaultPracticalStage.images.length;
+      }
     }
     const defaultEvaluationStages = defaults?.[name]?.evaluationStages;
     const storedEvaluationStages = stored?.[name]?.evaluationStages;
@@ -700,9 +716,13 @@ function alsCaseListHtml(cases) {
   const caseDetails = (cases || []).map((item, index) => `<details class="als-case"><summary>${escapeHtml(item.title || `Cazul ${index + 1}`)}</summary><div class="als-case-content"><p>${escapeHtml(item.description || '')}</p><p class="als-case-count">${Number(item.minimumMe) || 0} /me-uri</p><h4>/me-uri orientative</h4><ol>${(item.steps || []).map(step => `<li>${escapeHtml(step)}</li>`).join('')}</ol></div></details>`).join('');
   return `<section class="als-case-stage"><h3>PROBA ALS: Cazuri de intervenție</h3><div class="als-case-list">${caseDetails}</div><div class="evaluation-stage-actions"><button type="button" class="primary evaluation-verdict evaluation-verdict-admitted" data-als-result="Admis">Admis ALS</button><button type="button" class="primary evaluation-verdict evaluation-verdict-rejected" data-als-result="Respins">Respins ALS</button></div></section>`;
 }
-function smulsCaseListHtml(cases) {
+function smulsCaseListHtml(cases, images = []) {
   const caseDetails = (cases || []).map(item => `<details class="smuls-case"><summary>${escapeHtml(item.title)}</summary><div class="smuls-case-content"><ol>${(item.steps || []).map(step => `<li>${escapeHtml(step)}</li>`).join('')}</ol></div></details>`).join('');
-  const imageSlots = '<aside class="smuls-descarceration-images" aria-label="Imagini de descarcerare"><div class="smuls-case-image-slot" role="img" aria-label="Imagine 1">Imagine 1</div><div class="smuls-case-image-slot" role="img" aria-label="Imagine 2">Imagine 2</div></aside>';
+  const imageSlots = `<aside class="smuls-descarceration-images" aria-label="Imagini de descarcerare">${Array.from({ length: 2 }, (_, index) => {
+    const image = images[index];
+    const content = image?.url ? `<img src="${escapeHtml(image.url)}" alt="${escapeHtml(image.label || `Imagine ${index + 1}`)}">` : `Imagine ${index + 1}`;
+    return `<div class="smuls-case-image-slot" role="img" aria-label="${escapeHtml(image?.label || `Imagine ${index + 1}`)}">${content}</div>`;
+  }).join('')}</aside>`;
   return `<section class="smuls-descarceration-stage"><h3>PROBA 1: Descarcerare</h3><div class="smuls-descarceration-layout"><div class="smuls-descarceration-copy"><div class="smuls-case-list">${caseDetails}</div><div class="evaluation-stage-actions"><button type="button" class="primary evaluation-verdict evaluation-verdict-admitted" data-smuls-descarceration-result="Admis">Admis Descarcerare</button><button type="button" class="primary evaluation-verdict evaluation-verdict-rejected" data-smuls-descarceration-result="Respins">Respins Descarcerare</button></div></div>${imageSlots}</div></section>`;
 }
 function isTestFailed(wrong, maxWrong) { return wrong > maxWrong; }
@@ -1123,7 +1143,7 @@ function wireTestEvents(testName, definition) {
       document.querySelector('#als-candidate-name').disabled = true;
       document.querySelector('.view-panel')?.classList.add('smuls-stage-active');
       stageFlow.hidden = false;
-      stageFlow.innerHTML = smulsCaseListHtml(definition.cases);
+      stageFlow.innerHTML = smulsCaseListHtml(definition.cases, definition.descarcerationImages);
       stageFlow.scrollIntoView({ behavior: 'smooth', block: 'start' });
       stageFlow.querySelectorAll('[data-smuls-descarceration-result]').forEach(button => button.onclick = async () => {
         if (button.dataset.smulsDescarcerationResult === 'Respins') await finishSmulsTest('Respins');
@@ -1433,7 +1453,7 @@ function wireTestEvents(testName, definition) {
 
       form.closest('.view-panel')?.classList.add('smuls-stage-active');
       if (result === 'Respins') { await finishStagedTest('Respins'); return; }
-      stageFlow.innerHTML = smulsCaseListHtml(definition.cases);
+      stageFlow.innerHTML = smulsCaseListHtml(definition.cases, definition.descarcerationImages);
       stageFlow.scrollIntoView({ behavior: 'smooth', block: 'start' });
       stageFlow.querySelectorAll('[data-smuls-descarceration-result]').forEach(button => button.onclick = async () => {
         if (button.dataset.smulsDescarcerationResult === 'Respins') { await finishStagedTest('Respins'); return; }

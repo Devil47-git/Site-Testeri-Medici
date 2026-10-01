@@ -88,7 +88,8 @@ window.MEDICAL_TESTS = {
     practicalStage: {
       title: 'Proba 2: Proba Practică',
       paragraphs: ['Timpul de execuție traseu vara: 5:40 minute (MOTO) (fără zăpadă).', 'Timpul de execuție traseu iarna: 7:00 minute (ATV) (cu zăpadă).'],
-      imageSlots: 1
+      imageSlots: 1,
+      images: [{ label: 'Traseu MOTO START–FINISH', url: '/Traseu_test_moto_poza_harta.png' }]
     }
   },
   'Test PILOT': {
@@ -142,7 +143,12 @@ window.MEDICAL_TESTS = {
           'Candidatul nu are voie să scoată roțile, nu are voie să aterizeze sau să atingă platforma.',
           'Candidatul va fi declarat RESPINS dacă explodează elicopterul, dacă motorul acestuia este galben/roșu sau dacă nu aterizează corect pe Helipad la întoarcere.'
         ],
-        imageSlots: 2
+        imageSlots: 3,
+        images: [
+          { label: 'Imagine 1', url: '/Proba_4_test_pilot_poza_joc_1.png' },
+          { label: 'Imagine 2', url: '/Proba_4_test_pilot_poza_joc_2.png' },
+          { label: 'Imagine 3', url: '/Proba_4_test_pilot_poza_harta.png' }
+        ]
       }
     ]
   },
@@ -151,6 +157,10 @@ window.MEDICAL_TESTS = {
     instructions: 'La descarcerare candidatul alege un număr și efectuează minimum 10 replici /me. Are voie la 2 greșeli; la a 3-a este respins. Traseul are limită de 60 km/h și timp de 5:45 vara sau 6:00 iarna.',
     maxWrong: 2,
     images: [{ label: 'Hartă traseu S.M.U.L.S.', url: '/image.png', inline: true }],
+    descarcerationImages: [
+      { label: 'Locația descarcerării', url: '/Poza_Locatie.png' },
+      { label: 'Poziționarea autospecialelor', url: '/Poza_Pozitie_Masini.png' }
+    ],
     cases: [
       { title: '1 — Descarcerare verticală fără scurgeri de combustibil', steps: ['/me securizează zona și verifică scurgerile de combustibil', '/me folosește ecosorbentul', '/me montează triunghiurile de blocare', '/me scoate trusa, foarfeca și cleștele hidraulic', '/me analizează daunele majore', '/me deconectează bateria', '/me taie parbrizul și stâlpii A și B', '/me decopertează plafonul', '/me elimină obiectele periculoase', '/me montează vesta KED și gulerul cervical', '/me poziționează targa spinală', '/me extrage lent victima', '/me examinează leziunile', '/me curăță și dezinfectează rănile', '/me aplică atela ghipsată', '/me urcă victima pe targă și în autospecială', '/me conectează pacientul la aparate și monitorizează semnele vitale'] },
       { title: '2 — Descarcerare posterioară', steps: ['/me securizează zona și verifică scurgerile', '/me folosește ecosorbentul', '/me montează triunghiurile de blocare', '/me scoate echipamentul', '/me decupează portbagajul', '/me taie spătarul banchetei', '/me verifică starea de conștiență', '/me ia targa spinală, vesta KED și gulerul cervical', '/me fixează victima', '/me introduce targa sub victimă și o extrage lent', '/me examinează leziunile', '/me curăță și dezinfectează rănile', '/me aplică atela', '/me urcă victima în autospecială', '/me conectează aparatele și monitorizează semnele vitale'] },
@@ -201,9 +211,29 @@ window.MEDICAL_TESTS = {
     ],
     images: [],
     practical: [
-      { name: 'Săritura ușoară', location: 'Port-avionul de lângă insula exotică', altitude: '1000 m', landing: 'Toată pista port-avionului', imageSlots: 3 },
-      { name: 'Săritura medie', location: 'Lacul Sandy Shores', altitude: '2250–2300 m', landing: 'Zona dintre pontoane', imageSlots: 2 },
-      { name: 'Săritura dificilă', location: 'Centrul orașului / Banca Pacific', altitude: '2500 m', landing: 'Helipadul clădirii A / Pablo', imageSlots: 2 }
+      {
+        name: 'Săritura ușoară', location: 'Port-avionul de lângă insula exotică', altitude: '1000 m', landing: 'Toată pista port-avionului', imageSlots: 3,
+        images: [
+          { label: 'Zona de aterizare', url: '/Saritura_Usoara_Aterizare.png' },
+          { label: 'Elicopterul lângă portavion', url: '/Saritura_Usoara_Heli.png' },
+          { label: 'Poziția pentru aterizare', url: '/Saritura_Usoara_Pozitie.png' }
+        ]
+      },
+      {
+        name: 'Săritura medie', location: 'Lacul Sandy Shores', altitude: '2250–2300 m', landing: 'Zona dintre pontoane', imageSlots: 2,
+        images: [
+          { label: 'Elicopter deasupra lacului Sandy Shores', url: '/Saritura_Medie_Heli.png' },
+          { label: 'Zona de aterizare', url: '/Saritura_Medie_Aterizare.png' }
+        ]
+      },
+      {
+        name: 'Săritura dificilă', location: 'Centrul orașului / Banca Pacific', altitude: '2500 m', landing: 'Helipadul clădirii A / Pablo', imageSlots: 3,
+        images: [
+          { label: 'Zbor deasupra orașului', url: '/Saritura_Grea_Heli.png' },
+          { label: 'Helipadul clădirii A / Pablo', url: '/helipad_mediu.png' },
+          { label: 'Poziționarea pentru aterizare', url: '/Saritura_Usoara_Pozitie.png' }
+        ]
+      }
     ],
     questions: [
       ['Care este altitudinea minimă de la care te poți parașuta?', '150 de metri sau înălțimea clădirii G de la Pacific.'],

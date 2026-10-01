@@ -2,7 +2,7 @@ import http from 'node:http';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 const ROOT = process.cwd();
-const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.gif': 'image/gif' };
+const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.gif': 'image/gif', '.png': 'image/png' };
 const MOCK = [
   { discordId: '1', name: 'Ion Popescu', callsign: '001', csNum: 1, rank: 'Medic Inspector', gradeGroup: 'Conducerea departamentului', isLeadership: true, isTester: true, functions: 'MOTO', grantedTests: ['Test admitere','Test transfer','Adeverință medicală','Test MOTO'], avatar: 'https://cdn.discordapp.com/avatars/1/a.png' },
   { discordId: '2', name: 'Ana Vasilescu', callsign: '003', csNum: 3, rank: 'Medic Inspector', gradeGroup: 'Conducerea departamentului', isLeadership: true, isTester: true, grantedTests: ['Test admitere'], avatar: '' },
@@ -42,7 +42,11 @@ http.createServer(async (req, res) => {
     res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ counts, ...(req.method === 'POST' ? { success: true, ...(cleared === null ? { discordNotificationsSent: false, discordNotificationError: 'Serverul demo local nu trimite notificari Discord.' } : { cleared }) } : {}) })); return;
   }
   if (url.pathname.startsWith('/api/')) { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ grants: [] })); return; }
-  const file = path.resolve(ROOT, url.pathname === '/' ? 'index.html' : '.' + url.pathname);
+  let pathname;
+  try { pathname = decodeURIComponent(url.pathname); }
+  catch { res.writeHead(400); res.end('bad path'); return; }
+  const file = path.resolve(ROOT, pathname === '/' ? 'index.html' : '.' + pathname);
+  if (file !== ROOT && !file.startsWith(ROOT + path.sep)) { res.writeHead(404); res.end('nf'); return; }
   try { const data = await fs.readFile(file); res.writeHead(200, { 'Content-Type': mime[path.extname(file)] || 'application/octet-stream' }); res.end(data); }
   catch { res.writeHead(404); res.end('nf'); }
 }).listen(4321, () => console.log('stub 4321'));
