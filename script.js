@@ -27,8 +27,15 @@ const catalog = [...coreTests, ...specialtyTests];
 const TEST_CATALOG_KEY = 'medici-test-catalog-v4';
 /** @param {string} key @param {any} fallback @returns {any} */
 function readStored(key, fallback) { try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; } catch { return fallback; } }
+function mergeTestDefinitions(defaults, stored) {
+  defaults ||= {};
+  stored ||= {};
+  const definitions = { ...(defaults || {}), ...(stored || {}) };
+  return Object.fromEntries(Object.entries(definitions).map(([name, definition]) => [name, { ...(defaults?.[name] || {}), ...(definition || {}) }]));
+}
 /** @type {Record<string, TestDefinition>} */
-let testDefinitions = readStored(TEST_CATALOG_KEY, null) || window.MEDICAL_TESTS || Object.fromEntries(catalog.map(name => [name, { name, description: `Acces disponibil pentru ${name}.`, questions: [] }]));
+const defaultTestDefinitions = window.MEDICAL_TESTS || Object.fromEntries(catalog.map(name => [name, { name, description: `Acces disponibil pentru ${name}.`, questions: [] }]));
+let testDefinitions = mergeTestDefinitions(defaultTestDefinitions, readStored(TEST_CATALOG_KEY, {}));
 function saveTestDefinitions() { localStorage.setItem(TEST_CATALOG_KEY, JSON.stringify(testDefinitions)); }
 const rows = document.querySelector('#tester-rows');
 const testerGroups = document.querySelector('#tester-groups');
