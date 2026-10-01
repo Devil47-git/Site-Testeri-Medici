@@ -648,7 +648,7 @@ function parseIdentityCardText(text) {
   if (nextCnpField >= 0) cnpValue = cnpValue.slice(0, nextCnpField);
   const cnpToken = [...cnpValue.matchAll(/[A-Z0-9](?:[\s.-]*[A-Z0-9]){12,23}/gi)]
     .map(match => match[0].replace(/[\s.-]/g, '').toUpperCase())
-    .find(value => value.length >= 13 && value.length <= 24) || '';
+    .find(value => value.length >= 13 && value.length <= 24 && /\d/.test(value)) || '';
   const cnp = /[A-Z]/i.test(cnpToken) && cnpToken.length > 13 ? cnpToken.slice(0, 13) : cnpToken;
   return { name: [lastName, firstName].filter(Boolean).join(' '), lastName, firstName, cnp };
 }
@@ -693,9 +693,8 @@ async function readIdentityCard(file) {
   const tesseract = await loadIdentityOcr();
   const worker = await tesseract.createWorker('ron+eng');
   try {
-    const fullText = (await worker.recognize(file)).data.text;
     const image = await createImageBitmap(file);
-    const makeLineCrop = (topRatio, heightRatio) => {
+    const makeFieldCrop = (topRatio, heightRatio) => {
       const sourceX = Math.round(image.width * 0.28);
       const sourceY = Math.round(image.height * topRatio);
       const sourceWidth = Math.round(image.width * 0.67);
@@ -743,18 +742,21 @@ async function readIdentityCard(file) {
       context.putImageData(pixels, 0, 0);
       return canvas;
     };
-    const lastNameCrop = makeLineCrop(0.255, 0.06);
-    const firstNameCrop = makeLineCrop(0.33, 0.06);
-    const cnpCrop = makeLineCrop(0.175, 0.06);
+    const cnpCrop = makeFieldCrop(0.17, 0.08);
+    const lastNameCrop = makeFieldCrop(0.27, 0.07);
+    const firstNameCrop = makeFieldCrop(0.34, 0.07);
     image.close();
-    await worker.setParameters({ tessedit_pageseg_mode: 7, preserve_interword_spaces: '1' });
-    const [lastNameText, firstNameText, cnpText] = await Promise.all([
-      worker.recognize(lastNameCrop).then(result => result.data.text),
-      worker.recognize(firstNameCrop).then(result => result.data.text),
-      worker.recognize(cnpCrop).then(result => result.data.text)
-    ]);
-    const focusedText = `Nume/Nom/Last name\n${lastNameText}\nPrenume/Prenom/First name\n${firstNameText}\nCNP\n${cnpText}`;
-    return mergeIdentityCardDetails(parseIdentityCardText(focusedText), parseIdentityCardText(fullText));
+    const recognizeField = async (canvas, whitelist) => {
+      await worker.setParameters({ tessedit_pageseg_mode: 6, preserve_interword_spaces: '1', tessedit_char_whitelist: whitelist });
+      return (await worker.recognize(canvas)).data.text;
+    };
+    const cnpText = await recognizeField(cnpCrop, '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ');
+    const nameWhitelist = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzÀÂĂÎȘȚàâăîșț -';
+    const lastNameText = await recognizeField(lastNameCrop, nameWhitelist);
+    const firstNameText = await recognizeField(firstNameCrop, nameWhitelist);
+    const focusedText = `CNP\n${cnpText}\nNume/Nom/Last name\n${lastNameText}\nPrenume/Prenom/First name\n${firstNameText}`;
+    const details = parseIdentityCardText(focusedText);
+    return { ...details, name: [details.lastName, details.firstName].filter(Boolean).join(' ') };
   } finally {
     await worker.terminate();
   }

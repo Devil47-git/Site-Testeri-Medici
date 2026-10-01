@@ -342,6 +342,7 @@ test('identity card OCR does not interpret embedded label fragments as names', (
 test('identity card OCR keeps real 13-character alphanumeric CNPs and longer numeric values', () => {
   assert.equal(parseIdentityCardText('CNP 104182531ARZ6').cnp, '104182531ARZ6');
   assert.equal(parseIdentityCardText('CNP 124761832451723176').cnp, '124761832451723176');
+  assert.equal(parseIdentityCardText('CNP EEEEEEEEEEEEE').cnp, '');
 });
 
 test('identity card OCR preserves letters in an alphanumeric CNP', () => {
