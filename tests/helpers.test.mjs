@@ -547,8 +547,10 @@ test('admission Discord embeds use vertical fields and hide callsign on rejectio
   assert.deepEqual(rejected.admission.fields.map(field => field.name), ['Nume Tester', 'Nume Candidat', 'Rezultat']);
   assert.deepEqual(rejected.testers.fields.map(field => field.name), ['Nume Tester', 'Nume Candidat', 'ID', 'Rezultat']);
   assert.equal(rejected.testers.thumbnail.url, 'attachment://buletin-candidat.jpg');
-  assert.equal(rejected.medicalSheet.image.url, 'attachment://fisa-medicala.jpg');
-  assert.equal(rejected.drugTest.image.url, 'attachment://drug-test.jpg');
+  assert.equal(rejected.testers.image.url, 'attachment://fisa-medicala-si-drug-test.jpg');
+  assert.deepEqual(Object.keys(rejected), ['admission', 'testers']);
+  assert.match(source, /combineAdmissionPhotos\(medicalSheetImage, drugTestImage\)/);
+  assert.match(source, /submissionDetails = \{ candidateName, candidateId, candidateCallsign, identityImage, medicalDrugImage \}/);
   const admitted = createAdmissionEmbeds({ testerName: 'Tester', candidateName: 'Candidat', candidateId: '12345', candidateCallsign: 'M-302', result: 'Admis' });
   assert.equal(admitted.testers.fields.at(-1).name, 'Callsign');
 });

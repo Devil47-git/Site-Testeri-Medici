@@ -132,9 +132,7 @@ export function createAdmissionEmbeds({ testerName, candidateName, candidateId, 
   if (result === 'Admis' && candidateCallsign) testersFields.push({ name: 'Callsign', value: candidateCallsign, inline: false });
   return {
     admission: { title: 'Admitere', color: 0x23A2E8, fields: summaryFields },
-    testers: { title: 'Test Admitere', color: 0x23A2E8, fields: testersFields, thumbnail: { url: 'attachment://buletin-candidat.jpg' } },
-    medicalSheet: { title: 'Fișă medicală', color: 0x23A2E8, image: { url: 'attachment://fisa-medicala.jpg' } },
-    drugTest: { title: 'Drug-test', color: 0x23A2E8, image: { url: 'attachment://drug-test.jpg' } }
+    testers: { title: 'Test Admitere', color: 0x23A2E8, fields: testersFields, thumbnail: { url: 'attachment://buletin-candidat.jpg' }, image: { url: 'attachment://fisa-medicala-si-drug-test.jpg' } }
   };
 }
 
@@ -158,10 +156,9 @@ async function sendAdmissionNotifications(details) {
   const embeds = createAdmissionEmbeds(details);
   const deliveries = await Promise.all([
     sendWebhookMessage(admissionWebhook, embeds.admission).then(() => null, error => `Canalul de rezultate: ${error.message.startsWith('HTTP ') ? error.message : 'eroare de rețea Discord'}.`),
-    sendWebhookImages(testersWebhook, [embeds.testers, embeds.medicalSheet, embeds.drugTest], [
+    sendWebhookImages(testersWebhook, [embeds.testers], [
       { ...details.identityImage, filename: 'buletin-candidat.jpg' },
-      { ...details.medicalSheetImage, filename: 'fisa-medicala.jpg' },
-      { ...details.drugTestImage, filename: 'drug-test.jpg' }
+      { ...details.medicalDrugImage, filename: 'fisa-medicala-si-drug-test.jpg' }
     ]).then(() => null, error => `Canalul testerilor: ${error.message.startsWith('HTTP ') ? error.message : 'eroare de rețea Discord'}.`)
   ]);
   const errors = deliveries.filter(Boolean);
@@ -271,13 +268,12 @@ export default async function handler(req, res) {
         const candidateCallsign = String(req.body?.candidateCallsign || '').trim().slice(0, 24);
         const result = String(req.body?.result || '').trim();
         const identityImage = parseIdentityImage(req.body?.identityImage);
-        const medicalSheetImage = parseIdentityImage(req.body?.medicalSheetImage);
-        const drugTestImage = parseIdentityImage(req.body?.drugTestImage);
+        const medicalDrugImage = parseIdentityImage(req.body?.medicalDrugImage);
         if (!['Admis', 'Respins'].includes(result)) return json(res, 400, { error: 'Invalid admission result' });
-        if (!candidateName || !candidateId || !identityImage || !medicalSheetImage || !drugTestImage || (result === 'Admis' && !candidateCallsign)) {
-          return json(res, 400, { error: 'Numele, ID-ul și fotografiile buletinului, fișei medicale și drug-testului sunt obligatorii; la Admis este necesar și callsign-ul.' });
+        if (!candidateName || !candidateId || !identityImage || !medicalDrugImage || (result === 'Admis' && !candidateCallsign)) {
+          return json(res, 400, { error: 'Numele, ID-ul, fotografia buletinului și fotografia combinată a fișei medicale și drug-testului sunt obligatorii; la Admis este necesar și callsign-ul.' });
         }
-        admissionDetails = { candidateName, candidateId, candidateCallsign, result, identityImage, medicalSheetImage, drugTestImage };
+        admissionDetails = { candidateName, candidateId, candidateCallsign, result, identityImage, medicalDrugImage };
       }
       if (Object.hasOwn(SPECIALTY_WEBHOOKS, testName)) {
         const candidateCallsign = String(req.body?.candidateCallsign || '').trim().slice(0, 24);
