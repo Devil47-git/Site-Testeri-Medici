@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { accessFor, candidateForCallsign, catalog as accessCatalog, coreTests, effectiveTestsForMember, functionsForMember, isLeadership, normalizeTests, testsForFunctions } from '../api/access/shared.js';
-import { canResetTestCounts, discordTesterMentionPayload, createAdmissionEmbeds, createAlsResultEmbed, createSpecialtyResultEmbed, specialtyNotificationDetails, createMedicalCertificateEmbeds, medicalCertificateNumberForRow } from '../api/access/test-results.js';
+import { canResetTestCounts, discordTesterMentionPayload, createAdmissionEmbeds, createAlsResultEmbed, createSpecialtyResultEmbed, specialtyNotificationDetails, createMedicalCertificateEmbeds, medicalCertificateNumberForRow, bonusEntryFromRow } from '../api/access/test-results.js';
 import { statusFromRow } from '../api/access/directory.js';
 import { cooldownIsActive, parseCooldownS } from '../api/access/cooldowns.js';
 
@@ -143,6 +143,7 @@ test('medical-sheet diagnosis matcher detects all disqualifying conditions', () 
   assert.deepEqual(diagnoses, ['Intoxicație medicamentoasă', 'Intoxicație cu substanțe psihoactive', 'Dependență de droguri', 'Comă alcoolică', 'Boli cu transmitere sexuală', 'Piodermită', 'Salmonella']);
   assert.deepEqual(medicalConditionsInText('Toxiinfecție alimentară'), ['Salmonella']);
   assert.deepEqual(medicalConditionsInText('Diagnostic: Boală cu transmitere sexuală'), ['Boli cu transmitere sexuală']);
+  assert.deepEqual(medicalConditionsInText('Diagnostic: B0ală cu transm!tere sexuallă'), ['Boli cu transmitere sexuală']);
   assert.doesNotMatch(source, /certificate-hours-account[^>]+value=/);
   assert.match(source, /data-stethoscope-check/);
 });
@@ -155,6 +156,16 @@ test('bonus periods follow two-week cycles and include September 21 through Octo
   assert.equal(latestCompleteBonusPeriodIndex(new Date('2026-10-04T20:00:00.000Z')), -1);
   assert.equal(latestCompleteBonusPeriodIndex(new Date('2026-10-04T22:00:00.000Z')), 0);
   assert.equal(latestCompleteBonusPeriodIndex(new Date('2026-10-18T22:00:00.000Z')), 1);
+});
+
+test('bonus history attributes specialty results to the candidate and supports legacy rows', () => {
+  const testerNames = new Map([['tester-discord', 'Tester Name']]);
+  assert.deepEqual(bonusEntryFromRow(['tester-discord', '001', 'Test ALS', 'Admis', '2026-10-02T09:00:00.000Z', '210', 'Elena Stan'], testerNames), {
+    callsign: '210', testerName: 'Elena Stan', testName: 'Test ALS', result: 'Admis', createdAt: '2026-10-02T09:00:00.000Z'
+  });
+  const legacy = bonusEntryFromRow(['tester-discord', '105', 'Test ALS', 'Admis', '2026-10-02T09:00:00.000Z'], testerNames);
+  assert.equal(legacy.callsign, '105');
+  assert.equal(legacy.testerName, 'Tester Name');
 });
 
 test('saved test definitions inherit newly shipped practical stages and cases', () => {

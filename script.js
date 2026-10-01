@@ -104,13 +104,13 @@ function refreshCurrentView() {
 }
 function candidateSummary(member, result = 'Admis') { if (!member) return ''; return `Candidat: @[${normalizeCallsign(member.callsign)}] ${member.name || '—'}\nGrad: ${member.rank || '—'}\nRezultat: ${result}`; }
 function medicalConditionsInText(text) {
-  const normalized = normalizeText(text).toLowerCase();
+  const normalized = normalizeText(text).toLowerCase().replace(/0/g, 'o').replace(/[1!|]/g, 'i').replace(/[^\p{L}\p{N}\s]/gu, ' ');
   const patterns = [
     /intoxicatie(?:\s+cu)?\s+medicamentoas[ae]/,
     /intoxicatie(?:\s+cu)?\s+substante\s+psihoactive/,
     /dependenta\s+(?:de\s+)?(?:droguri|substante)/,
     /coma\s+alcoolica/,
-    /(?:boala?|boli)\s+(?:cu\s+)?transmitere\s+sexuala|\bbts\b/,
+    /(?:boala?|boli)\s+(?:cu\s+)?transmitere\s+sexuala|transmi\w{0,8}[\s\S]{0,40}sexua\w{0,10}|sexua\w{0,10}[\s\S]{0,40}transmi\w{0,8}|\bbts\b/,
     /piodermita/,
     /salmonella|salmoneloza|toxiinfectie\s+alimentara/
   ];
@@ -1037,8 +1037,25 @@ async function readIdentityCard(file) {
 async function readMedicalSheet(file) {
   const tesseract = await loadIdentityOcr();
   const worker = await tesseract.createWorker('ron+eng');
-  try { return (await worker.recognize(file)).data.text; }
-  finally { await worker.terminate(); }
+  try {
+    await worker.setParameters({ tessedit_pageseg_mode: 6, preserve_interword_spaces: '1' });
+    const initialText = (await worker.recognize(file)).data.text;
+    if (medicalConditionsInText(initialText).length) return initialText;
+    const image = await createImageBitmap(file);
+    try {
+      const scale = Math.min(3, Math.max(1, 1800 / Math.max(image.width, image.height)));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(image.width * scale));
+      canvas.height = Math.max(1, Math.round(image.height * scale));
+      const context = canvas.getContext('2d');
+      context.filter = 'grayscale(1) contrast(1.5)';
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      const retryText = (await worker.recognize(canvas)).data.text;
+      return `${initialText}\n${retryText}`;
+    } finally {
+      image.close();
+    }
+  } finally { await worker.terminate(); }
 }
 async function encodeIdentityPhoto(file) {
   const image = await createImageBitmap(file);

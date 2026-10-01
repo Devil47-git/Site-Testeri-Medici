@@ -46,7 +46,15 @@ http.createServer(async (req, res) => {
   if (url.pathname.startsWith('/api/access/test-results')) {
     if (url.searchParams.get('view') === 'bonuses') {
       const from = url.searchParams.get('from');
-      const entries = BONUS_TESTS.map((entry, index) => ({ ...entry, createdAt: `${from}T${String(9 + index).padStart(2, '0')}:00:00+03:00` }));
+      const fixtures = BONUS_TESTS.map((entry, index) => ({ ...entry, createdAt: `${from}T${String(9 + index).padStart(2, '0')}:00:00+03:00` }));
+      const recorded = testResults.map((entry, index) => ({
+        callsign: entry.candidateCallsign || '001',
+        testerName: entry.candidateName || 'Candidat demo',
+        testName: entry.testName,
+        result: entry.result,
+        createdAt: `${from}T${String(16 + index).padStart(2, '0')}:00:00+03:00`
+      }));
+      const entries = [...fixtures, ...recorded];
       res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ entries })); return;
     }
     let cleared = null;
@@ -68,6 +76,6 @@ http.createServer(async (req, res) => {
   catch { res.writeHead(400); res.end('bad path'); return; }
   const file = path.resolve(ROOT, pathname === '/' ? 'index.html' : '.' + pathname);
   if (file !== ROOT && !file.startsWith(ROOT + path.sep)) { res.writeHead(404); res.end('nf'); return; }
-  try { const data = await fs.readFile(file); res.writeHead(200, { 'Content-Type': mime[path.extname(file)] || 'application/octet-stream' }); res.end(data); }
+  try { const data = await fs.readFile(file); res.writeHead(200, { 'Content-Type': mime[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-store' }); res.end(data); }
   catch { res.writeHead(404); res.end('nf'); }
 }).listen(4321, () => console.log('stub 4321'));

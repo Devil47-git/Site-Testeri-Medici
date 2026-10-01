@@ -4,9 +4,9 @@ import { cooldownIsActive, parseCooldownS } from './cooldowns.js';
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:T400';
 const GRANTS_RANGE = process.env.GOOGLE_GRANTS_RANGE || 'GRANTS!A1:F';
-const RESULTS_RANGE = process.env.GOOGLE_TEST_RESULTS_RANGE || 'TEST_HISTORY!A1:E';
+const RESULTS_RANGE = process.env.GOOGLE_TEST_RESULTS_RANGE || 'TEST_HISTORY!A1:G';
 const MEDICAL_CERTIFICATES_RANGE = process.env.GOOGLE_MEDICAL_CERTIFICATES_RANGE || 'MEDICAL_CERTIFICATES!A1:K';
-const RESULTS_HEADER = ['discordId', 'callsign', 'testName', 'result', 'createdAt'];
+const RESULTS_HEADER = ['discordId', 'callsign', 'testName', 'result', 'createdAt', 'candidateCallsign', 'candidateName'];
 const MEDICAL_CERTIFICATES_HEADER = ['number', 'testerDiscordId', 'testerName', 'candidateId', 'lastName', 'firstName', 'phone', 'hoursAccount', 'hoursCharacter', 'result', 'createdAt'];
 const MEDICAL_CERTIFICATE_LAST_NUMBER = 7014;
 const MEDICAL_CERTIFICATE_MAX_NUMBER = 30000;
@@ -52,6 +52,16 @@ function departmentDateKey(value) {
   const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
   return `${values.year}-${values.month}-${values.day}`;
 }
+export function bonusEntryFromRow(row, testerNames = new Map()) {
+  const discordId = String(row?.[0] || '').trim();
+  return {
+    callsign: String(row?.[5] || row?.[1] || '').trim(),
+    testerName: String(row?.[6] || testerNames.get(discordId) || '').trim(),
+    testName: String(row?.[2] || '').trim(),
+    result: String(row?.[3] || '').trim(),
+    createdAt: String(row?.[4] || '').trim()
+  };
+}
 
 async function ensureResultsSheet(sheets) {
   const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: SHEET_ID, fields: 'sheets.properties.title' });
@@ -69,9 +79,14 @@ async function ensureResultsHeader(sheets) {
   await ensureResultsSheet(sheets);
   const rows = await readValues(sheets, RESULTS_RANGE);
   if (!rows.length) {
-    const range = RESULTS_RANGE.split('!')[0] + '!A1:E1';
+    const range = RESULTS_RANGE.split('!')[0] + '!A1:G1';
     await sheets.spreadsheets.values.update({ spreadsheetId: SHEET_ID, range, valueInputOption: 'RAW', requestBody: { values: [RESULTS_HEADER] } });
     return [RESULTS_HEADER];
+  }
+  if (rows[0]?.[5] !== 'candidateCallsign' || rows[0]?.[6] !== 'candidateName') {
+    const range = RESULTS_RANGE.split('!')[0] + '!A1:G1';
+    await sheets.spreadsheets.values.update({ spreadsheetId: SHEET_ID, range, valueInputOption: 'RAW', requestBody: { values: [RESULTS_HEADER] } });
+    rows[0] = RESULTS_HEADER;
   }
   return rows;
 }
@@ -268,10 +283,10 @@ export default async function handler(req, res) {
       const members = (await readValues(sheets, MEMBER_RANGE)).slice(1);
       const names = new Map(members.map(row => [String(row[19] || '').trim(), String(row[3] || '').trim()]));
       const entries = rows.slice(1).flatMap(row => {
-        const testName = String(row[2] || '').trim();
-        const date = departmentDateKey(row[4]);
-        if (!catalog.includes(testName) || date < from || date > to) return [];
-        return [{ callsign: String(row[1] || '').trim(), testerName: names.get(String(row[0] || '').trim()) || '', testName, result: String(row[3] || '').trim(), createdAt: String(row[4] || '').trim() }];
+        const entry = bonusEntryFromRow(row, names);
+        const date = departmentDateKey(entry.createdAt);
+        if (!catalog.includes(entry.testName) || date < from || date > to) return [];
+        return [entry];
       });
       return json(res, 200, { entries });
     }
@@ -281,7 +296,7 @@ export default async function handler(req, res) {
         if (!canResetTestCounts(member)) return json(res, 403, { error: 'Resetarea testelor este rezervată conducerii cu callsign între 001 și 020' });
         const rows = await ensureResultsHeader(sheets);
         const title = sheetTitle().replace(/'/g, "''");
-        await sheets.spreadsheets.values.clear({ spreadsheetId: SHEET_ID, range: `'${title}'!A2:E` });
+        await sheets.spreadsheets.values.clear({ spreadsheetId: SHEET_ID, range: `'${title}'!A2:G` });
         return json(res, 200, { success: true, cleared: Math.max(0, rows.length - 1) });
       }
       const testName = String(req.body?.testName || '').trim();
@@ -344,10 +359,10 @@ export default async function handler(req, res) {
       const title = sheetTitle().replace(/'/g, "''");
       await sheets.spreadsheets.values.append({
         spreadsheetId: SHEET_ID,
-        range: `'${title}'!A1:E`,
+        range: `'${title}'!A1:G`,
         valueInputOption: 'RAW',
         insertDataOption: 'INSERT_ROWS',
-        requestBody: { values: [[discordId, String(member[2] || '').trim(), testName, String(req.body?.result || '').slice(0, 32), new Date().toISOString()]] }
+        requestBody: { values: [[discordId, String(member[2] || '').trim(), testName, String(req.body?.result || '').slice(0, 32), new Date().toISOString(), specialtyDetails?.candidateCallsign || String(req.body?.candidateCallsign || '').trim().slice(0, 24), specialtyDetails?.candidateName || String(req.body?.candidateName || '').trim().slice(0, 100)]] }
       });
       const discordNotifications = admissionDetails
         ? await sendAdmissionNotifications({ testerDiscordId: discordId, testerName: String(member[3] || '').trim().slice(0, 100), ...admissionDetails })
