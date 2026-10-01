@@ -83,7 +83,5 @@ export function accessFor(csNum, functions, rank, dept) {
 }
 
 export function normalizeTests(tests) {
-  const normalized = [...new Set((Array.isArray(tests) ? tests : []).filter(test => catalog.includes(test)))];
-  if (!coreTests.some(test => normalized.includes(test))) return normalized;
-  return [...coreTests, ...normalized.filter(test => !coreTests.includes(test))];
+  return [...new Set((Array.isArray(tests) ? tests : []).filter(test => catalog.includes(test)))];
 }

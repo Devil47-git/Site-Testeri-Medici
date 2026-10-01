@@ -10,6 +10,7 @@ const MEDICAL_CERTIFICATES_HEADER = ['number', 'testerDiscordId', 'testerName', 
 const MEDICAL_CERTIFICATE_LAST_NUMBER = 7014;
 const MEDICAL_CERTIFICATE_MAX_NUMBER = 30000;
 const MAX_IDENTITY_IMAGE_BYTES = 2 * 1024 * 1024;
+const SITE_BRAND_EMBED_COLOR = 0xCD363C;
 const SPECIALTY_WEBHOOKS = {
   'Test ALS': 'DISCORD_ALS_WEBHOOK',
   'Test SMULS': 'DISCORD_SMULS_WEBHOOK',
@@ -21,6 +22,10 @@ const SPECIALTY_WEBHOOKS = {
 export const config = { api: { bodyParser: { sizeLimit: '4mb' } } };
 
 function json(res, status, body) { return res.status(status).json(body); }
+export function canResetTestCounts(member) {
+  const callsign = callsignNumber(member?.[2]);
+  return callsign >= 1 && callsign <= 20;
+}
 
 async function sheetsClient() {
   if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON && !process.env.GOOGLE_APPLICATION_CREDENTIALS) {
@@ -160,26 +165,32 @@ async function sendAdmissionNotifications(details, image) {
 export function createAlsResultEmbed({ testerName, candidateName, candidateCallsign, result }) {
   return {
     title: 'Test ALS',
-    color: 0x23A2E8,
+    color: SITE_BRAND_EMBED_COLOR,
+    author: { name: 'DMLS · Departamentul Testerilor' },
     fields: [
-      { name: 'Nume Tester', value: testerName || '—', inline: false },
-      { name: 'Callsign', value: candidateCallsign || '—', inline: false },
-      { name: 'Nume Candidat', value: candidateName || '—', inline: false },
-      { name: 'Rezultat', value: result || '—', inline: false }
-    ]
+      { name: '👨‍⚕️ Tester', value: `**${testerName || '—'}**`, inline: true },
+      { name: '📟 Callsign', value: `\`${candidateCallsign || '—'}\``, inline: true },
+      { name: '🧑‍⚕️ Candidat', value: `**${candidateName || '—'}**`, inline: false },
+      { name: '🏁 Rezultat', value: result === 'Admis' ? '✅ **Admis**' : result === 'Respins' ? '❌ **Respins**' : result || '—', inline: false }
+    ],
+    footer: { text: 'Rezultat oficial · DMLS' },
+    timestamp: new Date().toISOString()
   };
 }
 
 export function createSpecialtyResultEmbed({ testName, testerName, candidateName, candidateCallsign, result }) {
   return {
-    title: testName,
-    color: 0x23A2E8,
+    title: testName === 'Test PILOT' ? `${testName} 🚁` : testName,
+    color: SITE_BRAND_EMBED_COLOR,
+    author: { name: 'DMLS · Departamentul Testerilor' },
     fields: [
-      { name: 'Nume Tester', value: testerName || '—', inline: false },
-      { name: 'Callsign', value: candidateCallsign || '—', inline: false },
-      { name: 'Nume Candidat', value: candidateName || '—', inline: false },
-      { name: 'Rezultat', value: result || '—', inline: false }
-    ]
+      { name: '👨‍⚕️ Tester', value: `**${testerName || '—'}**`, inline: true },
+      { name: '📟 Callsign', value: `\`${candidateCallsign || '—'}\``, inline: true },
+      { name: '🧑‍⚕️ Candidat', value: `**${candidateName || '—'}**`, inline: false },
+      { name: '🏁 Rezultat', value: result === 'Admis' ? '✅ **Admis**' : result === 'Respins' ? '❌ **Respins**' : result || '—', inline: false }
+    ],
+    footer: { text: 'Rezultat oficial · DMLS' },
+    timestamp: new Date().toISOString()
   };
 }
 
@@ -231,6 +242,13 @@ export default async function handler(req, res) {
     if (!member) return json(res, 403, { error: 'Requester is not a department member' });
 
     if (req.method === 'POST') {
+      if (req.body?.action === 'reset-counts') {
+        if (!canResetTestCounts(member)) return json(res, 403, { error: 'Resetarea testelor este rezervată conducerii cu callsign între 001 și 020' });
+        const rows = await ensureResultsHeader(sheets);
+        const title = sheetTitle().replace(/'/g, "''");
+        await sheets.spreadsheets.values.clear({ spreadsheetId: SHEET_ID, range: `'${title}'!A2:E` });
+        return json(res, 200, { success: true, cleared: Math.max(0, rows.length - 1) });
+      }
       const testName = String(req.body?.testName || '').trim();
       if (!catalog.includes(testName)) return json(res, 400, { error: 'Unknown test' });
       if (!await canRecordTest(sheets, member, discordId, testName)) return json(res, 403, { error: 'This test is not assigned to the requester' });

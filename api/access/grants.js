@@ -92,6 +92,7 @@ export default async function handler(req, res) {
     const requester = await findMember(sheets, requesterId);
     if (!requester) return json(res, 403, { error: 'Requester is not a department member' });
     if (!isLeadership(requester)) return json(res, 403, { error: 'Only leadership can manage grants' });
+    if (req.body?.individualRemoval === true && !(callsignNumber(requester[2]) >= 1 && callsignNumber(requester[2]) <= 20)) return json(res, 403, { error: 'Individual test removal requires a leadership callsign between 001 and 020' });
     const grants = await readGrants(sheets);
     const targetId = typeof req.body?.targetDiscordId === 'string' ? req.body.targetDiscordId.trim() : '';
     const targetCallsign = typeof req.body?.callsign === 'string' ? req.body.callsign.trim() : '';
@@ -100,6 +101,7 @@ export default async function handler(req, res) {
     if (!target) return json(res, 404, { error: 'Target member not found' });
     if (!String(target[3] || '').trim()) return json(res, 422, { error: 'Target callsign is free because column D has no name' });
     if (!String(target[19] || '').trim()) return json(res, 422, { error: 'Target member has no Discord ID in column T' });
+    if (req.body?.individualRemoval === true && callsignNumber(target[2]) >= 1 && callsignNumber(target[2]) <= 20) return json(res, 403, { error: 'Tests cannot be individually removed from leadership members' });
     const targetDiscordId = String(target[19] || '').trim();
     const next = grants.filter(grant => grant.discordId !== targetDiscordId);
     if (req.body.remove === true) {

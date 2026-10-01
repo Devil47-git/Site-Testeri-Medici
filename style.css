@@ -207,6 +207,13 @@ body.dark-mode .danger-button:hover{background:#4a2b31}
 .profile-settings-button{position:absolute;top:18px;right:18px;display:grid;place-items:center;width:36px;height:36px;padding:0;border:1px solid var(--line);border-radius:50%;background:var(--surface-alt);color:var(--ink);font:18px/1 'DM Sans';cursor:pointer}
 .profile-settings-button:hover{border-color:var(--purple);color:var(--purple)}
 .profile-settings-button[hidden]{display:none}
+.profile-test-removal{position:absolute;z-index:5;top:60px;right:18px;width:min(300px,calc(100% - 36px));max-height: min(360px,70vh);overflow:auto;padding:14px;border:1px solid var(--line);border-radius:8px;background:var(--surface);box-shadow:0 12px 30px rgba(0,0,0,.2)}
+.profile-test-removal[hidden]{display:none}
+.profile-test-removal h3{margin:0 0 8px;color:var(--ink);font-size:13px}
+.profile-test-removal-list{display:grid;gap:0}
+.profile-test-removal-item{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line);color:var(--ink);font-size:12px}
+.profile-test-removal-item .danger-button{padding:6px 9px;font-size:11px}
+.profile-test-removal-status{min-height:16px;margin:8px 0 0;font-size:11px}
 .profile-card>.eyebrow{margin:0 0 26px}
 .profile-datetime{display:flex;align-items:baseline;flex-wrap:wrap;gap:10px}
 .profile-datetime{padding-right:42px}
@@ -240,7 +247,9 @@ body.dark-mode #profile-tests .tag.cyan,body.dark-mode .profile-test-tags .tag.c
 .admin-action:hover{filter:brightness(1.08);transform:translateY(-1px)}
 .admin-action-assign{background:#2865d8;border-color:#427be9}
 .admin-action-reset{background:#b51f2b;border-color:#d33b46}
+.admin-action-reset-counts{background:#7a3440;border-color:#a84b58}
 .admin-action-settings{background:#d94a0a;border-color:#f06924}
+.admin-reset-status{min-height:16px;margin:10px 0 0;text-align:center;font-size:11px}
 body:not(.dark-mode) .admin-panel{background:rgba(246,166,92,.12)}
 @media(max-width:620px){.admin-panel{padding:18px}.admin-panel-actions{justify-content:flex-start}.admin-action{width:100%}}
 .tester-profile-view>.panel-head{margin-bottom:16px}

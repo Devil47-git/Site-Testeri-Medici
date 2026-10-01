@@ -102,9 +102,9 @@ async function loadRemoteGrants() {
   renderDashboardData();
   refreshCurrentView();
 }
-async function saveRemoteGrant(callsign, grantedTests, remove = false, targetDiscordId = '') {
+async function saveRemoteGrant(callsign, grantedTests, remove = false, targetDiscordId = '', individualRemoval = false) {
   if (!currentUser?.discordId) throw new Error('Sesiunea nu conține Discord ID.');
-  const response = await fetch('/api/access/grants', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requesterId: currentUser.discordId, targetDiscordId, callsign, grantedTests, remove }) });
+  const response = await fetch('/api/access/grants', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requesterId: currentUser.discordId, targetDiscordId, callsign, grantedTests, remove, individualRemoval }) });
   const payload = await parseApiResponse(response);
   if (!response.ok) throw new Error(payload.error || 'Accesul nu a putut fi salvat.');
   return payload;
@@ -167,11 +167,7 @@ function docsAssignedTests(member) {
   return [...new Set(assigned)];
 }
 function normalizeGrantBundle(tests) {
-  const normalized = [...new Set(tests)];
-  if (coreTests.some(test => normalized.includes(test))) {
-    for (const test of coreTests) if (!normalized.includes(test)) normalized.push(test);
-  }
-  return normalized;
+  return [...new Set(tests)].filter(test => catalog.includes(test));
 }
 function memberIsTester(member) { const cs = callsignNumber(member?.csNum); const specialty = RESIDENT_TESTER_PATTERN.test(normalizeText(member?.functions)); return (member?.grantedTests || []).length > 0 || (cs >= 101 && cs <= 230) || (cs >= 301 && cs <= 340 && specialty) || /TESTER/.test(normalizeText(member?.functions)); }
 /** @param {any[]} members @returns {any[]} */
@@ -354,6 +350,28 @@ async function loadTestRunCounts() {
     console.error('Test history load failed:', error);
   }
 }
+async function resetAllTestCounts() {
+  const button = document.querySelector('#admin-reset-tests');
+  const status = document.querySelector('#admin-reset-status');
+  if (!hasLeadershipCallsign(currentUser)) { status.textContent = 'Doar conducerea cu callsign 001–020 poate reseta testele.'; return; }
+  if (!window.confirm('Resetezi numărul testelor susținute pentru toți membrii? Această acțiune nu poate fi anulată.')) return;
+  button.disabled = true;
+  status.textContent = 'Se resetează…';
+  try {
+    const response = await fetch('/api/access/test-results', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requesterId: currentUser.discordId, action: 'reset-counts' }) });
+    const payload = await parseApiResponse(response);
+    if (!response.ok) throw new Error(payload.error || 'Numărătorile nu au putut fi resetate.');
+    await loadTestRunCounts();
+    renderProfileData();
+    renderDashboardData();
+    refreshCurrentView();
+    status.textContent = `Resetare finalizată. Rezultate șterse: ${Number(payload.cleared) || 0}.`;
+  } catch (error) {
+    status.textContent = error.message;
+  } finally {
+    button.disabled = false;
+  }
+}
 async function recordTestRun(testName, result = '', details = {}) {
   if (!currentUser?.discordId) throw new Error('Sesiunea nu conține Discord ID.');
   const response = await fetch('/api/access/test-results', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...details, requesterId: currentUser.discordId, testName, result }) });
@@ -407,7 +425,10 @@ function renderTesterProfileView(member) {
   const callsign = normalizeCallsign(member.callsign || member.callSign);
   const name = memberNameFor(member);
   const testCountGrid = testerTestCountGridHtml(member);
-  return `<div class="tester-profile-view"><div class="panel-head"><div><p class="eyebrow">PROFIL TESTER</p><h2>${escapeHtml(name)}</h2></div><button class="outline" id="back-to-testers" type="button">← Înapoi</button></div><div class="profile-layout"><section class="panel profile-card"><div class="profile-identity"><div>${avatarFor(member)}</div><div><h1>${escapeHtml(name)}</h1></div></div><dl class="profile-details"><div><dt>CALLSIGN</dt><dd>${escapeHtml(callsign || '—')}</dd></div><div><dt>NUME</dt><dd>${escapeHtml(member.name || '—')}</dd></div><div><dt>GRAD</dt><dd>${escapeHtml(member.rank || '—')}</dd></div></dl></section><section class="panel profile-certifications"><div class="panel-head"><div><h2>Grade de test</h2><p class="muted">Certificările și testele alocate contului tău</p></div></div><div class="tags profile-test-tags">${profileTestTagsHtml(member)}</div></section></div><section class="panel profile-test-history"><div class="panel-head"><div><h2>Statistica Teste</h2></div></div><div class="statistics-test-grid">${testCountGrid}</div></section></div>`;
+  const removalControls = hasLeadershipCallsign(currentUser) && !hasLeadershipCallsign(member)
+    ? `<button class="profile-settings-button" id="profile-test-settings" type="button" aria-label="Gestionează testele" title="Gestionează testele">⚙</button><div class="profile-test-removal" id="profile-test-removal" hidden><h3>Teste alocate</h3><div class="profile-test-removal-list">${(member.grantedTests || []).length ? member.grantedTests.map(test => `<div class="profile-test-removal-item"><span>${escapeHtml(displayTestName(test))}</span><button class="outline danger-button" type="button" data-remove-profile-test="${escapeHtml(test)}">Scoate</button></div>`).join('') : '<p class="muted">Nu există teste alocate.</p>'}</div><p class="profile-test-removal-status muted" role="status" aria-live="polite"></p></div>`
+    : '';
+  return `<div class="tester-profile-view"><div class="panel-head"><div><p class="eyebrow">PROFIL TESTER</p><h2>${escapeHtml(name)}</h2></div><button class="outline" id="back-to-testers" type="button">← Înapoi</button></div><div class="profile-layout"><section class="panel profile-card">${removalControls}<div class="profile-identity"><div>${avatarFor(member)}</div><div><h1>${escapeHtml(name)}</h1></div></div><dl class="profile-details"><div><dt>CALLSIGN</dt><dd>${escapeHtml(callsign || '—')}</dd></div><div><dt>NUME</dt><dd>${escapeHtml(member.name || '—')}</dd></div><div><dt>GRAD</dt><dd>${escapeHtml(member.rank || '—')}</dd></div></dl></section><section class="panel profile-certifications"><div class="panel-head"><div><h2>Grade de test</h2><p class="muted">Certificările și testele alocate contului tău</p></div></div><div class="tags profile-test-tags">${profileTestTagsHtml(member)}</div></section></div><section class="panel profile-test-history"><div class="panel-head"><div><h2>Statistica Teste</h2></div></div><div class="statistics-test-grid">${testCountGrid}</div></section></div>`;
 }
 function openTesterProfile(member, { push = true, previousView: requestedPreviousView } = {}) {
   if (!hasLeadershipCallsign(currentUser)) return;
@@ -435,6 +456,34 @@ function openTesterProfile(member, { push = true, previousView: requestedPreviou
       navigateTo(destination, { push: false });
     }
   };
+  wireProfileTestRemoval(profile);
+}
+function wireProfileTestRemoval(member) {
+  const settings = document.querySelector('#profile-test-settings');
+  const removalPanel = document.querySelector('#profile-test-removal');
+  if (!settings || !removalPanel) return;
+  settings.onclick = () => {
+    removalPanel.hidden = !removalPanel.hidden;
+    settings.setAttribute('aria-expanded', String(!removalPanel.hidden));
+  };
+  removalPanel.querySelectorAll('[data-remove-profile-test]').forEach(button => {
+    button.onclick = async () => {
+      if (!hasLeadershipCallsign(currentUser) || hasLeadershipCallsign(member)) return;
+      const status = removalPanel.querySelector('.profile-test-removal-status');
+      if (!member.discordId) { status.textContent = 'Membrul nu are un Discord ID asociat.'; return; }
+      const test = button.dataset.removeProfileTest;
+      const nextTests = (member.grantedTests || []).filter(item => item !== test);
+      button.disabled = true;
+      status.textContent = 'Se salvează…';
+      try {
+        await saveRemoteGrant(normalizeCallsign(member.callsign), nextTests, false, member.discordId, true);
+        await loadDirectory();
+      } catch (error) {
+        status.textContent = error.message;
+        button.disabled = false;
+      }
+    };
+  });
 }
 function renderMembersView() {
   const groups = GRADE_GROUP_ORDER.filter(group => directoryMembers.some(member => gradeGroupForMember(member) === group));
@@ -1206,6 +1255,7 @@ viewContent.addEventListener('click', event => {
 });
 document.querySelector('#admin-add-tester').addEventListener('click', () => openAddModal());
 document.querySelector('#admin-remove-tester').addEventListener('click', () => openRemoveModal());
+document.querySelector('#admin-reset-tests').addEventListener('click', resetAllTestCounts);
 document.querySelector('#admin-settings').addEventListener('click', () => navigateTo('settings'));
 document.querySelector('#brand-settings').onclick = () => navigateTo('overview'); document.querySelector('#user-menu').onclick = () => navigateTo('overview'); document.querySelector('#profile-settings').onclick = () => navigateTo('settings'); document.querySelector('#help-btn').onclick = () => alert('Folosește meniul din stânga pentru a naviga.');
 const labels = { overview: 'Profilul tău', testers: 'Testerii departamentului', statistics: 'Statistica Teste', settings: 'Setări' };

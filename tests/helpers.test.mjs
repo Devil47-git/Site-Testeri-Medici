@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { accessFor, catalog as accessCatalog, coreTests, effectiveTestsForMember, functionsForMember, isLeadership, normalizeTests, testsForFunctions } from '../api/access/shared.js';
-import { createAdmissionEmbeds, createAlsResultEmbed, createSpecialtyResultEmbed, createMedicalCertificateEmbeds, medicalCertificateNumberForRow } from '../api/access/test-results.js';
+import { canResetTestCounts, createAdmissionEmbeds, createAlsResultEmbed, createSpecialtyResultEmbed, createMedicalCertificateEmbeds, medicalCertificateNumberForRow } from '../api/access/test-results.js';
 import { statusFromRow } from '../api/access/directory.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -76,6 +76,14 @@ test('callsignNumber strips non-digits and returns 0 for empty', () => {
   assert.equal(callsignNumber(''), 0);
   assert.equal(callsignNumber(undefined), 0);
   assert.equal(callsignNumber('abc'), 0);
+});
+
+test('only callsigns 001 through 020 can reset test counts', () => {
+  assert.equal(canResetTestCounts(['', '', '001']), true);
+  assert.equal(canResetTestCounts(['', '', '020']), true);
+  assert.equal(canResetTestCounts(['', '', '000']), false);
+  assert.equal(canResetTestCounts(['', '', '021']), false);
+  assert.equal(canResetTestCounts(['', '', '100', '', 'Director']), false);
 });
 
 test('normalizeCallsign pads to three digits', () => {
@@ -182,7 +190,8 @@ test('leadership alone receives general catalog access', () => {
 test('Tester Docs role maps to the complete three-test bundle', () => {
   assert.deepEqual(testsForFunctions('TESTER'), coreTests);
   assert.deepEqual(testsForFunctions('TESTER | A.L.S.'), [...coreTests, 'Test ALS']);
-  assert.deepEqual(normalizeTests(['Test transfer']), coreTests);
+  assert.deepEqual(normalizeTests(['Test transfer']), ['Test transfer']);
+  assert.deepEqual(effectiveTestsForMember('TESTER', { grantMode: 'override', grantedTests: ['Test transfer'] }), ['Test transfer']);
 });
 
 test('promotion to specialist or primary automatically assigns Tester function', () => {
@@ -410,15 +419,23 @@ test('admission Discord embeds use vertical fields and hide callsign on rejectio
 test('ALS result embed contains tester, candidate, callsign, and verdict', () => {
   const embed = createAlsResultEmbed({ testerName: 'Tester', candidateName: 'Candidat', candidateCallsign: 'M-302', result: 'Respins' });
   assert.equal(embed.title, 'Test ALS');
-  assert.deepEqual(embed.fields.map(field => field.name), ['Nume Tester', 'Callsign', 'Nume Candidat', 'Rezultat']);
-  assert.equal(embed.fields[3].value, 'Respins');
+  assert.equal(embed.color, 0xCD363C);
+  assert.deepEqual(embed.fields.map(field => field.name), ['👨‍⚕️ Tester', '📟 Callsign', '🧑‍⚕️ Candidat', '🏁 Rezultat']);
+  assert.deepEqual(embed.fields.map(field => field.inline), [true, true, false, false]);
+  assert.deepEqual(embed.fields.slice(0, 3).map(field => field.value), ['**Tester**', '`M-302`', '**Candidat**']);
+  assert.equal(embed.fields[3].value, '❌ **Respins**');
+  assert.equal(embed.footer.text, 'Rezultat oficial · DMLS');
 });
 
 test('specialty result embeds contain tester, candidate, callsign, and verdict', () => {
   const embed = createSpecialtyResultEmbed({ testName: 'Test PILOT', testerName: 'Tester', candidateName: 'Candidat', candidateCallsign: 'M-302', result: 'Admis' });
-  assert.equal(embed.title, 'Test PILOT');
-  assert.deepEqual(embed.fields.map(field => field.name), ['Nume Tester', 'Callsign', 'Nume Candidat', 'Rezultat']);
-  assert.equal(embed.fields[3].value, 'Admis');
+  assert.equal(embed.title, 'Test PILOT 🚁');
+  assert.equal(embed.color, 0xCD363C);
+  assert.deepEqual(embed.fields.map(field => field.name), ['👨‍⚕️ Tester', '📟 Callsign', '🧑‍⚕️ Candidat', '🏁 Rezultat']);
+  assert.deepEqual(embed.fields.map(field => field.inline), [true, true, false, false]);
+  assert.deepEqual(embed.fields.slice(0, 3).map(field => field.value), ['**Tester**', '`M-302`', '**Candidat**']);
+  assert.equal(embed.fields[3].value, '✅ **Admis**');
+  assert.equal(embed.footer.text, 'Rezultat oficial · DMLS');
 });
 
 test('ALS guide form includes callsign and candidate name inputs', () => {
