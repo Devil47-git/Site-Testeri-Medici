@@ -593,30 +593,55 @@ function pilotTheoryStageHtml() {
 function parseIdentityCardText(text) {
   const rawText = String(text || '');
   const lines = rawText.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
-  const isFieldLabel = value => /^(?:[iIl|]{0,2}\s*)?(?:Nume|Nom|Last\s*name|Prenume|Prenom|First\s*name|CNP|SERIE?|ID)\b[\s.:/|_-]*$/i.test(String(value || '').trim());
-  const valueAfterLabel = (pattern, labelPattern, nextLabel) => {
-    const index = lines.findIndex(line => pattern.test(line));
+  const fieldMarker = /\b(?:Nume|Nom|Last|name|Prenume|Prenom|Pren\w*|First|CNP|SERIE?|ID|Nationality|Sex|Birth)\b/i;
+  const isFieldLabel = value => fieldMarker.test(String(value || '').trim());
+  const isNameValue = value => {
+    const candidate = String(value || '').replace(/^[\s:;,.|/_-]+|[\s:;,.|/_-]+$/g, '').trim();
+    return Boolean(candidate && !fieldMarker.test(candidate) && /^[\p{L}][\p{L}'’ -]{0,79}$/u.test(candidate) && candidate.split(/\s+/).length <= 5);
+  };
+  const removeLabelNoise = value => String(value || '')
+    .replace(/\bLast\s+(?:name|[a-z]{2,8})\b/gi, ' ')
+    .replace(/\bPren\w*(?:\s+[a-z]{2,8})?\b/gi, ' ')
+    .replace(/\b(?:Nume|Nom|First\s*name|CNP|SERIE?|ID)\b/gi, ' ')
+    .replace(/[|/]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const valueAfterLabel = (pattern, labelPattern, nextLabel, fuzzyLabel = null) => {
+    let index = lines.findIndex(line => pattern.test(line));
+    let fuzzyMatch = false;
+    if (index < 0 && fuzzyLabel) {
+      index = lines.findIndex(line => fuzzyLabel.test(line));
+      fuzzyMatch = index >= 0;
+    }
     if (index < 0) return '';
-    let inline = lines[index].slice(lines[index].search(pattern)).replace(labelPattern, '').replace(/^[\s:;,.|/_-]+|[\s:;,.|/_-]+$/g, '').trim();
+    let inline = fuzzyMatch
+      ? lines[index].slice(lines[index].search(fuzzyLabel) + lines[index].match(fuzzyLabel)[0].length)
+      : lines[index].slice(lines[index].search(pattern)).replace(labelPattern, '');
     const nextField = inline.search(nextLabel);
     if (nextField >= 0) inline = inline.slice(0, nextField).trim();
-    if (inline && /\p{L}/u.test(inline) && !isFieldLabel(inline)) return inline;
-    return lines.slice(index + 1).find(line => /\p{L}/u.test(line) && !nextLabel.test(line) && !labelPattern.test(line) && !isFieldLabel(line)) || '';
+    inline = removeLabelNoise(inline);
+    if (isNameValue(inline)) return inline.replace(/^[\s:;,.|/_-]+|[\s:;,.|/_-]+$/g, '').trim();
+    for (const line of lines.slice(index + 1)) {
+      if (nextLabel.test(line)) break;
+      if (isNameValue(line)) return line.replace(/^[\s:;,.|/_-]+|[\s:;,.|/_-]+$/g, '').trim();
+    }
+    return '';
   };
   const lastNameLabels = '(?:Nume|Nom|Last\\s*name)';
   const firstNameLabels = '(?:Prenume|Prenom|First\\s*name)';
   const labelPrefix = '(?:[iIl|]*\\s*)?';
   const lastName = valueAfterLabel(new RegExp(`${labelPrefix}(?:${lastNameLabels})`, 'i'), new RegExp(`^${labelPrefix}(?:${lastNameLabels})(?:\\s*[\\/|]\\s*${lastNameLabels})*\\s*[:\\-]?\\s*`, 'i'), new RegExp(`${labelPrefix}(?:${firstNameLabels}|CNP|SERIE?|ID)`, 'i'));
-  const firstName = valueAfterLabel(new RegExp(`${labelPrefix}(?:${firstNameLabels})`, 'i'), new RegExp(`^${labelPrefix}(?:${firstNameLabels})(?:\\s*[\\/|]\\s*${firstNameLabels})*\\s*[:\\-]?\\s*`, 'i'), new RegExp(`${labelPrefix}(?:CNP|SERIE?|ID)`, 'i'));
+  const firstName = valueAfterLabel(new RegExp(`${labelPrefix}(?:${firstNameLabels})`, 'i'), new RegExp(`^${labelPrefix}(?:${firstNameLabels})(?:\\s*[\\/|]\\s*${firstNameLabels})*\\s*[:\\-]?\\s*`, 'i'), new RegExp(`${labelPrefix}(?:CNP|SERIE?|ID)`, 'i'), /^\s*(?:[iIl|]*\s*)?Pren\w{3,}(?:\s+[a-z]{2,8})?\b/i);
   const cnpIndex = lines.findIndex(line => /C\s*N\s*P/i.test(line));
   const cnpLine = cnpIndex < 0 ? '' : lines[cnpIndex];
   const cnpLabel = cnpLine.match(/C\s*N\s*P/i);
-  const cnpValue = cnpLabel
+  let cnpValue = cnpLabel
     ? cnpLine.slice(cnpLabel.index + cnpLabel[0].length).trim() || lines[cnpIndex + 1] || ''
     : '';
-  const normalizedCnp = cnpValue.replace(/[OoQ]/g, '0').replace(/[Il|]/g, '1');
-  const cnp = [...normalizedCnp.matchAll(/(?:\d[\s.-]*){13,24}/g)]
-    .map(match => match[0].replace(/\D/g, ''))
+  const nextCnpField = cnpValue.search(/(?:Nume|Nom|Last\s*name|Prenume|Prenom|First\s*name|SERIE?|ID)\b/i);
+  if (nextCnpField >= 0) cnpValue = cnpValue.slice(0, nextCnpField);
+  const cnp = [...cnpValue.matchAll(/[A-Z0-9](?:[\s.-]*[A-Z0-9]){12,23}/gi)]
+    .map(match => match[0].replace(/[\s.-]/g, '').toUpperCase())
     .find(value => value.length >= 13 && value.length <= 24) || '';
   return { name: [lastName, firstName].filter(Boolean).join(' '), lastName, firstName, cnp };
 }

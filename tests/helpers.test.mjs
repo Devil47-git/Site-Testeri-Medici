@@ -329,6 +329,21 @@ test('identity card OCR reads an 18-digit CNP and names below multilingual label
   assert.deepEqual(details, { name: 'Ruiz Alexandro', lastName: 'Ruiz', firstName: 'Alexandro', cnp: '124761832451723176' });
 });
 
+test('identity card OCR skips misread labels and reads the name values below them', () => {
+  const details = parseIdentityCardText('CNP 1033124177982\nNume/Nom/Last rame Prenontiat Rar\nChirculescu\nPrenontiat Rar\nAndrei');
+  assert.deepEqual(details, { name: 'Chirculescu Andrei', lastName: 'Chirculescu', firstName: 'Andrei', cnp: '1033124177982' });
+});
+
+test('identity card OCR removes malformed inline label fragments around names', () => {
+  const details = parseIdentityCardText('CNP 1033124177982 Nume/Nom/Last rame Prenontiat Rar Chirculescu Prenume/Prenom/First name Andrei');
+  assert.deepEqual(details, { name: 'Chirculescu Andrei', lastName: 'Chirculescu', firstName: 'Andrei', cnp: '1033124177982' });
+});
+
+test('identity card OCR preserves letters in an alphanumeric CNP', () => {
+  const details = parseIdentityCardText('CNP AB1033I24177982\nNume/Nom/Last name\nChirculescu\nPrenume/Prenom/First name\nAndrei');
+  assert.equal(details.cnp, 'AB1033I24177982');
+});
+
 test('parachute test display name is simplified without changing its catalog key', () => {
   assert.equal(displayTestName('Test parașutiști'), 'Test Parasutism');
   assert.equal(displayTestName('Test ALS'), 'Test ALS');
@@ -345,9 +360,9 @@ test('SMULS guide includes the supplied route image as an inline preview', () =>
   assert.match(testDefinitions, /'Test SMULS'[\s\S]*?images: \[\{ label: 'Hartă traseu S\.M\.U\.L\.S\.', url: '\/image\.png', inline: true \}\]/);
 });
 
-test('identity card OCR parser handles inline labels and spaced or confused CNP digits', () => {
+test('identity card OCR parser handles inline labels and preserves OCR-confused CNP letters', () => {
   const details = parseIdentityCardText('Nume/Nom/Last name Cartier Prenume/Prenom/First name Mohammed\nCNP: 1O60 8259 27178');
-  assert.deepEqual(details, { name: 'Cartier Mohammed', lastName: 'Cartier', firstName: 'Mohammed', cnp: '1060825927178' });
+  assert.deepEqual(details, { name: 'Cartier Mohammed', lastName: 'Cartier', firstName: 'Mohammed', cnp: '1O60825927178' });
 });
 
 test('identity card OCR parser skips misread blue labels before reading the values below', () => {
