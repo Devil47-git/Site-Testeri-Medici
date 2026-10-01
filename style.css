@@ -373,6 +373,26 @@ body.dark-mode .sidebar,body.dark-mode .stat-card,body.dark-mode .panel,body.dar
 body.dark-mode .topbar{background:linear-gradient(100deg,rgba(8,15,27,.97),rgba(25,20,28,.97));border-bottom-color:#352832}
 body.dark-mode .nav-item.active,body.dark-mode .nav-item:hover{background:#2a2029;color:#fff4f3}
 body.dark-mode .nav-item.active{box-shadow:inset 2px 0 var(--purple)}
+
+.bonus-panel{max-width:1080px;margin:0 auto;padding:24px}
+.bonus-panel>.panel-head{align-items:center;margin-bottom:18px}
+.bonus-panel>.panel-head h2{margin:0;font-size:20px}
+.bonus-period-controls{display:flex;align-items:center;justify-content:center;gap:18px;padding:15px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.bonus-period-controls strong{min-width:150px;text-align:center;font-variant-numeric:tabular-nums}
+.bonus-period-controls button{min-width:40px}
+.bonus-period-controls button:disabled{opacity:.45;cursor:not-allowed}
+.bonus-period-status{min-height:18px;margin:14px 0 8px}
+.bonus-copy-output{max-height:65vh;overflow:auto;margin:0;padding:16px;border:1px solid var(--surface-border);border-radius:6px;background:var(--surface-alt);color:var(--ink);font:12px/1.8 'DM Sans',monospace;white-space:pre}
+.medical-screening{display:grid;gap:12px;margin-top:18px;padding:16px;border:1px solid var(--surface-border);border-left:3px solid #c6383d;border-radius:6px;background:var(--surface-alt)}
+.medical-screening h3{margin:0;font-size:15px}
+.medical-confirmation{display:flex;align-items:flex-start;gap:9px;font-weight:600}
+.medical-confirmation input,.medical-condition-list input{flex:none;margin-top:3px;accent-color:var(--purple)}
+.medical-condition-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:9px;margin:0;padding:12px;border:1px solid var(--surface-border);border-radius:5px}
+.medical-condition-list legend{padding:0 5px;color:var(--muted);font-size:12px}
+.medical-condition-list label{display:flex;align-items:flex-start;gap:8px}
+.medical-screening-status{margin:0;line-height:1.5}
+.medical-screening-status:not(:empty){padding:9px 11px;border-radius:5px;background:rgba(85,201,213,.1)}
+@media(max-width:620px){.bonus-panel{padding:16px}.bonus-panel>.panel-head{align-items:flex-start;gap:12px}.bonus-copy-output{font-size:11px;padding:12px}.medical-condition-list{grid-template-columns:minmax(0,1fr)}}
 body.dark-mode .nav-item.active span,body.dark-mode .nav-item:hover span{color:var(--purple)}
 body.dark-mode .panel-head h2,body.dark-mode .tester-group h3,body.dark-mode .profile-card .eyebrow{color:var(--purple)}
 body.dark-mode .test-filter-option:hover,body.dark-mode .test-filter-option.active{background:#302129;color:#fff4f3}

@@ -18,4 +18,12 @@ The admission flow allows three mistakes; the fourth is a failure. Admission and
 
 Medical certificates use a separate `MEDICAL_CERTIFICATES` sheet and `DISCORD_MEDICAL_CERTIFICATES_WEBHOOK`. The sequence starts at 7015 (7014 is the last existing number) and stops at 30000.
 
+## Medical screening, cooldowns, and bonuses
+
+Admission, transfer, and medical-certificate flows require manual medical-sheet review. Admission and transfer also require the thorough stethoscope exam in the salon. OCR checks the sheet for the seven disqualifying diagnoses; a match blocks the theory and offers only a rejection result. Medical-certificate hours start blank and its questions do not have a mistake counter.
+
+Specialty-test candidates are checked against column S in `LISTA DEPARTAMENT`. Supported entries include SMULS (including T/P), Parasutist, Moto, Pilot, ALS, BLS, Radio, and Rezidentiat aliases. A recorded expiry date remains blocked through that calendar day in `Europe/Bucharest`.
+
+The `Bonusuri` page is leadership-only. It displays the latest completed 14-day period, anchored on 21 September 2026, sorted by tester callsign and then Pilot, Moto/admission/transfer, medical certificates, ALS, and SMULS. The table can be copied as tab-separated text for Docs.
+
 The local `tests/dev-server.mjs` is a UI mock and intentionally does not send Discord messages. Real delivery requires the deployed API endpoint and both webhook environment variables to be configured.

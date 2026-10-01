@@ -14,7 +14,20 @@ const MOCK = [
   { discordId: '8', name: 'Para Test', callsign: '221', csNum: 221, rank: 'Medic Specialist', isTester: true, functions: 'PARASUTIST', grantedTests: ['Test parașutiști'], avatar: '' },
   { discordId: '9', name: '', callsign: '004', csNum: 4, rank: 'Medic Inspector', isLeadership: true, isTester: true, functions: 'A.L.S.', grantedTests: ['Test ALS'], avatar: '' }
 ];
-const CANDIDATES = [...MOCK, { callsign: '603', name: 'Antonio Shades' }];
+const CANDIDATES = [...MOCK, {
+  callsign: '603', name: 'Antonio Shades', cooldowns: {
+    'Test MOTO': Date.parse('2026-10-20T20:59:59.999Z'),
+    'Test PILOT': Date.parse('2026-10-20T20:59:59.999Z'),
+    'Test SMULS': Date.parse('2026-10-20T20:59:59.999Z'),
+    'Test parașutiști': Date.parse('2026-10-10T20:59:59.999Z')
+  }
+}];
+const BONUS_TESTS = [
+  { callsign: '105', testerName: 'Mihai Radu', testName: 'Test PILOT', result: 'Admis' },
+  { callsign: '105', testerName: 'Mihai Radu', testName: 'Test transfer', result: 'Respins' },
+  { callsign: '210', testerName: 'Elena Stan', testName: 'Adeverință medicală', result: 'Admis' },
+  { callsign: '320', testerName: 'Radu Test', testName: 'Test SMULS', result: 'Admis' }
+];
 const testResults = [];
 http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
@@ -23,11 +36,16 @@ http.createServer(async (req, res) => {
     if (callsign !== null) {
       const number = Number(String(callsign).replace(/\D/g, '')) || 0;
       const candidate = CANDIDATES.find(member => (Number(String(member.callsign).replace(/\D/g, '')) || 0) === number);
-      res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ candidate: candidate ? { callsign: candidate.callsign, name: candidate.name } : null })); return;
+      res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ candidate: candidate ? { callsign: candidate.callsign, name: candidate.name, cooldowns: candidate.cooldowns || {} } : null })); return;
     }
     res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ members: MOCK })); return;
   }
   if (url.pathname.startsWith('/api/access/test-results')) {
+    if (url.searchParams.get('view') === 'bonuses') {
+      const from = url.searchParams.get('from');
+      const entries = BONUS_TESTS.map((entry, index) => ({ ...entry, createdAt: `${from}T${String(9 + index).padStart(2, '0')}:00:00+03:00` }));
+      res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ entries })); return;
+    }
     let cleared = null;
     if (req.method === 'POST') {
       let body = '';

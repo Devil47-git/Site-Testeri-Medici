@@ -1,4 +1,5 @@
 import { catalog, callsignNumber, candidateForCallsign, effectiveTestsForMember, functionsForMember, isLeadershipRow, normalizeTests } from './shared.js';
+import { cooldownIsActive, parseCooldownS } from './cooldowns.js';
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:T400';
@@ -44,6 +45,13 @@ async function sheetsClient() {
 }
 
 function sheetTitle() { return RESULTS_RANGE.split('!')[0].replace(/^'|'$/g, ''); }
+function departmentDateKey(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Bucharest', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date);
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
 
 async function ensureResultsSheet(sheets) {
   const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: SHEET_ID, fields: 'sheets.properties.title' });
@@ -249,6 +257,25 @@ export default async function handler(req, res) {
     const member = await findRequester(sheets, discordId);
     if (!member) return json(res, 403, { error: 'Requester is not a department member' });
 
+    if (req.method === 'GET' && req.query?.view === 'bonuses') {
+      if (!isLeadershipRow(member)) return json(res, 403, { error: 'Pagina Bonusuri este rezervată conducerii.' });
+      const from = String(req.query?.from || '');
+      const to = String(req.query?.to || '');
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || from > to) {
+        return json(res, 400, { error: 'Selectează un interval calendaristic valid.' });
+      }
+      const rows = await ensureResultsHeader(sheets);
+      const members = (await readValues(sheets, MEMBER_RANGE)).slice(1);
+      const names = new Map(members.map(row => [String(row[19] || '').trim(), String(row[3] || '').trim()]));
+      const entries = rows.slice(1).flatMap(row => {
+        const testName = String(row[2] || '').trim();
+        const date = departmentDateKey(row[4]);
+        if (!catalog.includes(testName) || date < from || date > to) return [];
+        return [{ callsign: String(row[1] || '').trim(), testerName: names.get(String(row[0] || '').trim()) || '', testName, result: String(row[3] || '').trim(), createdAt: String(row[4] || '').trim() }];
+      });
+      return json(res, 200, { entries });
+    }
+
     if (req.method === 'POST') {
       if (req.body?.action === 'reset-counts') {
         if (!canResetTestCounts(member)) return json(res, 403, { error: 'Resetarea testelor este rezervată conducerii cu callsign între 001 și 020' });
@@ -285,6 +312,13 @@ export default async function handler(req, res) {
         const candidateRows = (await readValues(sheets, MEMBER_RANGE)).slice(1).filter(Array.isArray);
         const candidate = candidateForCallsign(candidateRows, candidateCallsign);
         if (!candidate) return json(res, 404, { error: 'Nu a fost găsit un candidat cu acest callsign în coloana C.' });
+        const candidateRow = candidateRows.find(row => callsignNumber(row[2]) === callsignNumber(candidateCallsign));
+        const cooldowns = parseCooldownS(candidateRow?.[18] || '');
+        if (cooldownIsActive(cooldowns, testName)) {
+          const expiry = new Date(cooldowns[testName]);
+          const expiryDate = expiry.toLocaleDateString('ro-RO', { timeZone: 'Europe/Bucharest', day: '2-digit', month: '2-digit', year: 'numeric' });
+          return json(res, 403, { error: `Candidatul are CD activ la ${testName} până pe ${expiryDate}. Testarea este oprită.` });
+        }
         specialtyDetails = specialtyNotificationDetails(candidate, result);
       }
       if (testName === 'Adeverință medicală') {
