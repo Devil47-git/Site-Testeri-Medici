@@ -24,8 +24,11 @@ const CANDIDATES = [...MOCK, {
 }];
 const BONUS_TESTS = [
   { callsign: '105', testerName: 'Mihai Radu', testName: 'Test PILOT', result: 'Admis' },
+  { callsign: '105', testerName: 'Mihai Radu', testName: 'Test MOTO', result: 'Admis' },
   { callsign: '105', testerName: 'Mihai Radu', testName: 'Test transfer', result: 'Respins' },
+  { callsign: '105', testerName: 'Mihai Radu', testName: 'Test admitere', result: 'Admis' },
   { callsign: '210', testerName: 'Elena Stan', testName: 'Adeverință medicală', result: 'Admis' },
+  { callsign: '210', testerName: 'Elena Stan', testName: 'Test ALS', result: 'Admis' },
   { callsign: '320', testerName: 'Radu Test', testName: 'Test SMULS', result: 'Admis' }
 ];
 const testResults = [];

@@ -110,7 +110,7 @@ function medicalConditionsInText(text) {
     /intoxicatie(?:\s+cu)?\s+substante\s+psihoactive/,
     /dependenta\s+(?:de\s+)?(?:droguri|substante)/,
     /coma\s+alcoolica/,
-    /boli?\s+cu\s+transmitere\s+sexuala|\bbts\b/,
+    /(?:boala?|boli)\s+(?:cu\s+)?transmitere\s+sexuala|\bbts\b/,
     /piodermita/,
     /salmonella|salmoneloza|toxiinfectie\s+alimentara/
   ];
@@ -680,15 +680,15 @@ function renderView(view) {
 }
   const BONUS_ANCHOR_UTC = Date.UTC(2026, 8, 21);
   const BONUS_PERIOD_MS = 14 * 24 * 60 * 60 * 1000;
-  const BONUS_TEST_ORDER = new Map([
-    ['Test PILOT', 0], ['Test MOTO', 1], ['Test admitere', 1], ['Test transfer', 1],
-    ['Adeverință medicală', 2], ['Test ALS', 3], ['Test SMULS', 4]
-  ]);
-  const BONUS_TEST_LABELS = new Map([
-    ['Test PILOT', 'Pilot'], ['Test MOTO', 'Moto'], ['Test admitere', 'Admitere'],
-    ['Test transfer', 'Transfer'], ['Adeverință medicală', 'Adeverință'],
-    ['Test ALS', 'ALS'], ['Test SMULS', 'SMULS']
-  ]);
+const BONUS_CATEGORIES = [
+  { label: 'PILOT', tests: ['Test PILOT'] },
+  { label: 'MOTO', tests: ['Test MOTO'] },
+  { label: 'ADMITERE', tests: ['Test admitere', 'Test transfer'] },
+  { label: 'ADEVERINȚE', tests: ['Adeverință medicală'] },
+  { label: 'ALS', tests: ['Test ALS'] },
+  { label: 'S.M.U.L.S.', tests: ['Test SMULS'] }
+];
+const BONUS_TEST_CATEGORY = new Map(BONUS_CATEGORIES.flatMap((category, index) => category.tests.map(test => [test, index])));
   function departmentCalendarDate(date) {
     const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Bucharest', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date);
     const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
@@ -700,6 +700,9 @@ function renderView(view) {
     const currentStart = BONUS_ANCHOR_UTC + currentIndex * BONUS_PERIOD_MS;
     return today < currentStart + BONUS_PERIOD_MS ? currentIndex - 1 : currentIndex;
   }
+function activeBonusPeriodIndex(now = new Date()) {
+  return Math.floor((departmentCalendarDate(now) - BONUS_ANCHOR_UTC) / BONUS_PERIOD_MS);
+}
   function bonusPeriodFor(index) {
     const start = BONUS_ANCHOR_UTC + index * BONUS_PERIOD_MS;
     const end = start + BONUS_PERIOD_MS - 24 * 60 * 60 * 1000;
@@ -710,52 +713,61 @@ function renderView(view) {
     return `${format(period.from)}–${format(period.to)}`;
   }
   function renderBonusesView() {
-    if (selectedBonusPeriodIndex === null) selectedBonusPeriodIndex = latestCompleteBonusPeriodIndex();
+    if (selectedBonusPeriodIndex === null) selectedBonusPeriodIndex = activeBonusPeriodIndex();
     const period = bonusPeriodFor(selectedBonusPeriodIndex);
-    const latest = latestCompleteBonusPeriodIndex();
-    return `<section class="panel bonus-panel"><div class="panel-head"><div><p class="eyebrow">ACTIVITATE TESTERI</p><h2>Bonusuri</h2></div><button class="outline bonus-copy" id="bonus-copy" type="button" title="Copiază tabelul pentru Docs">▢ Copiază</button></div><div class="bonus-period-controls"><button class="outline" type="button" data-bonus-shift="-1" aria-label="Perioada anterioară">←</button><strong>${bonusPeriodLabel(period)}</strong><button class="outline" type="button" data-bonus-shift="1" aria-label="Perioada următoare" ${selectedBonusPeriodIndex >= latest ? 'disabled' : ''}>→</button></div><p class="bonus-period-status muted" id="bonus-period-status" role="status" aria-live="polite">Se încarcă testele...</p><pre class="bonus-copy-output" id="bonus-copy-output">CALLSIGN\tNUME\tTEST\tREZULTAT\tDATA</pre></section>`;
+    const activePeriod = bonusPeriodFor(activeBonusPeriodIndex());
+    return `<section class="panel bonus-panel"><div class="panel-head"><div><p class="eyebrow">ACTIVITATE TESTERI</p><h2>Bonusuri</h2></div></div><p class="bonus-active-period"><strong>Perioada activă:</strong> ${bonusPeriodLabel(activePeriod)}</p><div class="bonus-period-controls"><button class="outline" type="button" data-bonus-shift="-1" aria-label="Perioada anterioară">←</button><strong>Perioada afișată: ${bonusPeriodLabel(period)}</strong><button class="outline" type="button" data-bonus-shift="1" aria-label="Perioada următoare" ${selectedBonusPeriodIndex >= activePeriod.index ? 'disabled' : ''}>→</button></div><p class="bonus-period-status muted" id="bonus-period-status" role="status" aria-live="polite">Se încarcă testele...</p><div class="bonus-table-wrap"><table class="bonus-table"><thead><tr><th>CALLSIGN</th><th>MEDIC</th>${BONUS_CATEGORIES.map(category => `<th>${category.label}</th>`).join('')}<th></th></tr></thead><tbody id="bonus-rows"><tr><td colspan="9">Se încarcă...</td></tr></tbody></table></div></section>`;
   }
   async function loadBonusEntries(period) {
     const status = document.querySelector('#bonus-period-status');
-    const output = document.querySelector('#bonus-copy-output');
+    const body = document.querySelector('#bonus-rows');
     try {
       const query = new URLSearchParams({ requesterId: currentUser.discordId, view: 'bonuses', from: period.from, to: period.to });
       const response = await fetch(`/api/access/test-results?${query}`);
       const payload = await parseApiResponse(response);
       if (!response.ok) throw new Error(payload.error || 'Bonusurile nu au putut fi încărcate.');
-      const entries = (payload.entries || []).filter(entry => {
+      const rowsByCallsign = new Map();
+      for (const entry of payload.entries || []) {
         const callsign = callsignNumber(entry.callsign);
-        return BONUS_TEST_ORDER.has(entry.testName) && callsign >= 101 && callsign <= 399;
-      }).sort((left, right) => callsignNumber(left.callsign) - callsignNumber(right.callsign)
-        || BONUS_TEST_ORDER.get(left.testName) - BONUS_TEST_ORDER.get(right.testName)
-        || String(left.createdAt).localeCompare(String(right.createdAt)));
-      const rows = entries.map(entry => [normalizeCallsign(entry.callsign), entry.testerName || '—', BONUS_TEST_LABELS.get(entry.testName), entry.result || '—', new Date(entry.createdAt).toLocaleDateString('ro-RO', { timeZone: 'Europe/Bucharest', day: '2-digit', month: '2-digit' })].join('\t'));
-      if (output) output.textContent = ['CALLSIGN\tNUME\tTEST\tREZULTAT\tDATA', ...rows].join('\n');
-      if (status) status.textContent = `${entries.length} teste în perioada ${bonusPeriodLabel(period)}.`;
+        const category = BONUS_TEST_CATEGORY.get(entry.testName);
+        if (callsign < 101 || callsign > 399 || category === undefined) continue;
+        const key = String(callsign).padStart(3, '0');
+        const row = rowsByCallsign.get(key) || { callsign: key, name: entry.testerName || '—', counts: Array(BONUS_CATEGORIES.length).fill(0) };
+        row.counts[category] += 1;
+        rowsByCallsign.set(key, row);
+      }
+      const rows = [...rowsByCallsign.values()].sort((left, right) => callsignNumber(left.callsign) - callsignNumber(right.callsign));
+      if (body) body.innerHTML = rows.length
+        ? rows.map(row => `<tr><td>${escapeHtml(row.callsign)}</td><td>${escapeHtml(row.name)}</td>${row.counts.map(count => `<td data-bonus-count>${count}</td>`).join('')}<td><button class="outline bonus-row-copy" type="button" data-bonus-copy title="Copiază doar valorile pentru rândul ${escapeHtml(row.callsign)}">Copiază</button></td></tr>`).join('')
+        : '<tr><td colspan="9">Nu sunt teste în această perioadă.</td></tr>';
+      if (status) status.textContent = `${rows.length} persoane cu teste în perioada ${bonusPeriodLabel(period)}.`;
     } catch (error) {
       if (status) status.textContent = error.message;
     }
   }
   function wireBonusesEvents() {
-    const period = bonusPeriodFor(selectedBonusPeriodIndex ?? latestCompleteBonusPeriodIndex());
+    const period = bonusPeriodFor(selectedBonusPeriodIndex ?? activeBonusPeriodIndex());
     loadBonusEntries(period);
     document.querySelectorAll('[data-bonus-shift]').forEach(button => button.addEventListener('click', () => {
       selectedBonusPeriodIndex += Number(button.dataset.bonusShift);
       navigateTo('bonuses', { push: false });
     }));
-    document.querySelector('#bonus-copy')?.addEventListener('click', async event => {
-      const output = document.querySelector('#bonus-copy-output');
+    document.querySelector('#bonus-rows')?.addEventListener('click', async event => {
+      const button = event.target.closest('[data-bonus-copy]');
+      if (!button) return;
+      const values = [...button.closest('tr').querySelectorAll('[data-bonus-count]')].map(cell => cell.textContent.trim()).join('\t');
       const status = document.querySelector('#bonus-period-status');
       try {
-        await navigator.clipboard.writeText(output?.textContent || '');
-        status.textContent = 'Tabel copiat pentru Docs.';
+        await navigator.clipboard.writeText(values);
+        status.textContent = `Valorile pentru ${button.closest('tr').cells[0].textContent} au fost copiate.`;
       } catch {
-        const range = document.createRange();
-        range.selectNodeContents(output);
-        const selection = window.getSelection();
-        selection.removeAllRanges();
-        selection.addRange(range);
-        status.textContent = 'Selectează și copiază tabelul cu Ctrl+C.';
+        const input = document.createElement('textarea');
+        input.value = values;
+        document.body.append(input);
+        input.select();
+        document.execCommand('copy');
+        input.remove();
+        status.textContent = `Valorile pentru ${button.closest('tr').cells[0].textContent} au fost copiate.`;
       }
     });
   }
@@ -1059,8 +1071,6 @@ function buildTestMarkup(testName, definition, questions) {
   const isPilotTest = testName === 'Test PILOT';
   const isMedicalCertificate = testName === 'Adeverință medicală';
   const isApplicationTest = isAdmissionTest || testName === 'Test transfer';
-  let candidateCooldowns = {};
-  let candidateCooldownMessage = '';
   const isStagedTest = ['Test PILOT', 'Test MOTO', 'Test SMULS', 'Test ALS'].includes(testName);
   const maxWrong = maxWrongForTest(testName, definition.maxWrong);
   const candidateDetails = isApplicationTest ? admissionCandidateDetailsHtml() : isMedicalCertificate ? medicalCertificateDetailsHtml() : '';
@@ -1123,6 +1133,8 @@ function wireTestEvents(testName, definition) {
   const isSmulsTest = testName === 'Test SMULS';
   const isMedicalCertificate = testName === 'Adeverință medicală';
   const isApplicationTest = isAdmissionTest || testName === 'Test transfer';
+  let candidateCooldowns = {};
+  let candidateCooldownMessage = '';
   let medicalConditionsDetected = [];
   let forcedMedicalRejection = false;
   const medicalReview = document.querySelector('[data-medical-sheet-reviewed]');

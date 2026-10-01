@@ -45,9 +45,7 @@ function dateFromToken(value, now) {
   } else if (startOfDayInDepartment(day, month, year) < now.getTime() - 30 * 86400000) {
     year += 1;
   }
-  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  const nextDate = new Date(Date.UTC(year, month - 1, Math.min(day, daysInMonth) + 1));
-  return startOfDayInDepartment(nextDate.getUTCDate(), nextDate.getUTCMonth() + 1, nextDate.getUTCFullYear()) - 1;
+  return startOfDayInDepartment(day, month, year);
 }
 
 export function parseCooldownS(value, now = new Date()) {

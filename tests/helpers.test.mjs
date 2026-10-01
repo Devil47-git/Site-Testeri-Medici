@@ -34,7 +34,7 @@ function extract(name) {
 const catalog = ['Test admitere', 'Test transfer', 'Adeverință medicală', 'Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști'];
 const definitions = Object.fromEntries(catalog.map(n => [n, { name: n, questions: [] }]));
 
-const names = ['callsignNumber', 'normalizeCallsign', 'testNameFromHash', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberHasTestAccess', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'sortMembers', 'gradeGroupFor', 'mergeTestDefinitions', 'admissionChecklistHtml', 'admissionChecksComplete', 'motoChecksComplete', 'alsChecklistHtml', 'alsChecksComplete', 'alsCaseListHtml', 'smulsChecklistHtml', 'smulsChecksComplete', 'smulsCaseListHtml', 'memberStatus', 'testerFunctionsForDisplay', 'isTestFailed', 'maxWrongForTest', 'cachedUserWithinSession', 'questionItemHtml', 'evaluationStageHtml', 'parseIdentityCardText', 'mergeIdentityCardDetails', 'displayTestName', 'medicalConditionsInText', 'departmentCalendarDate', 'latestCompleteBonusPeriodIndex', 'bonusPeriodFor'];
+const names = ['callsignNumber', 'normalizeCallsign', 'testNameFromHash', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberHasTestAccess', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'sortMembers', 'gradeGroupFor', 'mergeTestDefinitions', 'admissionChecklistHtml', 'admissionChecksComplete', 'motoChecksComplete', 'alsChecklistHtml', 'alsChecksComplete', 'alsCaseListHtml', 'smulsChecklistHtml', 'smulsChecksComplete', 'smulsCaseListHtml', 'memberStatus', 'testerFunctionsForDisplay', 'isTestFailed', 'maxWrongForTest', 'cachedUserWithinSession', 'questionItemHtml', 'evaluationStageHtml', 'parseIdentityCardText', 'mergeIdentityCardDetails', 'displayTestName', 'medicalConditionsInText', 'departmentCalendarDate', 'latestCompleteBonusPeriodIndex', 'activeBonusPeriodIndex', 'bonusPeriodFor'];
 const srcs = names.map(extract).join('\n');
 const pattern = source.match(/^const RESIDENT_TESTER_PATTERN = .*$/m)?.[0] || 'const RESIDENT_TESTER_PATTERN = /TESTER/;';
 const normalizeTextSrc = extract('normalizeText');
@@ -45,10 +45,10 @@ const load = new Function(
   'catalog',
   'testDefinitions',
   'testSummaryDefinitions',
-  `${fullSrc}\nreturn { callsignNumber, normalizeCallsign, testNameFromHash, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, mergeTestDefinitions, admissionChecklistHtml, admissionChecksComplete, motoChecksComplete, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, medicalConditionsInText, departmentCalendarDate, latestCompleteBonusPeriodIndex, bonusPeriodFor };`,
+  `${fullSrc}\nreturn { callsignNumber, normalizeCallsign, testNameFromHash, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, mergeTestDefinitions, admissionChecklistHtml, admissionChecksComplete, motoChecksComplete, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, medicalConditionsInText, departmentCalendarDate, latestCompleteBonusPeriodIndex, activeBonusPeriodIndex, bonusPeriodFor };`,
 )(catalog, definitions, testSummaryDefinitions);
 
-const { callsignNumber, normalizeCallsign, testNameFromHash, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, mergeTestDefinitions, admissionChecklistHtml, admissionChecksComplete, motoChecksComplete, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, medicalConditionsInText, departmentCalendarDate, latestCompleteBonusPeriodIndex, bonusPeriodFor } = load;
+const { callsignNumber, normalizeCallsign, testNameFromHash, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, mergeTestDefinitions, admissionChecklistHtml, admissionChecksComplete, motoChecksComplete, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, medicalConditionsInText, departmentCalendarDate, latestCompleteBonusPeriodIndex, activeBonusPeriodIndex, bonusPeriodFor } = load;
 
 test('Discord auth preserves the Discord display name, username, and avatar', () => {
   const mapperSource = discordAuthSource.match(/function mapSheetRowToUser\(row, discordUser\) \{[\s\S]*?^\}/m)?.[0];
@@ -130,23 +130,28 @@ test('column S cooldown parsing supports shared and per-test dates and SMULS var
   assert.equal(new Date(separate['Test SMULS']).toLocaleDateString('ro-RO', { timeZone: 'Europe/Bucharest' }), '12.10.2026');
   assert.equal(new Date(separate['Test parașutiști']).toLocaleDateString('ro-RO', { timeZone: 'Europe/Bucharest' }), '10.10.2026');
   assert.equal(cooldownIsActive(separate, 'Test PILOT', Date.parse('2026-10-11T12:00:00.000Z')), true);
-  assert.equal(cooldownIsActive(separate, 'Test PILOT', Date.parse('2026-10-12T18:00:00.000Z')), true);
-  assert.equal(cooldownIsActive(separate, 'Test PILOT', Date.parse('2026-10-12T22:00:00.000Z')), false);
+  assert.equal(cooldownIsActive(separate, 'Test PILOT', Date.parse('2026-10-11T21:00:00.000Z')), false);
+  const expiresToday = parseCooldownS('pilot 02.10', now);
+  assert.equal(cooldownIsActive(expiresToday, 'Test PILOT', now.getTime()), false);
   const monthEnd = parseCooldownS('moto 31.10', now);
-  assert.equal(cooldownIsActive(monthEnd, 'Test MOTO', Date.parse('2026-10-31T20:00:00.000Z')), true);
-  assert.equal(cooldownIsActive(monthEnd, 'Test MOTO', Date.parse('2026-10-31T22:00:00.000Z')), false);
+  assert.equal(cooldownIsActive(monthEnd, 'Test MOTO', Date.parse('2026-10-30T21:59:59.000Z')), true);
+  assert.equal(cooldownIsActive(monthEnd, 'Test MOTO', Date.parse('2026-10-30T22:00:00.000Z')), false);
 });
 
 test('medical-sheet diagnosis matcher detects all disqualifying conditions', () => {
   const diagnoses = medicalConditionsInText('Intoxicație medicamentoasă; intoxicație cu substanțe psihoactive; dependență de droguri; comă alcoolică; boli cu transmitere sexuală; piodermită; Salmonella.');
   assert.deepEqual(diagnoses, ['Intoxicație medicamentoasă', 'Intoxicație cu substanțe psihoactive', 'Dependență de droguri', 'Comă alcoolică', 'Boli cu transmitere sexuală', 'Piodermită', 'Salmonella']);
   assert.deepEqual(medicalConditionsInText('Toxiinfecție alimentară'), ['Salmonella']);
+  assert.deepEqual(medicalConditionsInText('Diagnostic: Boală cu transmitere sexuală'), ['Boli cu transmitere sexuală']);
   assert.doesNotMatch(source, /certificate-hours-account[^>]+value=/);
   assert.match(source, /data-stethoscope-check/);
 });
 
 test('bonus periods follow two-week cycles and include September 21 through October 4', () => {
   assert.deepEqual(bonusPeriodFor(0), { index: 0, from: '2026-09-21', to: '2026-10-04' });
+  assert.equal(activeBonusPeriodIndex(new Date('2026-10-02T12:00:00.000Z')), 0);
+  assert.equal(activeBonusPeriodIndex(new Date('2026-10-05T00:00:00.000Z')), 1);
+  assert.deepEqual(bonusPeriodFor(activeBonusPeriodIndex(new Date('2026-10-05T00:00:00.000Z'))), { index: 1, from: '2026-10-05', to: '2026-10-18' });
   assert.equal(latestCompleteBonusPeriodIndex(new Date('2026-10-04T20:00:00.000Z')), -1);
   assert.equal(latestCompleteBonusPeriodIndex(new Date('2026-10-04T22:00:00.000Z')), 0);
   assert.equal(latestCompleteBonusPeriodIndex(new Date('2026-10-18T22:00:00.000Z')), 1);
