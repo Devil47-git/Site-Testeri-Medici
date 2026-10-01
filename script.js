@@ -695,20 +695,66 @@ async function readIdentityCard(file) {
   try {
     const fullText = (await worker.recognize(file)).data.text;
     const image = await createImageBitmap(file);
-    const crop = document.createElement('canvas');
-    const sourceX = Math.round(image.width * 0.23);
-    const sourceY = Math.round(image.height * 0.16);
-    const sourceWidth = Math.round(image.width * 0.71);
-    const sourceHeight = Math.round(image.height * 0.48);
-    crop.width = sourceWidth * 2;
-    crop.height = sourceHeight * 2;
-    const context = crop.getContext('2d');
-    context.filter = 'grayscale(1) contrast(1.35)';
-    context.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, crop.width, crop.height);
+    const makeLineCrop = (topRatio, heightRatio) => {
+      const sourceX = Math.round(image.width * 0.28);
+      const sourceY = Math.round(image.height * topRatio);
+      const sourceWidth = Math.round(image.width * 0.67);
+      const sourceHeight = Math.round(image.height * heightRatio);
+      const scale = 4;
+      const canvas = document.createElement('canvas');
+      canvas.width = sourceWidth * scale;
+      canvas.height = sourceHeight * scale;
+      const context = canvas.getContext('2d', { willReadFrequently: true });
+      context.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, canvas.width, canvas.height);
+      const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
+      const histogram = new Uint32Array(256);
+      for (let index = 0; index < pixels.data.length; index += 4) {
+        const gray = Math.round(pixels.data[index] * 0.299 + pixels.data[index + 1] * 0.587 + pixels.data[index + 2] * 0.114);
+        histogram[gray] += 1;
+      }
+      const pixelCount = pixels.data.length / 4;
+      let sum = 0;
+      for (let value = 0; value < histogram.length; value += 1) sum += value * histogram[value];
+      let backgroundWeight = 0;
+      let backgroundSum = 0;
+      let threshold = 170;
+      let maxVariance = 0;
+      for (let value = 0; value < histogram.length; value += 1) {
+        backgroundWeight += histogram[value];
+        if (!backgroundWeight) continue;
+        const foregroundWeight = pixelCount - backgroundWeight;
+        if (!foregroundWeight) break;
+        backgroundSum += value * histogram[value];
+        const meanBackground = backgroundSum / backgroundWeight;
+        const meanForeground = (sum - backgroundSum) / foregroundWeight;
+        const variance = backgroundWeight * foregroundWeight * (meanBackground - meanForeground) ** 2;
+        if (variance > maxVariance) {
+          maxVariance = variance;
+          threshold = value;
+        }
+      }
+      for (let index = 0; index < pixels.data.length; index += 4) {
+        const gray = Math.round(pixels.data[index] * 0.299 + pixels.data[index + 1] * 0.587 + pixels.data[index + 2] * 0.114);
+        const color = gray > threshold ? 255 : 0;
+        pixels.data[index] = color;
+        pixels.data[index + 1] = color;
+        pixels.data[index + 2] = color;
+      }
+      context.putImageData(pixels, 0, 0);
+      return canvas;
+    };
+    const lastNameCrop = makeLineCrop(0.255, 0.06);
+    const firstNameCrop = makeLineCrop(0.33, 0.06);
+    const cnpCrop = makeLineCrop(0.175, 0.06);
     image.close();
-    await worker.setParameters({ tessedit_pageseg_mode: 6, preserve_interword_spaces: '1' });
-    const croppedText = (await worker.recognize(crop)).data.text;
-    return mergeIdentityCardDetails(parseIdentityCardText(croppedText), parseIdentityCardText(fullText));
+    await worker.setParameters({ tessedit_pageseg_mode: 7, preserve_interword_spaces: '1' });
+    const [lastNameText, firstNameText, cnpText] = await Promise.all([
+      worker.recognize(lastNameCrop).then(result => result.data.text),
+      worker.recognize(firstNameCrop).then(result => result.data.text),
+      worker.recognize(cnpCrop).then(result => result.data.text)
+    ]);
+    const focusedText = `Nume/Nom/Last name\n${lastNameText}\nPrenume/Prenom/First name\n${firstNameText}\nCNP\n${cnpText}`;
+    return mergeIdentityCardDetails(parseIdentityCardText(focusedText), parseIdentityCardText(fullText));
   } finally {
     await worker.terminate();
   }
