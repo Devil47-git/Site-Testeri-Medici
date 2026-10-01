@@ -14,10 +14,19 @@ const MOCK = [
   { discordId: '8', name: 'Para Test', callsign: '221', csNum: 221, rank: 'Medic Specialist', isTester: true, functions: 'PARASUTIST', grantedTests: ['Test parașutiști'], avatar: '' },
   { discordId: '9', name: '', callsign: '004', csNum: 4, rank: 'Medic Inspector', isLeadership: true, isTester: true, functions: 'A.L.S.', grantedTests: ['Test ALS'], avatar: '' }
 ];
+const CANDIDATES = [...MOCK, { callsign: '603', name: 'Antonio Shades' }];
 const testResults = [];
 http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
-  if (url.pathname.startsWith('/api/access/directory')) { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ members: MOCK })); return; }
+  if (url.pathname.startsWith('/api/access/directory')) {
+    const callsign = url.searchParams.get('callsign');
+    if (callsign !== null) {
+      const number = Number(String(callsign).replace(/\D/g, '')) || 0;
+      const candidate = CANDIDATES.find(member => (Number(String(member.callsign).replace(/\D/g, '')) || 0) === number);
+      res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ candidate: candidate ? { callsign: candidate.callsign, name: candidate.name } : null })); return;
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ members: MOCK })); return;
+  }
   if (url.pathname.startsWith('/api/access/test-results')) {
     let cleared = null;
     if (req.method === 'POST') {

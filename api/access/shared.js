@@ -23,6 +23,13 @@ export function normalize(value = '') { return String(value).toUpperCase().norma
 
 export function callsignNumber(value = '') { return Number(String(value).replace(/\D/g, '')) || 0; }
 
+export function candidateForCallsign(rows, callsign) {
+  const number = callsignNumber(callsign);
+  if (!number) return null;
+  const row = (Array.isArray(rows) ? rows : []).find(item => callsignNumber(item?.[2]) === number && String(item?.[3] || '').trim());
+  return row ? { callsign: String(row[2]).trim(), name: String(row[3]).trim() } : null;
+}
+
 export function isLeadershipRow(row) {
   const number = callsignNumber(row[2]);
   const rank = normalize(row[4]);

@@ -1,4 +1,4 @@
-import { catalog, callsignNumber, effectiveTestsForMember, functionsForMember, isLeadershipRow, normalizeTests } from './shared.js';
+import { catalog, callsignNumber, candidateForCallsign, effectiveTestsForMember, functionsForMember, isLeadershipRow, normalizeTests } from './shared.js';
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:T400';
@@ -268,12 +268,14 @@ export default async function handler(req, res) {
         admissionDetails = { candidateName, candidateId, candidateCallsign, result, image };
       }
       if (Object.hasOwn(SPECIALTY_WEBHOOKS, testName)) {
-        const candidateName = String(req.body?.candidateName || '').trim().slice(0, 100);
         const candidateCallsign = String(req.body?.candidateCallsign || '').trim().slice(0, 24);
         const result = String(req.body?.result || '').trim();
-        if (!candidateName || !candidateCallsign) return json(res, 400, { error: 'Testul necesită numele și callsign-ul candidatului.' });
+        if (!candidateCallsign) return json(res, 400, { error: 'Testul necesită callsign-ul candidatului.' });
         if (!['Admis', 'Respins'].includes(result)) return json(res, 400, { error: 'Invalid test result' });
-        specialtyDetails = { candidateName, candidateCallsign, result };
+        const candidateRows = (await readValues(sheets, MEMBER_RANGE)).slice(1).filter(Array.isArray);
+        const candidate = candidateForCallsign(candidateRows, candidateCallsign);
+        if (!candidate) return json(res, 404, { error: 'Nu a fost găsit un candidat cu acest callsign în coloana C.' });
+        specialtyDetails = { ...candidate, result };
       }
       if (testName === 'Adeverință medicală') {
         const details = {

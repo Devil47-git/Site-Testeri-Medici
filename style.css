@@ -53,6 +53,10 @@ body.dark-mode .tester-access-table td:nth-child(4) .tag.cyan{border-color:rgba(
 .evaluation-stage-card ul{display:grid;gap:7px;padding-left:20px;line-height:1.5}
 .evaluation-stage-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
 .evaluation-stage-actions button{min-width:170px}
+.evaluation-stage-card.has-image-slots{display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,32%);gap:18px;align-items:stretch}
+.evaluation-stage-copy{min-width:0}
+.evaluation-stage-images{display:grid;grid-template-rows:repeat(2,minmax(150px,1fr));gap:12px;min-width:0}
+.evaluation-stage-image-slot{display:grid;place-items:center;min-height:150px;border:1px dashed #718096;border-radius:6px;background:rgba(10,18,30,.32);color:var(--muted);font-size:12px}
 .test-editor{display:grid;gap:12px}
 .test-editor-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px}
 .test-editor-controls label,.test-editor-question label{display:grid;gap:6px;color:var(--ink);font-size:12px;font-weight:600}
@@ -74,7 +78,7 @@ body.dark-mode .tester-access-table td:nth-child(4) .tag.cyan{border-color:rgba(
 .test-map-column .test-images{margin:0}
 .test-map-column .test-image-preview{width:100%;box-shadow:0 0 10px #ffffff40}
 .test-map-column .test-image-preview img{width:100%;max-height:calc(100vh - 140px)}
-@media(max-width:860px){.test-with-map{grid-template-columns:minmax(0,1fr)}.test-map-column{position:static;grid-row:1}}
+@media(max-width:860px){.test-with-map{grid-template-columns:minmax(0,1fr)}.test-map-column{position:static;grid-row:1}.evaluation-stage-card.has-image-slots{grid-template-columns:minmax(0,1fr)}.evaluation-stage-images{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:auto}.evaluation-stage-image-slot{min-height:120px}}
 .correct-answer{background:linear-gradient(110deg,#A4D3ED,#23A2E8);border-color:#23A2E8;color:#12344a}
 .question-list fieldset{border:1px solid #23A2E8;border-radius:8px;padding:12px 14px;background:linear-gradient(110deg,#A4D3ED,#23A2E8);color:#12344a}
 .question-prompt{margin:0 0 4px;color:#12344a;font-size:15px;font-weight:700;line-height:1.4}

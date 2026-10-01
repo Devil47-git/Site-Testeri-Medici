@@ -89,37 +89,40 @@ window.MEDICAL_TESTS = {
     ],
     evaluationStages: [
       {
-        title: 'Proba 2: Locațiile Pacific',
+        title: 'PROBA 2: Locațiile Pacific',
         paragraphs: [
-          'Instructorul va scoate elicopterul Buckingham Swift, îi va da candidatului cheile și îi va cere să se deplaseze deasupra Băncii Pacific. Ajunși acolo, candidatul trebuie să aterizeze pe toate clădirile în ordine aleatorie.',
-          'Exemplu: instructorul cere aterizarea pe clădirea A, dă startul (3, 2, 1, START) și pornește cronometrul. Candidatul aterizează drept pe clădire, coboară pentru confirmare, apoi se urcă în elicopter și repetă pentru o altă clădire.',
-          'Nu este permisă aterizarea pe gurile de ventilație sau pe marginea clădirilor.'
+          'Instructorul va scoate elicopterul Buckingham Swift, îi va da candidatului cheile și îi va cere să se deplaseze deasupra Băncii Pacific. Odată ajunși acolo, instructorul îi va cere candidatului să aterizeze pe TOATE clădirile în ordine aleatorie.',
+          'EXEMPLU: Îi cereți să aterizeze pe clădirea A, îi dați startul (3, 2, 1, START), porniți cronometrul și îl opriți în momentul în care elicopterul este staționat DREPT pe clădire, vă dați jos astfel încât să se vadă că a aterizat conform standardelor de intervenție, vă urcați în elicopter și reluați pașii de mai devreme cu o altă clădire.',
+          'Nu au voie să aterizeze pe gurile de ventilație sau la marginea clădirilor.'
         ],
         conditions: [
-          'Este permisă o singură greșeală; la a doua candidatul este respins.',
-          'Candidatul are 30 de secunde pentru aterizarea pe clădire.',
-          'Este greșeală aterizarea pe altă clădire decât cea solicitată sau depășirea celor 30 de secunde.',
-          'Candidatul este respins dacă instructorul cade de pe clădire în timpul aterizării.'
+          'Candidatul va avea dreptul la o greșeală, la a doua fiind declarat RESPINS.',
+          'Candidatul va avea 30 de secunde pentru a ateriza pe clădire.',
+          'Pentru a fi considerată greșeală, candidatul trebuie să aterizeze pe o altă clădire decât cea cerută sau timpul să depășească 30 de secunde.',
+          'Candidatul va fi declarat RESPINS în cazul în care instructorul cade de pe clădire în urma aterizării.'
         ]
       },
       {
-        title: 'Proba 3: Pick-Up la Spitalul Sandy Shores',
-        paragraphs: ['Candidatul trebuie să treacă pe sub pod înainte de Pick-Up, fără să atingă podul sau copacii. După ce instructorul se urcă în elicopter, acesta va trece pe sub pod și va ateriza pe helipadul Spitalului Sandy Shores.'],
+        title: 'PROBA 3: Proba de îndemânare și pick-up',
+        paragraphs: ['Această probă constă în efectuarea unui Pick-Up din apă de sub podul de la Paleto (podul nou). Instructorul îi va cere candidatului să se deplaseze la noul pod Paleto, unde instructorul va coborî pe plajă. Candidatul va merge pe helipadul din Sandy, de unde i se va da startul. Candidatul se va deplasa către podul Paleto, pe deasupra Freeway, va coborî pe sub primul pod metalic pe partea stângă, va înconjura pilonul din mijloc și apoi va face un pick-up dintre luminile roșii de marcaj.'],
         conditions: [
-          'Atingerea podului sau a copacilor duce la respingere.',
-          'Scufundarea sau explodarea elicopterului duce la respingere.',
-          'Candidatul este respins dacă motorul ajunge galben/roșu sau nu aterizează corect pe helipad.'
-        ]
+          'Candidatul va trebui să treacă pe sub pod înainte de Pick-Up.',
+          'Candidatul nu trebuie să atingă podul sau copacii din zonă.',
+          'Imediat după ce se urcă instructorul, acesta va trece PE SUB pod și va merge să aterizeze pe Helipad-ul de la Spitalul Sandy Shores.',
+          'Candidatul va fi declarat RESPINS dacă atinge podul sau copacii, dacă scufundă elicopterul, dacă explodează elicopterul, dacă motorul acestuia este galben/roșu sau dacă nu aterizează corect pe Helipad.'
+        ],
+        imageSlots: 2
       },
       {
-        title: 'Proba 4: Pick-Up de pe Chiliad',
-        paragraphs: ['Instructorul îi cere candidatului să îl lase pe platforma muntelui Chiliad, apoi să meargă la helipadul Spitalului Sandy Shores. De acolo, candidatul revine pentru Pick-Up fără să aterizeze pe platformă. După preluare, îl transportă pe instructor înapoi la helipadul Spitalului Sandy Shores.'],
+        title: 'PROBA 4: Pick-Up de pe Chilliad',
+        paragraphs: ['Această probă constă în efectuarea unui Pick-Up de pe munte. Instructorul îi va cere candidatului să îl lase pe platformă, îi va cere să meargă pe helipadul spital Sandy, după care îi va cere să facă Pick-Up FĂRĂ a ateriza pe platformă. Ulterior Pick-Up-ului, îi va cere candidatului să meargă pe Helipad-ul Spitalului Sandy Shores.'],
         conditions: [
-          'Candidatul trebuie să aterizeze pentru a-l lăsa pe instructor.',
-          'La revenire, candidatul trebuie să aterizeze pe helipadul Spitalului Sandy Shores.',
-          'La Pick-Up nu are voie să scoată roțile, să aterizeze sau să atingă platforma.',
-          'Explodarea elicopterului, motorul galben/roșu sau ratarea aterizării corecte la întoarcere duc la respingere.'
-        ]
+          'Candidatul va trebui să aterizeze pentru a-l lăsa pe instructor.',
+          'Candidatul va trebui să pornească de pe helipad spital Sandy, după care va veni să îi facă Pick-Up.',
+          'Candidatul nu are voie să scoată roțile, nu are voie să aterizeze sau să atingă platforma.',
+          'Candidatul va fi declarat RESPINS dacă explodează elicopterul, dacă motorul acestuia este galben/roșu sau dacă nu aterizează corect pe Helipad la întoarcere.'
+        ],
+        imageSlots: 2
       }
     ]
   },

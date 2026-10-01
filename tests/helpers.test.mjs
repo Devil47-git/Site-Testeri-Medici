@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { accessFor, catalog as accessCatalog, coreTests, effectiveTestsForMember, functionsForMember, isLeadership, normalizeTests, testsForFunctions } from '../api/access/shared.js';
+import { accessFor, candidateForCallsign, catalog as accessCatalog, coreTests, effectiveTestsForMember, functionsForMember, isLeadership, normalizeTests, testsForFunctions } from '../api/access/shared.js';
 import { canResetTestCounts, createAdmissionEmbeds, createAlsResultEmbed, createSpecialtyResultEmbed, createMedicalCertificateEmbeds, medicalCertificateNumberForRow } from '../api/access/test-results.js';
 import { statusFromRow } from '../api/access/directory.js';
 
@@ -91,6 +91,13 @@ test('normalizeCallsign pads to three digits', () => {
   assert.equal(normalizeCallsign('M-7'), 'M-007');
   assert.equal(normalizeCallsign('abc'), '');
   assert.equal(normalizeCallsign(undefined), '');
+});
+
+test('candidate lookup matches callsign in column C and returns the name from column D', () => {
+  const rows = [['', '', '603', 'Antonio Shades'], ['', '', '604', 'Another Candidate']];
+  assert.deepEqual(candidateForCallsign(rows, 'M-603'), { callsign: '603', name: 'Antonio Shades' });
+  assert.equal(candidateForCallsign(rows, 'M-999'), null);
+  assert.equal(candidateForCallsign(rows, ''), null);
 });
 
 test('isLeadershipUser accepts csNum 1-20 and leadership flags', () => {
@@ -283,9 +290,10 @@ test('Moto test unlocks only after all three prerequisites are checked', () => {
 
 test('Moto and Pilot staged practical content is present in test definitions', () => {
   assert.match(testCatalogSource, /practicalStage:[\s\S]*?5:40 minute \(MOTO/);
-  assert.match(testCatalogSource, /evaluationStages:[\s\S]*?Proba 2: Locațiile Pacific/);
-  assert.match(testCatalogSource, /Proba 3: Pick-Up la Spitalul Sandy Shores/);
-  assert.match(testCatalogSource, /Proba 4: Pick-Up de pe Chiliad/);
+  assert.match(testCatalogSource, /PROBA 2: Locațiile Pacific/);
+  assert.match(testCatalogSource, /Buckingham Swift[\s\S]*?3, 2, 1, START[\s\S]*?30 de secunde/);
+  assert.match(testCatalogSource, /PROBA 3: Proba de îndemânare și pick-up[\s\S]*?Paleto[\s\S]*?imageSlots: 2/);
+  assert.match(testCatalogSource, /PROBA 4: Pick-Up de pe Chilliad[\s\S]*?imageSlots: 2/);
 });
 
 test('evaluation stage cards include conditions and explicit pass/fail actions', () => {
@@ -297,6 +305,13 @@ test('evaluation stage cards include conditions and explicit pass/fail actions',
   assert.match(markup, /Condiție/);
   assert.match(markup, /Admis Proba 2/);
   assert.match(markup, /Respins Proba 2/);
+});
+
+test('evaluation stage cards render two right-side image placeholders when requested', () => {
+  const markup = evaluationStageHtml({ title: 'PROBA 3', imageSlots: 2 }, []);
+  assert.match(markup, /evaluation-stage-card has-image-slots/);
+  assert.match(markup, /Imagine de referință 1/);
+  assert.match(markup, /Imagine de referință 2/);
 });
 
 test('admission test rejects the fourth mistake', () => {

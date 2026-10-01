@@ -476,8 +476,23 @@ function wireProfileTestRemoval(member) {
       button.disabled = true;
       status.textContent = 'Se salvează…';
       try {
-        await saveRemoteGrant(normalizeCallsign(member.callsign), nextTests, false, member.discordId, true);
-        await loadDirectory();
+        const saved = await saveRemoteGrant(normalizeCallsign(member.callsign), nextTests, false, member.discordId, true);
+        const updatedMember = {
+          ...member,
+          ...(saved?.grant || {}),
+          grantMode: 'override',
+          grantedTests: normalizeGrantBundle(saved?.grant?.grantedTests ?? nextTests)
+        };
+        const isTarget = candidate => candidate.discordId === member.discordId || normalizeCallsign(candidate.callsign) === normalizeCallsign(member.callsign);
+        testers = testers.map(candidate => isTarget(candidate) ? { ...candidate, ...updatedMember } : candidate);
+        directoryMembers = directoryMembers.map(candidate => isTarget(candidate) ? { ...candidate, ...updatedMember } : candidate);
+        saveTesters();
+        renderRows();
+        renderDashboardData();
+        openTesterProfile(updatedMember, { push: false });
+        document.querySelector('#profile-test-settings')?.click();
+        const updatedStatus = document.querySelector('.profile-test-removal-status');
+        if (updatedStatus) updatedStatus.textContent = `Testul ${displayTestName(test)} a fost scos.`;
       } catch (error) {
         status.textContent = error.message;
         button.disabled = false;
@@ -631,7 +646,8 @@ function evaluationStageHtml(stage, verdictLabels) {
   const paragraphs = (stage.paragraphs || []).map(text => `<p>${escapeHtml(text)}</p>`).join('');
   const conditions = stage.conditions?.length ? `<h4>Condiții</h4><ul>${stage.conditions.map(condition => `<li>${escapeHtml(condition)}</li>`).join('')}</ul>` : '';
   const buttons = verdictLabels.map(label => `<button type="button" class="primary evaluation-verdict" data-evaluation-result="${label.result}">${escapeHtml(label.text)}</button>`).join('');
-  return `<section class="evaluation-stage-card"><h3>${escapeHtml(stage.title)}</h3>${paragraphs}${conditions}<div class="evaluation-stage-actions">${buttons}</div></section>`;
+  const imageSlots = Number(stage.imageSlots) > 0 ? `<aside class="evaluation-stage-images" aria-label="Imagini de referință">${Array.from({ length: Number(stage.imageSlots) }, (_, index) => `<div class="evaluation-stage-image-slot" role="img" aria-label="Imagine de referință ${index + 1}"><span>Imagine ${index + 1}</span></div>`).join('')}</aside>` : '';
+  return `<section class="evaluation-stage-card${imageSlots ? ' has-image-slots' : ''}"><div class="evaluation-stage-copy"><h3>${escapeHtml(stage.title)}</h3>${paragraphs}${conditions}<div class="evaluation-stage-actions">${buttons}</div></div>${imageSlots}</section>`;
 }
 function pilotTheoryStageHtml() {
   return evaluationStageHtml({ title: 'Verdict Proba Teoretică', paragraphs: ['Alege rezultatul teoriei pentru a continua evaluarea Pilot.'] }, [
@@ -837,7 +853,7 @@ function buildTestMarkup(testName, definition, questions) {
   const cases = (definition.cases || []).map((item, index) => `<option value="${index}">${item.title}</option>`).join('');
   const practical = (definition.practical || []).map((item, index) => `<option value="${index}">${item.name}</option>`).join('');
   const candidateCallsign = isApplicationTest || isMedicalCertificate ? '' : '<label class="candidate-call-sign">Callsign candidat<input id="candidate-callsign" type="text" placeholder="510 sau M-510"></label>';
-  const candidateNameField = ['Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști'].includes(testName) ? '<label class="candidate-call-sign">Nume candidat<input id="als-candidate-name" type="text" autocomplete="name"></label>' : '';
+  const candidateNameField = ['Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști'].includes(testName) ? '<label class="candidate-call-sign">Nume candidat<input id="als-candidate-name" type="text" autocomplete="name" readonly placeholder="Se completează după callsign"></label>' : '';
   const candidateDocument = !isApplicationTest && !isMedicalCertificate && testName === 'Adeverință medicală' ? '<label>Imagine document candidat<input id="candidate-document" type="file" accept="image/*"></label><p class="muted">Imaginea este disponibilă testerului pentru verificare manuală.</p>' : '';
   const questionForm = questions.length ? `<form id="test-form" class="question-list">${candidateCallsign}${candidateNameField}<div id="candidate-summary" class="candidate-summary"></div>${candidateDocument}${questions.map(questionItemHtml).join('')}<p>Greșeli: <strong id="wrong-count">0</strong> / ${Number.isFinite(maxWrong) ? maxWrong : '—'}</p><button class="primary" type="submit">Finalizează evaluarea</button></form>` : '<div class="test-runner"><p>Acest ghid nu are întrebări teoretice configurate.</p></div>';
   const gatedQuestionForm = (isAdmissionTest || isMotoTest) && questions.length ? `<div id="${isAdmissionTest ? 'admission-test-content' : 'moto-test-content'}" hidden>${questionForm}</div>` : questionForm;
@@ -945,7 +961,35 @@ function wireTestEvents(testName, definition) {
   const practicalSelect = document.querySelector('#practical-select'); const practicalSteps = document.querySelector('#practical-steps');
   const renderPractical = () => { if (!practicalSelect || !practicalSteps) return; const item = definition.practical[Number(practicalSelect.value)]; practicalSteps.innerHTML = `<h3>${item.name}</h3><p><b>Locație:</b> ${item.location}</p><p><b>Altitudine:</b> ${item.altitude}</p><p><b>Aterizare:</b> ${item.landing}</p>${(item.images || []).map(image => `<a class="test-image-link" href="${image.url}" target="_blank" rel="noopener">${image.label || 'Imagine traseu'}</a>`).join('')}`; }; if (practicalSelect) { practicalSelect.onchange = renderPractical; renderPractical(); }
   const wrongInputs = [...document.querySelectorAll('[data-wrong]')]; wrongInputs.forEach(input => input.onchange = () => { document.querySelector('#wrong-count').textContent = wrongInputs.filter(item => item.checked).length; });
-  const candidateInput = document.querySelector('#candidate-callsign'); const candidateSummaryEl = document.querySelector('#candidate-summary'); const alsCandidateNameInput = document.querySelector('#als-candidate-name'); if (candidateInput && !isApplicationTest) candidateInput.oninput = () => { const member = directoryMembers.find(item => normalizeCallsign(item.callsign) === normalizeCallsign(candidateInput.value)); if (alsCandidateNameInput) alsCandidateNameInput.value = member?.name || ''; if (candidateSummaryEl) candidateSummaryEl.textContent = member ? candidateSummary(member) : ''; };
+  const candidateInput = document.querySelector('#candidate-callsign'); const candidateSummaryEl = document.querySelector('#candidate-summary'); const alsCandidateNameInput = document.querySelector('#als-candidate-name');
+  let candidateLookupTimer;
+  let candidateLookupSequence = 0;
+  if (candidateInput && !isApplicationTest) candidateInput.oninput = () => {
+    const sequence = ++candidateLookupSequence;
+    clearTimeout(candidateLookupTimer);
+    const callsign = candidateInput.value.trim();
+    if (alsCandidateNameInput) alsCandidateNameInput.value = '';
+    if (!callsignNumber(callsign)) { if (candidateSummaryEl) candidateSummaryEl.textContent = ''; return; }
+    if (candidateSummaryEl) candidateSummaryEl.textContent = 'Se caută candidatul…';
+    candidateLookupTimer = setTimeout(async () => {
+      try {
+        const query = new URLSearchParams({ requesterId: currentUser.discordId, callsign });
+        const response = await fetch(`/api/access/directory?${query}`);
+        const payload = await parseApiResponse(response);
+        if (sequence !== candidateLookupSequence) return;
+        if (!response.ok) throw new Error(payload.error || 'Numele candidatului nu a putut fi căutat.');
+        const candidate = payload.candidate;
+        if (!candidate) {
+          if (candidateSummaryEl) candidateSummaryEl.textContent = 'Nu a fost găsit un candidat cu acest callsign.';
+          return;
+        }
+        if (alsCandidateNameInput) alsCandidateNameInput.value = candidate.name;
+        if (candidateSummaryEl) candidateSummaryEl.textContent = `Candidat: @[${normalizeCallsign(candidate.callsign)}] ${candidate.name}`;
+      } catch (error) {
+        if (sequence === candidateLookupSequence && candidateSummaryEl) candidateSummaryEl.textContent = error.message;
+      }
+    }, 300);
+  };
   const form = document.querySelector('#test-form'); if (form) form.onsubmit = async event => {
     event.preventDefault();
     const wrong = wrongInputs.filter(item => item.checked).length;
@@ -1018,12 +1062,14 @@ function wireTestEvents(testName, definition) {
       const stageFlow = document.querySelector('#evaluation-stage-flow');
       const disableTheoryInputs = () => form.querySelectorAll('input,button').forEach(input => { input.disabled = true; });
       const finishStagedTest = async finalResult => {
+        stageFlow.querySelectorAll('button').forEach(button => { button.disabled = true; });
         stageFlow.innerHTML = '<p class="muted">Se înregistrează rezultatul...</p>';
         try {
           const saved = await recordTestRun(testName, finalResult, submissionDetails);
           const candidate = candidateInput?.value?.trim() || '—';
+          const candidateName = alsCandidateNameInput?.value?.trim() || '—';
           const notificationStatus = saved.discordNotificationsSent ? 'Notificarea Discord a fost trimisă.' : `Notificarea Discord nu a fost trimisă. ${saved.discordNotificationError || ''}`;
-          stageFlow.innerHTML = `<pre class="candidate-summary">Test: ${escapeHtml(displayTestName(testName))}\nCallsign: ${escapeHtml(candidate)}\nRezultat: ${finalResult}</pre><p class="muted">Testul a fost înregistrat. ${escapeHtml(notificationStatus)}</p>`;
+          stageFlow.innerHTML = `<pre class="candidate-summary">Test: ${escapeHtml(displayTestName(testName))}\nCandidat: ${escapeHtml(candidateName)}\nCallsign: ${escapeHtml(candidate)}\nRezultat: ${finalResult}</pre><p class="muted">Testul a fost înregistrat. ${escapeHtml(notificationStatus)}</p>`;
         } catch (error) {
           stageFlow.innerHTML = `<p class="error-text">Rezultatul nu s-a putut înregistra: ${escapeHtml(error.message)}</p>`;
         }
@@ -1031,24 +1077,26 @@ function wireTestEvents(testName, definition) {
       disableTheoryInputs();
       stageFlow.hidden = false;
       if (testName === 'Test PILOT') {
-        if (result === 'Respins') { await finishStagedTest(result); return; }
-        const stages = definition.evaluationStages || [];
-        let stageIndex = 0;
-        const renderPilotStage = () => {
+        const stages = window.MEDICAL_TESTS?.['Test PILOT']?.evaluationStages || definition.evaluationStages || [];
+        const renderPilotStage = stageIndex => {
+          const isFinalStage = stageIndex === stages.length - 1;
           const stage = stages[stageIndex];
-          stageFlow.innerHTML = evaluationStageHtml(stage, [
-            { result: 'Admis', text: `Admis Proba ${stageIndex + 2}` },
-            { result: 'Respins', text: `Respins Proba ${stageIndex + 2}` }
-          ]);
+          const verdicts = isFinalStage
+            ? [{ result: 'Admis', text: 'Admis test Pilot' }, { result: 'Respins', text: 'Respins Test pilot' }]
+            : [{ result: 'Admis', text: `Admis Proba ${stageIndex + 2}` }, { result: 'Respins', text: `Respins Proba ${stageIndex + 2}` }];
+          stageFlow.innerHTML = evaluationStageHtml(stage, verdicts);
           stageFlow.querySelectorAll('[data-evaluation-result]').forEach(button => button.onclick = async () => {
             if (button.dataset.evaluationResult === 'Respins') { await finishStagedTest('Respins'); return; }
-            if (stageIndex === stages.length - 1) { await finishStagedTest('Admis'); return; }
-            stageIndex += 1;
-            renderPilotStage();
+            if (isFinalStage) { await finishStagedTest('Admis'); return; }
+            renderPilotStage(stageIndex + 1);
           });
         };
-        if (stages.length) renderPilotStage();
-        else await finishStagedTest('Admis');
+        stageFlow.innerHTML = pilotTheoryStageHtml();
+        stageFlow.querySelectorAll('[data-evaluation-result]').forEach(button => button.onclick = async () => {
+          if (button.dataset.evaluationResult === 'Respins') { await finishStagedTest('Respins'); return; }
+          if (stages.length) renderPilotStage(0);
+          else await finishStagedTest('Admis');
+        });
         return;
       }
 
@@ -1077,7 +1125,9 @@ function wireTestEvents(testName, definition) {
       }
     }
     catch (error) { status = `Rezultatul a fost afișat, dar numărătoarea nu s-a salvat: ${error.message}`; }
-    const summary = isApplicationTest ? admissionCandidateSummary(result) : isMedicalCertificate ? `D.M.L.S. - EVIDENTA MEDICALA NR. ${certificateNumber || '—'}\nNume: ${document.querySelector('#certificate-last-name').value.trim()}\nPrenume: ${document.querySelector('#certificate-first-name').value.trim()}\nRezultat: ${result}` : testName === 'Test ALS' ? `Callsign: ${candidateInput.value.trim()}\nNume candidat: ${alsCandidateNameInput.value.trim()}\nRezultat: ${result}` : candidateSummary(member, result) || `Rezultat: ${result}`;
+    const isSpecialtyTest = ['Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști'].includes(testName);
+    const specialtySummary = isSpecialtyTest ? `Callsign: ${candidateInput.value.trim()}\nNume candidat: ${alsCandidateNameInput.value.trim()}\nRezultat: ${result}` : '';
+    const summary = isApplicationTest ? admissionCandidateSummary(result) : isMedicalCertificate ? `D.M.L.S. - EVIDENTA MEDICA NR. ${certificateNumber || '—'}\nNume: ${document.querySelector('#certificate-last-name').value.trim()}\nPrenume: ${document.querySelector('#certificate-first-name').value.trim()}\nRezultat: ${result}` : specialtySummary || candidateSummary(member, result) || `Rezultat: ${result}`;
     form.innerHTML = `<pre class="candidate-summary">${escapeHtml(summary)}</pre><p class="muted">${escapeHtml(status)}</p>`;
   };
   const runner = document.querySelector('.test-runner');
