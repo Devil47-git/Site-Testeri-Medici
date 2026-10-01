@@ -638,22 +638,16 @@ function motoChecklistHtml() {
 }
 function motoChecksComplete(checks) { return checks.length === motoRequirements.length && checks.every(Boolean); }
 function isTestFailed(wrong, maxWrong) { return wrong > maxWrong; }
-function maxWrongForTest(testName, maxWrong) { return testName === 'Test admitere' ? 3 : Number(maxWrong ?? Infinity); }
+function maxWrongForTest(testName, maxWrong) { return testName === 'Test admitere' ? 3 : testName === 'Test PILOT' ? 1 : Number(maxWrong ?? Infinity); }
 function questionItemHtml(question, index) {
   return `<fieldset><p class="question-prompt">${index + 1}. ${question.text}</p><div class="correct-answer"><span>${question.answer || 'Verifică ghidul.'}</span><label class="answer-check"><input type="checkbox" data-wrong="${index}"> Răspuns greșit</label></div></fieldset>`;
 }
 function evaluationStageHtml(stage, verdictLabels) {
   const paragraphs = (stage.paragraphs || []).map(text => `<p>${escapeHtml(text)}</p>`).join('');
   const conditions = stage.conditions?.length ? `<h4>Condiții</h4><ul>${stage.conditions.map(condition => `<li>${escapeHtml(condition)}</li>`).join('')}</ul>` : '';
-  const buttons = verdictLabels.map(label => `<button type="button" class="primary evaluation-verdict" data-evaluation-result="${label.result}">${escapeHtml(label.text)}</button>`).join('');
+  const buttons = verdictLabels.map(label => `<button type="button" class="primary evaluation-verdict evaluation-verdict-${label.result === 'Admis' ? 'admitted' : 'rejected'}" data-evaluation-result="${label.result}">${escapeHtml(label.text)}</button>`).join('');
   const imageSlots = Number(stage.imageSlots) > 0 ? `<aside class="evaluation-stage-images" aria-label="Imagini de referință">${Array.from({ length: Number(stage.imageSlots) }, (_, index) => `<div class="evaluation-stage-image-slot" role="img" aria-label="Imagine de referință ${index + 1}"><span>Imagine ${index + 1}</span></div>`).join('')}</aside>` : '';
   return `<section class="evaluation-stage-card${imageSlots ? ' has-image-slots' : ''}"><div class="evaluation-stage-copy"><h3>${escapeHtml(stage.title)}</h3>${paragraphs}${conditions}<div class="evaluation-stage-actions">${buttons}</div></div>${imageSlots}</section>`;
-}
-function pilotTheoryStageHtml() {
-  return evaluationStageHtml({ title: 'Verdict Proba Teoretică', paragraphs: ['Alege rezultatul teoriei pentru a continua evaluarea Pilot.'] }, [
-    { result: 'Admis', text: 'Admis Proba Teoretică' },
-    { result: 'Respins', text: 'Respins Proba Teoretică' }
-  ]);
 }
 function parseIdentityCardText(text) {
   const rawText = String(text || '');
@@ -854,16 +848,29 @@ function buildTestMarkup(testName, definition, questions) {
   const practical = (definition.practical || []).map((item, index) => `<option value="${index}">${item.name}</option>`).join('');
   const candidateCallsign = isApplicationTest || isMedicalCertificate ? '' : '<label class="candidate-call-sign">Callsign candidat<input id="candidate-callsign" type="text" placeholder="510 sau M-510"></label>';
   const candidateNameField = ['Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști'].includes(testName) ? '<label class="candidate-call-sign">Nume candidat<input id="als-candidate-name" type="text" autocomplete="name" readonly placeholder="Se completează după callsign"></label>' : '';
+  const candidateIdentityFields = candidateCallsign && candidateNameField
+    ? `<div class="candidate-identity-fields">${candidateCallsign}${candidateNameField}</div>`
+    : `${candidateCallsign}${candidateNameField}`;
+  const evaluationActions = testName === 'Test PILOT'
+    ? '<div class="evaluation-stage-actions"><button class="primary evaluation-verdict evaluation-verdict-admitted" type="submit" data-pilot-theory-result="Admis">Admis Proba Teoretică</button><button class="primary evaluation-verdict evaluation-verdict-rejected" type="submit" data-pilot-theory-result="Respins">Respins Proba Teoretică</button></div>'
+    : '<button class="primary" type="submit">Finalizează evaluarea</button>';
   const candidateDocument = !isApplicationTest && !isMedicalCertificate && testName === 'Adeverință medicală' ? '<label>Imagine document candidat<input id="candidate-document" type="file" accept="image/*"></label><p class="muted">Imaginea este disponibilă testerului pentru verificare manuală.</p>' : '';
-  const questionForm = questions.length ? `<form id="test-form" class="question-list">${candidateCallsign}${candidateNameField}<div id="candidate-summary" class="candidate-summary"></div>${candidateDocument}${questions.map(questionItemHtml).join('')}<p>Greșeli: <strong id="wrong-count">0</strong> / ${Number.isFinite(maxWrong) ? maxWrong : '—'}</p><button class="primary" type="submit">Finalizează evaluarea</button></form>` : '<div class="test-runner"><p>Acest ghid nu are întrebări teoretice configurate.</p></div>';
+  const questionForm = questions.length ? `<form id="test-form" class="question-list">${candidateIdentityFields}<div id="candidate-summary" class="candidate-summary"></div>${candidateDocument}${questions.map(questionItemHtml).join('')}<p>Greșeli: <strong id="wrong-count">0</strong> / ${Number.isFinite(maxWrong) ? maxWrong : '—'}</p>${evaluationActions}</form>` : '<div class="test-runner"><p>Acest ghid nu are întrebări teoretice configurate.</p></div>';
   const gatedQuestionForm = (isAdmissionTest || isMotoTest) && questions.length ? `<div id="${isAdmissionTest ? 'admission-test-content' : 'moto-test-content'}" hidden>${questionForm}</div>` : questionForm;
   const evaluationStageFlow = ['Test PILOT', 'Test MOTO'].includes(testName) ? '<div id="evaluation-stage-flow" hidden></div>' : '';
   const instructions = isAdmissionTest || testName === 'Test transfer' || isMedicalCertificate || !definition.instructions ? '' : `<p class="test-instructions">${definition.instructions}</p>`;
-  const guideBody = `${candidateDetails}${admissionChecks}${motoChecks}<p class="muted">${description}</p>${instructions}${cases ? `<label>Cazul ales de candidat<select id="case-select">${cases}</select></label><div id="case-steps" class="case-steps"></div>` : ''}${practical ? `<label>Probă practică<select id="practical-select">${practical}</select></label><div id="practical-steps" class="case-steps"></div>` : ''}${gatedQuestionForm}${evaluationStageFlow}`;
+  const pilotIntro = testName === 'Test PILOT' ? `<div class="pilot-intro-box"><p class="muted">${description}</p>${instructions}</div>` : `<p class="muted">${description}</p>${instructions}`;
+  const guideBody = `${candidateDetails}${admissionChecks}${motoChecks}${pilotIntro}${cases ? `<label>Cazul ales de candidat<select id="case-select">${cases}</select></label><div id="case-steps" class="case-steps"></div>` : ''}${practical ? `<label>Probă practică<select id="practical-select">${practical}</select></label><div id="practical-steps" class="case-steps"></div>` : ''}${gatedQuestionForm}${evaluationStageFlow}`;
   const content = testName === 'Test SMULS' && images
     ? `<div class="test-with-map"><div class="test-main-column">${guideBody}</div><aside class="test-map-column">${images}</aside></div>`
     : `${guideBody}${images ? `<div class="test-images">${images}</div>` : ''}`;
-  return `<div class="panel view-panel"><div class="panel-head"><div><p class="eyebrow">GHID PENTRU TESTER</p><h2>${displayTestName(testName)}</h2><p class="muted">Acces permanent pentru testerul conectat: ${normalizeCallsign(currentUser?.callsign)}.</p></div><button class="outline" id="back-to-tests">← Înapoi</button></div>${testAccessMarkup(testName)}${content}</div>`;
+  const testAccessControl = testAccessMarkup(testName);
+  const headerSubtitle = testName === 'Test PILOT' ? '' : `<p class="muted">Acces permanent pentru testerul conectat: ${normalizeCallsign(currentUser?.callsign)}.</p>`;
+  const headerActions = testName === 'Test PILOT'
+    ? `<div class="test-guide-header-actions">${testAccessControl}<button class="outline" id="back-to-tests">← Înapoi</button></div>`
+    : '<button class="outline" id="back-to-tests">← Înapoi</button>';
+  const testAccessSection = testName === 'Test PILOT' ? '' : testAccessControl;
+  return `<div class="panel view-panel"><div class="panel-head"><div><p class="eyebrow">GHID PENTRU TESTER</p><h2>${displayTestName(testName)}</h2>${headerSubtitle}</div>${headerActions}</div>${testAccessSection}${content}</div>`;
 }
 function wireTestEvents(testName, definition) {
   const isAdmissionTest = testName === 'Test admitere';
@@ -992,6 +999,7 @@ function wireTestEvents(testName, definition) {
   };
   const form = document.querySelector('#test-form'); if (form) form.onsubmit = async event => {
     event.preventDefault();
+    if (testName === 'Test PILOT' && !event.submitter?.dataset.pilotTheoryResult) return;
     const wrong = wrongInputs.filter(item => item.checked).length;
     const limit = maxWrongForTest(testName, definition.maxWrong);
     const result = isMedicalCertificate
@@ -1077,6 +1085,9 @@ function wireTestEvents(testName, definition) {
       disableTheoryInputs();
       stageFlow.hidden = false;
       if (testName === 'Test PILOT') {
+        form.hidden = true;
+        form.closest('.view-panel')?.classList.add('pilot-stage-active');
+        const theoryResult = event.submitter.dataset.pilotTheoryResult;
         const stages = window.MEDICAL_TESTS?.['Test PILOT']?.evaluationStages || definition.evaluationStages || [];
         const renderPilotStage = stageIndex => {
           const isFinalStage = stageIndex === stages.length - 1;
@@ -1084,19 +1095,18 @@ function wireTestEvents(testName, definition) {
           const verdicts = isFinalStage
             ? [{ result: 'Admis', text: 'Admis test Pilot' }, { result: 'Respins', text: 'Respins Test pilot' }]
             : [{ result: 'Admis', text: `Admis Proba ${stageIndex + 2}` }, { result: 'Respins', text: `Respins Proba ${stageIndex + 2}` }];
+          stageFlow.replaceChildren();
           stageFlow.innerHTML = evaluationStageHtml(stage, verdicts);
+          stageFlow.scrollIntoView({ behavior: 'smooth', block: 'start' });
           stageFlow.querySelectorAll('[data-evaluation-result]').forEach(button => button.onclick = async () => {
             if (button.dataset.evaluationResult === 'Respins') { await finishStagedTest('Respins'); return; }
             if (isFinalStage) { await finishStagedTest('Admis'); return; }
             renderPilotStage(stageIndex + 1);
           });
         };
-        stageFlow.innerHTML = pilotTheoryStageHtml();
-        stageFlow.querySelectorAll('[data-evaluation-result]').forEach(button => button.onclick = async () => {
-          if (button.dataset.evaluationResult === 'Respins') { await finishStagedTest('Respins'); return; }
-          if (stages.length) renderPilotStage(0);
-          else await finishStagedTest('Admis');
-        });
+        if (theoryResult === 'Respins') await finishStagedTest('Respins');
+        else if (stages.length) renderPilotStage(0);
+        else await finishStagedTest('Admis');
         return;
       }
 

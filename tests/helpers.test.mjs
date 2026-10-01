@@ -296,6 +296,16 @@ test('Moto and Pilot staged practical content is present in test definitions', (
   assert.match(testCatalogSource, /PROBA 4: Pick-Up de pe Chilliad[\s\S]*?imageSlots: 2/);
 });
 
+test('Pilot certification description and instructions share one intro box', () => {
+  assert.match(source, /testName === 'Test PILOT' \? `<div class="pilot-intro-box"><p class="muted">\$\{description\}<\/p>\$\{instructions\}<\/div>`/);
+});
+
+test('Pilot hides the permanent-access subtitle and places access controls in its header', () => {
+  assert.match(source, /const headerSubtitle = testName === 'Test PILOT' \? ''/);
+  assert.match(source, /class="test-guide-header-actions">\$\{testAccessControl\}/);
+  assert.match(source, /const testAccessSection = testName === 'Test PILOT' \? ''/);
+});
+
 test('evaluation stage cards include conditions and explicit pass/fail actions', () => {
   const markup = evaluationStageHtml({ title: 'Proba 2', paragraphs: ['Detaliu'], conditions: ['Condiție'] }, [
     { result: 'Admis', text: 'Admis Proba 2' },
@@ -305,6 +315,15 @@ test('evaluation stage cards include conditions and explicit pass/fail actions',
   assert.match(markup, /Condiție/);
   assert.match(markup, /Admis Proba 2/);
   assert.match(markup, /Respins Proba 2/);
+  assert.match(markup, /evaluation-verdict-admitted/);
+  assert.match(markup, /evaluation-verdict-rejected/);
+});
+
+test('Pilot verdict buttons isolate the current stage and use distinct verdict styles', () => {
+  assert.match(source, /data-pilot-theory-result="Admis">Admis Proba Teoretică/);
+  assert.match(source, /data-pilot-theory-result="Respins">Respins Proba Teoretică/);
+  assert.match(source, /pilot-stage-active/);
+  assert.match(source, /stageFlow\.replaceChildren\(\)/);
 });
 
 test('evaluation stage cards render two right-side image placeholders when requested', () => {
@@ -319,7 +338,9 @@ test('admission test rejects the fourth mistake', () => {
   assert.equal(limit, 3);
   assert.equal(isTestFailed(3, limit), false);
   assert.equal(isTestFailed(4, limit), true);
+  assert.equal(maxWrongForTest('Test PILOT'), 1);
   assert.equal(maxWrongForTest('Test transfer', 2), 2);
+  assert.match(source, /wrong-count'\)\.textContent = wrongInputs\.filter\(item => item\.checked\)\.length/);
 });
 
 test('Discord session and browser auth cache both last 24 hours', () => {
@@ -458,6 +479,7 @@ test('ALS guide form includes callsign and candidate name inputs', () => {
   assert.match(formMarkup, /Nume candidat/);
   assert.match(formMarkup, /als-candidate-name/);
   for (const testName of ['Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști']) assert.ok(formMarkup.includes(testName));
+  assert.match(source, /class="candidate-identity-fields">\$\{candidateCallsign\}\$\{candidateNameField\}/);
 });
 
 test('medical certificates start at 7015 and stop at 30000', () => {
