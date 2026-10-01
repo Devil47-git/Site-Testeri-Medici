@@ -334,14 +334,19 @@ test('identity card OCR skips misread labels and reads the name values below the
   assert.deepEqual(details, { name: 'Chirculescu Andrei', lastName: 'Chirculescu', firstName: 'Andrei', cnp: '1033124177982' });
 });
 
-test('identity card OCR removes malformed inline label fragments around names', () => {
-  const details = parseIdentityCardText('CNP 1033124177982 Nume/Nom/Last rame Prenontiat Rar Chirculescu Prenume/Prenom/First name Andrei');
-  assert.deepEqual(details, { name: 'Chirculescu Andrei', lastName: 'Chirculescu', firstName: 'Andrei', cnp: '1033124177982' });
+test('identity card OCR does not interpret embedded label fragments as names', () => {
+  const details = parseIdentityCardText('CNP 1033124177982QECDECCOEA\nEronume Preno Eli TSS');
+  assert.deepEqual(details, { name: '', lastName: '', firstName: '', cnp: '1033124177982' });
+});
+
+test('identity card OCR keeps real 13-character alphanumeric CNPs and longer numeric values', () => {
+  assert.equal(parseIdentityCardText('CNP 104182531ARZ6').cnp, '104182531ARZ6');
+  assert.equal(parseIdentityCardText('CNP 124761832451723176').cnp, '124761832451723176');
 });
 
 test('identity card OCR preserves letters in an alphanumeric CNP', () => {
-  const details = parseIdentityCardText('CNP AB1033I24177982\nNume/Nom/Last name\nChirculescu\nPrenume/Prenom/First name\nAndrei');
-  assert.equal(details.cnp, 'AB1033I24177982');
+  const details = parseIdentityCardText('CNP 104182531ARZ6\nNume/Nom/Last name\nRuiz\nPrenume/Prenom/First name\nAlexandro');
+  assert.equal(details.cnp, '104182531ARZ6');
 });
 
 test('parachute test display name is simplified without changing its catalog key', () => {

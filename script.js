@@ -594,55 +594,62 @@ function parseIdentityCardText(text) {
   const rawText = String(text || '');
   const lines = rawText.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
   const fieldMarker = /\b(?:Nume|Nom|Last|name|Prenume|Prenom|Pren\w*|First|CNP|SERIE?|ID|Nationality|Sex|Birth)\b/i;
-  const isFieldLabel = value => fieldMarker.test(String(value || '').trim());
   const isNameValue = value => {
     const candidate = String(value || '').replace(/^[\s:;,.|/_-]+|[\s:;,.|/_-]+$/g, '').trim();
     return Boolean(candidate && !fieldMarker.test(candidate) && /^[\p{L}][\p{L}'’ -]{0,79}$/u.test(candidate) && candidate.split(/\s+/).length <= 5);
   };
-  const removeLabelNoise = value => String(value || '')
-    .replace(/\bLast\s+(?:name|[a-z]{2,8})\b/gi, ' ')
-    .replace(/\bPren\w*(?:\s+[a-z]{2,8})?\b/gi, ' ')
-    .replace(/\b(?:Nume|Nom|First\s*name|CNP|SERIE?|ID)\b/gi, ' ')
-    .replace(/[|/]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  const valueAfterLabel = (pattern, labelPattern, nextLabel, fuzzyLabel = null) => {
-    let index = lines.findIndex(line => pattern.test(line));
+  const labelPrefix = '^\\s*(?:[iIl|]*\\s*)?';
+  const lastNameAliases = '(?:Nume|Nom|Last\\s*name)';
+  const firstNameAliases = '(?:Prenume|Prenom|First\\s*name)';
+  const lastNamePattern = new RegExp(`${labelPrefix}${lastNameAliases}(?:\\s*[\\/|]\\s*${lastNameAliases})*\\b`, 'i');
+  const firstNamePattern = new RegExp(`(?:^|[\\s/|])(?:[iIl|]*\\s*)?${firstNameAliases}(?:\\s*[\\/|]\\s*${firstNameAliases})*\\b`, 'i');
+  const fuzzyFirstNamePattern = /^\s*(?:[iIl|]*\s*)?Pren\w{3,}(?:\s+[a-z]{2,8})?\b/i;
+  const anyLabelAtStart = new RegExp(`${labelPrefix}(?:Nume|Nom|Last\\s*name|Prenume|Prenom|First\\s*name|CNP|SERIE?|ID|Nationality|Sex|Birth)\\b`, 'i');
+  const extractName = (labelPattern, stripPattern, stopPattern, fuzzyPattern = null) => {
+    let index = lines.findIndex(line => labelPattern.test(line));
     let fuzzyMatch = false;
-    if (index < 0 && fuzzyLabel) {
-      index = lines.findIndex(line => fuzzyLabel.test(line));
+    if (index < 0 && fuzzyPattern) {
+      index = lines.findIndex(line => fuzzyPattern.test(line));
       fuzzyMatch = index >= 0;
     }
     if (index < 0) return '';
-    let inline = fuzzyMatch
-      ? lines[index].slice(lines[index].search(fuzzyLabel) + lines[index].match(fuzzyLabel)[0].length)
-      : lines[index].slice(lines[index].search(pattern)).replace(labelPattern, '');
-    const nextField = inline.search(nextLabel);
-    if (nextField >= 0) inline = inline.slice(0, nextField).trim();
-    inline = removeLabelNoise(inline);
+    const labelMatch = lines[index].match(fuzzyMatch ? fuzzyPattern : labelPattern);
+    let inline = fuzzyMatch || !labelMatch
+      ? ''
+      : lines[index].slice(labelMatch.index + labelMatch[0].length).replace(stripPattern, '');
+    const nextField = inline.search(stopPattern);
+    if (nextField >= 0) inline = inline.slice(0, nextField);
     if (isNameValue(inline)) return inline.replace(/^[\s:;,.|/_-]+|[\s:;,.|/_-]+$/g, '').trim();
     for (const line of lines.slice(index + 1)) {
-      if (nextLabel.test(line)) break;
+      if (anyLabelAtStart.test(line)) break;
+      if (fuzzyFirstNamePattern.test(line)) break;
       if (isNameValue(line)) return line.replace(/^[\s:;,.|/_-]+|[\s:;,.|/_-]+$/g, '').trim();
     }
     return '';
   };
-  const lastNameLabels = '(?:Nume|Nom|Last\\s*name)';
-  const firstNameLabels = '(?:Prenume|Prenom|First\\s*name)';
-  const labelPrefix = '(?:[iIl|]*\\s*)?';
-  const lastName = valueAfterLabel(new RegExp(`${labelPrefix}(?:${lastNameLabels})`, 'i'), new RegExp(`^${labelPrefix}(?:${lastNameLabels})(?:\\s*[\\/|]\\s*${lastNameLabels})*\\s*[:\\-]?\\s*`, 'i'), new RegExp(`${labelPrefix}(?:${firstNameLabels}|CNP|SERIE?|ID)`, 'i'));
-  const firstName = valueAfterLabel(new RegExp(`${labelPrefix}(?:${firstNameLabels})`, 'i'), new RegExp(`^${labelPrefix}(?:${firstNameLabels})(?:\\s*[\\/|]\\s*${firstNameLabels})*\\s*[:\\-]?\\s*`, 'i'), new RegExp(`${labelPrefix}(?:CNP|SERIE?|ID)`, 'i'), /^\s*(?:[iIl|]*\s*)?Pren\w{3,}(?:\s+[a-z]{2,8})?\b/i);
-  const cnpIndex = lines.findIndex(line => /C\s*N\s*P/i.test(line));
+  const lastName = extractName(
+    lastNamePattern,
+    /^\s*(?:[iIl|]*\s*)?(?:Nume|Nom|Last\s*name)(?:\s*[\/|]\s*(?:Nume|Nom|Last\s*name))*\s*[:\-]?\s*/i,
+    /(?:Prenume|Prenom|First\s*name|CNP|SERIE?|ID)\b/i,
+  );
+  const firstName = extractName(
+    firstNamePattern,
+    /^(?:\s|\/|\|)*(?:Prenume|Prenom|First\s*name)(?:\s*[\/|]\s*(?:Prenume|Prenom|First\s*name))*\s*[:\-]?\s*/i,
+    /(?:CNP|SERIE?|ID)\b/i,
+    fuzzyFirstNamePattern,
+  );
+  const cnpIndex = lines.findIndex(line => /^\s*C\s*N\s*P\b/i.test(line));
   const cnpLine = cnpIndex < 0 ? '' : lines[cnpIndex];
-  const cnpLabel = cnpLine.match(/C\s*N\s*P/i);
+  const cnpLabel = cnpLine.match(/^\s*C\s*N\s*P\b/i);
   let cnpValue = cnpLabel
     ? cnpLine.slice(cnpLabel.index + cnpLabel[0].length).trim() || lines[cnpIndex + 1] || ''
     : '';
   const nextCnpField = cnpValue.search(/(?:Nume|Nom|Last\s*name|Prenume|Prenom|First\s*name|SERIE?|ID)\b/i);
   if (nextCnpField >= 0) cnpValue = cnpValue.slice(0, nextCnpField);
-  const cnp = [...cnpValue.matchAll(/[A-Z0-9](?:[\s.-]*[A-Z0-9]){12,23}/gi)]
+  const cnpToken = [...cnpValue.matchAll(/[A-Z0-9](?:[\s.-]*[A-Z0-9]){12,23}/gi)]
     .map(match => match[0].replace(/[\s.-]/g, '').toUpperCase())
     .find(value => value.length >= 13 && value.length <= 24) || '';
+  const cnp = /[A-Z]/i.test(cnpToken) && cnpToken.length > 13 ? cnpToken.slice(0, 13) : cnpToken;
   return { name: [lastName, firstName].filter(Boolean).join(' '), lastName, firstName, cnp };
 }
 function mergeIdentityCardDetails(primary, retry) {
@@ -686,13 +693,22 @@ async function readIdentityCard(file) {
   const tesseract = await loadIdentityOcr();
   const worker = await tesseract.createWorker('ron+eng');
   try {
-    let details = parseIdentityCardText((await worker.recognize(file)).data.text);
-    if (!details.name || !details.cnp) {
-      await worker.setParameters({ tessedit_pageseg_mode: '11' });
-      const retryDetails = parseIdentityCardText((await worker.recognize(file)).data.text);
-      details = mergeIdentityCardDetails(details, retryDetails);
-    }
-    return details;
+    const fullText = (await worker.recognize(file)).data.text;
+    const image = await createImageBitmap(file);
+    const crop = document.createElement('canvas');
+    const sourceX = Math.round(image.width * 0.23);
+    const sourceY = Math.round(image.height * 0.16);
+    const sourceWidth = Math.round(image.width * 0.71);
+    const sourceHeight = Math.round(image.height * 0.48);
+    crop.width = sourceWidth * 2;
+    crop.height = sourceHeight * 2;
+    const context = crop.getContext('2d');
+    context.filter = 'grayscale(1) contrast(1.35)';
+    context.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, crop.width, crop.height);
+    image.close();
+    await worker.setParameters({ tessedit_pageseg_mode: 6, preserve_interword_spaces: '1' });
+    const croppedText = (await worker.recognize(crop)).data.text;
+    return mergeIdentityCardDetails(parseIdentityCardText(croppedText), parseIdentityCardText(fullText));
   } finally {
     await worker.terminate();
   }
