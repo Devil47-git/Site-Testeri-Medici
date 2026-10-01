@@ -89,6 +89,23 @@ body.dark-mode .tester-access-table td:nth-child(4) .tag.cyan{border-color:rgba(
 .smuls-offroad-layout .test-map-column{position:static;min-width:0}
 .smuls-offroad-layout .test-image-preview img{width:100%;max-height:calc(100vh - 180px);object-fit:contain}
 .smuls-stage-active>:not(.panel-head):not(#evaluation-stage-flow){display:none}
+.parachutism-practical-stage[hidden],#evaluation-stage-flow[hidden]{display:none}
+.parachutism-practical-stage{display:grid;gap:14px;margin-top:18px}
+.parachutism-checklist{margin-top:14px}
+.parachutism-information-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:14px 0}
+.parachutism-information-card{padding:15px;border:1px solid #c6383d;border-radius:6px;background:var(--surface-alt);color:var(--ink)}
+.parachutism-information-card h3{margin:0 0 10px;color:var(--ink);font-size:14px;font-weight:700}
+.parachutism-information-card ul{display:grid;gap:8px;margin:0;padding-left:20px;font-size:14px;font-weight:600;line-height:1.55}
+.parachutism-practical-stage>h3{margin:0;color:var(--ink);font-size:17px}
+.parachutism-case-list{display:grid;gap:10px}
+.parachutism-case{background:var(--surface-alt)}
+.parachutism-case summary{font-size:14px}
+.parachutism-photo-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:12px}
+.parachutism-photo-slot{display:grid;align-content:start;gap:7px;min-width:0;min-height:150px;padding:9px;border:1px dashed #c6383d;border-radius:6px;background:rgba(198,56,61,.06);color:var(--ink);font-size:12px;font-weight:700}
+.parachutism-photo-slot img{width:100%;aspect-ratio:16/10;object-fit:cover;border-radius:4px}
+.parachutism-photo-empty{display:grid;place-items:center;min-height:90px;color:var(--muted);font-weight:500}
+.parachutism-photo-slot input{width:100%;min-width:0;font-size:11px}
+.view-panel.parachutism-stage-active>:not(.panel-head):not(#evaluation-stage-flow):not(#parachutism-practical-stage){display:none}
 .evaluation-stage-card{padding:18px;border:1px solid #c6383d;border-radius:8px;background:linear-gradient(125deg,#30202a,#1b2230);box-shadow:0 0 12px #ffffff20;color:var(--ink)}
 .evaluation-stage-card h3{margin:0 0 12px;color:#fff;font-size:16px}
 .evaluation-stage-card p{margin:8px 0;line-height:1.6;white-space:pre-line}
@@ -126,7 +143,9 @@ body.dark-mode .tester-access-table td:nth-child(4) .tag.cyan{border-color:rgba(
 .test-map-column .test-image-preview{width:100%;box-shadow:0 0 10px #ffffff40}
 .test-map-column .test-image-preview img{width:100%;max-height:calc(100vh - 140px)}
 @media(max-width:860px){.test-with-map{grid-template-columns:minmax(0,1fr)}.test-map-column{position:static;grid-row:1}.evaluation-stage-card.has-image-slots{grid-template-columns:minmax(0,1fr)}.evaluation-stage-images{grid-template-columns:repeat(auto-fit,minmax(120px,1fr));grid-template-rows:auto}.evaluation-stage-image-slot{min-height:120px}.smuls-descarceration-layout{grid-template-columns:minmax(0,1fr)}.smuls-descarceration-images{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:auto}.smuls-case-image-slot{min-height:110px}.smuls-offroad-layout{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:700px){.parachutism-information-grid{grid-template-columns:minmax(0,1fr)}}
 @media(max-width:620px){.test-guide-header-actions{flex-wrap:wrap;justify-content:flex-end}}
+@media(max-width:760px){.sidebar{position:fixed;left:-245px;top:0;bottom:0;z-index:9;width:245px;height:100vh;transition:.2s}.sidebar.open{left:0}.main-content{width:100%;min-width:0}}
 .correct-answer{background:linear-gradient(110deg,#7f2636,#c93643);border-color:#dc4851;color:#fff1f2}
 .question-list fieldset{border:1px solid #dc4851;border-radius:8px;padding:12px 14px;background:linear-gradient(110deg,#7f2636,#c93643);color:#fff1f2}
 .question-prompt{margin:0 0 4px;color:#fff;font-size:15px;font-weight:700;line-height:1.4}

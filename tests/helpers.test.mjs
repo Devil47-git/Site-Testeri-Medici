@@ -33,7 +33,7 @@ function extract(name) {
 const catalog = ['Test admitere', 'Test transfer', 'Adeverință medicală', 'Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști'];
 const definitions = Object.fromEntries(catalog.map(n => [n, { name: n, questions: [] }]));
 
-const names = ['callsignNumber', 'normalizeCallsign', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberHasTestAccess', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'sortMembers', 'gradeGroupFor', 'mergeTestDefinitions', 'admissionChecklistHtml', 'admissionChecksComplete', 'motoChecksComplete', 'alsChecklistHtml', 'alsChecksComplete', 'alsCaseListHtml', 'smulsChecklistHtml', 'smulsChecksComplete', 'smulsCaseListHtml', 'memberStatus', 'testerFunctionsForDisplay', 'isTestFailed', 'maxWrongForTest', 'cachedUserWithinSession', 'questionItemHtml', 'evaluationStageHtml', 'parseIdentityCardText', 'mergeIdentityCardDetails', 'displayTestName'];
+const names = ['callsignNumber', 'normalizeCallsign', 'testNameFromHash', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberHasTestAccess', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'sortMembers', 'gradeGroupFor', 'mergeTestDefinitions', 'admissionChecklistHtml', 'admissionChecksComplete', 'motoChecksComplete', 'alsChecklistHtml', 'alsChecksComplete', 'alsCaseListHtml', 'smulsChecklistHtml', 'smulsChecksComplete', 'smulsCaseListHtml', 'memberStatus', 'testerFunctionsForDisplay', 'isTestFailed', 'maxWrongForTest', 'cachedUserWithinSession', 'questionItemHtml', 'evaluationStageHtml', 'parseIdentityCardText', 'mergeIdentityCardDetails', 'displayTestName'];
 const srcs = names.map(extract).join('\n');
 const pattern = source.match(/^const RESIDENT_TESTER_PATTERN = .*$/m)?.[0] || 'const RESIDENT_TESTER_PATTERN = /TESTER/;';
 const normalizeTextSrc = extract('normalizeText');
@@ -44,10 +44,10 @@ const load = new Function(
   'catalog',
   'testDefinitions',
   'testSummaryDefinitions',
-  `${fullSrc}\nreturn { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, mergeTestDefinitions, admissionChecklistHtml, admissionChecksComplete, motoChecksComplete, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName };`,
+  `${fullSrc}\nreturn { callsignNumber, normalizeCallsign, testNameFromHash, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, mergeTestDefinitions, admissionChecklistHtml, admissionChecksComplete, motoChecksComplete, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName };`,
 )(catalog, definitions, testSummaryDefinitions);
 
-const { callsignNumber, normalizeCallsign, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, mergeTestDefinitions, admissionChecklistHtml, admissionChecksComplete, motoChecksComplete, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName } = load;
+const { callsignNumber, normalizeCallsign, testNameFromHash, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, mergeTestDefinitions, admissionChecklistHtml, admissionChecksComplete, motoChecksComplete, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName } = load;
 
 test('Discord auth preserves the Discord display name, username, and avatar', () => {
   const mapperSource = discordAuthSource.match(/function mapSheetRowToUser\(row, discordUser\) \{[\s\S]*?^\}/m)?.[0];
@@ -101,6 +101,13 @@ test('normalizeCallsign pads to three digits', () => {
   assert.equal(normalizeCallsign(undefined), '');
 });
 
+test('testNameFromHash restores URL-encoded test routes safely', () => {
+  assert.equal(testNameFromHash('#test-Test%20MOTO'), 'Test MOTO');
+  assert.equal(testNameFromHash('#test-Test%20PILOT'), 'Test PILOT');
+  assert.equal(testNameFromHash('#statistics'), '');
+  assert.equal(testNameFromHash('#test-%E0%A4%A'), '');
+});
+
 test('candidate lookup matches callsign in column C and returns the name from column D', () => {
   const rows = [['', '', '603', 'Antonio Shades'], ['', '', '604', 'Another Candidate']];
   assert.deepEqual(candidateForCallsign(rows, 'M-603'), { callsign: '603', name: 'Antonio Shades' });
@@ -111,15 +118,25 @@ test('candidate lookup matches callsign in column C and returns the name from co
 test('saved test definitions inherit newly shipped practical stages and cases', () => {
   const defaults = {
     'Test MOTO': { title: 'MOTO', practicalStage: { title: 'Proba 2' }, questions: [{ text: 'Q' }] },
-    'Test SMULS': { cases: [{ title: 'Descarcerare' }], images: [{ url: '/map.png' }] }
+    'Test SMULS': { cases: [{ title: 'Descarcerare' }], images: [{ url: '/map.png' }] },
+    'Test parașutiști': { practical: [{ name: 'Ușoară', imageSlots: 3 }, { name: 'Medie', imageSlots: 2 }, { name: 'Dificilă', imageSlots: 2 }] }
   };
-  const merged = mergeTestDefinitions(defaults, { 'Test MOTO': { title: 'MOTO personalizat' }, 'Test SMULS': { description: 'Text salvat' } });
+  const merged = mergeTestDefinitions(defaults, {
+    'Test MOTO': { title: 'MOTO personalizat' },
+    'Test SMULS': { description: 'Text salvat' },
+    'Test parașutiști': { practical: [{ name: 'Ușoară personalizată' }, { name: 'Medie personalizată' }] }
+  });
   assert.equal(merged['Test MOTO'].title, 'MOTO personalizat');
   assert.deepEqual(merged['Test MOTO'].practicalStage, defaults['Test MOTO'].practicalStage);
   assert.deepEqual(merged['Test MOTO'].questions, defaults['Test MOTO'].questions);
   assert.deepEqual(merged['Test SMULS'].cases, defaults['Test SMULS'].cases);
   assert.deepEqual(merged['Test SMULS'].images, defaults['Test SMULS'].images);
   assert.equal(merged['Test SMULS'].description, 'Text salvat');
+  assert.equal(merged['Test parașutiști'].practical.length, 3);
+  assert.equal(merged['Test parașutiști'].practical[0].name, 'Ușoară personalizată');
+  assert.equal(merged['Test parașutiști'].practical[0].imageSlots, 3);
+  assert.equal(merged['Test parașutiști'].practical[1].imageSlots, 2);
+  assert.equal(merged['Test parașutiști'].practical[2].imageSlots, 2);
 });
 
 test('isLeadershipUser accepts csNum 1-20 and leadership flags', () => {
@@ -196,6 +213,25 @@ test('parachutism requires a manual grant while leadership keeps full access', (
 
 test('parachutism access label is displayed as Test Parasutism', () => {
   assert.equal(displayTestName('Test parașutiști'), 'Test Parasutism');
+});
+
+test('parachutism theory verdict controls the separate practical panel', () => {
+  assert.match(source, /data-parachutism-theory-result="Admis">Admis Test Teoretic/);
+  assert.match(source, /data-parachutism-theory-result="Respins">Respins Test Teoretic/);
+  assert.match(source, /parachutismPracticalStage[\s\S]*?id="parachutism-practical-stage" hidden/);
+  assert.match(source, /practicalStage\.hidden = false/);
+  assert.match(source, /parachutismResultStageFlow/);
+});
+
+test('parachutism requirements, information cards, and jump photo slots are configured', () => {
+  assert.match(testCatalogSource, /eligibilityCriteria: \['Minim Medic Specialist', 'Licență Pilot'\]/);
+  assert.match(testCatalogSource, /candidateInformation: \[[\s\S]*?Testarea pentru certificatul de parașutism va conține două probe\./);
+  assert.match(testCatalogSource, /testerInformation: \[[\s\S]*?Filmarea nu trebuie să lipsească\./);
+  assert.match(testCatalogSource, /name: 'Săritura ușoară'[\s\S]*?imageSlots: 3[\s\S]*?name: 'Săritura medie'[\s\S]*?imageSlots: 2[\s\S]*?name: 'Săritura dificilă'[\s\S]*?imageSlots: 2/);
+  assert.match(source, /data-parachutism-check/);
+  assert.match(source, /parachutism-test-content/);
+  assert.match(source, /data-parachutism-photo/);
+  assert.match(source, /parachutismInformationHtml/);
 });
 
 test('non-leadership users receive only explicitly granted tests', () => {
@@ -348,8 +384,8 @@ test('S.M.U.L.S. unlocks after its four prerequisites are checked', () => {
   assert.equal(smulsChecksComplete([true, true, true, true]), true);
   const markup = smulsChecklistHtml();
   for (const requirement of ['Verificare test teoretic', 'Licență Navală', 'Permis Categoria B', 'Mașina Stalker full tunată']) assert.ok(markup.includes(requirement));
-  assert.match(source, /isAdmissionTest \|\| isTransferTest \|\| isMotoTest \|\| isSmulsTest \|\| isAlsTest/);
-  assert.match(source, /const gatedQuestionForm = \(isAdmissionTest \|\| isTransferTest \|\| isMotoTest \|\| isSmulsTest \|\| isAlsTest\)/);
+  assert.match(source, /isAdmissionTest \|\| isTransferTest \|\| isMotoTest \|\| isSmulsTest \|\| isAlsTest \|\| isParachutismTest/);
+  assert.match(source, /const gatedQuestionForm = \(isAdmissionTest \|\| isTransferTest \|\| isMotoTest \|\| isSmulsTest \|\| isAlsTest \|\| isParachutismTest\)/);
 });
 
 test('S.M.U.L.S. case list expands each descarceration and reserves two images', () => {
@@ -388,24 +424,25 @@ test('Pilot certification description and instructions share one intro box', () 
   assert.match(source, /const testIntro = isStagedTest \? `<div class="\$\{introBoxClass\}"><p class="muted">\$\{description\}<\/p>\$\{instructions\}<\/div>`/);
 });
 
-test('Pilot hides the permanent-access subtitle and places access controls in its header', () => {
-  assert.match(source, /const headerSubtitle = hasHeaderAccessControl \? ''/);
+test('every test page omits the permanent-access subtitle and places access controls in its header', () => {
+  assert.doesNotMatch(source, /Acces permanent pentru testerul conectat/);
   assert.match(source, /class="test-guide-header-actions">\$\{testAccessControl\}/);
-  assert.match(source, /const testAccessSection = hasHeaderAccessControl \? ''/);
+  assert.match(source, /const headerActions = `<div class="test-guide-header-actions">/);
+  assert.match(source, /const testAccessControl = testAccessMarkup\(testName\)/);
+  assert.match(source, /function testAccessMarkup\(testName\) \{\s*if \(!isLeadershipUser\(currentUser\)\) return ''/);
 });
 
 test('Moto uses direct theory verdict buttons, a header access control, and a practical stage verdict', () => {
   assert.match(source, /data-moto-theory-result="Admis">Admis Proba Teoretică/);
   assert.match(source, /data-moto-theory-result="Respins">Respins Proba Teoretică/);
   assert.match(source, /testName === 'Test PILOT' \? 'pilot-intro-box' : isMotoTest \? 'moto-intro-box' : isSmulsTest \? 'smuls-intro-box' : 'als-intro-box'/);
-  assert.match(source, /const headerSubtitle = hasHeaderAccessControl \? ''/);
+  assert.match(source, /const headerActions = `<div class="test-guide-header-actions">\$\{testAccessControl\}/);
   assert.match(source, /\{ result: 'Admis', text: 'Admis Proba 2' \}/);
   assert.match(source, /\{ result: 'Respins', text: 'Respins Proba 2' \}/);
 });
 
 test('S.M.U.L.S. access control is placed in the test header', () => {
-  assert.match(source, /const hasHeaderAccessControl = isStagedTest \|\| testName === 'Test SMULS'/);
-  assert.match(source, /const testAccessSection = hasHeaderAccessControl \? ''/);
+  assert.match(source, /const headerActions = `<div class="test-guide-header-actions">\$\{testAccessControl\}/);
 });
 
 test('ALS case completion uses the existing Discord result submission path', () => {
@@ -417,8 +454,8 @@ test('ALS case completion uses the existing Discord result submission path', () 
 });
 
 test('Moto candidate fields render before checks while remaining outside the gated quiz', () => {
-  assert.match(source, /const candidateIdentityBeforeChecks = isMotoTest \|\| isSmulsTest \|\| isAlsTest \? candidateIdentityFields : ''/);
-  assert.match(source, /const candidateIdentityInQuiz = isMotoTest \|\| isSmulsTest \|\| isAlsTest \? '' : candidateIdentityFields/);
+  assert.match(source, /const candidateIdentityBeforeChecks = isMotoTest \|\| isSmulsTest \|\| isAlsTest \|\| isParachutismTest \? candidateIdentityFields : ''/);
+  assert.match(source, /const candidateIdentityInQuiz = isMotoTest \|\| isSmulsTest \|\| isAlsTest \|\| isParachutismTest \? '' : candidateIdentityFields/);
   assert.match(source, /testIntro\}\$\{candidateIdentityBeforeChecks\}\$\{stagedCandidateSummary\}\$\{alsChecks\}\$\{motoChecks\}\$\{smulsChecks\}/);
   assert.match(source, /class="question-list">\$\{candidateIdentityInQuiz\}/);
 });
@@ -460,13 +497,18 @@ test('admission test rejects the fourth mistake', () => {
   assert.equal(isTestFailed(4, limit), true);
   assert.equal(maxWrongForTest('Test PILOT'), 1);
   assert.equal(maxWrongForTest('Test transfer', 2), 2);
-  assert.match(source, /wrong-count'\)\.textContent = wrongInputs\.filter\(item => item\.checked\)\.length/);
+  assert.match(source, /wrong-count'\)\.textContent = wrongCount/);
 });
 
 test('Discord session and browser auth cache both last 24 hours', () => {
   assert.match(source, /const AUTH_TTL=24\*60\*60\*1000/);
   assert.match(serverSource, /const SESSION_TTL = 24 \* 60 \* 60 \* 1000/);
   assert.match(serverSource, /Max-Age=\$\{SESSION_TTL \/ 1000\}/);
+});
+
+test('auth screen no longer renders the preview card', () => {
+  assert.doesNotMatch(source, /auth-preview/);
+  assert.doesNotMatch(readFileSync(join(here, '..', 'index.html'), 'utf8'), /auth-preview|Verificare automată|Discord ID \+ Google Sheets/);
 });
 
 test('an unexpired cached Discord user can reopen the app without a session API roundtrip', () => {

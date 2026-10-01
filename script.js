@@ -31,7 +31,16 @@ function mergeTestDefinitions(defaults, stored) {
   defaults ||= {};
   stored ||= {};
   const definitions = { ...(defaults || {}), ...(stored || {}) };
-  return Object.fromEntries(Object.entries(definitions).map(([name, definition]) => [name, { ...(defaults?.[name] || {}), ...(definition || {}) }]));
+  return Object.fromEntries(Object.entries(definitions).map(([name, definition]) => {
+    const merged = { ...(defaults?.[name] || {}), ...(definition || {}) };
+    const defaultPractical = defaults?.[name]?.practical;
+    const storedPractical = stored?.[name]?.practical;
+    if (Array.isArray(defaultPractical) && Array.isArray(storedPractical)) {
+      merged.practical = defaultPractical.map((stage, index) => ({ ...stage, ...(storedPractical[index] || {}) }));
+      merged.practical.push(...storedPractical.slice(defaultPractical.length));
+    }
+    return [name, merged];
+  }));
 }
 /** @type {Record<string, TestDefinition>} */
 const defaultTestDefinitions = window.MEDICAL_TESTS || Object.fromEntries(catalog.map(name => [name, { name, description: `Acces disponibil pentru ${name}.`, questions: [] }]));
@@ -396,7 +405,7 @@ function renderAvailableTestsSubmenu() {
   const selectedTest = window.history.state?.testName;
   const tests = allowedForUser(currentUser);
   submenu.innerHTML = tests.length
-    ? tests.map(test => `<button type="button" class="nav-subitem ${selectedTest === test ? 'active' : ''}" data-available-test="${escapeHtml(test)}">${escapeHtml(displayTestName(test))}</button>`).join('')
+          ? tests.map(test => `<button type="button" class="nav-subitem ${selectedTest === test ? 'active' : ''}" data-available-test="${escapeHtml(test)}">${escapeHtml(displayTestName(test))}</button>`).join('')
     : '<span class="nav-submenu-empty">Nu ai teste disponibile.</span>';
 }
 function testAccessMarkup(testName) {
@@ -431,7 +440,7 @@ function renderTestersView() {
 }
 function renderTesterProfileView(member) {
   const callsign = normalizeCallsign(member.callsign || member.callSign);
-  const name = memberNameFor(member);
+    const name = memberNameFor(member);
   const testCountGrid = testerTestCountGridHtml(member);
   const removalControls = hasLeadershipCallsign(currentUser) && !hasLeadershipCallsign(member)
     ? `<button class="profile-settings-button" id="profile-test-settings" type="button" aria-label="Gestionează testele" title="Gestionează testele">⚙</button><div class="profile-test-removal" id="profile-test-removal" hidden><h3>Teste alocate</h3><div class="profile-test-removal-list">${(member.grantedTests || []).length ? member.grantedTests.map(test => `<div class="profile-test-removal-item"><span>${escapeHtml(displayTestName(test))}</span><button class="outline danger-button" type="button" data-remove-profile-test="${escapeHtml(test)}">Scoate</button></div>`).join('') : '<p class="muted">Nu există teste alocate.</p>'}</div><p class="profile-test-removal-status muted" role="status" aria-live="polite"></p></div>`
@@ -617,13 +626,21 @@ function renderView(view) {
   else { viewContent.innerHTML = renderSettingsView(title); wireSettingsEvents(); }
   // redundant remove-member wiring; handled by wireTestersEvents()
 }
-function openTest(testName) {
+function testNameFromHash(hash) {
+  const match = String(hash || '').match(/^#test-(.+)$/);
+  if (!match) return '';
+  try { return decodeURIComponent(match[1]); }
+  catch { return ''; }
+}
+function openTest(testName, { push = true, previousView: requestedPreviousView } = {}) {
   const definition = testDefinitions[testName] || { description: 'Test disponibil.', questions: [] };
   const questions = Array.isArray(definition.questions) ? definition.questions : [];
   const currentView = window.history.state?.view;
-  const previousView = currentView === 'test' ? window.history.state.previousView : labels[currentView] ? currentView : document.querySelector('.nav-item.active')?.dataset.view || 'overview';
-  if (window.history.state?.view !== 'test') window.history.pushState({ view: 'test', testName, previousView }, '', `#test-${encodeURIComponent(testName)}`);
-  else window.history.replaceState({ ...window.history.state, testName, previousView }, '', `#test-${encodeURIComponent(testName)}`);
+  const previousView = requestedPreviousView || (currentView === 'test' ? window.history.state.previousView : labels[currentView] ? currentView : document.querySelector('.nav-item.active')?.dataset.view || 'overview');
+  const routeState = { view: 'test', testName, previousView };
+  const route = `#test-${encodeURIComponent(testName)}`;
+  if (push && currentView !== 'test') window.history.pushState(routeState, '', route);
+  else window.history.replaceState(routeState, '', route);
   document.querySelector('#overview-view').hidden = true;
   document.querySelector('#overview-view').style.display = 'none';
   viewContent.hidden = false;
@@ -647,6 +664,14 @@ function motoChecklistHtml() {
 function motoCandidateBriefingHtml(briefing = {}) {
   const points = (briefing.points || []).map(point => `<li>${escapeHtml(point)}</li>`).join('');
   return `<section class="moto-candidate-briefing"><h3>Candidatului i se vor aduce la cunoștință următoarele:</h3><ul>${points}</ul><h4>Atenție</h4><p>${escapeHtml(briefing.warning || '')}</p><p>${escapeHtml(briefing.route || '')}</p></section>`;
+}
+function parachutismChecklistHtml(criteria = []) {
+  return `<section class="admission-checklist parachutism-checklist" aria-labelledby="parachutism-checklist-title"><h3 id="parachutism-checklist-title">Criterii pentru proba teoretică</h3>${criteria.map((criterion, index) => `<label class="admission-check-row"><span>${escapeHtml(criterion)}</span><span class="admission-check-control"><input type="checkbox" data-parachutism-check="${index}" aria-label="${escapeHtml(criterion)}"><span class="admission-check-error" aria-hidden="true">!</span></span></label>`).join('')}</section>`;
+}
+function parachutismInformationHtml(definition = {}) {
+  const candidatePoints = (definition.candidateInformation || []).map(point => `<li>${escapeHtml(point)}</li>`).join('');
+  const testerPoints = (definition.testerInformation || []).map(point => `<li>${escapeHtml(point)}</li>`).join('');
+  return `<div class="parachutism-information-grid"><section class="parachutism-information-card"><h3>Candidatului i se va aduce la cunoștință:</h3><ul>${candidatePoints}</ul></section><section class="parachutism-information-card"><h3>Informații pentru tester:</h3><ul>${testerPoints}</ul></section></div>`;
 }
 function motoChecksComplete(checks) { return checks.length === motoRequirements.length && checks.every(Boolean); }
 function smulsChecklistHtml() {
@@ -871,67 +896,94 @@ async function encodeIdentityPhoto(file) {
   }
   throw new Error('Fotografia este prea mare pentru trimitere. Încarcă o imagine mai mică.');
 }
+async function encodeTestReferencePhoto(file) {
+  const image = await createImageBitmap(file);
+  const scale = Math.min(1, 1000 / Math.max(image.width, image.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(image.width * scale));
+  canvas.height = Math.max(1, Math.round(image.height * scale));
+  canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
+  image.close();
+  for (const quality of [0.72, 0.58, 0.44, 0.32]) {
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
+    if (blob && blob.size <= 300 * 1024) {
+      return await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error('Fotografia nu a putut fi salvată.'));
+        reader.readAsDataURL(blob);
+      });
+    }
+  }
+  throw new Error('Fotografia este prea mare pentru catalog. Încarcă o imagine mai mică.');
+}
 function buildTestMarkup(testName, definition, questions) {
   const isAdmissionTest = testName === 'Test admitere';
   const isTransferTest = testName === 'Test transfer';
   const isAlsTest = testName === 'Test ALS';
   const isMotoTest = testName === 'Test MOTO';
+  const isParachutismTest = testName === 'Test parașutiști';
   const isSmulsTest = testName === 'Test SMULS';
   const isMedicalCertificate = testName === 'Adeverință medicală';
   const isApplicationTest = isAdmissionTest || testName === 'Test transfer';
   const isStagedTest = ['Test PILOT', 'Test MOTO', 'Test SMULS', 'Test ALS'].includes(testName);
-  const hasHeaderAccessControl = isStagedTest || testName === 'Test SMULS';
   const maxWrong = maxWrongForTest(testName, definition.maxWrong);
   const candidateDetails = isApplicationTest ? admissionCandidateDetailsHtml() : isMedicalCertificate ? medicalCertificateDetailsHtml() : '';
   const admissionChecks = isAdmissionTest ? admissionChecklistHtml() : '';
   const transferChecks = isTransferTest ? admissionChecklistHtml() : '';
   const motoChecks = isMotoTest ? motoChecklistHtml() : '';
+  const parachutismChecks = isParachutismTest ? parachutismChecklistHtml(definition.eligibilityCriteria) : '';
+  const parachutismInformation = isParachutismTest ? parachutismInformationHtml(definition) : '';
   const description = isAdmissionTest ? 'Candidatul poate greși de maximum 3 ori; la a 4-a greșeală este respins. Promovare: minimum 17/20.' : definition.description;
   const images = (definition.images || []).map(image => `<a class="test-image-link${image.inline ? ' test-image-preview' : ''}" href="${image.url}" target="_blank" rel="noopener">${image.inline ? `<img src="${image.url}" alt="${escapeHtml(image.label || testName)}">` : image.label || 'Deschide imaginea'}</a>`).join('');
   const cases = isSmulsTest || isAlsTest ? '' : (definition.cases || []).map((item, index) => `<option value="${index}">${item.title}</option>`).join('');
-  const practical = (definition.practical || []).map((item, index) => `<option value="${index}">${item.name}</option>`).join('');
+  const parachutismPracticalOptions = (definition.practical || []).map((item, index) => `<option value="${index}">${item.name}</option>`).join('');
+  const practical = isParachutismTest ? '' : parachutismPracticalOptions;
+  const parachutismPracticalStage = isParachutismTest && parachutismPracticalOptions
+    ? `<section class="parachutism-practical-stage" id="parachutism-practical-stage" hidden><h3>Probe practice de parașutism</h3><div id="practical-steps" class="parachutism-case-list"></div><div class="evaluation-stage-actions"><button type="button" class="primary evaluation-verdict evaluation-verdict-admitted" data-parachutism-final-result="Admis">Admis Test Parasutism</button><button type="button" class="primary evaluation-verdict evaluation-verdict-rejected" data-parachutism-final-result="Respins">Respins Test Parasutism</button></div></section>`
+    : '';
   const candidateCallsign = isApplicationTest || isMedicalCertificate ? '' : '<label class="candidate-call-sign">Callsign candidat<input id="candidate-callsign" type="text" placeholder="510 sau M-510"></label>';
   const candidateNameField = ['Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști'].includes(testName) ? '<label class="candidate-call-sign">Nume candidat<input id="als-candidate-name" type="text" autocomplete="name" readonly placeholder="Se completează după callsign"></label>' : '';
   const candidateIdentityFields = candidateCallsign && candidateNameField
     ? `<div class="candidate-identity-fields">${candidateCallsign}${candidateNameField}</div>`
     : `${candidateCallsign}${candidateNameField}`;
-  const candidateIdentityBeforeChecks = isMotoTest || isSmulsTest || isAlsTest ? candidateIdentityFields : '';
-  const candidateIdentityInQuiz = isMotoTest || isSmulsTest || isAlsTest ? '' : candidateIdentityFields;
-  const stagedCandidateSummary = isSmulsTest || isAlsTest ? '<div id="candidate-summary" class="candidate-summary"></div>' : '';
+  const candidateIdentityBeforeChecks = isMotoTest || isSmulsTest || isAlsTest || isParachutismTest ? candidateIdentityFields : '';
+  const candidateIdentityInQuiz = isMotoTest || isSmulsTest || isAlsTest || isParachutismTest ? '' : candidateIdentityFields;
+  const stagedCandidateSummary = isSmulsTest || isAlsTest || isParachutismTest ? '<div id="candidate-summary" class="candidate-summary"></div>' : '';
   const smulsChecks = isSmulsTest ? smulsChecklistHtml() : '';
   const alsChecks = isAlsTest ? alsChecklistHtml() : '';
   const evaluationActions = testName === 'Test PILOT'
     ? '<div class="evaluation-stage-actions"><button class="primary evaluation-verdict evaluation-verdict-admitted" type="submit" data-pilot-theory-result="Admis">Admis Proba Teoretică</button><button class="primary evaluation-verdict evaluation-verdict-rejected" type="submit" data-pilot-theory-result="Respins">Respins Proba Teoretică</button></div>'
     : isMotoTest
       ? '<div class="evaluation-stage-actions"><button class="primary evaluation-verdict evaluation-verdict-admitted" type="submit" data-moto-theory-result="Admis">Admis Proba Teoretică</button><button class="primary evaluation-verdict evaluation-verdict-rejected" type="submit" data-moto-theory-result="Respins">Respins Proba Teoretică</button></div>'
+      : isParachutismTest
+        ? '<div class="evaluation-stage-actions"><button class="primary evaluation-verdict evaluation-verdict-admitted" type="submit" data-parachutism-theory-result="Admis">Admis Test Teoretic</button><button class="primary evaluation-verdict evaluation-verdict-rejected" type="submit" data-parachutism-theory-result="Respins">Respins Test Teoretic</button></div>'
     : '<button class="primary" type="submit">Finalizează evaluarea</button>';
   const candidateDocument = !isApplicationTest && !isMedicalCertificate && testName === 'Adeverință medicală' ? '<label>Imagine document candidat<input id="candidate-document" type="file" accept="image/*"></label><p class="muted">Imaginea este disponibilă testerului pentru verificare manuală.</p>' : '';
-  const questionForm = isAlsTest || isSmulsTest ? '' : questions.length ? `<form id="test-form" class="question-list">${candidateIdentityInQuiz}<div id="candidate-summary" class="candidate-summary"></div>${candidateDocument}${questions.map(questionItemHtml).join('')}<p>Greșeli: <strong id="wrong-count">0</strong> / ${Number.isFinite(maxWrong) ? maxWrong : '—'}</p>${evaluationActions}</form>` : '<div class="test-runner"><p>Acest ghid nu are întrebări teoretice configurate.</p></div>';
-  const gatedQuestionForm = (isAdmissionTest || isTransferTest || isMotoTest || isSmulsTest || isAlsTest) && questions.length ? `<div id="${isAdmissionTest ? 'admission-test-content' : isTransferTest ? 'transfer-test-content' : isMotoTest ? 'moto-test-content' : isSmulsTest ? 'smuls-test-content' : 'als-test-content'}" hidden>${questionForm}</div>` : questionForm;
+  const questionForm = isAlsTest || isSmulsTest ? '' : questions.length ? `<form id="test-form" class="question-list">${candidateIdentityInQuiz}${stagedCandidateSummary ? '' : '<div id="candidate-summary" class="candidate-summary"></div>'}${candidateDocument}${questions.map(questionItemHtml).join('')}<p>Greșeli: <strong id="wrong-count">0</strong> / ${Number.isFinite(maxWrong) ? maxWrong : '—'}</p>${evaluationActions}</form>` : '<div class="test-runner"><p>Acest ghid nu are întrebări teoretice configurate.</p></div>';
+  const gatedQuestionForm = (isAdmissionTest || isTransferTest || isMotoTest || isSmulsTest || isAlsTest || isParachutismTest) && questions.length ? `<div id="${isAdmissionTest ? 'admission-test-content' : isTransferTest ? 'transfer-test-content' : isMotoTest ? 'moto-test-content' : isSmulsTest ? 'smuls-test-content' : isAlsTest ? 'als-test-content' : 'parachutism-test-content'}" hidden>${questionForm}</div>` : questionForm;
   const evaluationStageFlow = ['Test PILOT', 'Test MOTO', 'Test SMULS', 'Test ALS'].includes(testName) ? '<div id="evaluation-stage-flow" hidden></div>' : '';
+  const parachutismResultStageFlow = isParachutismTest ? '<div id="evaluation-stage-flow" hidden></div>' : '';
   const instructions = isAdmissionTest || testName === 'Test transfer' || isMedicalCertificate || !definition.instructions ? '' : `<p class="test-instructions">${definition.instructions}</p>`;
   const introBoxClass = testName === 'Test PILOT' ? 'pilot-intro-box' : isMotoTest ? 'moto-intro-box' : isSmulsTest ? 'smuls-intro-box' : 'als-intro-box';
   const testIntro = isStagedTest ? `<div class="${introBoxClass}"><p class="muted">${description}</p>${instructions}</div>` : `<p class="muted">${description}</p>${instructions}`;
   const motoBriefing = isMotoTest ? motoCandidateBriefingHtml(definition.candidateBriefing) : '';
-  const guideBody = `${candidateDetails}${admissionChecks}${transferChecks}${testIntro}${candidateIdentityBeforeChecks}${stagedCandidateSummary}${alsChecks}${motoChecks}${smulsChecks}${motoBriefing}${cases ? `<label>Cazul ales de candidat<select id="case-select">${cases}</select></label><div id="case-steps" class="case-steps"></div>` : ''}${practical ? `<label>Probă practică<select id="practical-select">${practical}</select><div id="practical-steps" class="case-steps"></div>` : ''}${gatedQuestionForm}${isSmulsTest || isAlsTest ? '' : evaluationStageFlow}`;
-  const content = isSmulsTest || isAlsTest
+  const guideBody = `${candidateDetails}${admissionChecks}${transferChecks}${testIntro}${candidateIdentityBeforeChecks}${stagedCandidateSummary}${alsChecks}${motoChecks}${smulsChecks}${parachutismChecks}${parachutismInformation}${motoBriefing}${cases ? `<label>Cazul ales de candidat<select id="case-select">${cases}</select></label><div id="case-steps" class="case-steps"></div>` : ''}${practical ? `<label>Probă practică<select id="practical-select">${practical}</select><div id="practical-steps" class="case-steps"></div>` : ''}${gatedQuestionForm}${isSmulsTest || isAlsTest || isParachutismTest ? '' : evaluationStageFlow}`;
+  const content = isSmulsTest || isAlsTest || isParachutismTest
     ? guideBody
     : testName === 'Test SMULS' && images
     ? `<div class="test-with-map"><div class="test-main-column">${guideBody}</div><aside class="test-map-column">${images}</aside></div>`
     : `${guideBody}${images ? `<div class="test-images">${images}</div>` : ''}`;
   const testAccessControl = testAccessMarkup(testName);
-  const headerSubtitle = hasHeaderAccessControl ? '' : `<p class="muted">Acces permanent pentru testerul conectat: ${normalizeCallsign(currentUser?.callsign)}.</p>`;
-  const headerActions = hasHeaderAccessControl
-    ? `<div class="test-guide-header-actions">${testAccessControl}<button class="outline" id="back-to-tests">← Înapoi</button></div>`
-    : '<button class="outline" id="back-to-tests">← Înapoi</button>';
-  const testAccessSection = hasHeaderAccessControl ? '' : testAccessControl;
-  return `<div class="panel view-panel"><div class="panel-head"><div><p class="eyebrow">GHID PENTRU TESTER</p><h2>${displayTestName(testName)}</h2>${headerSubtitle}</div>${headerActions}</div>${testAccessSection}${content}${isSmulsTest || isAlsTest ? evaluationStageFlow : ''}</div>`;
+  const headerActions = `<div class="test-guide-header-actions">${testAccessControl}<button class="outline" id="back-to-tests">← Înapoi</button></div>`;
+  return `<div class="panel view-panel"><div class="panel-head"><div><p class="eyebrow">GHID PENTRU TESTER</p><h2>${displayTestName(testName)}</h2></div>${headerActions}</div>${content}${isSmulsTest || isAlsTest ? evaluationStageFlow : ''}${parachutismResultStageFlow}${parachutismPracticalStage}</div>`;
 }
 function wireTestEvents(testName, definition) {
   const isAdmissionTest = testName === 'Test admitere';
   const isTransferTest = testName === 'Test transfer';
   const isAlsTest = testName === 'Test ALS';
   const isMotoTest = testName === 'Test MOTO';
+  const isParachutismTest = testName === 'Test parașutiști';
   const isSmulsTest = testName === 'Test SMULS';
   const isMedicalCertificate = testName === 'Adeverință medicală';
   const isApplicationTest = isAdmissionTest || testName === 'Test transfer';
@@ -1125,17 +1177,75 @@ function wireTestEvents(testName, definition) {
   const caseSelect = document.querySelector('#case-select'); const caseSteps = document.querySelector('#case-steps');
   const renderCase = () => { if (!caseSelect || !caseSteps) return; const item = definition.cases[Number(caseSelect.value)]; caseSteps.innerHTML = `<h3>${item.title}</h3><p>Minimum interacțiuni: ${item.minimumMe || 0} /me</p><ol>${item.steps.map(step => `<li>${step}</li>`).join('')}</ol>`; }; if (caseSelect) { caseSelect.onchange = renderCase; renderCase(); }
   const practicalSelect = document.querySelector('#practical-select'); const practicalSteps = document.querySelector('#practical-steps');
-  const renderPractical = () => { if (!practicalSelect || !practicalSteps) return; const item = definition.practical[Number(practicalSelect.value)]; practicalSteps.innerHTML = `<h3>${item.name}</h3><p><b>Locație:</b> ${item.location}</p><p><b>Altitudine:</b> ${item.altitude}</p><p><b>Aterizare:</b> ${item.landing}</p>${(item.images || []).map(image => `<a class="test-image-link" href="${image.url}" target="_blank" rel="noopener">${image.label || 'Imagine traseu'}</a>`).join('')}`; }; if (practicalSelect) { practicalSelect.onchange = renderPractical; renderPractical(); }
-  const wrongInputs = [...document.querySelectorAll('[data-wrong]')]; wrongInputs.forEach(input => input.onchange = () => { document.querySelector('#wrong-count').textContent = wrongInputs.filter(item => item.checked).length; });
+  let openParachutismCase = 0;
+  const renderPractical = () => {
+    if (isParachutismTest && practicalSteps) {
+      practicalSteps.innerHTML = (definition.practical || []).map((item, caseIndex) => {
+        const imageSlots = Array.from({ length: Number(item.imageSlots) || 0 }, (_, imageIndex) => {
+          const imageUrl = item.images?.[imageIndex]?.url;
+          const preview = imageUrl ? `<img src="${imageUrl}" alt="Fotografie ${imageIndex + 1} pentru ${escapeHtml(item.name)}">` : '<span class="parachutism-photo-empty">Alege fotografia</span>';
+          return `<label class="parachutism-photo-slot">${preview}<span>Fotografie ${imageIndex + 1}</span><input type="file" accept="image/*" data-parachutism-case="${caseIndex}" data-parachutism-photo="${imageIndex}" aria-label="Fotografie ${imageIndex + 1} pentru ${escapeHtml(item.name)}"></label>`;
+        }).join('');
+        return `<details class="als-case parachutism-case" data-parachutism-case-card="${caseIndex}"${caseIndex === openParachutismCase ? ' open' : ''}><summary>${escapeHtml(item.name)}</summary><div class="als-case-content"><p><b>Locație:</b> ${escapeHtml(item.location)}</p><p><b>Altitudine:</b> ${escapeHtml(item.altitude)}</p><p><b>Aterizare:</b> ${escapeHtml(item.landing)}</p><div class="parachutism-photo-grid" aria-label="Fotografii pentru ${escapeHtml(item.name)}">${imageSlots}</div></div></details>`;
+      }).join('');
+      return;
+    }
+    if (!practicalSelect || !practicalSteps) return;
+    const item = definition.practical[Number(practicalSelect.value)];
+    practicalSteps.innerHTML = `<h3>${item.name}</h3><p><b>Locație:</b> ${item.location}</p><p><b>Altitudine:</b> ${item.altitude}</p><p><b>Aterizare:</b> ${item.landing}</p>${(item.images || []).map(image => `<a class="test-image-link" href="${image.url}" target="_blank" rel="noopener">${image.label || 'Imagine traseu'}</a>`).join('')}`;
+  };
+  if (isParachutismTest && practicalSteps) {
+    renderPractical();
+    practicalSteps.addEventListener('toggle', event => {
+      const caseCard = event.target.closest('[data-parachutism-case-card]');
+      if (caseCard?.open) openParachutismCase = Number(caseCard.dataset.parachutismCaseCard);
+    }, true);
+    practicalSteps.addEventListener('change', async event => {
+      const input = event.target.closest('[data-parachutism-photo]');
+      const file = input?.files?.[0];
+      if (!input || !file?.type.startsWith('image/')) return;
+      const caseIndex = Number(input.dataset.parachutismCase);
+      const imageIndex = Number(input.dataset.parachutismPhoto);
+      const stage = definition.practical[caseIndex];
+      try {
+        const url = await encodeTestReferencePhoto(file);
+        const images = Array.from({ length: Number(stage.imageSlots) || 0 }, (_, index) => stage.images?.[index] || null);
+        images[imageIndex] = { url, label: `Fotografie ${imageIndex + 1}` };
+        stage.images = images;
+        testDefinitions[testName] = { ...testDefinitions[testName], practical: definition.practical };
+        saveTestDefinitions();
+        openParachutismCase = caseIndex;
+        renderPractical();
+      } catch (error) {
+        if (candidateSummaryEl) {
+          candidateSummaryEl.textContent = error.message;
+          candidateSummaryEl.classList.add('error-text');
+        }
+      }
+    });
+  } else if (practicalSelect) {
+    practicalSelect.onchange = renderPractical;
+    renderPractical();
+  }
+  const wrongInputs = [...document.querySelectorAll('[data-wrong]')];
+  wrongInputs.forEach(input => input.onchange = () => {
+    const wrongCount = wrongInputs.filter(item => item.checked).length;
+    document.querySelector('#wrong-count').textContent = wrongCount;
+    if (isParachutismTest) {
+      const admitButton = document.querySelector('[data-parachutism-theory-result="Admis"]');
+      if (admitButton) admitButton.disabled = wrongCount > maxWrongForTest(testName, definition.maxWrong);
+    }
+  });
   const candidateInput = document.querySelector('#candidate-callsign'); const candidateSummaryEl = document.querySelector('#candidate-summary'); const alsCandidateNameInput = document.querySelector('#als-candidate-name');
   let candidateLookupTimer;
   let candidateLookupSequence = 0;
+  let refreshParachutismTheoryGate = () => {};
   if (candidateInput && !isApplicationTest) candidateInput.oninput = () => {
     const sequence = ++candidateLookupSequence;
     clearTimeout(candidateLookupTimer);
     const callsign = candidateInput.value.trim();
     if (alsCandidateNameInput) alsCandidateNameInput.value = '';
-    if (!callsignNumber(callsign)) { if (candidateSummaryEl) candidateSummaryEl.textContent = ''; return; }
+    if (!callsignNumber(callsign)) { if (candidateSummaryEl) candidateSummaryEl.textContent = ''; refreshParachutismTheoryGate(); return; }
     if (candidateSummaryEl) candidateSummaryEl.textContent = 'Se caută candidatul…';
     candidateLookupTimer = setTimeout(async () => {
       try {
@@ -1147,21 +1257,38 @@ function wireTestEvents(testName, definition) {
         const candidate = payload.candidate;
         if (!candidate) {
           if (candidateSummaryEl) candidateSummaryEl.textContent = 'Nu a fost găsit un candidat cu acest callsign.';
+          refreshParachutismTheoryGate();
           return;
         }
         if (alsCandidateNameInput) alsCandidateNameInput.value = candidate.name;
         if (candidateSummaryEl) candidateSummaryEl.textContent = `Candidat: @[${normalizeCallsign(candidate.callsign)}] ${candidate.name}`;
         if (isSmulsTest) refreshSmulsStageGate();
         if (isAlsTest) refreshAlsStageGate();
+        if (isParachutismTest) refreshParachutismTheoryGate();
       } catch (error) {
         if (sequence === candidateLookupSequence && candidateSummaryEl) candidateSummaryEl.textContent = error.message;
+        if (sequence === candidateLookupSequence && isParachutismTest) refreshParachutismTheoryGate();
       }
     }, 300);
   };
+  if (isParachutismTest) {
+    const checks = [...document.querySelectorAll('[data-parachutism-check]')];
+    const testContent = document.querySelector('#parachutism-test-content');
+    refreshParachutismTheoryGate = () => {
+      const criteriaComplete = checks.length === 2 && checks.every(check => check.checked);
+      const candidateComplete = Boolean(candidateInput?.value.trim() && alsCandidateNameInput?.value.trim());
+      checks.forEach(check => check.closest('.admission-check-row')?.classList.toggle('is-incomplete', !check.checked));
+      if (testContent) testContent.hidden = !(criteriaComplete && candidateComplete);
+      if (criteriaComplete && !candidateComplete && candidateSummaryEl) candidateSummaryEl.textContent = 'Completează callsign-ul și verifică identitatea candidatului înainte de proba teoretică.';
+    };
+    checks.forEach(check => check.onchange = refreshParachutismTheoryGate);
+    refreshParachutismTheoryGate();
+  }
   const form = document.querySelector('#test-form'); if (form) form.onsubmit = async event => {
     event.preventDefault();
     if (testName === 'Test PILOT' && !event.submitter?.dataset.pilotTheoryResult) return;
     if (isMotoTest && !event.submitter?.dataset.motoTheoryResult) return;
+    if (isParachutismTest && !event.submitter?.dataset.parachutismTheoryResult) return;
     const wrong = wrongInputs.filter(item => item.checked).length;
     const limit = maxWrongForTest(testName, definition.maxWrong);
     const result = isMedicalCertificate
@@ -1229,6 +1356,45 @@ function wireTestEvents(testName, definition) {
         return;
       }
       submissionDetails = { candidateCallsign, candidateName };
+    }
+    if (isParachutismTest) {
+      const practicalStage = document.querySelector('#parachutism-practical-stage');
+      const stageFlow = document.querySelector('#evaluation-stage-flow');
+      const reportParachutismResult = async finalResult => {
+        practicalStage.querySelectorAll('button').forEach(button => { button.disabled = true; });
+        stageFlow.querySelectorAll('button').forEach(button => { button.disabled = true; });
+        const output = finalResult === 'Respins' && !practicalStage.hidden ? practicalStage : stageFlow;
+        output.innerHTML = '<p class="muted">Se înregistrează rezultatul...</p>';
+        try {
+          const saved = await recordTestRun(testName, finalResult, submissionDetails);
+          const candidateCallsign = submissionDetails.candidateCallsign || '—';
+          const candidateName = submissionDetails.candidateName || '—';
+          const notificationStatus = saved.discordNotificationsSent ? 'Notificarea Discord a fost trimisă.' : `Notificarea Discord nu a fost trimisă. ${saved.discordNotificationError || ''}`;
+          output.innerHTML = `<pre class="candidate-summary">Test: ${escapeHtml(displayTestName(testName))}\nCandidat: ${escapeHtml(candidateName)}\nCallsign: ${escapeHtml(candidateCallsign)}\nRezultat: ${finalResult}</pre><p class="muted">Testul a fost înregistrat. ${escapeHtml(notificationStatus)}</p>`;
+        } catch (error) {
+          output.innerHTML = `<p class="error-text">Rezultatul nu s-a putut înregistra: ${escapeHtml(error.message)}</p>`;
+        }
+      };
+      const theoryResult = event.submitter.dataset.parachutismTheoryResult;
+      form.hidden = true;
+      if (theoryResult === 'Respins') {
+        stageFlow.hidden = false;
+        await reportParachutismResult('Respins');
+        return;
+      }
+      if (wrongInputs.filter(item => item.checked).length > maxWrongForTest(testName, definition.maxWrong)) {
+        form.hidden = false;
+        return;
+      }
+      document.querySelector('.view-panel')?.classList.add('parachutism-stage-active');
+      practicalStage.hidden = false;
+      practicalStage.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      practicalStage.querySelectorAll('[data-parachutism-final-result]').forEach(button => {
+        button.onclick = async () => {
+          await reportParachutismResult(button.dataset.parachutismFinalResult);
+        };
+      });
+      return;
     }
     if (testName === 'Test PILOT' || isMotoTest || isSmulsTest) {
       const stageFlow = document.querySelector('#evaluation-stage-flow');
@@ -1523,7 +1689,7 @@ availableTestsSubmenu.addEventListener('click', event => {
 });
 window.addEventListener('popstate', event => {
   if (!currentUser) return;
-  if (event.state?.view === 'test' && event.state.testName) return openTest(event.state.testName);
+  if (event.state?.view === 'test' && event.state.testName) return openTest(event.state.testName, { push: false, previousView: event.state.previousView });
   if (event.state?.view === 'tester-profile') {
     const member = testers.find(item => normalizeCallsign(item.callsign) === event.state.callsign) || directoryMembers.find(item => normalizeCallsign(item.callsign) === event.state.callsign);
     return member ? openTesterProfile(member, { push: false }) : navigateTo('testers', { push: false });
@@ -1614,7 +1780,35 @@ function applyUser(user){
   setWelcomeHeader(user); setVisibilityPermissions(user); setStats(user); renderAvailableTestsSubmenu();
 }
 function showAuthError(message){authError.textContent=message;authError.classList.add('show')}
-async function enterApp(user){const requestedProfileMatch=window.location.hash.match(/^#tester-profile-(.+)$/);const requestedProfileCallsign=requestedProfileMatch?decodeURIComponent(requestedProfileMatch[1]):'';applyUser(user);markPresence();sendPresence();authScreen.style.display='none';appShell.classList.add('ready');window.history.replaceState({ view: 'overview' }, '', `${window.location.pathname}#overview`);navigateTo('overview', { push: false });try { await loadDirectory(); await loadRemoteGrants(); if(requestedProfileCallsign){const member=testers.find(item=>normalizeCallsign(item.callsign)===requestedProfileCallsign)||directoryMembers.find(item=>normalizeCallsign(item.callsign)===requestedProfileCallsign);if(member)openTesterProfile(member,{push:false,previousView:'testers'});}} catch (error) { setSyncDetail('Sincronizarea a eșuat'); console.error(error); }}
+async function enterApp(user) {
+  const requestedHash = window.location.hash;
+  const requestedProfileMatch = requestedHash.match(/^#tester-profile-(.+)$/);
+  const requestedProfileCallsign = requestedProfileMatch ? decodeURIComponent(requestedProfileMatch[1]) : '';
+  const requestedTestName = testNameFromHash(requestedHash);
+  const requestedView = requestedHash.slice(1);
+  applyUser(user);
+  markPresence();
+  sendPresence();
+  authScreen.style.display = 'none';
+  appShell.classList.add('ready');
+  window.history.replaceState({ view: 'overview' }, '', `${window.location.pathname}#overview`);
+  navigateTo('overview', { push: false });
+  try {
+    await loadDirectory();
+    await loadRemoteGrants();
+    if (requestedProfileCallsign) {
+      const member = testers.find(item => normalizeCallsign(item.callsign) === requestedProfileCallsign) || directoryMembers.find(item => normalizeCallsign(item.callsign) === requestedProfileCallsign);
+      if (member) openTesterProfile(member, { push: false, previousView: 'testers' });
+    } else if (requestedTestName && allowedForUser(currentUser).includes(requestedTestName)) {
+      openTest(requestedTestName, { push: false, previousView: 'overview' });
+    } else if (labels[requestedView]) {
+      navigateTo(requestedView, { push: false });
+    }
+  } catch (error) {
+    setSyncDetail('Sincronizarea a eșuat');
+    console.error(error);
+  }
+}
 const accessError = new URLSearchParams(window.location.search).get('access');
 if (accessError === 'denied') showAuthError('Contul Discord nu există în lista departamentului.');
 if (accessError === 'error') showAuthError('Autentificarea Discord nu a putut fi finalizată.');
@@ -1645,8 +1839,6 @@ if (discordLoginBtn) {
   if (DEV_LOGIN_ENABLED) {
     document.querySelector('.auth-card h1').textContent = 'Intră pe site';
     document.querySelector('.auth-copy').textContent = 'Accesează site-ul fără conectare Discord.';
-    document.querySelector('.auth-preview b').textContent = 'Acces demo';
-    document.querySelector('.auth-preview small').textContent = 'Cont de previzualizare';
     document.querySelector('.auth-note').hidden = true;
     discordLoginBtn.innerHTML = 'Intră pe site <span>→</span>';
     discordLoginBtn.onclick = () => enterApp({ ...DEV_LOGIN_USER });

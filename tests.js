@@ -180,11 +180,25 @@ window.MEDICAL_TESTS = {
     description: 'Brevet de parașutist. Testul are probă teoretică și probă practică. Teoria permite o greșeală; la a doua este respins. Proba practică nu permite nicio greșeală și necesită filmare.',
     instructions: 'Verifică gradul minim Medic-Specialist, pilotul cu brevet, stația comună și minimum 4 parașute, dintre care 3 pentru candidat. Filmarea este obligatorie pentru validarea aterizărilor.',
     maxWrong: 1,
+    eligibilityCriteria: ['Minim Medic Specialist', 'Licență Pilot'],
+    candidateInformation: [
+      'Testarea pentru certificatul de parașutism va conține două probe.',
+      'Candidatul are dreptul la maximum o greșeală; la a doua este declarat respins la proba teoretică. La proba practică nu este admisă nicio greșeală: candidatul leșină, se împiedică la aterizare, atinge zona roșie din imagini sau nu aterizează în zona permisă.',
+      'Candidatul trebuie să cunoască ghidul de parașutism.',
+      'Validarea anumitor aterizări este posibilă doar în prezența unei filmări. Este obligatorie o dovadă video.'
+    ],
+    testerInformation: [
+      'Pentru susținerea certificatului este necesar un pilot din departament care deține deja certificatul de parașutist și urmează indicațiile testerului. Pilotul nu se va da jos din elicopter.',
+      'Filmarea nu trebuie să lipsească.',
+      'Verificați că solicitantul are gradul minim Medic-Specialist.',
+      'Setați o stație comună pentru a eficientiza comunicarea între candidat, tester și pilot.',
+      'Pentru fiecare test trebuie să aveți minimum 4 parașute, dintre care 3 vor fi oferite candidatului.'
+    ],
     images: [],
     practical: [
-      { name: 'Săritura ușoară', location: 'Port-avionul de lângă insula exotică', altitude: '1000 m', landing: 'Toată pista port-avionului', images: [] },
-      { name: 'Săritura medie', location: 'Lacul Sandy Shores', altitude: '2250–2300 m', landing: 'Zona dintre pontoane', images: [] },
-      { name: 'Săritura dificilă', location: 'Centrul orașului / Banca Pacific', altitude: '2500 m', landing: 'Helipadul clădirii A / Pablo', images: [] }
+      { name: 'Săritura ușoară', location: 'Port-avionul de lângă insula exotică', altitude: '1000 m', landing: 'Toată pista port-avionului', imageSlots: 3 },
+      { name: 'Săritura medie', location: 'Lacul Sandy Shores', altitude: '2250–2300 m', landing: 'Zona dintre pontoane', imageSlots: 2 },
+      { name: 'Săritura dificilă', location: 'Centrul orașului / Banca Pacific', altitude: '2500 m', landing: 'Helipadul clădirii A / Pablo', imageSlots: 2 }
     ],
     questions: [
       ['Care este altitudinea minimă de la care te poți parașuta?', '150 de metri sau înălțimea clădirii G de la Pacific.'],
