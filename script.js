@@ -537,6 +537,7 @@ function openTesterProfile(member, { push = true, previousView: requestedPreviou
   if (!hasLeadershipCallsign(currentUser)) return;
   document.body.classList.remove('smuls-background-mode');
   document.body.classList.remove('als-background-mode');
+  document.body.classList.remove('moto-background-mode');
   const callsign = normalizeCallsign(member.callsign || member.callSign);
   const currentState = window.history.state || {};
   const previousView = requestedPreviousView || (currentState.view === 'tester-profile' ? currentState.previousView : document.querySelector('.nav-item.active')?.dataset.view || 'overview');
@@ -737,7 +738,7 @@ function activeBonusPeriodIndex(now = new Date()) {
     if (selectedBonusPeriodIndex === null) selectedBonusPeriodIndex = activeBonusPeriodIndex();
     const period = bonusPeriodFor(selectedBonusPeriodIndex);
     const activePeriod = bonusPeriodFor(activeBonusPeriodIndex());
-    return `<section class="panel bonus-panel"><div class="panel-head"><div><p class="eyebrow">ACTIVITATE TESTERI</p><h2>Bonusuri</h2></div></div><p class="bonus-active-period"><strong>Perioada activă:</strong> ${bonusPeriodLabel(activePeriod)}</p><div class="bonus-period-controls"><button class="outline" type="button" data-bonus-shift="-1" aria-label="Perioada anterioară">←</button><strong>Perioada afișată: ${bonusPeriodLabel(period)}</strong><button class="outline" type="button" data-bonus-shift="1" aria-label="Perioada următoare" ${selectedBonusPeriodIndex >= activePeriod.index ? 'disabled' : ''}>→</button></div><p class="bonus-period-status muted" id="bonus-period-status" role="status" aria-live="polite">Se încarcă testele...</p><div class="bonus-table-wrap"><table class="bonus-table"><thead><tr><th>CALLSIGN</th><th>MEDIC</th>${BONUS_CATEGORIES.map(category => `<th>${category.label}</th>`).join('')}<th></th></tr></thead><tbody id="bonus-rows"><tr><td colspan="9">Se încarcă...</td></tr></tbody></table></div></section>`;
+    return `<section class="panel bonus-panel"><div class="panel-head"><div><p class="eyebrow">ACTIVITATE TESTERI</p><h2>Bonusuri</h2></div></div><p class="bonus-active-period"><strong>Perioada activă:</strong> ${bonusPeriodLabel(activePeriod)}</p><div class="bonus-period-controls"><button class="outline" type="button" data-bonus-shift="-1" aria-label="Perioada anterioară">←</button><strong>Perioada afișată: ${bonusPeriodLabel(period)}</strong><button class="outline" type="button" data-bonus-shift="1" aria-label="Perioada următoare" ${selectedBonusPeriodIndex >= activePeriod.index ? 'disabled' : ''}>→</button></div><p class="bonus-period-status muted" id="bonus-period-status" role="status" aria-live="polite">Se încarcă testele...</p><div class="bonus-table-wrap"><table class="bonus-table"><thead><tr><th>CALLSIGN</th><th>MEDIC</th>${BONUS_CATEGORIES.map(category => `<th>${category.label}</th>`).join('')}<th></th></tr></thead><tbody id="bonus-rows"><tr><td colspan="9">Se încarcă...</td></tr></tbody></table></div><img class="test-corner-logo bonus-corner-logo" src="/bonusuri.png" alt="Sigla Bonusuri" aria-hidden="true"></section>`;
   }
   async function loadBonusEntries(period) {
     const status = document.querySelector('#bonus-period-status');
@@ -801,6 +802,7 @@ function testNameFromHash(hash) {
 function openTest(testName, { push = true, previousView: requestedPreviousView } = {}) {
   document.body.classList.toggle('smuls-background-mode', testName === 'Test SMULS');
   document.body.classList.toggle('als-background-mode', testName === 'Test ALS');
+  document.body.classList.toggle('moto-background-mode', testName === 'Test MOTO');
   const definition = testDefinitions[testName] || { description: 'Test disponibil.', questions: [] };
   const questions = Array.isArray(definition.questions) ? definition.questions : [];
   const currentView = window.history.state?.view;
@@ -1184,7 +1186,7 @@ function buildTestMarkup(testName, definition, questions) {
     : `${guideBody}${images ? `<div class="test-images">${images}</div>` : ''}`;
   const testAccessControl = testAccessMarkup(testName);
   const headerActions = `<div class="test-guide-header-actions">${testAccessControl}<button class="outline site-guide-frame" id="back-to-tests">← Înapoi</button></div>`;
-  return `<div class="panel view-panel${isSmulsTest ? ' smuls-background-panel' : isAlsTest ? ' als-background-panel' : ''}"><div class="panel-head"><div><p class="eyebrow">GHID PENTRU TESTER</p><h2>${displayTestName(testName)}</h2></div>${headerActions}</div>${content}${isSmulsTest || isAlsTest ? evaluationStageFlow : ''}${parachutismResultStageFlow}${parachutismPracticalStage}${isSmulsTest ? '<img class="test-corner-logo" src="/logo%20smuls.png" alt="Sigla S.M.U.L.S." aria-hidden="true">' : isMotoTest ? '<img class="test-corner-logo" src="/moto-sigla.png" alt="Sigla Moto" aria-hidden="true">' : isPilotTest ? '<img class="test-corner-logo" src="/logo%20pilot.png" alt="Sigla Pilot" aria-hidden="true">' : isParachutismTest ? '<img class="test-corner-logo" src="/logo%20parasuta.png" alt="Sigla parașutism" aria-hidden="true">' : ''}</div>`;
+  return `<div class="panel view-panel${isSmulsTest ? ' smuls-background-panel' : isAlsTest ? ' als-background-panel' : isMotoTest ? ' moto-background-panel' : ''}"><div class="panel-head"><div><p class="eyebrow">GHID PENTRU TESTER</p><h2>${displayTestName(testName)}</h2></div>${headerActions}</div>${content}${isSmulsTest || isAlsTest ? evaluationStageFlow : ''}${parachutismResultStageFlow}${parachutismPracticalStage}${isSmulsTest ? '<img class="test-corner-logo" src="/logo%20smuls%202.png" alt="Sigla S.M.U.L.S." aria-hidden="true">' : isMotoTest ? '<img class="test-corner-logo" src="/moto%202.png" alt="Sigla Moto" aria-hidden="true">' : isPilotTest ? '<img class="test-corner-logo" src="/logo%20pilot.png" alt="Sigla Pilot" aria-hidden="true">' : isParachutismTest ? '<img class="test-corner-logo" src="/logo%20parasuta.png" alt="Sigla parașutism" aria-hidden="true">' : ''}</div>`;
 }
 function wireTestEvents(testName, definition) {
   const isAdmissionTest = testName === 'Test admitere';
@@ -1450,6 +1452,7 @@ function wireTestEvents(testName, definition) {
   }
   updateAdmittedVerdicts();
   wrongInputs.forEach(input => input.onchange = () => {
+    if (input.checked && wrongAnswerCount() > 2) input.checked = false;
     const wrongCount = wrongAnswerCount();
     const count = document.querySelector('#wrong-count');
     if (count) count.textContent = wrongCount;
@@ -1934,6 +1937,7 @@ function navigateTo(view, { push = true } = {}) {
   if (!labels[view]) return;
   document.body.classList.remove('smuls-background-mode');
   document.body.classList.remove('als-background-mode');
+  document.body.classList.remove('moto-background-mode');
   if (push && window.history.state?.view !== view) window.history.pushState({ view }, '', `#${view}`);
   document.querySelectorAll('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.view === view));
   document.querySelector('#page-label').textContent = labels[view];

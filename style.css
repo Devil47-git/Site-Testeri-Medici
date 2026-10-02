@@ -485,5 +485,9 @@ body.als-background-mode{isolation:isolate}
 body.als-background-mode::before{content:"";position:fixed;top:81px;left:245px;right:0;bottom:0;z-index:-1;background:url("/alsv2.png") center calc(100% + 80px)/cover no-repeat;opacity:.2;filter:blur(2px);pointer-events:none}
 body.als-background-mode .view-panel.als-background-panel{background:rgba(17,29,45,.5)}
 @media(max-width:760px){body.als-background-mode::before{left:0}}
+body.moto-background-mode{isolation:isolate}
+body.moto-background-mode::before{content:"";position:fixed;top:81px;left:245px;right:0;bottom:0;z-index:-1;background:url("/moto%20fundal.png") center calc(100% + 80px)/cover no-repeat;opacity:.2;filter:blur(2px);pointer-events:none}
+body.moto-background-mode .view-panel.moto-background-panel{background:rgba(17,29,45,.5)}
+@media(max-width:760px){body.moto-background-mode::before{left:0}}
 .test-corner-logo{position:fixed;right:22px;bottom:18px;z-index:8;width:132px;height:132px;object-fit:contain;opacity:.94;mix-blend-mode:screen;pointer-events:none;user-select:none}
 @media(max-width:760px){.test-corner-logo{right:12px;bottom:14px;width:86px;height:86px}}

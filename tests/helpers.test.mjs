@@ -117,10 +117,10 @@ test('all members can view the tester directory while only callsigns 001-020 can
 });
 
 test('SMULS, Moto, Pilot, and parachutism test pages show their fixed corner logos', () => {
-  assert.match(source, /class="panel view-panel\$\{isSmulsTest \? ' smuls-background-panel' : isAlsTest \? ' als-background-panel' : ''\}"/);
+  assert.match(source, /class="panel view-panel\$\{isSmulsTest \? ' smuls-background-panel' : isAlsTest \? ' als-background-panel' : isMotoTest \? ' moto-background-panel' : ''\}"/);
   assert.match(source, /document\.body\.classList\.toggle\('smuls-background-mode', testName === 'Test SMULS'\)/);
-  assert.match(source, /isSmulsTest \? '<img class="test-corner-logo" src="\/logo%20smuls\.png"/);
-  assert.match(source, /: isMotoTest \? '<img class="test-corner-logo" src="\/moto-sigla\.png"/);
+  assert.match(source, /isSmulsTest \? '<img class="test-corner-logo" src="\/logo%20smuls%202\.png"/);
+  assert.match(source, /: isMotoTest \? '<img class="test-corner-logo" src="\/moto%202\.png"/);
   assert.match(source, /: isPilotTest \? '<img class="test-corner-logo" src="\/logo%20pilot\.png"/);
   assert.match(source, /: isParachutismTest \? '<img class="test-corner-logo" src="\/logo%20parasuta\.png"/);
   const stylesheet = readFileSync(join(here, '..', 'style.css'), 'utf8');
@@ -128,12 +128,15 @@ test('SMULS, Moto, Pilot, and parachutism test pages show their fixed corner log
   assert.match(stylesheet, /\.test-corner-logo\{[^}]*position:fixed;right:22px;bottom:18px;z-index:8;width:132px;height:132px;[^}]*mix-blend-mode:screen/);
 });
 
-test('ALS background stays below the topbar and right of the sidebar', () => {
+test('ALS and Moto backgrounds stay below the topbar and right of the sidebar', () => {
   assert.match(source, /document\.body\.classList\.toggle\('als-background-mode', testName === 'Test ALS'\)/);
-  assert.match(source, /isAlsTest \? ' als-background-panel' : ''/);
+  assert.match(source, /document\.body\.classList\.toggle\('moto-background-mode', testName === 'Test MOTO'\)/);
+  assert.match(source, /isAlsTest \? ' als-background-panel' : isMotoTest \? ' moto-background-panel' : ''/);
   const stylesheet = readFileSync(join(here, '..', 'style.css'), 'utf8');
   assert.match(stylesheet, /body\.als-background-mode::before\{[^}]*top:81px;left:245px;right:0;bottom:0;[^}]*url\("\/alsv2\.png"\) center calc\(100% \+ 80px\)\/cover no-repeat;[^}]*opacity:\.2;filter:blur\(2px\)/);
   assert.match(stylesheet, /@media\(max-width:760px\)\{body\.als-background-mode::before\{left:0\}\}/);
+  assert.match(stylesheet, /body\.moto-background-mode::before\{[^}]*top:81px;left:245px;right:0;bottom:0;[^}]*url\("\/moto%20fundal\.png"\) center calc\(100% \+ 80px\)\/cover no-repeat;[^}]*opacity:\.2;filter:blur\(2px\)/);
+  assert.match(stylesheet, /@media\(max-width:760px\)\{body\.moto-background-mode::before\{left:0\}\}/);
 });
 
 test('callsignNumber strips non-digits and returns 0 for empty', () => {
@@ -718,6 +721,17 @@ test('admission promotion note is placed after the mistake counter in bold white
   assert.match(source, /id="wrong-count"[\s\S]*?\$\{admissionPromotionNote\}\$\{evaluationActions\}/);
   const stylesheet = readFileSync(join(here, '..', 'style.css'), 'utf8');
   assert.match(stylesheet, /\.question-list \.admission-promotion-note\{[^}]*color:#fff;font-size:17px;font-weight:800/);
+});
+
+test('at most two questions can be marked wrong at once', () => {
+  const wrongAnswerHandler = source.match(/wrongInputs\.forEach\(input => input\.onchange = \(\) => \{[\s\S]*?\n  \}\);/)?.[0] || '';
+  assert.match(wrongAnswerHandler, /if \(input\.checked && wrongAnswerCount\(\) > 2\) input\.checked = false/);
+  assert.match(wrongAnswerHandler, /const wrongCount = wrongAnswerCount\(\)/);
+  assert.doesNotMatch(wrongAnswerHandler, /item\.disabled\s*=\s*true/);
+});
+
+test('bonus page shows its fixed corner logo', () => {
+  assert.match(source, /class="test-corner-logo bonus-corner-logo" src="\/bonusuri\.png" alt="Sigla Bonusuri"/);
 });
 
 test('admitted verdicts enforce the mistake limit and verdict buttons cool down for 15 seconds', () => {
