@@ -345,10 +345,8 @@ async function loadDirectory() {
       : normalizeGrantBundle([...(currentUser.grantedTests || []), ...(currentDirectoryMember.grantedTests || [])]);
   }
   await loadTestRunCounts();
-  if (isLeadershipUser(currentUser)) {
-    testers = directoryMembers.filter(member => member.isTester || memberIsTester(member)).map(member => ({ ...member, grantedTests: normalizeGrantBundle([...(member.grantedTests || []), ...docsAssignedTests(member)]) }));
-    saveTesters();
-  }
+  testers = directoryMembers.filter(member => member.isTester || memberIsTester(member)).map(member => ({ ...member, grantedTests: normalizeGrantBundle([...(member.grantedTests || []), ...docsAssignedTests(member)]) }));
+  saveTesters();
   renderRows();
   renderDashboardData();
   refreshCurrentView();
@@ -522,7 +520,7 @@ function renderTestersView() {
   const groups = DASHBOARD_GROUPS.map(group => ({ label: group.label, members: sortMembers(testers.filter(group.members)) })).filter(group => group.members.length);
   const orphan = sortMembers(testers.filter(member => !DASHBOARD_GROUPS.some(group => group.members(member))));
   if (orphan.length) groups.push({ label: 'Alți membri', members: orphan });
-  const actions = isLeadershipUser(currentUser) ? '<div class="welcome-actions"><button class="primary" id="view-add">＋ Adaugă tester</button><button class="primary" id="view-remove">－ Scoatere Tester</button></div>' : '';
+  const actions = hasLeadershipCallsign(currentUser) ? '<div class="welcome-actions"><button class="primary" id="view-add">＋ Adaugă tester</button><button class="primary" id="view-remove">－ Scoatere Tester</button></div>' : '';
   const sections = groups.map(group => `<section class="tester-group"><h3>${escapeHtml(group.label)}</h3>${testerTableHtml(group.members)}</section>`).join('');
   return `<div class="panel view-panel"><div class="panel-head"><div><h2>Testerii departamentului</h2></div>${actions}</div>${sections || '<div class="empty-state">Nu există testeri.</div>'}</div>`;
 }
@@ -537,6 +535,8 @@ function renderTesterProfileView(member) {
 }
 function openTesterProfile(member, { push = true, previousView: requestedPreviousView } = {}) {
   if (!hasLeadershipCallsign(currentUser)) return;
+  document.body.classList.remove('smuls-background-mode');
+  document.body.classList.remove('als-background-mode');
   const callsign = normalizeCallsign(member.callsign || member.callSign);
   const currentState = window.history.state || {};
   const previousView = requestedPreviousView || (currentState.view === 'tester-profile' ? currentState.previousView : document.querySelector('.nav-item.active')?.dataset.view || 'overview');
@@ -799,6 +799,8 @@ function testNameFromHash(hash) {
   catch { return ''; }
 }
 function openTest(testName, { push = true, previousView: requestedPreviousView } = {}) {
+  document.body.classList.toggle('smuls-background-mode', testName === 'Test SMULS');
+  document.body.classList.toggle('als-background-mode', testName === 'Test ALS');
   const definition = testDefinitions[testName] || { description: 'Test disponibil.', questions: [] };
   const questions = Array.isArray(definition.questions) ? definition.questions : [];
   const currentView = window.history.state?.view;
@@ -1128,7 +1130,11 @@ function buildTestMarkup(testName, definition, questions) {
   const motoChecks = isMotoTest ? motoChecklistHtml() : '';
   const parachutismChecks = isParachutismTest ? parachutismChecklistHtml(definition.eligibilityCriteria) : '';
   const parachutismInformation = isParachutismTest ? parachutismInformationHtml(definition) : '';
-  const description = isAdmissionTest ? 'Candidatul poate greși de maximum 3 ori; la a 4-a greșeală este respins. Promovare: minimum 17/20.' : isParachutismTest ? '' : definition.description;
+  const admissionPromotionText = 'Candidatul poate greși de maximum 3 ori; la a 4-a greșeală este respins. Promovare: minimum 17/20.';
+  const admissionPromotionNote = isAdmissionTest ? `<p class="admission-promotion-note">${admissionPromotionText}</p>` : '';
+  const description = isAdmissionTest
+    ? String(definition.description || '').replace(admissionPromotionText, '').trim()
+    : isParachutismTest ? '' : definition.description;
   const images = (definition.images || []).map(image => `<a class="test-image-link${image.inline ? ' test-image-preview' : ''}" href="${image.url}" target="_blank" rel="noopener">${image.inline ? `<img src="${image.url}" alt="${escapeHtml(image.label || testName)}">` : image.label || 'Deschide imaginea'}</a>`).join('');
   const cases = isSmulsTest || isAlsTest ? '' : (definition.cases || []).map((item, index) => `<option value="${index}">${item.title}</option>`).join('');
   const parachutismPracticalOptions = (definition.practical || []).map((item, index) => `<option value="${index}">${item.name}</option>`).join('');
@@ -1155,7 +1161,7 @@ function buildTestMarkup(testName, definition, questions) {
         ? '<div class="evaluation-stage-actions"><button class="primary evaluation-verdict evaluation-verdict-admitted" type="submit" data-parachutism-theory-result="Admis">Admis Test Teoretic</button><button class="primary evaluation-verdict evaluation-verdict-rejected" type="submit" data-parachutism-theory-result="Respins">Respins Test Teoretic</button></div>'
     : '<button class="primary" type="submit">Finalizează evaluarea</button>';
   const candidateDocument = !isApplicationTest && !isMedicalCertificate && testName === 'Adeverință medicală' ? '<label>Imagine document candidat<input id="candidate-document" type="file" accept="image/*"></label><p class="muted">Imaginea este disponibilă testerului pentru verificare manuală.</p>' : '';
-  const questionForm = isAlsTest || isSmulsTest ? '' : questions.length ? `<form id="test-form" class="question-list">${candidateIdentityInQuiz}${stagedCandidateSummary ? '' : '<div id="candidate-summary" class="candidate-summary"></div>'}${candidateDocument}${questions.map((question, index) => questionItemHtml(question, index, !isMedicalCertificate)).join('')}${isMedicalCertificate ? '' : `<p>Greșeli: <strong id="wrong-count">0</strong> / ${Number.isFinite(maxWrong) ? maxWrong : '—'}</p>`}${evaluationActions}</form>` : '<div class="test-runner"><p>Acest ghid nu are întrebări teoretice configurate.</p></div>';
+  const questionForm = isAlsTest || isSmulsTest ? '' : questions.length ? `<form id="test-form" class="question-list">${candidateIdentityInQuiz}${stagedCandidateSummary ? '' : '<div id="candidate-summary" class="candidate-summary"></div>'}${candidateDocument}${questions.map((question, index) => questionItemHtml(question, index, !isMedicalCertificate)).join('')}${isMedicalCertificate ? '' : `<p>Greșeli: <strong id="wrong-count">0</strong> / ${Number.isFinite(maxWrong) ? maxWrong : '—'}</p>`}${admissionPromotionNote}${evaluationActions}</form>` : '<div class="test-runner"><p>Acest ghid nu are întrebări teoretice configurate.</p></div>';
   const gatedQuestionForm = (isAdmissionTest || isTransferTest || isMotoTest || isSmulsTest || isAlsTest || isParachutismTest || isPilotTest) && questions.length ? `<div id="${isAdmissionTest ? 'admission-test-content' : isTransferTest ? 'transfer-test-content' : isMotoTest ? 'moto-test-content' : isSmulsTest ? 'smuls-test-content' : isAlsTest ? 'als-test-content' : isParachutismTest ? 'parachutism-test-content' : 'pilot-test-content'}" hidden>${questionForm}</div>` : questionForm;
   const evaluationStageFlow = ['Test PILOT', 'Test MOTO', 'Test SMULS', 'Test ALS'].includes(testName) ? '<div id="evaluation-stage-flow" hidden></div>' : '';
   const parachutismResultStageFlow = isParachutismTest ? '<div id="evaluation-stage-flow" hidden></div>' : '';
@@ -1178,7 +1184,7 @@ function buildTestMarkup(testName, definition, questions) {
     : `${guideBody}${images ? `<div class="test-images">${images}</div>` : ''}`;
   const testAccessControl = testAccessMarkup(testName);
   const headerActions = `<div class="test-guide-header-actions">${testAccessControl}<button class="outline site-guide-frame" id="back-to-tests">← Înapoi</button></div>`;
-  return `<div class="panel view-panel"><div class="panel-head"><div><p class="eyebrow">GHID PENTRU TESTER</p><h2>${displayTestName(testName)}</h2></div>${headerActions}</div>${content}${isSmulsTest || isAlsTest ? evaluationStageFlow : ''}${parachutismResultStageFlow}${parachutismPracticalStage}</div>`;
+  return `<div class="panel view-panel${isSmulsTest ? ' smuls-background-panel' : isAlsTest ? ' als-background-panel' : ''}"><div class="panel-head"><div><p class="eyebrow">GHID PENTRU TESTER</p><h2>${displayTestName(testName)}</h2></div>${headerActions}</div>${content}${isSmulsTest || isAlsTest ? evaluationStageFlow : ''}${parachutismResultStageFlow}${parachutismPracticalStage}${isSmulsTest ? '<img class="test-corner-logo" src="/logo%20smuls.png" alt="Sigla S.M.U.L.S." aria-hidden="true">' : isMotoTest ? '<img class="test-corner-logo" src="/moto-sigla.png" alt="Sigla Moto" aria-hidden="true">' : isPilotTest ? '<img class="test-corner-logo" src="/logo%20pilot.png" alt="Sigla Pilot" aria-hidden="true">' : isParachutismTest ? '<img class="test-corner-logo" src="/logo%20parasuta.png" alt="Sigla parașutism" aria-hidden="true">' : ''}</div>`;
 }
 function wireTestEvents(testName, definition) {
   const isAdmissionTest = testName === 'Test admitere';
@@ -1447,11 +1453,7 @@ function wireTestEvents(testName, definition) {
     const wrongCount = wrongAnswerCount();
     const count = document.querySelector('#wrong-count');
     if (count) count.textContent = wrongCount;
-    const limitExceeded = wrongCount > maxWrongForTest(testName, definition.maxWrong);
     updateAdmittedVerdicts();
-    if (limitExceeded) {
-      wrongInputs.forEach(item => { item.disabled = true; });
-    }
   });
   const candidateInput = document.querySelector('#candidate-callsign'); const candidateSummaryEl = document.querySelector('#candidate-summary'); const alsCandidateNameInput = document.querySelector('#als-candidate-name');
   let candidateLookupTimer;
@@ -1764,7 +1766,7 @@ function wireTestEvents(testName, definition) {
 renderRows();
 const modal = document.querySelector('#modal'); const callsignInput=document.querySelector('#callsign'); const memberResult=document.querySelector('#member-result'); const grantChecks=document.querySelector('#grant-checks');
 function openAddModal(member) {
-  if (!isLeadershipUser(currentUser)) { alert('Doar conducerea poate acorda acces.'); return; }
+  if (!hasLeadershipCallsign(currentUser)) { alert('Doar callsign-urile 001–020 pot acorda acces.'); return; }
   modal.classList.add('open');
   callsignInput.value = member ? normalizeCallsign(member.callsign) : '';
   grantChecks.innerHTML = '';
@@ -1797,7 +1799,7 @@ function renderRemoveTestChecks() {
   removeResult.textContent = member ? `Teste active: ${granted.length}` : '';
 }
 function openRemoveModal() {
-  if (!isLeadershipUser(currentUser)) { alert('Doar conducerea poate retrage accesul.'); return; }
+  if (!hasLeadershipCallsign(currentUser)) { alert('Doar callsign-urile 001–020 pot retrage accesul.'); return; }
   if (!removeModal) return;
   removeMemberSelect.innerHTML = testers.map(member => `<option value="${escapeHtml(normalizeCallsign(member.callsign))}">${escapeHtml(memberNameFor(member))} · ${escapeHtml(normalizeCallsign(member.callsign))}</option>`).join('');
   removeTestChecks.innerHTML = '';
@@ -1930,6 +1932,8 @@ const labels = { overview: 'Profilul tău', testers: 'Testerii departamentului',
 function navigateTo(view, { push = true } = {}) {
   if (view === 'bonuses' && !isLeadershipUser(currentUser)) view = 'overview';
   if (!labels[view]) return;
+  document.body.classList.remove('smuls-background-mode');
+  document.body.classList.remove('als-background-mode');
   if (push && window.history.state?.view !== view) window.history.pushState({ view }, '', `#${view}`);
   document.querySelectorAll('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.view === view));
   document.querySelector('#page-label').textContent = labels[view];
@@ -2018,7 +2022,7 @@ function setWelcomeHeader(user){
 }
 /** @param {any} user @returns {void} */
 function setVisibilityPermissions(user){
-  const leadership = isLeadershipUser(user);
+  const leadership = hasLeadershipCallsign(user);
   const addBtn = document.querySelector('#add-btn');
   const removeBtn = document.querySelector('#remove-btn');
   const profileSettingsButton = document.querySelector('#profile-settings');

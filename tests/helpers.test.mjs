@@ -11,6 +11,7 @@ import { cooldownIsActive, parseCooldownS } from '../api/access/cooldowns.js';
 const here = dirname(fileURLToPath(import.meta.url));
 const source = readFileSync(join(here, '..', 'script.js'), 'utf8');
 const directorySource = readFileSync(join(here, '..', 'api', 'access', 'directory.js'), 'utf8');
+const grantsSource = readFileSync(join(here, '..', 'api', 'access', 'grants.js'), 'utf8');
 const testResultsSource = readFileSync(join(here, '..', 'api', 'access', 'test-results.js'), 'utf8');
 const serverSource = readFileSync(join(here, '..', 'server.js'), 'utf8');
 const testCatalogSource = readFileSync(join(here, '..', 'tests.js'), 'utf8');
@@ -105,6 +106,34 @@ test('test badges use the requested semantic colors with equal intensity', () =>
     assert.match(stylesheet, new RegExp(`\\.test-tag\\.${className}\\s*\\{--test-tag-color:#${color}\\}`, 'i'));
   }
   assert.match(stylesheet, /\.tag\.test-tag\{[^}]*box-shadow:0 0 8px color-mix\(in srgb,var\(--test-tag-color\) 42%,transparent\)/);
+});
+
+test('all members can view the tester directory while only callsigns 001-020 can edit it', () => {
+  const loadDirectorySource = source.match(/async function loadDirectory\(\) \{[\s\S]*?^\}/m)?.[0] || '';
+  const testerViewSource = source.match(/function renderTestersView\(\) \{[\s\S]*?^\}/m)?.[0] || '';
+  assert.match(loadDirectorySource, /testers = directoryMembers\.filter\(member => member\.isTester \|\| memberIsTester\(member\)\)/);
+  assert.match(testerViewSource, /const actions = hasLeadershipCallsign\(currentUser\) \?/);
+  assert.match(grantsSource, /requesterCallsign < 1 \|\| requesterCallsign > LEADERSHIP_MAX/);
+});
+
+test('SMULS, Moto, Pilot, and parachutism test pages show their fixed corner logos', () => {
+  assert.match(source, /class="panel view-panel\$\{isSmulsTest \? ' smuls-background-panel' : isAlsTest \? ' als-background-panel' : ''\}"/);
+  assert.match(source, /document\.body\.classList\.toggle\('smuls-background-mode', testName === 'Test SMULS'\)/);
+  assert.match(source, /isSmulsTest \? '<img class="test-corner-logo" src="\/logo%20smuls\.png"/);
+  assert.match(source, /: isMotoTest \? '<img class="test-corner-logo" src="\/moto-sigla\.png"/);
+  assert.match(source, /: isPilotTest \? '<img class="test-corner-logo" src="\/logo%20pilot\.png"/);
+  assert.match(source, /: isParachutismTest \? '<img class="test-corner-logo" src="\/logo%20parasuta\.png"/);
+  const stylesheet = readFileSync(join(here, '..', 'style.css'), 'utf8');
+  assert.match(stylesheet, /body\.smuls-background-mode::before\{[^}]*position:fixed;inset:-6px;z-index:-1;[^}]*opacity:\.18;filter:blur\(3px\)/);
+  assert.match(stylesheet, /\.test-corner-logo\{[^}]*position:fixed;right:22px;bottom:18px;z-index:8;width:132px;height:132px;[^}]*mix-blend-mode:screen/);
+});
+
+test('ALS background stays below the topbar and right of the sidebar', () => {
+  assert.match(source, /document\.body\.classList\.toggle\('als-background-mode', testName === 'Test ALS'\)/);
+  assert.match(source, /isAlsTest \? ' als-background-panel' : ''/);
+  const stylesheet = readFileSync(join(here, '..', 'style.css'), 'utf8');
+  assert.match(stylesheet, /body\.als-background-mode::before\{[^}]*top:81px;left:245px;right:0;bottom:0;[^}]*url\("\/alsv2\.png"\) center calc\(100% \+ 80px\)\/cover no-repeat;[^}]*opacity:\.2;filter:blur\(2px\)/);
+  assert.match(stylesheet, /@media\(max-width:760px\)\{body\.als-background-mode::before\{left:0\}\}/);
 });
 
 test('callsignNumber strips non-digits and returns 0 for empty', () => {
@@ -581,7 +610,7 @@ test('Moto and Pilot staged practical content is present in test definitions', (
 test('Pilot certification description and instructions share one intro box', () => {
   assert.match(source, /const introBoxClass = testName === 'Test PILOT' \? 'pilot-intro-box' : isMotoTest \? 'moto-intro-box' : isSmulsTest \? 'smuls-intro-box' : 'als-intro-box'/);
   assert.match(source, /const testIntro = isTransferTest \|\| isMedicalCertificate \? '' : isStagedTest \? `<div class="\$\{introBoxClass\}">\$\{descriptionMarkup\}\$\{instructions\}<\/div>`/);
-  assert.match(source, /const description = isAdmissionTest \? '[^']*' : isParachutismTest \? '' : definition\.description/);
+  assert.match(source, /const description = isAdmissionTest\s*\? String\(definition\.description \|\| ''\)\.replace\(admissionPromotionText, ''\)\.trim\(\)\s*: isParachutismTest \? '' : definition\.description/);
   assert.match(source, /const guideBody = sideBySideGuide[\s\S]*test-guide-columns[\s\S]*test-guide-information/);
 });
 
@@ -677,8 +706,18 @@ test('admission test rejects the fourth mistake', () => {
   assert.equal(maxWrongForTest('Test transfer', 2), 2);
   assert.match(source, /if \(count\) count\.textContent = wrongCount/);
   const wrongAnswerHandler = source.match(/wrongInputs\.forEach\(input => input\.onchange = \(\) => \{[\s\S]*?\n  \}\);/)?.[0] || '';
-  assert.match(wrongAnswerHandler, /wrongInputs\.forEach\(item => \{ item\.disabled = true; \}\)/);
+  assert.match(wrongAnswerHandler, /updateAdmittedVerdicts\(\)/);
+  assert.doesNotMatch(wrongAnswerHandler, /item\.disabled\s*=\s*true/);
   assert.doesNotMatch(wrongAnswerHandler, /requestSubmit/);
+});
+
+test('admission promotion note is placed after the mistake counter in bold white text', () => {
+  assert.match(source, /const admissionPromotionText = 'Candidatul poate greși de maximum 3 ori; la a 4-a greșeală este respins\. Promovare: minimum 17\/20\.'/);
+  assert.match(source, /String\(definition\.description \|\| ''\)\.replace\(admissionPromotionText, ''\)\.trim\(\)/);
+  assert.match(source, /const admissionPromotionNote = isAdmissionTest \? `<p class="admission-promotion-note">\$\{admissionPromotionText\}<\/p>` : ''/);
+  assert.match(source, /id="wrong-count"[\s\S]*?\$\{admissionPromotionNote\}\$\{evaluationActions\}/);
+  const stylesheet = readFileSync(join(here, '..', 'style.css'), 'utf8');
+  assert.match(stylesheet, /\.question-list \.admission-promotion-note\{[^}]*color:#fff;font-size:17px;font-weight:800/);
 });
 
 test('admitted verdicts enforce the mistake limit and verdict buttons cool down for 15 seconds', () => {

@@ -1,5 +1,5 @@
 import '../config.js';
-import { normalize, callsignNumber, isLeadershipRow, normalizeTests } from './shared.js';
+import { normalize, callsignNumber, isLeadershipRow, LEADERSHIP_MAX, normalizeTests } from './shared.js';
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:T400';
@@ -92,8 +92,9 @@ export default async function handler(req, res) {
     const sheets = await sheetsClient();
     const requester = await findMember(sheets, requesterId);
     if (!requester) return json(res, 403, { error: 'Requester is not a department member' });
-    if (!isLeadership(requester)) return json(res, 403, { error: 'Only leadership can manage grants' });
-    if (req.body?.individualRemoval === true && !(callsignNumber(requester[2]) >= 1 && callsignNumber(requester[2]) <= 20)) return json(res, 403, { error: 'Individual test removal requires a leadership callsign between 001 and 020' });
+    const requesterCallsign = callsignNumber(requester[2]);
+    if (requesterCallsign < 1 || requesterCallsign > LEADERSHIP_MAX) return json(res, 403, { error: 'Only callsigns 001-020 can manage grants' });
+    if (req.body?.individualRemoval === true && !(requesterCallsign >= 1 && requesterCallsign <= LEADERSHIP_MAX)) return json(res, 403, { error: 'Individual test removal requires a leadership callsign between 001 and 020' });
     const grants = await readGrants(sheets);
     const targetId = typeof req.body?.targetDiscordId === 'string' ? req.body.targetDiscordId.trim() : '';
     const targetCallsign = typeof req.body?.callsign === 'string' ? req.body.callsign.trim() : '';
