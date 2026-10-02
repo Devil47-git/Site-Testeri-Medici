@@ -345,7 +345,7 @@ function renderDashboardData() {
     const members = sortMembers(testers);
     testerList.innerHTML = members.length ? members.map(member => {
       const key = String(member.discordId || normalizeCallsign(member.callsign));
-      return `<article class="statistics-tester"><div class="statistics-tester-row"><dl class="statistics-tester-fields"><div><dt>CALLSIGN</dt><dd>${escapeHtml(normalizeCallsign(member.callsign))}</dd></div><div><dt>NUME</dt><dd>${escapeHtml(memberNameFor(member))}</dd></div><div><dt>GRAD</dt><dd>${escapeHtml(rankFor(member))}</dd></div><div class="statistics-processed-column"><dt>TESTE PROCESATE</dt><dd>${processedTestBadgesHtml(member, processedTestCounts)}</dd></div></dl><button type="button" class="outline statistics-tests-toggle" data-statistics-member="${escapeHtml(key)}">Teste</button></div></article>`;
+      return `<article class="statistics-tester"><div class="statistics-tester-row"><dl class="statistics-tester-fields"><div><dt>CALLSIGN</dt><dd>${escapeHtml(normalizeCallsign(member.callsign))}</dd></div><div><dt>NUME</dt><dd>${escapeHtml(memberNameFor(member))}</dd></div><div><dt>GRAD</dt><dd>${escapeHtml(rankFor(member))}</dd></div><div class="statistics-processed-column"><dt>TESTE PROCESATE</dt><dd>${processedTestBadgesHtml(member, processedTestCounts)}</dd></div></dl><button type="button" class="outline site-guide-frame statistics-tests-toggle" data-statistics-member="${escapeHtml(key)}">Teste</button></div></article>`;
     }).join('') : '<div class="empty-state">Nu există testeri.</div>';
   }
   const overview = document.querySelector('#overview-view');
@@ -488,7 +488,7 @@ function testAccessMarkup(testName) {
   const members = accessibleMembers.length
     ? `<ul>${accessibleMembers.map(member => `<li><strong>${escapeHtml(memberNameFor(member))}</strong> <span>${escapeHtml(normalizeCallsign(member.callsign))}</span></li>`).join('')}</ul>`
     : '<p class="muted">Nu există testeri cu acces.</p>';
-  return `<div class="test-guide-access"><button class="outline test-access-toggle" type="button" data-test-access="${escapeHtml(testName)}" aria-expanded="false">Vezi cine are acces (${accessibleMembers.length})</button><div class="test-access-list" hidden>${members}</div></div>`;
+  return `<div class="test-guide-access"><button class="outline site-guide-frame test-access-toggle" type="button" data-test-access="${escapeHtml(testName)}" aria-expanded="false">Vezi cine are acces (${accessibleMembers.length})</button><div class="test-access-list" hidden>${members}</div></div>`;
 }
 function wireTestAccessEvents() {
   viewContent.querySelectorAll('[data-test-access]').forEach(button => {
@@ -1163,7 +1163,7 @@ function buildTestMarkup(testName, definition, questions) {
     ? `<div class="test-with-map"><div class="test-main-column">${guideBody}</div><aside class="test-map-column">${images}</aside></div>`
     : `${guideBody}${images ? `<div class="test-images">${images}</div>` : ''}`;
   const testAccessControl = testAccessMarkup(testName);
-  const headerActions = `<div class="test-guide-header-actions">${testAccessControl}<button class="outline" id="back-to-tests">← Înapoi</button></div>`;
+  const headerActions = `<div class="test-guide-header-actions">${testAccessControl}<button class="outline site-guide-frame" id="back-to-tests">← Înapoi</button></div>`;
   return `<div class="panel view-panel"><div class="panel-head"><div><p class="eyebrow">GHID PENTRU TESTER</p><h2>${displayTestName(testName)}</h2></div>${headerActions}</div>${content}${isSmulsTest || isAlsTest ? evaluationStageFlow : ''}${parachutismResultStageFlow}${parachutismPracticalStage}</div>`;
 }
 function wireTestEvents(testName, definition) {
@@ -2034,12 +2034,13 @@ async function enterApp(user) {
   const requestedProfileCallsign = requestedProfileMatch ? decodeURIComponent(requestedProfileMatch[1]) : '';
   const requestedTestName = testNameFromHash(requestedHash);
   const requestedView = requestedHash.slice(1);
+  const hasRequestedRoute = Boolean(requestedProfileCallsign || requestedTestName || labels[requestedView]);
+  if (!hasRequestedRoute) window.history.replaceState({ view: 'overview' }, '', `${window.location.pathname}#overview`);
   applyUser(user);
   markPresence();
   sendPresence();
   authScreen.style.display = 'none';
   appShell.classList.add('ready');
-  window.history.replaceState({ view: 'overview' }, '', `${window.location.pathname}#overview`);
   navigateTo('overview', { push: false });
   try {
     await loadDirectory();
@@ -2048,7 +2049,8 @@ async function enterApp(user) {
       const member = testers.find(item => normalizeCallsign(item.callsign) === requestedProfileCallsign) || directoryMembers.find(item => normalizeCallsign(item.callsign) === requestedProfileCallsign);
       if (member) openTesterProfile(member, { push: false, previousView: 'testers' });
     } else if (requestedTestName && allowedForUser(currentUser).includes(requestedTestName)) {
-      openTest(requestedTestName, { push: false, previousView: 'overview' });
+      const previousView = window.history.state?.view === 'test' ? window.history.state.previousView : 'overview';
+      openTest(requestedTestName, { push: false, previousView });
     } else if (labels[requestedView]) {
       navigateTo(requestedView, { push: false });
     }

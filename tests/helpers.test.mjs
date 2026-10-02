@@ -433,6 +433,7 @@ test('processed test badges show only assigned tests and aggregate the Tester bu
   const override = { discordId: '220', grantMode: 'override', functions: 'TESTER | A.L.S.', grantedTests: ['Test PILOT'] };
   assert.deepEqual(processedTestGroups(override), [{ label: 'Test PILOT', tests: ['Test PILOT'] }]);
   assert.match(source, /class="statistics-processed-column"><dt>TESTE PROCESATE/);
+  assert.match(source, /class="outline site-guide-frame statistics-tests-toggle"/);
 });
 
 test('lifetime tester totals are archived before only the active history is reset', () => {
@@ -707,6 +708,14 @@ test('an unexpired cached Discord user can reopen the app without a session API 
   assert.deepEqual(cachedUserWithinSession({ version: 4, user, expiresAt: 86400001 }, 86400000), user);
   assert.equal(cachedUserWithinSession({ version: 3, user, expiresAt: 86400001 }, 86400000), null);
   assert.equal(cachedUserWithinSession({ version: 4, user, expiresAt: 86400000 }, 86400000), null);
+});
+
+test('app startup preserves the current hash route across reloads', () => {
+  const enterAppSource = source.match(/^async function enterApp\(user\) \{[\s\S]*?^\}/m)?.[0] || '';
+  assert.match(enterAppSource, /const requestedHash = window\.location\.hash/);
+  assert.match(enterAppSource, /const hasRequestedRoute = Boolean\(requestedProfileCallsign \|\| requestedTestName \|\| labels\[requestedView\]\)/);
+  assert.match(enterAppSource, /if \(!hasRequestedRoute\) window\.history\.replaceState/);
+  assert.match(enterAppSource, /else if \(labels\[requestedView\]\) \{\s*navigateTo\(requestedView, \{ push: false \}\)/);
 });
 
 test('each question keeps prompt, answer, and wrong checkbox in one box', () => {
