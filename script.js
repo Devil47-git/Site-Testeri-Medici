@@ -169,6 +169,10 @@ function escapeHtml(value) { return String(value == null ? '' : value).replace(/
 function normalizeCallsign(value) { const number = String(value || '').replace(/\D/g, ''); return number ? `M-${number.padStart(3, '0')}` : ''; }
 /** @param {any} value @returns {number} */
 function callsignNumber(value) { const digits = String(value == null ? '' : value).replace(/\D/g, ''); const n = Number(digits); return Number.isFinite(n) ? n : 0; }
+function bonusTesterCallsign(value) {
+  const number = callsignNumber(value);
+  return number >= 1 && number <= 399 ? String(number).padStart(3, '0') : '';
+}
 /** @param {any} user @returns {boolean} */
 function isLeadershipUser(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return Boolean(user?.accessLevel === 'leadership' || user?.isConducere || user?.isLeadership || (cs >= 1 && cs <= 20)); }
 function hasLeadershipCallsign(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return cs >= 1 && cs <= 20; }
@@ -220,10 +224,14 @@ function normalizeGrantBundle(tests) {
 function memberIsTester(member) { const cs = callsignNumber(member?.csNum); const specialty = RESIDENT_TESTER_PATTERN.test(normalizeText(member?.functions)); return (member?.grantedTests || []).length > 0 || (cs >= 101 && cs <= 230) || (cs >= 301 && cs <= 340 && specialty) || /TESTER/.test(normalizeText(member?.functions)); }
 /** @param {any[]} members @returns {any[]} */
 function sortMembers(members) { return [...members].sort((a, b) => { const ca = callsignNumber(a?.csNum); const cb = callsignNumber(b?.csNum); return ca - cb; }); }
+function avatarUrlForMember(member, signedInUser) {
+  if (member?.discordId && member.discordId === signedInUser?.discordId && signedInUser.avatar) return String(signedInUser.avatar).trim();
+  return String(member?.avatar || '').trim();
+}
 function avatarFor(member) {
   const name = String(member?.name || '').trim();
   const initials = escapeHtml(initialsFrom(name || '??'));
-  const url = String(member?.avatar || '').trim();
+  const url = avatarUrlForMember(member, currentUser);
   const colorClass = roleColors[(callsignNumber(member?.csNum) || 0) % roleColors.length];
   return url
     ? `<div class="avatar ${colorClass} has-photo"><img src="${escapeHtml(url)}" alt="${initials}" loading="lazy" onerror="this.parentElement.textContent='${initials}'"></div>`
@@ -727,10 +735,10 @@ function activeBonusPeriodIndex(now = new Date()) {
       if (!response.ok) throw new Error(payload.error || 'Bonusurile nu au putut fi încărcate.');
       const rowsByCallsign = new Map();
       for (const entry of payload.entries || []) {
-        const callsign = callsignNumber(entry.callsign);
+        const callsign = bonusTesterCallsign(entry.callsign);
         const category = BONUS_TEST_CATEGORY.get(entry.testName);
-        if (callsign < 101 || callsign > 399 || category === undefined) continue;
-        const key = String(callsign).padStart(3, '0');
+        if (!callsign || category === undefined) continue;
+        const key = callsign;
         const row = rowsByCallsign.get(key) || { callsign: key, name: entry.testerName || '—', counts: Array(BONUS_CATEGORIES.length).fill(0) };
         row.counts[category] += 1;
         rowsByCallsign.set(key, row);
@@ -831,7 +839,7 @@ function alsChecklistHtml() {
 }
 function alsChecksComplete(checks) { return checks.length === alsRequirements.length && checks.every(Boolean); }
 function alsCaseListHtml(cases) {
-  const caseDetails = (cases || []).map((item, index) => `<details class="als-case"><summary>${escapeHtml(item.title || `Cazul ${index + 1}`)}</summary><div class="als-case-content"><p>${escapeHtml(item.description || '')}</p><p class="als-case-count">${Number(item.minimumMe) || 0} /me-uri</p><h4>/me-uri orientative</h4><ol>${(item.steps || []).map(step => `<li>${escapeHtml(step)}</li>`).join('')}</ol></div></details>`).join('');
+  const caseDetails = (cases || []).map((item, index) => `<details class="als-case"${index === 0 ? ' open' : ''}><summary>${escapeHtml(item.title || `Cazul ${index + 1}`)}</summary><div class="als-case-content"><p>${escapeHtml(item.description || '')}</p><p class="als-case-count">${Number(item.minimumMe) || 0} /me-uri</p><h4>/me-uri orientative</h4><ol>${(item.steps || []).map(step => `<li>${escapeHtml(step)}</li>`).join('')}</ol></div></details>`).join('');
   return `<section class="als-case-stage"><h3>PROBA ALS: Cazuri de intervenție</h3><div class="als-case-list">${caseDetails}</div><div class="evaluation-stage-actions"><button type="button" class="primary evaluation-verdict evaluation-verdict-admitted" data-als-result="Admis">Admis ALS</button><button type="button" class="primary evaluation-verdict evaluation-verdict-rejected" data-als-result="Respins">Respins ALS</button></div></section>`;
 }
 function smulsCaseListHtml(cases, images = []) {
@@ -1116,9 +1124,9 @@ function buildTestMarkup(testName, definition, questions) {
     : '';
   const candidateCallsign = isApplicationTest || isMedicalCertificate ? '' : '<label class="candidate-call-sign">Callsign candidat<input id="candidate-callsign" type="text" placeholder="510 sau M-510"></label>';
   const candidateNameField = ['Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști'].includes(testName) ? '<label class="candidate-call-sign">Nume candidat<input id="als-candidate-name" type="text" autocomplete="name" readonly placeholder="Se completează după callsign"></label>' : '';
-  const candidateIdentityFields = candidateCallsign && candidateNameField
-    ? `<div class="candidate-identity-fields">${candidateCallsign}${candidateNameField}</div>`
-    : `${candidateCallsign}${candidateNameField}`;
+  const candidateIdentityFields = candidateCallsign || candidateNameField
+    ? `<section class="candidate-identity-fields site-guide-frame">${candidateCallsign}${candidateNameField}</section>`
+    : '';
   const candidateIdentityBeforeChecks = isMotoTest || isSmulsTest || isAlsTest || isParachutismTest || isPilotTest ? candidateIdentityFields : '';
   const candidateIdentityInQuiz = isMotoTest || isSmulsTest || isAlsTest || isParachutismTest || isPilotTest ? '' : candidateIdentityFields;
   const stagedCandidateSummary = isSmulsTest || isAlsTest || isParachutismTest || isPilotTest ? '<div id="candidate-summary" class="candidate-summary"></div>' : '';

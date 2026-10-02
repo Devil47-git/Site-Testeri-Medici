@@ -225,21 +225,20 @@ export function createAdmissionEmbed({ testName, testerName, candidateName, resu
   };
 }
 
-export function createAdmissionTesterComponents({ testName, testerDiscordId, testerName, candidateName, candidateId, candidateCallsign, result }) {
+export function createAdmissionTesterComponents({ testName, testerName, candidateName, candidateId, candidateCallsign, result }) {
   const section = (content, filename, description) => ({
     type: 9,
     components: [{ type: 10, content }],
     accessory: { type: 11, media: { url: `attachment://${filename}` }, description }
   });
   const title = testName === 'Test transfer' ? 'Test Transfer' : 'Test Admitere';
-  const mention = discordTesterMentionPayload(testerDiscordId).content;
-  const resultDetails = `**Rezultat**\n${result || '—'}${result === 'Admis' && candidateCallsign ? `\n**Callsign**\n${candidateCallsign}` : ''}`;
+  const resultDetails = `${result === 'Admis' && candidateCallsign ? `**Callsign:** ${candidateCallsign}\n` : ''}**Rezultat:** ${result || '—'}`;
   return [{
     type: 17,
     accent_color: 0x23A2E8,
     components: [
-      section(`${mention ? `${mention}\n` : ''}## ${title}\n**Nume Tester**\n${testerName || '—'}`, 'buletin-candidat.jpg', 'Buletin candidat'),
-      section(`**Nume Candidat**\n${candidateName || '—'}\n**ID**\n${candidateId || '—'}`, 'fisa-medicala.jpg', 'Fișă medicală'),
+      section(`## ${title}\n**Nume Tester:** ${testerName || '—'}`, 'buletin-candidat.jpg', 'Buletin candidat'),
+      section(`**Nume Candidat:** ${candidateName || '—'}\n\n**ID:** ${candidateId || '—'}`, 'fisa-medicala.jpg', 'Fișă medicală'),
       section(resultDetails, 'drug-test.jpg', 'Drug-test')
     ]
   }];
@@ -555,13 +554,15 @@ export function createMedicalCertificateEmbeds(details, number) {
     `ID (CNP): ${details.candidateId}`,
     `ORE(LUNI): ${details.hoursAccount} (cont) ${details.hoursCharacter} (character)`
   ].join('\n');
-  return [{
-    title: `D.M.L.S. - EVIDENTA MEDICALA NR. ${number}`,
-    description: `\`\`\`text\n${description}\n\`\`\``,
-    color: 0x23A2E8,
-    thumbnail: { url: 'attachment://buletin-candidat.jpg' },
-    image: { url: 'attachment://fisa-medicala.jpg' }
-  }];
+  return [
+    {
+      title: `D.M.L.S. - EVIDENTA MEDICALA NR. ${number}`,
+      description: `\`\`\`text\n${description}\n\`\`\``,
+      color: 0x23A2E8
+    },
+    { color: 0x23A2E8, image: { url: 'attachment://buletin-candidat.jpg' } },
+    { color: 0x23A2E8, image: { url: 'attachment://fisa-medicala.jpg' } }
+  ];
 }
 
 async function ensureMedicalCertificatesSheet(sheets) {
