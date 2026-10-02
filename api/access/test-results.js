@@ -1,5 +1,7 @@
 import { catalog, callsignNumber, candidateForCallsign, effectiveTestsForMember, functionsForMember, isLeadershipRow, normalizeTests } from './shared.js';
 import { cooldownIsActive, parseCooldownS } from './cooldowns.js';
+import { UpstashRedis } from '../storage/upstash-redis.js';
+import { addBonusEntries, BONUS_TEST_NAMES, clearBonusEntries, importLegacyBonusEntries, listBonusEntries } from './bonus-store.js';
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:T400';
@@ -12,6 +14,7 @@ const MEDICAL_CERTIFICATE_LAST_NUMBER = 7014;
 const MEDICAL_CERTIFICATE_MAX_NUMBER = 30000;
 const MAX_IDENTITY_IMAGE_BYTES = 2 * 1024 * 1024;
 const SITE_BRAND_EMBED_COLOR = 0xCD363C;
+const bonusRedis = new UpstashRedis();
 const SPECIALTY_WEBHOOKS = {
   'Test ALS': 'DISCORD_ALS_WEBHOOK',
   'Test SMULS': 'DISCORD_SMULS_WEBHOOK',
@@ -138,23 +141,50 @@ async function sendWebhookImages(url, embeds, images, testerDiscordId) {
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
 }
 
-export function createAdmissionEmbeds({ testName, testerName, candidateName, candidateId, candidateCallsign, result }) {
-  const summaryFields = [
-    { name: 'Nume Tester', value: testerName || '—', inline: false },
-    { name: 'Nume Candidat', value: candidateName || '—', inline: false },
-    { name: 'Rezultat', value: result || '—', inline: false }
-  ];
-  const testersFields = [
-    { name: 'Nume Tester', value: testerName || '—', inline: false },
-    { name: 'Nume Candidat', value: candidateName || '—', inline: false },
-    { name: 'ID', value: candidateId || '—', inline: false },
-    { name: 'Rezultat', value: result || '—', inline: false }
-  ];
-  if (result === 'Admis' && candidateCallsign) testersFields.push({ name: 'Callsign', value: candidateCallsign, inline: false });
+async function sendWebhookComponents(url, components, images, testerDiscordId) {
+  const form = new FormData();
+  const mentionPayload = discordTesterMentionPayload(testerDiscordId);
+  form.set('payload_json', JSON.stringify({
+    allowed_mentions: mentionPayload.allowed_mentions,
+    flags: 1 << 15,
+    components,
+    attachments: images.map((image, id) => ({ id, filename: image.filename }))
+  }));
+  images.forEach((image, id) => form.set(`files[${id}]`, new Blob([image.buffer], { type: image.mimeType }), image.filename));
+  const response = await fetch(url, { method: 'POST', body: form });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+}
+
+export function createAdmissionEmbed({ testName, testerName, candidateName, result }) {
   return {
-    admission: { title: testName === 'Test transfer' ? 'Transfer' : 'Admitere', color: 0x23A2E8, fields: summaryFields },
-    testers: { title: testName === 'Test transfer' ? 'Test Transfer' : 'Test Admitere', color: 0x23A2E8, fields: testersFields, thumbnail: { url: 'attachment://buletin-candidat.jpg' } }
+    title: testName === 'Test transfer' ? 'Transfer' : 'Admitere',
+    color: 0x23A2E8,
+    fields: [
+      { name: 'Nume Tester', value: testerName || '—', inline: false },
+      { name: 'Nume Candidat', value: candidateName || '—', inline: false },
+      { name: 'Rezultat', value: result || '—', inline: false }
+    ]
   };
+}
+
+export function createAdmissionTesterComponents({ testName, testerDiscordId, testerName, candidateName, candidateId, candidateCallsign, result }) {
+  const section = (content, filename, description) => ({
+    type: 9,
+    components: [{ type: 10, content }],
+    accessory: { type: 11, media: { url: `attachment://${filename}` }, description }
+  });
+  const title = testName === 'Test transfer' ? 'Test Transfer' : 'Test Admitere';
+  const mention = discordTesterMentionPayload(testerDiscordId).content;
+  const resultDetails = `**Rezultat**\n${result || '—'}${result === 'Admis' && candidateCallsign ? `\n**Callsign**\n${candidateCallsign}` : ''}`;
+  return [{
+    type: 17,
+    accent_color: 0x23A2E8,
+    components: [
+      section(`${mention ? `${mention}\n` : ''}## ${title}\n**Nume Tester**\n${testerName || '—'}`, 'buletin-candidat.jpg', 'Buletin candidat'),
+      section(`**Nume Candidat**\n${candidateName || '—'}\n**ID**\n${candidateId || '—'}`, 'fisa-medicala.jpg', 'Fișă medicală'),
+      section(resultDetails, 'drug-test.jpg', 'Drug-test')
+    ]
+  }];
 }
 
 async function sendAdmissionNotifications(details) {
@@ -174,10 +204,10 @@ async function sendAdmissionNotifications(details) {
   ].filter(Boolean);
   if (invalid.length) return { sent: false, error: `URL invalid pentru: ${invalid.join(', ')}.` };
 
-  const embeds = createAdmissionEmbeds(details);
+  const admissionEmbed = createAdmissionEmbed(details);
   const deliveries = await Promise.all([
-    sendWebhookMessage(admissionWebhook, embeds.admission, details.testerDiscordId).then(() => null, error => `Canalul de rezultate: ${error.message.startsWith('HTTP ') ? error.message : 'eroare de rețea Discord'}.`),
-    sendWebhookImages(testersWebhook, [embeds.testers], [
+    sendWebhookMessage(admissionWebhook, admissionEmbed, details.testerDiscordId).then(() => null, error => `Canalul de rezultate: ${error.message.startsWith('HTTP ') ? error.message : 'eroare de rețea Discord'}.`),
+    sendWebhookComponents(testersWebhook, createAdmissionTesterComponents(details), [
       { ...details.identityImage, filename: 'buletin-candidat.jpg' },
       { ...details.medicalSheetImage, filename: 'fisa-medicala.jpg' },
       { ...details.drugTestImage, filename: 'drug-test.jpg' }
@@ -280,18 +310,27 @@ export default async function handler(req, res) {
       const rows = await ensureResultsHeader(sheets);
       const members = (await readValues(sheets, MEMBER_RANGE)).slice(1);
       const names = new Map(members.map(row => [String(row[19] || '').trim(), String(row[3] || '').trim()]));
-      const entries = rows.slice(1).flatMap(row => {
+      const sheetEntries = rows.slice(1).flatMap(row => {
         const entry = bonusEntryFromRow(row, names);
         const date = departmentDateKey(entry.createdAt);
-        if (!catalog.includes(entry.testName) || date < from || date > to) return [];
+        if (!BONUS_TEST_NAMES.has(entry.testName) || date < from || date > to) return [];
         return [entry];
       });
-      return json(res, 200, { entries });
+      if (bonusRedis.isConfigured) {
+        try {
+          await importLegacyBonusEntries(bonusRedis, sheetEntries, from, to);
+          return json(res, 200, { entries: await listBonusEntries(bonusRedis, from, to) });
+        } catch (error) {
+          console.error('Bonus Redis read failed; using Google Sheets history:', error);
+        }
+      }
+      return json(res, 200, { entries: sheetEntries });
     }
 
     if (req.method === 'POST') {
       if (req.body?.action === 'reset-counts') {
         if (!canResetTestCounts(member)) return json(res, 403, { error: 'Resetarea testelor este rezervată conducerii cu callsign între 001 și 020' });
+        if (bonusRedis.isConfigured) await clearBonusEntries(bonusRedis);
         const rows = await ensureResultsHeader(sheets);
         const title = sheetTitle().replace(/'/g, "''");
         await sheets.spreadsheets.values.clear({ spreadsheetId: SHEET_ID, range: `'${title}'!A2:G` });
@@ -355,13 +394,28 @@ export default async function handler(req, res) {
       }
       await ensureResultsHeader(sheets);
       const title = sheetTitle().replace(/'/g, "''");
+      const createdAt = new Date().toISOString();
+      const recordedResult = String(req.body?.result || '').slice(0, 32);
       await sheets.spreadsheets.values.append({
         spreadsheetId: SHEET_ID,
         range: `'${title}'!A1:G`,
         valueInputOption: 'RAW',
         insertDataOption: 'INSERT_ROWS',
-        requestBody: { values: [[discordId, String(member[2] || '').trim(), testName, String(req.body?.result || '').slice(0, 32), new Date().toISOString(), specialtyDetails?.candidateCallsign || String(req.body?.candidateCallsign || '').trim().slice(0, 24), specialtyDetails?.candidateName || String(req.body?.candidateName || '').trim().slice(0, 100)]] }
+        requestBody: { values: [[discordId, String(member[2] || '').trim(), testName, recordedResult, createdAt, specialtyDetails?.candidateCallsign || String(req.body?.candidateCallsign || '').trim().slice(0, 24), specialtyDetails?.candidateName || String(req.body?.candidateName || '').trim().slice(0, 100)]] }
       });
+      if (bonusRedis.isConfigured && BONUS_TEST_NAMES.has(testName)) {
+        try {
+          await addBonusEntries(bonusRedis, [{
+            callsign: String(member[2] || '').trim(),
+            testerName: String(member[3] || '').trim(),
+            testName,
+            result: recordedResult,
+            createdAt
+          }]);
+        } catch (error) {
+          console.error('Bonus Redis write failed; the entry remains in Google Sheets:', error);
+        }
+      }
       const discordNotifications = admissionDetails
         ? await sendAdmissionNotifications({ testerDiscordId: discordId, testerName: String(member[3] || '').trim().slice(0, 100), ...admissionDetails })
         : undefined;

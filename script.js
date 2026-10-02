@@ -18,7 +18,6 @@
 const coreTests = ['Test admitere','Test transfer','Adeverință medicală'];
 const TESTER_BUNDLE_KEY = '__tester_bundle__';
 const admissionRequirements = ['Verificarea ținutei', 'Verificarea tatuajelor faciale', 'Verificarea cazierului', 'Minimum 50 de ore jucate', 'Controlul cu stetoscopul (amănunțit, în salon)', 'Drug-testul'];
-const medicalRejectionConditions = ['Intoxicație medicamentoasă', 'Intoxicație cu substanțe psihoactive', 'Dependență de droguri', 'Comă alcoolică', 'Boli cu transmitere sexuală', 'Piodermită', 'Salmonella'];
 const motoRequirements = ['Grad Medic-Rezident', 'Certificat S.M.U.L.S.', 'Permis Categoria A'];
 const alsRequirements = ['Verificare BLS', 'Verificare Radio', 'Au trecut minimum 3 zile de la promovarea ultimului test Radio sau BLS', 'Permis categoria B'];
 const specialtyTests = ['Test ALS','Test SMULS','Test MOTO','Test PILOT','Test parașutiști'];
@@ -103,25 +102,6 @@ function refreshCurrentView() {
   renderView(active);
 }
 function candidateSummary(member, result = 'Admis') { if (!member) return ''; return `Candidat: @[${normalizeCallsign(member.callsign)}] ${member.name || '—'}\nGrad: ${member.rank || '—'}\nRezultat: ${result}`; }
-function medicalConditionsInText(text) {
-  const normalized = normalizeText(text).toLowerCase().replace(/0/g, 'o').replace(/[1!|]/g, 'i').replace(/[^\p{L}\p{N}\s]/gu, ' ');
-  const patterns = [
-    /intoxicatie(?:\s+cu)?\s+medicamentoas[ae]/,
-    /intoxicatie(?:\s+cu)?\s+substante\s+psihoactive/,
-    /dependenta\s+(?:de\s+)?(?:droguri|substante)/,
-    /coma\s+alcoolica/,
-    /(?:boala?|boli)\s+(?:cu\s+)?transmitere\s+sexuala|transmi\w{0,8}[\s\S]{0,40}sexua\w{0,10}|sexua\w{0,10}[\s\S]{0,40}transmi\w{0,8}|\bbts\b/,
-    /piodermita/,
-    /salmonella|salmoneloza|toxiinfectie\s+alimentara/
-  ];
-  return medicalRejectionConditions.filter((condition, index) => patterns[index].test(normalized));
-}
-function medicalScreeningHtml({ includeStethoscope = false } = {}) {
-  const stethoscope = includeStethoscope
-    ? '<label class="medical-confirmation"><input type="checkbox" data-stethoscope-check> Control amănunțit cu stetoscopul efectuat în salon</label>'
-    : '';
-  return `<section class="medical-screening"><h3>Control medical</h3>${stethoscope}<label class="medical-confirmation"><input type="checkbox" data-medical-sheet-reviewed> Fișa medicală verificată</label><fieldset class="medical-condition-list"><legend>Bifează diagnosticele găsite în fișă</legend>${medicalRejectionConditions.map(condition => `<label><input type="checkbox" data-medical-condition="${escapeHtml(condition)}"> ${escapeHtml(condition)}</label>`).join('')}</fieldset><p class="medical-screening-status muted" data-medical-screening-status role="status" aria-live="polite"></p><button class="primary evaluation-verdict evaluation-verdict-rejected" type="button" data-medical-rejection hidden>Înregistrează respingerea medicală</button></section>`;
-}
 async function loadRemoteGrants() {
   if (!currentUser?.discordId) return;
   let payload;
@@ -580,7 +560,7 @@ function renderMembersView() {
   return `<div class="panel view-panel"><h2>Membri departament</h2><p class="muted">Membrii departamentului sunt grupați pe grade: conducere, medici primari și medici specialiști.</p>${sections || '<p class="muted">Nu s-a putut încărca lista membrilor.</p>'}</div>`;
 }
 function renderSettingsView(title) {
-  return `<div class="panel view-panel"><h2>${title}</h2><p class="muted">Gestionează preferințele și sesiunea contului tău.</p><div class="settings-list"><p><b>Identitate:</b> ${currentUser?.name || '—'}</p><p><b>Callsign:</b> ${normalizeCallsign(currentUser?.callsign || currentUser?.callSign)}</p><p><b>Nivel acces:</b> ${isLeadershipUser(currentUser) ? 'Conducere' : 'Tester'}</p>${isLeadershipUser(currentUser) ? `<hr><section class="test-editor"><h3>Configurare teste</h3><div class="test-editor-controls"><label>Test<select id="test-editor-select">${catalog.map(test => `<option value="${test}">${displayTestName(test)}</option>`).join('')}</select></label><label>Titlu afișat<input id="test-editor-title" type="text"></label><label>Conținut card<textarea id="test-editor-description" rows="3"></textarea></label><label>Instrucțiuni<textarea id="test-editor-instructions" rows="3"></textarea></label><label>Greșeli permise<input id="test-editor-max-wrong" type="number" min="0" step="1"></label></div><div class="test-editor-question-header"><h4>Întrebări și răspunsuri</h4><button class="outline" id="add-test-question" type="button">＋ Adaugă întrebare</button></div><div id="test-editor-questions" class="test-editor-questions"></div><details class="test-editor-advanced"><summary>Configurare avansată</summary><p class="muted">Pentru cazuri, probe practice și imagini.</p><input id="test-file-input" type="file" accept=".txt,.md,.json"><textarea id="test-editor-json" rows="8" spellcheck="false"></textarea></details><button class="primary" id="save-test-definition">Salvează testul</button><span id="test-editor-status" class="muted" role="status"></span></section>` : ''}<hr><button class="outline danger-button" id="logout-btn">Deconectează-te</button></div></div>`;
+  return `<div class="panel view-panel"><h2>${title}</h2><p class="muted">Gestionează preferințele și sesiunea contului tău.</p><div class="settings-list"><p><b>Identitate:</b> ${currentUser?.name || '—'}</p><p><b>Callsign:</b> ${normalizeCallsign(currentUser?.callsign || currentUser?.callSign)}</p><p><b>Nivel acces:</b> ${isLeadershipUser(currentUser) ? 'Conducere' : 'Tester'}</p>${isLeadershipUser(currentUser) ? `<hr><section class="test-editor"><h3>Configurare teste</h3><div class="test-editor-controls"><label>Test<select id="test-editor-select">${catalog.map(test => `<option value="${test}">${displayTestName(test)}</option>`).join('')}</select></label><label>Titlu afișat<input id="test-editor-title" type="text"></label><label>Conținut card<textarea id="test-editor-description" rows="3"></textarea></label><label>Instrucțiuni<textarea id="test-editor-instructions" rows="3"></textarea></label><label>Greșeli permise<input id="test-editor-max-wrong" type="number" min="0" step="1"></label></div><div class="test-editor-question-header"><h4>Întrebări și răspunsuri</h4><button class="outline" id="add-test-question" type="button">＋ Adaugă întrebare</button></div><div id="test-editor-questions" class="test-editor-questions"></div><details class="test-editor-advanced"><summary>Configurare avansată</summary><p class="muted">Pentru cazuri, probe practice și imagini.</p><input id="test-file-input" type="file" accept=".txt,.md,.json"><textarea id="test-editor-json" rows="8" spellcheck="false"></textarea></details><button class="primary" id="save-test-definition">Salvează testul</button><span id="test-editor-status" class="muted" role="status"></span></section>` : ''}</div></div>`;
 }
 function testQuestionEditorHtml(question, index) {
   return `<fieldset class="test-editor-question"><legend>Întrebarea ${index + 1}</legend><label>Întrebare<textarea data-question-text rows="2">${escapeHtml(question?.text || '')}</textarea></label><label>Răspuns<textarea data-question-answer rows="2">${escapeHtml(question?.answer || '')}</textarea></label><button type="button" class="outline danger-button" data-remove-question="${index}">Șterge întrebarea</button></fieldset>`;
@@ -593,7 +573,6 @@ function wireTestersEvents() {
   const remove = document.querySelector('#view-remove'); if (remove) remove.onclick = () => openRemoveModal();
 }
 function wireSettingsEvents() {
-  const logout = document.querySelector('#logout-btn'); if (logout) logout.onclick = () => { localStorage.removeItem(AUTH_STORAGE_KEY); window.location.reload(); };
   const editor = document.querySelector('#test-editor-select');
   const editorJson = document.querySelector('#test-editor-json');
   const editorTitle = document.querySelector('#test-editor-title');
@@ -951,10 +930,10 @@ function setCandidatePhotoStatus(id, state, message) {
 }
 function admissionCandidateDetailsHtml() {
   const photoField = candidateImageFieldHtml;
-  return `<section class="admission-candidate-details" aria-labelledby="admission-candidate-title"><h3 id="admission-candidate-title">Date candidat</h3><div class="admission-candidate-grid"><label>Nume și prenume<input id="candidate-name" type="text" autocomplete="name"></label><label>CNP<input id="candidate-cnp" type="text" inputmode="numeric" maxlength="24" autocomplete="off"></label><label>ID candidat<input id="candidate-id" type="text" autocomplete="off"></label><label>Callsign atribuit<input id="candidate-callsign" type="text" placeholder="M-510" autocomplete="off"></label></div><div class="candidate-photo-grid">${photoField('candidate-document', 'Fotografie buletin')}${photoField('candidate-medical-sheet', 'Fotografie fișă medicală')}${photoField('candidate-drug-test', 'Fotografie drug-test')}</div>${medicalScreeningHtml()}</section>`;
+  return `<section class="admission-candidate-details" aria-labelledby="admission-candidate-title"><h3 id="admission-candidate-title">Date candidat</h3><div class="admission-candidate-grid"><label>Nume și prenume<input id="candidate-name" type="text" autocomplete="name"></label><label>CNP<input id="candidate-cnp" type="text" inputmode="numeric" maxlength="24" autocomplete="off"></label><label>ID candidat<input id="candidate-id" type="text" autocomplete="off"></label><label>Callsign atribuit<input id="candidate-callsign" type="text" placeholder="M-510" autocomplete="off"></label></div><div class="candidate-photo-grid">${photoField('candidate-document', 'Fotografie buletin')}${photoField('candidate-medical-sheet', 'Fotografie fișă medicală')}${photoField('candidate-drug-test', 'Fotografie drug-test')}</div></section>`;
 }
 function medicalCertificateDetailsHtml() {
-  return `<section class="admission-candidate-details" aria-labelledby="medical-certificate-title"><h3 id="medical-certificate-title">Date adeverință</h3><div class="admission-candidate-grid"><label>Nume<input id="certificate-last-name" type="text" autocomplete="family-name"></label><label>Prenume<input id="certificate-first-name" type="text" autocomplete="given-name"></label><label>CNP<input id="certificate-cnp" type="text" inputmode="numeric" maxlength="24" autocomplete="off"></label><label>ID (CNP)<input id="certificate-id" type="text" inputmode="numeric" autocomplete="off"></label><label>Număr de telefon<input id="certificate-phone" type="tel" autocomplete="tel"></label><label>Ore cont<input id="certificate-hours-account" type="number" min="0" step="0.01"></label><label>Ore character<input id="certificate-hours-character" type="number" min="0" step="0.01"></label><label>Apt medical<select id="certificate-medical-status"><option value="Admis">Apt medical</option><option value="Respins">Inapt medical</option></select></label></div><div class="candidate-photo-grid">${candidateImageFieldHtml('certificate-document', 'Fotografie buletin')}${candidateImageFieldHtml('certificate-medical-sheet', 'Fotografie fișă medicală')}</div>${medicalScreeningHtml({ includeStethoscope: true })}</section>`;
+  return `<section class="admission-candidate-details" aria-labelledby="medical-certificate-title"><h3 id="medical-certificate-title">Date adeverință</h3><div class="admission-candidate-grid"><label>Nume<input id="certificate-last-name" type="text" autocomplete="family-name"></label><label>Prenume<input id="certificate-first-name" type="text" autocomplete="given-name"></label><label>CNP<input id="certificate-cnp" type="text" inputmode="numeric" maxlength="24" autocomplete="off"></label><label>ID (CNP)<input id="certificate-id" type="text" inputmode="numeric" autocomplete="off"></label><label>Număr de telefon<input id="certificate-phone" type="tel" autocomplete="tel"></label><label>Ore cont<input id="certificate-hours-account" type="number" min="0" step="0.01"></label><label>Ore character<input id="certificate-hours-character" type="number" min="0" step="0.01"></label><label>Apt medical<select id="certificate-medical-status"><option value="Admis">Apt medical</option><option value="Respins">Inapt medical</option></select></label></div><div class="candidate-photo-grid">${candidateImageFieldHtml('certificate-document', 'Fotografie buletin')}${candidateImageFieldHtml('certificate-medical-sheet', 'Fotografie fișă medicală')}</div></section>`;
 }
 function admissionCandidateSummary(result) {
   const value = selector => document.querySelector(selector)?.value?.trim() || '—';
@@ -1034,29 +1013,6 @@ async function readIdentityCard(file) {
     await worker.terminate();
   }
 }
-async function readMedicalSheet(file) {
-  const tesseract = await loadIdentityOcr();
-  const worker = await tesseract.createWorker('ron+eng');
-  try {
-    await worker.setParameters({ tessedit_pageseg_mode: 6, preserve_interword_spaces: '1' });
-    const initialText = (await worker.recognize(file)).data.text;
-    if (medicalConditionsInText(initialText).length) return initialText;
-    const image = await createImageBitmap(file);
-    try {
-      const scale = Math.min(3, Math.max(1, 1800 / Math.max(image.width, image.height)));
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.max(1, Math.round(image.width * scale));
-      canvas.height = Math.max(1, Math.round(image.height * scale));
-      const context = canvas.getContext('2d');
-      context.filter = 'grayscale(1) contrast(1.5)';
-      context.drawImage(image, 0, 0, canvas.width, canvas.height);
-      const retryText = (await worker.recognize(canvas)).data.text;
-      return `${initialText}\n${retryText}`;
-    } finally {
-      image.close();
-    }
-  } finally { await worker.terminate(); }
-}
 async function encodeIdentityPhoto(file) {
   const image = await createImageBitmap(file);
   const scale = Math.min(1, 1400 / Math.max(image.width, image.height));
@@ -1123,7 +1079,7 @@ function buildTestMarkup(testName, definition, questions) {
     : '<button class="primary" type="submit">Finalizează evaluarea</button>';
   const candidateDocument = !isApplicationTest && !isMedicalCertificate && testName === 'Adeverință medicală' ? '<label>Imagine document candidat<input id="candidate-document" type="file" accept="image/*"></label><p class="muted">Imaginea este disponibilă testerului pentru verificare manuală.</p>' : '';
   const questionForm = isAlsTest || isSmulsTest ? '' : questions.length ? `<form id="test-form" class="question-list">${candidateIdentityInQuiz}${stagedCandidateSummary ? '' : '<div id="candidate-summary" class="candidate-summary"></div>'}${candidateDocument}${questions.map((question, index) => questionItemHtml(question, index, !isMedicalCertificate)).join('')}${isMedicalCertificate ? '' : `<p>Greșeli: <strong id="wrong-count">0</strong> / ${Number.isFinite(maxWrong) ? maxWrong : '—'}</p>`}${evaluationActions}</form>` : '<div class="test-runner"><p>Acest ghid nu are întrebări teoretice configurate.</p></div>';
-  const gatedQuestionForm = (isAdmissionTest || isTransferTest || isMotoTest || isSmulsTest || isAlsTest || isParachutismTest || isPilotTest || isMedicalCertificate) && questions.length ? `<div id="${isAdmissionTest ? 'admission-test-content' : isTransferTest ? 'transfer-test-content' : isMotoTest ? 'moto-test-content' : isSmulsTest ? 'smuls-test-content' : isAlsTest ? 'als-test-content' : isParachutismTest ? 'parachutism-test-content' : isPilotTest ? 'pilot-test-content' : 'medical-certificate-content'}" hidden>${questionForm}</div>` : questionForm;
+  const gatedQuestionForm = (isAdmissionTest || isTransferTest || isMotoTest || isSmulsTest || isAlsTest || isParachutismTest || isPilotTest) && questions.length ? `<div id="${isAdmissionTest ? 'admission-test-content' : isTransferTest ? 'transfer-test-content' : isMotoTest ? 'moto-test-content' : isSmulsTest ? 'smuls-test-content' : isAlsTest ? 'als-test-content' : isParachutismTest ? 'parachutism-test-content' : 'pilot-test-content'}" hidden>${questionForm}</div>` : questionForm;
   const evaluationStageFlow = ['Test PILOT', 'Test MOTO', 'Test SMULS', 'Test ALS'].includes(testName) ? '<div id="evaluation-stage-flow" hidden></div>' : '';
   const parachutismResultStageFlow = isParachutismTest ? '<div id="evaluation-stage-flow" hidden></div>' : '';
   const instructions = isAdmissionTest || testName === 'Test transfer' || isMedicalCertificate || !definition.instructions ? '' : `<p class="test-instructions">${definition.instructions}</p>`;
@@ -1152,38 +1108,6 @@ function wireTestEvents(testName, definition) {
   const isApplicationTest = isAdmissionTest || testName === 'Test transfer';
   let candidateCooldowns = {};
   let candidateCooldownMessage = '';
-  let medicalConditionsDetected = [];
-  let forcedMedicalRejection = false;
-  const medicalReview = document.querySelector('[data-medical-sheet-reviewed]');
-  const stethoscopeReview = document.querySelector('[data-stethoscope-check]');
-  const medicalConditionChecks = [...document.querySelectorAll('[data-medical-condition]')];
-  const medicalScreeningStatus = document.querySelector('[data-medical-screening-status]');
-  const medicalRejectionButton = document.querySelector('[data-medical-rejection]');
-  const medicalQuestionContent = document.querySelector(isMedicalCertificate ? '#medical-certificate-content' : isAdmissionTest ? '#admission-test-content' : '#transfer-test-content');
-  const hasMedicalRejection = () => medicalConditionsDetected.length > 0 || medicalConditionChecks.some(check => check.checked);
-  const medicalScreeningComplete = () => Boolean(medicalReview?.checked && (!isMedicalCertificate || stethoscopeReview?.checked));
-  const refreshMedicalScreening = () => {
-    const rejected = hasMedicalRejection();
-    if (medicalQuestionContent && isMedicalCertificate) medicalQuestionContent.hidden = rejected || !medicalScreeningComplete();
-    if (medicalQuestionContent && isApplicationTest) {
-      const checks = [...document.querySelectorAll('[data-admission-check]')];
-      medicalQuestionContent.hidden = rejected || !medicalScreeningComplete() || !admissionChecksComplete(checks.map(check => check.checked));
-    }
-    if (medicalScreeningStatus) medicalScreeningStatus.textContent = rejected
-      ? `Respins automat pe motiv de boală: ${[...new Set([...medicalConditionsDetected, ...medicalConditionChecks.filter(check => check.checked).map(check => check.dataset.medicalCondition)])].join(', ')}.`
-      : medicalScreeningComplete() ? 'Controlul este complet; poți continua.' : 'Verifică fișa medicală și efectuează controlul cerut înainte de continuare.';
-    if (medicalRejectionButton) medicalRejectionButton.hidden = !rejected;
-  };
-  medicalReview?.addEventListener('change', refreshMedicalScreening);
-  stethoscopeReview?.addEventListener('change', refreshMedicalScreening);
-  medicalConditionChecks.forEach(check => check.addEventListener('change', refreshMedicalScreening));
-  medicalRejectionButton?.addEventListener('click', () => {
-    forcedMedicalRejection = true;
-    const medicalStatus = document.querySelector('#certificate-medical-status');
-    if (medicalStatus) medicalStatus.value = 'Respins';
-    document.querySelector('#test-form')?.requestSubmit();
-  });
-  refreshMedicalScreening();
   document.querySelector('#back-to-tests').onclick = () => {
     if (window.history.state?.view === 'test') window.history.back();
     else navigateTo('overview');
@@ -1193,10 +1117,9 @@ function wireTestEvents(testName, definition) {
       const checks = [...document.querySelectorAll('[data-admission-check]')];
       const testContent = document.querySelector(isAdmissionTest ? '#admission-test-content' : '#transfer-test-content');
       const updateAdmissionGate = () => {
-        const complete = admissionChecksComplete(checks.map(check => check.checked)) && medicalScreeningComplete() && !hasMedicalRejection();
+        const complete = admissionChecksComplete(checks.map(check => check.checked));
         checks.forEach(check => { check.closest('.admission-check-row').classList.toggle('is-incomplete', !check.checked); });
         if (testContent) testContent.hidden = !complete;
-        refreshMedicalScreening();
       };
       checks.forEach(check => check.onchange = updateAdmissionGate);
       updateAdmissionGate();
@@ -1213,21 +1136,6 @@ function wireTestEvents(testName, definition) {
         const file = input.files?.[0];
         if (!file) { setCandidatePhotoStatus(field.id, 'empty', 'Așteaptă fotografia'); return; }
         status.classList.remove('error-text');
-        if (field.id === 'candidate-medical-sheet' || field.id === 'certificate-medical-sheet') {
-          setCandidatePhotoStatus(field.id, 'loading', 'Se verifică fișa medicală...');
-          try {
-            medicalConditionsDetected = medicalConditionsInText(await readMedicalSheet(file));
-            medicalConditionChecks.forEach(check => { check.checked = medicalConditionsDetected.includes(check.dataset.medicalCondition); });
-            refreshMedicalScreening();
-            setCandidatePhotoStatus(field.id, 'ready', medicalConditionsDetected.length
-              ? `Diagnostice identificate: ${medicalConditionsDetected.join(', ')}.`
-              : 'Nu au fost identificate automat diagnostice incompatibile; verifică manual fișa.');
-          } catch (error) {
-            console.error('Medical sheet OCR failed:', error);
-            setCandidatePhotoStatus(field.id, 'ready', 'Citirea automată nu a reușit; verifică manual fișa și bifează diagnosticele găsite.');
-          }
-          return;
-        }
         if (!field.readIdentity) {
           setCandidatePhotoStatus(field.id, 'ready', 'Fotografie pregătită pentru trimitere.');
           return;
@@ -1517,11 +1425,8 @@ function wireTestEvents(testName, definition) {
     if (isParachutismTest && !event.submitter?.dataset.parachutismTheoryResult) return;
     const wrong = wrongInputs.filter(item => item.checked).length;
     const limit = maxWrongForTest(testName, definition.maxWrong);
-    const medicalRejection = forcedMedicalRejection || hasMedicalRejection();
-    const result = medicalRejection
-      ? 'Respins'
-      : isMedicalCertificate
-        ? document.querySelector('#certificate-medical-status').value
+    const result = isMedicalCertificate
+      ? document.querySelector('#certificate-medical-status').value
       : isTestFailed(wrong, limit) ? 'Respins' : 'Admis';
     const member = directoryMembers.find(item => normalizeCallsign(item.callsign) === normalizeCallsign(candidateInput?.value));
     let submissionDetails = {};
@@ -1713,8 +1618,7 @@ function wireTestEvents(testName, definition) {
     catch (error) { status = `Rezultatul a fost afișat, dar numărătoarea nu s-a salvat: ${error.message}`; }
     const isSpecialtyTest = ['Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști'].includes(testName);
     const specialtySummary = isSpecialtyTest ? `Callsign: ${candidateInput.value.trim()}\nNume candidat: ${alsCandidateNameInput.value.trim()}\nRezultat: ${result}` : '';
-    const rejectionReason = medicalRejection ? `\nMotiv: respins pe motiv de boală (${[...new Set([...medicalConditionsDetected, ...medicalConditionChecks.filter(check => check.checked).map(check => check.dataset.medicalCondition)])].join(', ')}).` : '';
-    const summary = (isApplicationTest ? admissionCandidateSummary(result) : isMedicalCertificate ? `D.M.L.S. - EVIDENTA MEDICA NR. ${certificateNumber || '—'}\nNume: ${document.querySelector('#certificate-last-name').value.trim()}\nPrenume: ${document.querySelector('#certificate-first-name').value.trim()}\nRezultat: ${result}` : specialtySummary || candidateSummary(member, result) || `Rezultat: ${result}`) + rejectionReason;
+    const summary = isApplicationTest ? admissionCandidateSummary(result) : isMedicalCertificate ? `D.M.L.S. - EVIDENTA MEDICA NR. ${certificateNumber || '—'}\nNume: ${document.querySelector('#certificate-last-name').value.trim()}\nPrenume: ${document.querySelector('#certificate-first-name').value.trim()}\nRezultat: ${result}` : specialtySummary || candidateSummary(member, result) || `Rezultat: ${result}`;
     form.innerHTML = `<pre class="candidate-summary">${escapeHtml(summary)}</pre><p class="muted">${escapeHtml(status)}</p>`;
   };
   const runner = document.querySelector('.test-runner');

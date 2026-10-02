@@ -14,16 +14,20 @@ For local use, add newly generated webhook URLs to the ignored `.env` file (see 
 
 Never put webhook URLs in browser code or commit them to the repository. Rotate any webhook URL that has been shared in chat or other public places. The admission page accepts all three images by file selection or clipboard paste. Images are resized in the browser and are not stored in the test-history sheet; CNP is not sent as separate message text. Role mentions are posted separately below the admission-result embed.
 
-The admission flow allows three mistakes; the fourth is a failure. Admission and transfer results use the same candidate form and three images. Both the local auth cache and server session last 24 hours. The tester webhook receives small clickable thumbnails for the ID, medical sheet, and drug-test, in that order. The configured Discord users are mentioned only in the testers webhook; the admission webhook mentions only the tester.
+The admission flow allows three mistakes; the fourth is a failure. Admission and transfer results use the same candidate form and three images. Both the local auth cache and server session last 24 hours. The testers webhook sends one message with the ID, medical sheet, and drug-test thumbnails aligned beside their related text. The configured Discord users are mentioned only in the testers webhook; the admission webhook mentions only the tester.
 
 Medical certificates use a separate `MEDICAL_CERTIFICATES` sheet and `DISCORD_MEDICAL_CERTIFICATES_WEBHOOK`. The sequence starts at 7015 (7014 is the last existing number) and stops at 30000.
 
-## Medical screening, cooldowns, and bonuses
+## Cooldowns and bonuses
 
-Admission, transfer, and medical-certificate flows require manual medical-sheet review. Admission and transfer also require the thorough stethoscope exam in the salon. OCR checks the sheet for the seven disqualifying diagnoses; a match blocks the theory and offers only a rejection result. Medical-certificate hours start blank and its questions do not have a mistake counter.
+Admission and transfer retain their prerequisite checklist. Medical certificates use the Apt/Inapt selector; their hours start blank and their questions do not have a mistake counter.
 
 Specialty-test candidates are checked against column S in `LISTA DEPARTAMENT`. Supported entries include SMULS (including T/P), Parasutist, Moto, Pilot, ALS, BLS, Radio, and Rezidentiat aliases. A candidate can take the test starting at 00:00 on the written expiry date in `Europe/Bucharest`.
 
 The `Bonusuri` page is leadership-only. It shows the active 14-day period, anchored on 21 September 2026, plus a tester-callsign-sorted table of Pilot, Moto, combined admission/transfer, medical-certificate, ALS, and SMULS totals. Each row copies only those six tab-separated totals for pasting into the matching sheet columns.
+
+Bonus entries are stored in Upstash Redis when both `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are configured. New test results continue to be written to `TEST_HISTORY`; bonus queries import existing rows into Redis on demand, once per Bucharest calendar day. Without both Upstash variables, the bonus page continues reading from Google Sheets. The reusable Redis client is in `api/storage/upstash-redis.js`; application keys use the `site-testeri-medici:` namespace.
+
+Create a free Redis database in Upstash, then add its REST URL and REST token as server-side environment variables in the deployment settings. For local development, add them to the ignored `.env` file. The blank names are included in `.env.example`; never commit actual credentials.
 
 The local `tests/dev-server.mjs` is a UI mock and intentionally does not send Discord messages. Real delivery requires the deployed API endpoint and both webhook environment variables to be configured.

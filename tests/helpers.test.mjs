@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { accessFor, candidateForCallsign, catalog as accessCatalog, coreTests, effectiveTestsForMember, functionsForMember, isLeadership, normalizeTests, testsForFunctions } from '../api/access/shared.js';
-import { canResetTestCounts, discordTesterMentionPayload, createAdmissionEmbeds, createAlsResultEmbed, createSpecialtyResultEmbed, specialtyNotificationDetails, createMedicalCertificateEmbeds, medicalCertificateNumberForRow, bonusEntryFromRow } from '../api/access/test-results.js';
+import { canResetTestCounts, discordTesterMentionPayload, createAdmissionEmbed, createAdmissionTesterComponents, createAlsResultEmbed, createSpecialtyResultEmbed, specialtyNotificationDetails, createMedicalCertificateEmbeds, medicalCertificateNumberForRow, bonusEntryFromRow } from '../api/access/test-results.js';
 import { statusFromRow } from '../api/access/directory.js';
 import { cooldownIsActive, parseCooldownS } from '../api/access/cooldowns.js';
 
@@ -35,21 +35,21 @@ function extract(name) {
 const catalog = ['Test admitere', 'Test transfer', 'Adeverință medicală', 'Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști'];
 const definitions = Object.fromEntries(catalog.map(n => [n, { name: n, questions: [] }]));
 
-const names = ['callsignNumber', 'normalizeCallsign', 'testNameFromHash', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberHasTestAccess', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'sortMembers', 'gradeGroupFor', 'mergeTestDefinitions', 'admissionChecklistHtml', 'admissionChecksComplete', 'motoChecksComplete', 'alsChecklistHtml', 'alsChecksComplete', 'alsCaseListHtml', 'smulsChecklistHtml', 'smulsChecksComplete', 'smulsCaseListHtml', 'memberStatus', 'testerFunctionsForDisplay', 'isTestFailed', 'maxWrongForTest', 'cachedUserWithinSession', 'questionItemHtml', 'evaluationStageHtml', 'parseIdentityCardText', 'mergeIdentityCardDetails', 'displayTestName', 'medicalConditionsInText', 'departmentCalendarDate', 'latestCompleteBonusPeriodIndex', 'activeBonusPeriodIndex', 'bonusPeriodFor'];
+const names = ['callsignNumber', 'normalizeCallsign', 'testNameFromHash', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberHasTestAccess', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'sortMembers', 'gradeGroupFor', 'mergeTestDefinitions', 'admissionChecklistHtml', 'admissionChecksComplete', 'motoChecksComplete', 'alsChecklistHtml', 'alsChecksComplete', 'alsCaseListHtml', 'smulsChecklistHtml', 'smulsChecksComplete', 'smulsCaseListHtml', 'memberStatus', 'testerFunctionsForDisplay', 'isTestFailed', 'maxWrongForTest', 'cachedUserWithinSession', 'questionItemHtml', 'evaluationStageHtml', 'parseIdentityCardText', 'mergeIdentityCardDetails', 'displayTestName', 'departmentCalendarDate', 'latestCompleteBonusPeriodIndex', 'activeBonusPeriodIndex', 'bonusPeriodFor'];
 const srcs = names.map(extract).join('\n');
 const pattern = source.match(/^const RESIDENT_TESTER_PATTERN = .*$/m)?.[0] || 'const RESIDENT_TESTER_PATTERN = /TESTER/;';
 const normalizeTextSrc = extract('normalizeText');
 const escapeHtmlSrc = extract('escapeHtml');
-const fullSrc = `${pattern}\nconst AUTH_SCHEMA_VERSION = 4;\nconst coreTests = ['Test admitere', 'Test transfer', 'Adeverință medicală'];\nconst admissionRequirements = ['Verificarea ținutei', 'Verificarea tatuajelor faciale', 'Verificarea cazierului', 'Minimum 50 de ore jucate', 'Controlul cu stetoscopul (amănunțit, în salon)', 'Drug-testul'];\nconst medicalRejectionConditions = ['Intoxicație medicamentoasă', 'Intoxicație cu substanțe psihoactive', 'Dependență de droguri', 'Comă alcoolică', 'Boli cu transmitere sexuală', 'Piodermită', 'Salmonella'];\nconst BONUS_ANCHOR_UTC = Date.UTC(2026, 8, 21);\nconst BONUS_PERIOD_MS = 14 * 24 * 60 * 60 * 1000;\nconst motoRequirements = ['Grad Medic-Rezident', 'Certificat S.M.U.L.S.', 'Permis Categoria A'];\nconst alsRequirements = ['Verificare BLS', 'Verificare Radio', 'Au trecut minimum 3 zile de la promovarea ultimului test Radio sau BLS', 'Permis categoria B'];\n${normalizeTextSrc}\n${escapeHtmlSrc}\n${srcs}`;
+const fullSrc = `${pattern}\nconst AUTH_SCHEMA_VERSION = 4;\nconst coreTests = ['Test admitere', 'Test transfer', 'Adeverință medicală'];\nconst admissionRequirements = ['Verificarea ținutei', 'Verificarea tatuajelor faciale', 'Verificarea cazierului', 'Minimum 50 de ore jucate', 'Controlul cu stetoscopul (amănunțit, în salon)', 'Drug-testul'];\nconst BONUS_ANCHOR_UTC = Date.UTC(2026, 8, 21);\nconst BONUS_PERIOD_MS = 14 * 24 * 60 * 60 * 1000;\nconst motoRequirements = ['Grad Medic-Rezident', 'Certificat S.M.U.L.S.', 'Permis Categoria A'];\nconst alsRequirements = ['Verificare BLS', 'Verificare Radio', 'Au trecut minimum 3 zile de la promovarea ultimului test Radio sau BLS', 'Permis categoria B'];\n${normalizeTextSrc}\n${escapeHtmlSrc}\n${srcs}`;
 const testSummaryDefinitions = [['Test SMULS'], ['Test MOTO'], ['Test PILOT'], ['Test ALS'], ['Test parașutiști']];
 const load = new Function(
   'catalog',
   'testDefinitions',
   'testSummaryDefinitions',
-  `${fullSrc}\nreturn { callsignNumber, normalizeCallsign, testNameFromHash, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, mergeTestDefinitions, admissionChecklistHtml, admissionChecksComplete, motoChecksComplete, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, medicalConditionsInText, departmentCalendarDate, latestCompleteBonusPeriodIndex, activeBonusPeriodIndex, bonusPeriodFor };`,
+  `${fullSrc}\nreturn { callsignNumber, normalizeCallsign, testNameFromHash, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, mergeTestDefinitions, admissionChecklistHtml, admissionChecksComplete, motoChecksComplete, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, departmentCalendarDate, latestCompleteBonusPeriodIndex, activeBonusPeriodIndex, bonusPeriodFor };`,
 )(catalog, definitions, testSummaryDefinitions);
 
-const { callsignNumber, normalizeCallsign, testNameFromHash, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, mergeTestDefinitions, admissionChecklistHtml, admissionChecksComplete, motoChecksComplete, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, medicalConditionsInText, departmentCalendarDate, latestCompleteBonusPeriodIndex, activeBonusPeriodIndex, bonusPeriodFor } = load;
+const { callsignNumber, normalizeCallsign, testNameFromHash, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, mergeTestDefinitions, admissionChecklistHtml, admissionChecksComplete, motoChecksComplete, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, departmentCalendarDate, latestCompleteBonusPeriodIndex, activeBonusPeriodIndex, bonusPeriodFor } = load;
 
 test('Discord auth preserves the Discord display name, username, and avatar', () => {
   const mapperSource = discordAuthSource.match(/function mapSheetRowToUser\(row, discordUser\) \{[\s\S]*?^\}/m)?.[0];
@@ -139,14 +139,11 @@ test('column S cooldown parsing supports shared and per-test dates and SMULS var
   assert.equal(cooldownIsActive(monthEnd, 'Test MOTO', Date.parse('2026-10-30T22:00:00.000Z')), false);
 });
 
-test('medical-sheet diagnosis matcher detects all disqualifying conditions', () => {
-  const diagnoses = medicalConditionsInText('Intoxicație medicamentoasă; intoxicație cu substanțe psihoactive; dependență de droguri; comă alcoolică; boli cu transmitere sexuală; piodermită; Salmonella.');
-  assert.deepEqual(diagnoses, ['Intoxicație medicamentoasă', 'Intoxicație cu substanțe psihoactive', 'Dependență de droguri', 'Comă alcoolică', 'Boli cu transmitere sexuală', 'Piodermită', 'Salmonella']);
-  assert.deepEqual(medicalConditionsInText('Toxiinfecție alimentară'), ['Salmonella']);
-  assert.deepEqual(medicalConditionsInText('Diagnostic: Boală cu transmitere sexuală'), ['Boli cu transmitere sexuală']);
-  assert.deepEqual(medicalConditionsInText('Diagnostic: B0ală cu transm!tere sexuallă'), ['Boli cu transmitere sexuală']);
+test('separate medical screening panel and its gates are removed', () => {
+  assert.doesNotMatch(source, /medicalScreeningHtml|medicalConditionsInText|data-medical-sheet-reviewed|data-medical-condition|data-stethoscope-check|data-medical-rejection/);
   assert.doesNotMatch(source, /certificate-hours-account[^>]+value=/);
-  assert.match(source, /data-stethoscope-check/);
+  assert.match(source, /admissionChecksComplete\(checks\.map\(check => check\.checked\)\)/);
+  assert.match(source, /certificate-medical-status/);
 });
 
 test('bonus periods follow two-week cycles and include September 21 through October 4', () => {
@@ -466,7 +463,7 @@ test('S.M.U.L.S. unlocks after its four prerequisites are checked', () => {
   const markup = smulsChecklistHtml();
   for (const requirement of ['Verificare test teoretic', 'Licență Navală', 'Permis Categoria B', 'Mașina Stalker full tunată']) assert.ok(markup.includes(requirement));
   assert.match(source, /isAdmissionTest \|\| isTransferTest \|\| isMotoTest \|\| isSmulsTest \|\| isAlsTest \|\| isParachutismTest/);
-  assert.match(source, /const gatedQuestionForm = \(isAdmissionTest \|\| isTransferTest \|\| isMotoTest \|\| isSmulsTest \|\| isAlsTest \|\| isParachutismTest \|\| isPilotTest \|\| isMedicalCertificate\)/);
+  assert.match(source, /const gatedQuestionForm = \(isAdmissionTest \|\| isTransferTest \|\| isMotoTest \|\| isSmulsTest \|\| isAlsTest \|\| isParachutismTest \|\| isPilotTest\)/);
 });
 
 test('S.M.U.L.S. case list expands each descarceration and reserves two images', () => {
@@ -706,19 +703,33 @@ test('OCR retry preserves split surname and given name for medical certificates'
   );
 });
 
-test('admission Discord embeds use vertical fields and hide callsign on rejection', () => {
-  const rejected = createAdmissionEmbeds({ testName: 'Test admitere', testerName: 'Tester', candidateName: 'Candidat', candidateId: '12345', candidateCallsign: '', result: 'Respins' });
-  assert.deepEqual(rejected.admission.fields.map(field => field.name), ['Nume Tester', 'Nume Candidat', 'Rezultat']);
-  assert.deepEqual(rejected.testers.fields.map(field => field.name), ['Nume Tester', 'Nume Candidat', 'ID', 'Rezultat']);
-  assert.equal(rejected.testers.thumbnail.url, 'attachment://buletin-candidat.jpg');
-  assert.deepEqual(Object.keys(rejected), ['admission', 'testers']);
-  assert.match(testResultsSource, /sendWebhookImages\(testersWebhook, \[embeds\.testers\], \[/);
+test('admission Discord message aligns each photo with its text in one container', () => {
+  const details = { testName: 'Test admitere', testerName: 'Tester', candidateName: 'Candidat', candidateId: '12345', candidateCallsign: '', result: 'Respins' };
+  const admission = createAdmissionEmbed(details);
+  assert.equal(admission.title, 'Admitere');
+  assert.deepEqual(admission.fields.map(field => field.name), ['Nume Tester', 'Nume Candidat', 'Rezultat']);
+  const [container] = createAdmissionTesterComponents(details);
+  assert.equal(container.type, 17);
+  assert.equal(container.components.length, 3);
+  assert.deepEqual(container.components.map(section => section.type), [9, 9, 9]);
+  assert.match(container.components[0].components[0].content, /Test Admitere[\s\S]*Nume Tester[\s\S]*Tester/);
+  assert.equal(container.components[0].accessory.media.url, 'attachment://buletin-candidat.jpg');
+  assert.match(container.components[1].components[0].content, /Nume Candidat[\s\S]*Candidat[\s\S]*ID[\s\S]*12345/);
+  assert.equal(container.components[1].accessory.media.url, 'attachment://fisa-medicala.jpg');
+  assert.match(container.components[2].components[0].content, /Rezultat[\s\S]*Respins/);
+  assert.doesNotMatch(container.components[2].components[0].content, /Callsign/);
+  assert.equal(container.components[2].accessory.media.url, 'attachment://drug-test.jpg');
+  assert.match(testResultsSource, /sendWebhookComponents\(testersWebhook, createAdmissionTesterComponents\(details\), \[/);
+  assert.match(testResultsSource, /flags: 1 << 15/);
   assert.match(testResultsSource, /testName === 'Test admitere' \|\| testName === 'Test transfer'/);
   assert.match(source, /submissionDetails = \{ candidateName, candidateId, candidateCallsign, identityImage, medicalSheetImage, drugTestImage \}/);
-  const admitted = createAdmissionEmbeds({ testName: 'Test admitere', testerName: 'Tester', candidateName: 'Candidat', candidateId: '12345', candidateCallsign: 'M-302', result: 'Admis' });
-  assert.equal(admitted.testers.fields.at(-1).name, 'Callsign');
-  const transfer = createAdmissionEmbeds({ testName: 'Test transfer', testerName: 'Tester', candidateName: 'Candidat', candidateId: '12345', candidateCallsign: 'M-302', result: 'Admis' });
-  assert.equal(transfer.testers.title, 'Test Transfer');
+  const admitted = createAdmissionTesterComponents({ ...details, candidateCallsign: 'M-302', result: 'Admis' });
+  assert.match(admitted[0].components[2].components[0].content, /Callsign[\s\S]*M-302/);
+  const transfer = createAdmissionTesterComponents({ ...details, testName: 'Test transfer', result: 'Admis' });
+  assert.match(transfer[0].components[0].components[0].content, /Test Transfer/);
+  const mentioned = createAdmissionTesterComponents({ ...details, testerDiscordId: '123456789' });
+  assert.match(mentioned[0].components[0].components[0].content, /<@123456789>/);
+  assert.match(testResultsSource, /allowed_mentions: mentionPayload\.allowed_mentions,[\s\S]*?flags: 1 << 15/);
 });
 
 test('ALS result embed contains tester, candidate, callsign, and verdict', () => {
