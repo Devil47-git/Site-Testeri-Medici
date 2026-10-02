@@ -1,11 +1,11 @@
-import './api/config.js';
+import './lib/config.js';
 import http from 'node:http';
 import { URL } from 'node:url';
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { google } from 'googleapis';
-import { isLeadership, gradeGroupFor, catalog } from './api/access/shared.js';
+import { isLeadership, gradeGroupFor, catalog } from './lib/access/shared.js';
 
 const PORT = Number(process.env.PORT || 3000);
 const SESSION_TTL = 24 * 60 * 60 * 1000;

@@ -6,7 +6,7 @@ import {
   lifetimeRowFromHistory,
   lifetimeRowsToAppend,
   lifetimeTestCounts
-} from '../api/access/lifetime-test-history.js';
+} from '../lib/access/lifetime-test-history.js';
 
 test('legacy TEST_HISTORY rows are imported once and remain deduplicated', () => {
   const activeRows = [

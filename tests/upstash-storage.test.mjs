@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { UpstashRedis } from '../api/storage/upstash-redis.js';
-import { avatarUrlForDiscordMember, discordAvatarHashFromUrl, readDiscordAvatarHashes, storeDiscordAvatarHash } from '../api/access/avatar-store.js';
-import { addBonusEntries, clearBonusEntries, importLegacyBonusEntries, listBonusEntries } from '../api/access/bonus-store.js';
+import { UpstashRedis } from '../lib/storage/upstash-redis.js';
+import { avatarUrlForDiscordMember, discordAvatarHashFromUrl, readDiscordAvatarHashes, storeDiscordAvatarHash } from '../lib/access/avatar-store.js';
+import { addBonusEntries, clearBonusEntries, importLegacyBonusEntries, listBonusEntries } from '../lib/access/bonus-store.js';
 
 function memoryRedis() {
   const sets = new Map();

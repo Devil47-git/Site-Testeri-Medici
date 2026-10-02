@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { loadAppConfig } from '../api/config.js';
+import { loadAppConfig } from '../lib/config.js';
 
 test('APP_CONFIG_JSON overrides legacy values and serializes nested credentials', () => {
   const environment = {
