@@ -1,3 +1,4 @@
+import './api/config.js';
 import http from 'node:http';
 import { URL } from 'node:url';
 import crypto from 'node:crypto';

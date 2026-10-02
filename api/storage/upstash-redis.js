@@ -1,3 +1,4 @@
+import '../config.js';
 export class UpstashRedis {
   constructor({ url = process.env.UPSTASH_REDIS_REST_URL, token = process.env.UPSTASH_REDIS_REST_TOKEN, fetchImpl = globalThis.fetch } = {}) {
     this.url = String(url || '').trim().replace(/\/+$/, '');

@@ -1,3 +1,4 @@
+import '../config.js';
 import { normalize, callsignNumber, candidateForCallsign, isLeadershipRow, gradeGroupFor, GRADE_GROUPS, LEADERSHIP_MAX, effectiveTestsForMember, normalizeTests, functionsForMember } from './shared.js';
 import { parseCooldownS } from './cooldowns.js';
 import { avatarUrlForDiscordMember, discordAvatarHashFromUrl, readDiscordAvatarHashes, storeDiscordAvatarHash } from './avatar-store.js';

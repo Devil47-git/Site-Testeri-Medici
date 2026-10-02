@@ -1,3 +1,4 @@
+import '../config.js';
 import { normalize, callsignNumber, isLeadershipRow, normalizeTests } from './shared.js';
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';

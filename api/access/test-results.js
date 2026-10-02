@@ -1,3 +1,4 @@
+import '../config.js';
 import { randomUUID } from 'node:crypto';
 import { catalog, callsignNumber, candidateForCallsign, effectiveTestsForMember, functionsForMember, isLeadershipRow, normalizeTests } from './shared.js';
 import { cooldownIsActive, parseCooldownS } from './cooldowns.js';

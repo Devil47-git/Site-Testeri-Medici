@@ -2,13 +2,16 @@
 
 ## Discord admission notifications
 
-Configure these server-side environment variables in the deployment settings:
+Configure the server using one server-side deployment variable: `APP_CONFIG_JSON`. Its value is a JSON object containing the settings below; `.env.example` has a copyable template. Keep it in Vercel or the ignored local `.env` file, never in browser code or Git.
 
 - `DISCORD_ADMISSION_WEBHOOK`: webhook for admission and transfer results; it mentions only the tester.
 - `DISCORD_TESTERS_WEBHOOK`: webhook for the testers channel; it receives the result, verdict-dependent role mentions, and the ID, medical-sheet, and drug-test images in order.
 - `DISCORD_MEDICAL_CERTIFICATES_WEBHOOK`: webhook for medical certificates; it receives the full-width certificate text followed by the ID and medical-sheet images in one message.
 - `DISCORD_ALS_WEBHOOK`: webhook for ALS results with tester, candidate, callsign, and verdict.
 - `DISCORD_PILOT_WEBHOOK`, `DISCORD_SMULS_WEBHOOK`, `DISCORD_MOTO_WEBHOOK`, and `DISCORD_PARASUTIST_WEBHOOK`: webhooks for the matching test results, each with tester, candidate, callsign, and verdict.
+- The same JSON object also accepts `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_REDIRECT_URI`, `APP_ORIGIN`, `GOOGLE_API_KEY`, `GOOGLE_SHEETS_ID`, `GOOGLE_SHEETS_RANGE`, `GOOGLE_GRANTS_RANGE`, `GOOGLE_AVATAR_RANGE`, `GOOGLE_TEST_RESULTS_RANGE`, `GOOGLE_TEST_LIFETIME_RANGE`, `GOOGLE_MEDICAL_CERTIFICATES_RANGE`, `GOOGLE_SERVICE_ACCOUNT_JSON`, `GOOGLE_APPLICATION_CREDENTIALS`, `GOOGLE_SHEET_ID`, `GOOGLE_SHEET_RANGE`, `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN`, and `PORT`.
+
+During migration, a non-empty value in `APP_CONFIG_JSON` takes precedence over the matching individual environment variable. Missing or empty JSON values fall back to existing individual variables. Move the current values into `APP_CONFIG_JSON`, deploy and verify, then remove the individual Vercel variables. `GOOGLE_SERVICE_ACCOUNT_JSON` may be entered as a nested JSON object; the server serializes it for Google authentication.
 
 For local use, add newly generated webhook URLs to the ignored `.env` file (see `.env.example`). `npm start` loads that file. The checked-in example intentionally contains no credentials.
 

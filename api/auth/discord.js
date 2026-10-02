@@ -1,3 +1,4 @@
+import '../config.js';
 import { accessFor, normalizeTests } from '../access/shared.js';
 import { storeDiscordAvatarHash } from '../access/avatar-store.js';
 import { UpstashRedis } from '../storage/upstash-redis.js';
