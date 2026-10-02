@@ -33,6 +33,9 @@ function mergeTestDefinitions(defaults, stored) {
   const definitions = { ...(defaults || {}), ...(stored || {}) };
   return Object.fromEntries(Object.entries(definitions).map(([name, definition]) => {
     const merged = { ...(defaults?.[name] || {}), ...(definition || {}) };
+    if (Array.isArray(merged.questions)) {
+      merged.questions = merged.questions.map(q => Array.isArray(q) ? { text: q[0] || '', answer: q[1] || '' } : q);
+    }
     const defaultPractical = defaults?.[name]?.practical;
     const storedPractical = stored?.[name]?.practical;
     if (Array.isArray(defaultPractical) && Array.isArray(storedPractical)) {
@@ -75,6 +78,27 @@ function mergeTestDefinitions(defaults, stored) {
 const defaultTestDefinitions = window.MEDICAL_TESTS || Object.fromEntries(catalog.map(name => [name, { name, description: `Acces disponibil pentru ${name}.`, questions: [] }]));
 let testDefinitions = mergeTestDefinitions(defaultTestDefinitions, readStored(TEST_CATALOG_KEY, {}));
 function saveTestDefinitions() { localStorage.setItem(TEST_CATALOG_KEY, JSON.stringify(testDefinitions)); }
+async function fetchGlobalTestDefinitions() {
+  try {
+    const res = await fetch('/api/test-definitions', { cache: 'no-store' });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data && typeof data.definitions === 'object' && data.definitions) {
+      testDefinitions = mergeTestDefinitions(defaultTestDefinitions, data.definitions);
+      saveTestDefinitions();
+    }
+  } catch {}
+}
+async function persistTestDefinitions() {
+  const res = await fetch('/api/test-definitions', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ definitions: testDefinitions })
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Eroare server (${res.status})`);
+  return data;
+}
 const rows = document.querySelector('#tester-rows');
 const testerGroups = document.querySelector('#tester-groups');
 const viewContent = document.querySelector('#view-content');
@@ -169,6 +193,14 @@ function escapeHtml(value) { return String(value == null ? '' : value).replace(/
 function normalizeCallsign(value) { const number = String(value || '').replace(/\D/g, ''); return number ? `M-${number.padStart(3, '0')}` : ''; }
 /** @param {any} value @returns {number} */
 function callsignNumber(value) { const digits = String(value == null ? '' : value).replace(/\D/g, ''); const n = Number(digits); return Number.isFinite(n) ? n : 0; }
+const TEST_CALLSIGN_LIMITS = { 'Test ALS': 690, 'Test SMULS': 499, 'Test MOTO': 399, 'Test PILOT': 399, 'Test parașutiști': 299 };
+function callsignLimitForTest(testName) { return TEST_CALLSIGN_LIMITS[testName] ?? null; }
+function callsignWithinTestLimit(callsign, testName) {
+  const limit = callsignLimitForTest(testName);
+  if (limit === null) return true;
+  const n = callsignNumber(callsign);
+  return n >= 1 && n <= limit;
+}
 function bonusTesterCallsign(value) {
   const number = callsignNumber(value);
   return number >= 1 && number <= 399 ? String(number).padStart(3, '0') : '';
@@ -538,6 +570,9 @@ function openTesterProfile(member, { push = true, previousView: requestedPreviou
   document.body.classList.remove('smuls-background-mode');
   document.body.classList.remove('als-background-mode');
   document.body.classList.remove('moto-background-mode');
+  document.body.classList.remove('pilot-background-mode');
+  document.body.classList.remove('adeverinta-background-mode');
+  document.body.classList.remove('parasutism-background-mode');
   const callsign = normalizeCallsign(member.callsign || member.callSign);
   const currentState = window.history.state || {};
   const previousView = requestedPreviousView || (currentState.view === 'tester-profile' ? currentState.previousView : document.querySelector('.nav-item.active')?.dataset.view || 'overview');
@@ -664,7 +699,7 @@ function wireSettingsEvents() {
   document.querySelector('#add-test-question').onclick = () => {
     renderTestQuestionEditor(questionContainer, [...readEditorQuestions(), { text: '', answer: '' }]);
   };
-  document.querySelector('#save-test-definition').onclick = () => {
+  document.querySelector('#save-test-definition').onclick = async () => {
     try {
       const value = {
         ...currentDefinition,
@@ -679,8 +714,15 @@ function wireSettingsEvents() {
       if (!Number.isFinite(value.maxWrong) && value.maxWrong !== undefined) throw new Error('Număr maxim de greșeli invalid');
       testDefinitions[editor.value] = value;
       currentDefinition = value;
-      saveTestDefinitions();
-      editorStatus.textContent = 'Test salvat local.';
+      editorStatus.textContent = 'Se salvează global…';
+      try {
+        await persistTestDefinitions();
+        saveTestDefinitions();
+        editorStatus.textContent = 'Test salvat global (vizibil pentru toți).';
+      } catch (serverError) {
+        saveTestDefinitions();
+        editorStatus.textContent = `Salvat doar local: ${serverError.message}`;
+      }
       renderRows();
     } catch (error) { editorStatus.textContent = error.message || 'Definiție JSON invalidă.'; }
   };
@@ -803,6 +845,9 @@ function openTest(testName, { push = true, previousView: requestedPreviousView }
   document.body.classList.toggle('smuls-background-mode', testName === 'Test SMULS');
   document.body.classList.toggle('als-background-mode', testName === 'Test ALS');
   document.body.classList.toggle('moto-background-mode', testName === 'Test MOTO');
+  document.body.classList.toggle('pilot-background-mode', testName === 'Test PILOT');
+  document.body.classList.toggle('adeverinta-background-mode', testName === 'Adeverință medicală');
+  document.body.classList.toggle('parasutism-background-mode', testName === 'Test parașutiști');
   const definition = testDefinitions[testName] || { description: 'Test disponibil.', questions: [] };
   const questions = Array.isArray(definition.questions) ? definition.questions : [];
   const currentView = window.history.state?.view;
@@ -886,7 +931,9 @@ function startVerdictButtonCooldown(button, canAdmit, schedule = globalThis.setT
 }
 function maxWrongForTest(testName, maxWrong) { return testName === 'Test admitere' ? 3 : testName === 'Test PILOT' ? 1 : Number(maxWrong ?? Infinity); }
 function questionItemHtml(question, index, allowWrong = true) {
-  const answer = allowWrong ? `<div class="correct-answer"><span>${question.answer || 'Verifică ghidul.'}</span><label class="answer-check"><input type="checkbox" data-wrong="${index}"> Răspuns greșit</label></div>` : '';
+  const answerText = question.answer || 'Verifică ghidul.';
+  const wrongCheck = allowWrong ? `<label class="answer-check"><input type="checkbox" data-wrong="${index}"> Răspuns greșit</label>` : '';
+  const answer = `<details class="correct-answer"><summary class="correct-answer-toggle"><span>Vezi răspunsul</span></summary><div class="correct-answer-body"><span>${answerText}</span>${wrongCheck}</div></details>`;
   return `<fieldset><p class="question-prompt">${index + 1}. ${question.text}</p>${answer}</fieldset>`;
 }
 function evaluationStageHtml(stage, verdictLabels) {
@@ -1010,7 +1057,7 @@ function setCandidatePhotoPreview(id, file) {
 }
 function admissionCandidateDetailsHtml() {
   const photoField = candidateImageFieldHtml;
-  return `<section class="admission-candidate-details site-guide-frame" aria-labelledby="admission-candidate-title"><h3 id="admission-candidate-title">Date candidat</h3><div class="admission-candidate-grid"><label>Nume și prenume<input id="candidate-name" type="text" autocomplete="name"></label><label>CNP<input id="candidate-cnp" type="text" inputmode="numeric" maxlength="24" autocomplete="off"></label><label>ID candidat<input id="candidate-id" type="text" autocomplete="off"></label><label>Callsign atribuit<input id="candidate-callsign" type="text" placeholder="M-510" autocomplete="off"></label></div><div class="candidate-photo-grid">${photoField('candidate-document', 'Fotografie buletin')}${photoField('candidate-medical-sheet', 'Fotografie fișă medicală')}${photoField('candidate-drug-test', 'Fotografie drug-test')}</div></section>`;
+  return `<section class="admission-candidate-details site-guide-frame" aria-labelledby="admission-candidate-title"><h3 id="admission-candidate-title">Date candidat</h3><div class="admission-candidate-grid"><label>Tip admitere<select id="admission-type"><option value="Admitere">Admitere</option><option value="Reintegrare">Reintegrare</option></select></label><label>Nume și prenume<input id="candidate-name" type="text" autocomplete="name"></label><label>CNP<input id="candidate-cnp" type="text" inputmode="numeric" maxlength="24" autocomplete="off"></label><label>ID candidat<input id="candidate-id" type="text" autocomplete="off"></label><label class="admission-callsign-field">Callsign atribuit<input id="candidate-callsign" type="text" placeholder="M-510" autocomplete="off"></label></div><div class="candidate-photo-grid">${photoField('candidate-document', 'Fotografie buletin')}${photoField('candidate-medical-sheet', 'Fotografie fișă medicală')}${photoField('candidate-drug-test', 'Fotografie drug-test')}</div></section>`;
 }
 function medicalCertificateDetailsHtml() {
   return `<section class="admission-candidate-details site-guide-frame" aria-labelledby="medical-certificate-title"><h3 id="medical-certificate-title">Date adeverință</h3><div class="admission-candidate-grid"><label>Nume<input id="certificate-last-name" type="text" autocomplete="family-name"></label><label>Prenume<input id="certificate-first-name" type="text" autocomplete="given-name"></label><label>CNP<input id="certificate-cnp" type="text" inputmode="numeric" maxlength="24" autocomplete="off"></label><label>ID (CNP)<input id="certificate-id" type="text" inputmode="numeric" autocomplete="off"></label><label>Număr de telefon<input id="certificate-phone" type="tel" autocomplete="tel"></label><label>Ore cont<input id="certificate-hours-account" type="number" min="0" step="0.01"></label><label>Ore character<input id="certificate-hours-character" type="number" min="0" step="0.01"></label><label>Apt medical<select id="certificate-medical-status"><option value="Admis">Apt medical</option><option value="Respins">Inapt medical</option></select></label></div><div class="candidate-photo-grid certificate-photo-grid">${candidateImageFieldHtml('certificate-document', 'Fotografie buletin')}${candidateImageFieldHtml('certificate-medical-sheet', 'Fotografie fișă medicală')}</div></section>`;
@@ -1144,7 +1191,7 @@ function buildTestMarkup(testName, definition, questions) {
   const parachutismPracticalStage = isParachutismTest && parachutismPracticalOptions
     ? `<section class="parachutism-practical-stage" id="parachutism-practical-stage" hidden><h3>Probe practice de parașutism</h3><div id="practical-steps" class="parachutism-case-list"></div><div class="evaluation-stage-actions"><button type="button" class="primary evaluation-verdict evaluation-verdict-admitted" data-parachutism-final-result="Admis">Admis Test Parasutism</button><button type="button" class="primary evaluation-verdict evaluation-verdict-rejected" data-parachutism-final-result="Respins">Respins Test Parasutism</button></div></section>`
     : '';
-  const candidateCallsign = isApplicationTest || isMedicalCertificate ? '' : '<label class="candidate-call-sign">Callsign candidat<input id="candidate-callsign" type="text" placeholder="510 sau M-510"></label>';
+  const candidateCallsign = isApplicationTest || isMedicalCertificate ? '' : '<label class="candidate-call-sign">Callsign candidat<input id="candidate-callsign" type="text" placeholder="510 sau M-510"><span id="candidate-callsign-error" class="candidate-callsign-error" role="alert" hidden></span></label>';
   const candidateNameField = ['Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști'].includes(testName) ? '<label class="candidate-call-sign">Nume candidat<input id="als-candidate-name" type="text" autocomplete="name" readonly placeholder="Se completează după callsign"></label>' : '';
   const candidateIdentityFields = candidateCallsign || candidateNameField
     ? `<section class="candidate-identity-fields site-guide-frame">${candidateCallsign}${candidateNameField}</section>`
@@ -1186,7 +1233,7 @@ function buildTestMarkup(testName, definition, questions) {
     : `${guideBody}${images ? `<div class="test-images">${images}</div>` : ''}`;
   const testAccessControl = testAccessMarkup(testName);
   const headerActions = `<div class="test-guide-header-actions">${testAccessControl}<button class="outline site-guide-frame" id="back-to-tests">← Înapoi</button></div>`;
-  return `<div class="panel view-panel${isSmulsTest ? ' smuls-background-panel' : isAlsTest ? ' als-background-panel' : isMotoTest ? ' moto-background-panel' : ''}"><div class="panel-head"><div><p class="eyebrow">GHID PENTRU TESTER</p><h2>${displayTestName(testName)}</h2></div>${headerActions}</div>${content}${isSmulsTest || isAlsTest ? evaluationStageFlow : ''}${parachutismResultStageFlow}${parachutismPracticalStage}${isSmulsTest ? '<img class="test-corner-logo" src="/logo%20smuls%202.png" alt="Sigla S.M.U.L.S." aria-hidden="true">' : isMotoTest ? '<img class="test-corner-logo" src="/moto%202.png" alt="Sigla Moto" aria-hidden="true">' : isPilotTest ? '<img class="test-corner-logo" src="/logo%20pilot.png" alt="Sigla Pilot" aria-hidden="true">' : isParachutismTest ? '<img class="test-corner-logo" src="/logo%20parasuta.png" alt="Sigla parașutism" aria-hidden="true">' : ''}</div>`;
+  return `<div class="panel view-panel${isSmulsTest ? ' smuls-background-panel' : isAlsTest ? ' als-background-panel' : isMotoTest ? ' moto-background-panel' : isPilotTest ? ' pilot-background-panel' : isMedicalCertificate ? ' adeverinta-background-panel' : isParachutismTest ? ' parasutism-background-panel' : ''}"><div class="panel-head"><div><p class="eyebrow">GHID PENTRU TESTER</p><h2>${displayTestName(testName)}</h2></div>${headerActions}</div>${content}${isSmulsTest || isAlsTest ? evaluationStageFlow : ''}${parachutismResultStageFlow}${parachutismPracticalStage}${isSmulsTest ? '<img class="test-corner-logo" src="/logo%20smuls%202.png" alt="Sigla S.M.U.L.S." aria-hidden="true">' : isMotoTest ? '<img class="test-corner-logo" src="/moto%202.png" alt="Sigla Moto" aria-hidden="true">' : isPilotTest ? '<img class="test-corner-logo" src="/logo%20pilot.png" alt="Sigla Pilot" aria-hidden="true">' : isParachutismTest ? '<img class="test-corner-logo" src="/logo%20parasuta.png" alt="Sigla parașutism" aria-hidden="true">' : ''}</div>`;
 }
 function wireTestEvents(testName, definition) {
   const isAdmissionTest = testName === 'Test admitere';
@@ -1459,6 +1506,12 @@ function wireTestEvents(testName, definition) {
     updateAdmittedVerdicts();
   });
   const candidateInput = document.querySelector('#candidate-callsign'); const candidateSummaryEl = document.querySelector('#candidate-summary'); const alsCandidateNameInput = document.querySelector('#als-candidate-name');
+  const candidateCallsignErrorEl = document.querySelector('#candidate-callsign-error');
+  const showCandidateCallsignError = message => {
+    if (!candidateCallsignErrorEl) return;
+    candidateCallsignErrorEl.textContent = message;
+    candidateCallsignErrorEl.hidden = !message;
+  };
   let candidateLookupTimer;
   let candidateLookupSequence = 0;
   let refreshParachutismTheoryGate = () => {};
@@ -1469,10 +1522,18 @@ function wireTestEvents(testName, definition) {
     const callsign = candidateInput.value.trim();
     candidateCooldowns = {};
     candidateCooldownMessage = '';
+    showCandidateCallsignError('');
     if (isPilotTest) { const content = document.querySelector('#pilot-test-content'); if (content) content.hidden = true; }
     if (isMotoTest) { const content = document.querySelector('#moto-test-content'); if (content) content.hidden = true; }
     if (alsCandidateNameInput) alsCandidateNameInput.value = '';
     if (!callsignNumber(callsign)) { if (candidateSummaryEl) candidateSummaryEl.textContent = ''; refreshParachutismTheoryGate(); refreshPilotTheoryGate(); return; }
+    if (!callsignWithinTestLimit(callsign, testName)) {
+      showCandidateCallsignError('Callsign-ul selectat nu este valabil.');
+      if (candidateSummaryEl) candidateSummaryEl.textContent = '';
+      refreshParachutismTheoryGate();
+      refreshPilotTheoryGate();
+      return;
+    }
     if (candidateSummaryEl) candidateSummaryEl.textContent = 'Se caută candidatul…';
     candidateLookupTimer = setTimeout(async () => {
       try {
@@ -1580,7 +1641,7 @@ function wireTestEvents(testName, definition) {
           encodeIdentityPhoto(medicalSheetPhoto),
           encodeIdentityPhoto(drugTestPhoto)
         ]);
-        submissionDetails = { candidateName, candidateId, candidateCallsign, identityImage, medicalSheetImage, drugTestImage };
+        submissionDetails = { candidateName, candidateId, candidateCallsign, identityImage, medicalSheetImage, drugTestImage, testType: document.querySelector('#admission-type')?.value || 'Admitere' };
         for (const id of ['candidate-document', 'candidate-medical-sheet', 'candidate-drug-test']) setCandidatePhotoStatus(id, 'ready', 'Fotografie pregătită pentru trimitere.');
       } catch (error) {
         setCandidatePhotoStatus('candidate-document', 'error', error.message);
@@ -1938,6 +1999,9 @@ function navigateTo(view, { push = true } = {}) {
   document.body.classList.remove('smuls-background-mode');
   document.body.classList.remove('als-background-mode');
   document.body.classList.remove('moto-background-mode');
+  document.body.classList.remove('pilot-background-mode');
+  document.body.classList.remove('adeverinta-background-mode');
+  document.body.classList.remove('parasutism-background-mode');
   if (push && window.history.state?.view !== view) window.history.pushState({ view }, '', `#${view}`);
   document.querySelectorAll('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.view === view));
   document.querySelector('#page-label').textContent = labels[view];
@@ -2065,6 +2129,7 @@ async function enterApp(user) {
   appShell.classList.add('ready');
   navigateTo('overview', { push: false });
   try {
+    await fetchGlobalTestDefinitions();
     await loadDirectory();
     await loadRemoteGrants();
     if (requestedProfileCallsign) {

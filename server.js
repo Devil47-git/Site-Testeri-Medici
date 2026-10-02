@@ -6,6 +6,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { google } from 'googleapis';
 import { isLeadership, gradeGroupFor, catalog } from './lib/access/shared.js';
+import { readTestDefinitions, writeTestDefinitions } from './lib/test-definitions-store.js';
 
 const PORT = Number(process.env.PORT || 3000);
 const SESSION_TTL = 24 * 60 * 60 * 1000;
@@ -64,6 +65,25 @@ async function route(req, res) {
     try { const discord = await exchangeDiscord(code.trim()); const member = await sheetMember(discord.id); if (!member) return redirect(res, '/?access=denied'); const sid = crypto.randomBytes(32).toString('hex'); sessions.set(sid, { ...member, discordUsername: discord.username, expires: Date.now() + SESSION_TTL }); res.setHeader('Set-Cookie', `session=${sid}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_TTL / 1000}`); return redirect(res, '/'); } catch (e) { return redirect(res, '/?access=error'); }
   }
   if (url.pathname === '/api/session') { const sessionId = cookie(req, 'session'); const session = sessions.get(sessionId); if (!session || session.expires < Date.now()) return json(res, 401, { authorized: false }); try { const fresh = await sheetMember(session.discordId); if (!fresh) return json(res, 403, { authorized: false }); const updated = { ...session, ...fresh, expires: Date.now() + SESSION_TTL }; sessions.set(sessionId, updated); res.setHeader('Set-Cookie', `session=${sessionId}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_TTL / 1000}`); return json(res, 200, { authorized: true, ...updated }); } catch { return json(res, 200, { authorized: true, ...session }); } }
+  if (url.pathname === '/api/test-definitions') {
+    if (req.method === 'GET') {
+      const definitions = await readTestDefinitions();
+      if (!definitions) return json(res, 500, { error: 'Nu am putut citi definițiile testelor' });
+      return json(res, 200, { definitions });
+    }
+    if (req.method === 'PUT') {
+      const sessionId = cookie(req, 'session');
+      const session = sessions.get(sessionId);
+      if (!session || session.expires < Date.now()) return json(res, 401, { error: 'Autentificare necesară' });
+      if (!session.isLeadership) return json(res, 403, { error: 'Doar conducerea poate edita testele' });
+      let body = ''; for await (const chunk of req) body += chunk;
+      let payload; try { payload = JSON.parse(body || '{}'); } catch { return json(res, 400, { error: 'Date invalide' }); }
+      if (!payload || typeof payload.definitions !== 'object' || Array.isArray(payload.definitions) || !payload.definitions) return json(res, 400, { error: 'Câmpul definitions lipsește' });
+      try { await writeTestDefinitions(payload.definitions); return json(res, 200, { success: true }); }
+      catch (e) { return json(res, 500, { error: e.message || 'Salvarea a eșuat' }); }
+    }
+    return json(res, 405, { error: 'Method not allowed' });
+  }
   if (url.pathname.startsWith('/api/')) return json(res, 404, { error: 'Not found' });
   let pathname;
   try { pathname = decodeURIComponent(url.pathname); } catch { return json(res, 400, { error: 'Invalid path' }); }

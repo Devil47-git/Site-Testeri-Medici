@@ -1,6 +1,7 @@
 import http from 'node:http';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { readTestDefinitions, writeTestDefinitions } from '../lib/test-definitions-store.js';
 const ROOT = process.cwd();
 const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.gif': 'image/gif', '.png': 'image/png' };
 const MOCK = [
@@ -35,6 +36,28 @@ const testResults = [];
 const lifetimeTestResults = [];
 http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
+  if (url.pathname === '/api/test-definitions') {
+    if (req.method === 'GET') {
+      const definitions = await readTestDefinitions();
+      res.writeHead(definitions ? 200 : 500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(definitions ? { definitions } : { error: 'Nu am putut citi definițiile' }));
+      return;
+    }
+    if (req.method === 'PUT') {
+      let body = ''; for await (const chunk of req) body += chunk;
+      try {
+        const payload = JSON.parse(body || '{}');
+        if (!payload || typeof payload.definitions !== 'object' || Array.isArray(payload.definitions)) throw new Error('bad');
+        await writeTestDefinitions(payload.definitions);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true }));
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: e.message || 'Salvarea a eșuat' }));
+      }
+      return;
+    }
+  }
   if (url.pathname.startsWith('/api/access/directory')) {
     const callsign = url.searchParams.get('callsign');
     if (callsign !== null) {

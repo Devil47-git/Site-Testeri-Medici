@@ -214,9 +214,11 @@ async function sendWebhookComponents(url, components, images, testerDiscordId) {
   }
 }
 
-export function createAdmissionEmbed({ testName, testerName, candidateName, result }) {
+export function createAdmissionEmbed({ testName, testType, testerName, candidateName, result }) {
+  const isTransfer = testName === 'Test transfer';
+  const admissionType = testType === 'Reintegrare' ? 'Reintegrare' : 'Admitere';
   return {
-    title: testName === 'Test transfer' ? 'Transfer' : 'Admitere',
+    title: isTransfer ? 'Transfer' : admissionType,
     color: 0x23A2E8,
     fields: [
       { name: 'Nume Tester', value: testerName || '—', inline: false },
@@ -226,13 +228,14 @@ export function createAdmissionEmbed({ testName, testerName, candidateName, resu
   };
 }
 
-export function createAdmissionTesterComponents({ testName, testerName, candidateName, candidateId, candidateCallsign, result }) {
+export function createAdmissionTesterComponents({ testName, testType, testerName, candidateName, candidateId, candidateCallsign, result }) {
   const section = (content, filename, description) => ({
     type: 9,
     components: [{ type: 10, content }],
     accessory: { type: 11, media: { url: `attachment://${filename}` }, description }
   });
-  const title = testName === 'Test transfer' ? 'Test Transfer' : 'Test Admitere';
+  const admissionType = testType === 'Reintegrare' ? 'Reintegrare' : 'Admitere';
+  const title = testName === 'Test transfer' ? 'Test Transfer' : `Test ${admissionType}`;
   const resultDetails = `${result === 'Admis' && candidateCallsign ? `**Callsign:** ${candidateCallsign}\n` : ''}**Rezultat:** ${result || '—'}`;
   return [{
     type: 17,
