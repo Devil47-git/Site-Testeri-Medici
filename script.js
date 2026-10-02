@@ -560,7 +560,7 @@ function renderMembersView() {
   return `<div class="panel view-panel"><h2>Membri departament</h2><p class="muted">Membrii departamentului sunt grupați pe grade: conducere, medici primari și medici specialiști.</p>${sections || '<p class="muted">Nu s-a putut încărca lista membrilor.</p>'}</div>`;
 }
 function renderSettingsView(title) {
-  return `<div class="panel view-panel"><h2>${title}</h2><p class="muted">Gestionează preferințele și sesiunea contului tău.</p><div class="settings-list"><p><b>Identitate:</b> ${currentUser?.name || '—'}</p><p><b>Callsign:</b> ${normalizeCallsign(currentUser?.callsign || currentUser?.callSign)}</p><p><b>Nivel acces:</b> ${isLeadershipUser(currentUser) ? 'Conducere' : 'Tester'}</p>${isLeadershipUser(currentUser) ? `<hr><section class="test-editor"><h3>Configurare teste</h3><div class="test-editor-controls"><label>Test<select id="test-editor-select">${catalog.map(test => `<option value="${test}">${displayTestName(test)}</option>`).join('')}</select></label><label>Titlu afișat<input id="test-editor-title" type="text"></label><label>Conținut card<textarea id="test-editor-description" rows="3"></textarea></label><label>Instrucțiuni<textarea id="test-editor-instructions" rows="3"></textarea></label><label>Greșeli permise<input id="test-editor-max-wrong" type="number" min="0" step="1"></label></div><div class="test-editor-question-header"><h4>Întrebări și răspunsuri</h4><button class="outline" id="add-test-question" type="button">＋ Adaugă întrebare</button></div><div id="test-editor-questions" class="test-editor-questions"></div><details class="test-editor-advanced"><summary>Configurare avansată</summary><p class="muted">Pentru cazuri, probe practice și imagini.</p><input id="test-file-input" type="file" accept=".txt,.md,.json"><textarea id="test-editor-json" rows="8" spellcheck="false"></textarea></details><button class="primary" id="save-test-definition">Salvează testul</button><span id="test-editor-status" class="muted" role="status"></span></section>` : ''}</div></div>`;
+  return `<div class="panel view-panel"><h2>${title}</h2><p class="muted">Gestionează preferințele și sesiunea contului tău.</p><div class="settings-list"><p><b>Identitate:</b> ${currentUser?.name || '—'}</p><p><b>Callsign:</b> ${normalizeCallsign(currentUser?.callsign || currentUser?.callSign)}</p><p><b>Nivel acces:</b> ${isLeadershipUser(currentUser) ? 'Conducere' : 'Tester'}</p>${isLeadershipUser(currentUser) ? `<hr><section class="test-editor"><h3>Configurare teste</h3><div class="test-editor-controls"><label>Test<select id="test-editor-select">${catalog.map(test => `<option value="${test}">${displayTestName(test)}</option>`).join('')}</select></label><label>Titlu afișat<input id="test-editor-title" type="text"></label><label>Conținut card<textarea id="test-editor-description" rows="3"></textarea></label><label>Instrucțiuni<textarea id="test-editor-instructions" rows="3"></textarea></label><label>Greșeli permise<input id="test-editor-max-wrong" type="number" min="0" step="1"></label></div><div class="test-editor-question-header"><h4>Întrebări și răspunsuri</h4><button class="outline" id="add-test-question" type="button">＋ Adaugă întrebare</button></div><div id="test-editor-questions" class="test-editor-questions"></div><button class="primary" id="save-test-definition">Salvează testul</button><span id="test-editor-status" class="muted" role="status"></span></section>` : ''}</div></div>`;
 }
 function testQuestionEditorHtml(question, index) {
   return `<fieldset class="test-editor-question"><legend>Întrebarea ${index + 1}</legend><label>Întrebare<textarea data-question-text rows="2">${escapeHtml(question?.text || '')}</textarea></label><label>Răspuns<textarea data-question-answer rows="2">${escapeHtml(question?.answer || '')}</textarea></label><button type="button" class="outline danger-button" data-remove-question="${index}">Șterge întrebarea</button></fieldset>`;
@@ -574,25 +574,25 @@ function wireTestersEvents() {
 }
 function wireSettingsEvents() {
   const editor = document.querySelector('#test-editor-select');
-  const editorJson = document.querySelector('#test-editor-json');
   const editorTitle = document.querySelector('#test-editor-title');
   const editorDescription = document.querySelector('#test-editor-description');
   const editorInstructions = document.querySelector('#test-editor-instructions');
   const editorMaxWrong = document.querySelector('#test-editor-max-wrong');
   const questionContainer = document.querySelector('#test-editor-questions');
   const editorStatus = document.querySelector('#test-editor-status');
-  if (!editor || !editorJson || !questionContainer) return;
+  if (!editor || !questionContainer) return;
+  let currentDefinition = {};
   const readEditorQuestions = () => [...questionContainer.querySelectorAll('.test-editor-question')].map(item => ({
     text: item.querySelector('[data-question-text]').value.trim(),
     answer: item.querySelector('[data-question-answer]').value.trim()
   }));
   const loadDefinition = definition => {
     const value = definition || testDefinitions[editor.value] || {};
+    currentDefinition = value;
     editorTitle.value = value.title || (editor.value === 'Test parașutiști' ? 'Test Parasutism' : editor.value);
     editorDescription.value = value.description || '';
     editorInstructions.value = value.instructions || '';
     editorMaxWrong.value = Number.isFinite(Number(value.maxWrong)) ? value.maxWrong : '';
-    editorJson.value = JSON.stringify(value, null, 2);
     renderTestQuestionEditor(questionContainer, Array.isArray(value.questions) ? value.questions : []);
   };
   editor.onchange = () => loadDefinition();
@@ -607,24 +607,10 @@ function wireSettingsEvents() {
   document.querySelector('#add-test-question').onclick = () => {
     renderTestQuestionEditor(questionContainer, [...readEditorQuestions(), { text: '', answer: '' }]);
   };
-  const fileInput = document.querySelector('#test-file-input');
-  if (fileInput) fileInput.onchange = async () => {
-    const file = fileInput.files?.[0];
-    if (!file) return;
-    try {
-      const imported = JSON.parse(await file.text());
-      if (!imported || typeof imported !== 'object' || Array.isArray(imported)) throw new Error('Format JSON invalid');
-      editorJson.value = JSON.stringify(imported, null, 2);
-      loadDefinition(imported);
-      editorStatus.textContent = 'Fișier încărcat. Verifică rubricile și salvează.';
-    } catch { editorStatus.textContent = 'Fișierul trebuie să conțină o definiție JSON validă.'; }
-  };
   document.querySelector('#save-test-definition').onclick = () => {
     try {
-      const advanced = JSON.parse(editorJson.value);
-      if (!advanced || typeof advanced !== 'object' || Array.isArray(advanced)) throw new Error('Format JSON invalid');
       const value = {
-        ...advanced,
+        ...currentDefinition,
         name: editor.value,
         title: editorTitle.value.trim() || editor.value,
         description: editorDescription.value.trim(),
@@ -635,8 +621,8 @@ function wireSettingsEvents() {
       else value.maxWrong = Number(editorMaxWrong.value);
       if (!Number.isFinite(value.maxWrong) && value.maxWrong !== undefined) throw new Error('Număr maxim de greșeli invalid');
       testDefinitions[editor.value] = value;
+      currentDefinition = value;
       saveTestDefinitions();
-      editorJson.value = JSON.stringify(value, null, 2);
       editorStatus.textContent = 'Test salvat local.';
       renderRows();
     } catch (error) { editorStatus.textContent = error.message || 'Definiție JSON invalidă.'; }
@@ -821,6 +807,20 @@ function smulsCaseListHtml(cases, images = []) {
   return `<section class="smuls-descarceration-stage"><h3>PROBA 1: Descarcerare</h3><div class="smuls-descarceration-layout"><div class="smuls-descarceration-copy"><div class="smuls-case-list">${caseDetails}</div><div class="evaluation-stage-actions"><button type="button" class="primary evaluation-verdict evaluation-verdict-admitted" data-smuls-descarceration-result="Admis">Admis Descarcerare</button><button type="button" class="primary evaluation-verdict evaluation-verdict-rejected" data-smuls-descarceration-result="Respins">Respins Descarcerare</button></div></div>${imageSlots}</div></section>`;
 }
 function isTestFailed(wrong, maxWrong) { return wrong > maxWrong; }
+function canUseAdmittedVerdict(wrong, maxWrong) { return !isTestFailed(wrong, maxWrong); }
+function startVerdictButtonCooldown(button, canAdmit, schedule = globalThis.setTimeout) {
+  if (button.dataset.verdictCooldown === 'active') return false;
+  const wasDisabled = button.disabled;
+  button.dataset.verdictCooldown = 'active';
+  button.disabled = true;
+  schedule(() => {
+    delete button.dataset.verdictCooldown;
+    if (!button.isConnected) return;
+    button.disabled = wasDisabled || button.dataset.verdictLocked === 'true'
+      || (button.classList.contains('evaluation-verdict-admitted') && !canAdmit());
+  }, 15_000);
+  return true;
+}
 function maxWrongForTest(testName, maxWrong) { return testName === 'Test admitere' ? 3 : testName === 'Test PILOT' ? 1 : Number(maxWrong ?? Infinity); }
 function questionItemHtml(question, index, allowWrong = true) {
   const answer = allowWrong ? `<div class="correct-answer"><span>${question.answer || 'Verifică ghidul.'}</span><label class="answer-check"><input type="checkbox" data-wrong="${index}"> Răspuns greșit</label></div>` : '';
@@ -918,8 +918,9 @@ function bulletinGifArtworkHtml() {
 }
 function candidateImageFieldHtml(id, label) {
   const isBulletinPhoto = id === 'candidate-document' || id === 'certificate-document';
-  const bulletinArtwork = isBulletinPhoto ? bulletinGifArtworkHtml() : '';
-  return `<section class="candidate-photo-field" data-photo-field="${id}" data-photo-state="empty"><label class="candidate-document-upload">${label}<input id="${id}" type="file" accept="image/*"></label><div class="image-paste-target${isBulletinPhoto ? ' bulletin-image-target' : ''}" data-paste-for="${id}" tabindex="0" role="button" aria-label="${label}: selectează sau lipește o fotografie">${bulletinArtwork}<span class="candidate-photo-spinner" aria-hidden="true"></span></div><div class="candidate-photo-progress" role="status" aria-live="polite"><span id="${id}-status">Așteaptă fotografia</span></div></section>`;
+  const hasArtwork = isBulletinPhoto || ['candidate-medical-sheet', 'candidate-drug-test', 'certificate-medical-sheet'].includes(id);
+  const artwork = hasArtwork ? bulletinGifArtworkHtml() : '';
+  return `<section class="candidate-photo-field" data-photo-field="${id}" data-photo-state="empty"><label class="candidate-document-upload">${label}<input id="${id}" type="file" accept="image/*"></label><div class="image-paste-target${hasArtwork ? ' photo-artwork-target' : ''}" data-paste-for="${id}" tabindex="0" role="button" aria-label="${label}: selectează sau lipește o fotografie">${artwork}<span class="candidate-photo-spinner" aria-hidden="true"></span></div><div class="candidate-photo-progress" role="status" aria-live="polite"><span id="${id}-status">Așteaptă fotografia</span></div></section>`;
 }
 function setCandidatePhotoStatus(id, state, message) {
   const input = document.querySelector(`#${id}`);
@@ -1329,11 +1330,37 @@ function wireTestEvents(testName, definition) {
     renderPractical();
   }
   const wrongInputs = [...document.querySelectorAll('[data-wrong]')];
+  const testPanel = viewContent.querySelector('.view-panel');
+  const wrongAnswerCount = () => wrongInputs.filter(item => item.checked).length;
+  const canAdmit = () => canUseAdmittedVerdict(wrongAnswerCount(), maxWrongForTest(testName, definition.maxWrong));
+  const updateAdmittedVerdicts = () => {
+    testPanel?.querySelectorAll('.evaluation-verdict-admitted').forEach(button => {
+      if (button.dataset.verdictCooldown !== 'active' && button.dataset.verdictLocked !== 'true') button.disabled = !canAdmit();
+    });
+  };
+  if (testPanel) {
+    testPanel.addEventListener('click', event => {
+      const button = event.target.closest('.evaluation-verdict');
+      if (button?.classList.contains('evaluation-verdict-admitted') && !canAdmit()) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        updateAdmittedVerdicts();
+      }
+    }, true);
+    testPanel.addEventListener('click', event => {
+      const button = event.target.closest('.evaluation-verdict');
+      if (button && button.type !== 'submit') startVerdictButtonCooldown(button, canAdmit);
+    });
+    const verdictObserver = new MutationObserver(updateAdmittedVerdicts);
+    verdictObserver.observe(testPanel, { childList: true, subtree: true });
+  }
+  updateAdmittedVerdicts();
   wrongInputs.forEach(input => input.onchange = () => {
-    const wrongCount = wrongInputs.filter(item => item.checked).length;
+    const wrongCount = wrongAnswerCount();
     const count = document.querySelector('#wrong-count');
     if (count) count.textContent = wrongCount;
     const limitExceeded = wrongCount > maxWrongForTest(testName, definition.maxWrong);
+    updateAdmittedVerdicts();
     if (limitExceeded) {
       wrongInputs.forEach(item => { item.disabled = true; });
       const rejectedButton = document.querySelector(`[data-pilot-theory-result="Respins"], [data-moto-theory-result="Respins"], [data-parachutism-theory-result="Respins"]`);
@@ -1425,6 +1452,13 @@ function wireTestEvents(testName, definition) {
     if (isParachutismTest && !event.submitter?.dataset.parachutismTheoryResult) return;
     const wrong = wrongInputs.filter(item => item.checked).length;
     const limit = maxWrongForTest(testName, definition.maxWrong);
+    if (event.submitter?.classList.contains('evaluation-verdict')) {
+      if (event.submitter.classList.contains('evaluation-verdict-admitted') && !canUseAdmittedVerdict(wrong, limit)) {
+        updateAdmittedVerdicts();
+        return;
+      }
+      if (!startVerdictButtonCooldown(event.submitter, canAdmit)) return;
+    }
     const result = isMedicalCertificate
       ? document.querySelector('#certificate-medical-status').value
       : isTestFailed(wrong, limit) ? 'Respins' : 'Admis';
@@ -1532,7 +1566,10 @@ function wireTestEvents(testName, definition) {
     }
     if (testName === 'Test PILOT' || isMotoTest || isSmulsTest) {
       const stageFlow = document.querySelector('#evaluation-stage-flow');
-      const disableTheoryInputs = () => form.querySelectorAll('input,button').forEach(input => { input.disabled = true; });
+      const disableTheoryInputs = () => form.querySelectorAll('input,button').forEach(input => {
+        input.disabled = true;
+        if (input.matches('.evaluation-verdict')) input.dataset.verdictLocked = 'true';
+      });
       const finishStagedTest = async finalResult => {
         stageFlow.querySelectorAll('button').forEach(button => { button.disabled = true; });
         stageFlow.innerHTML = '<p class="muted">Se înregistrează rezultatul...</p>';

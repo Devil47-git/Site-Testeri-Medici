@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { accessFor, candidateForCallsign, catalog as accessCatalog, coreTests, effectiveTestsForMember, functionsForMember, isLeadership, normalizeTests, testsForFunctions } from '../api/access/shared.js';
-import { canResetTestCounts, discordTesterMentionPayload, createAdmissionEmbed, createAdmissionTesterComponents, createAlsResultEmbed, createSpecialtyResultEmbed, specialtyNotificationDetails, createMedicalCertificateEmbeds, medicalCertificateNumberForRow, bonusEntryFromRow } from '../api/access/test-results.js';
+import { canResetTestCounts, discordTesterMentionPayload, createAdmissionEmbed, createAdmissionTesterComponents, webhookComponentsUrl, createAlsResultEmbed, createSpecialtyResultEmbed, specialtyNotificationDetails, createMedicalCertificateEmbeds, medicalCertificateNumberForRow, bonusEntryFromRow } from '../api/access/test-results.js';
 import { statusFromRow } from '../api/access/directory.js';
 import { cooldownIsActive, parseCooldownS } from '../api/access/cooldowns.js';
 
@@ -35,7 +35,7 @@ function extract(name) {
 const catalog = ['Test admitere', 'Test transfer', 'Adeverință medicală', 'Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști'];
 const definitions = Object.fromEntries(catalog.map(n => [n, { name: n, questions: [] }]));
 
-const names = ['callsignNumber', 'normalizeCallsign', 'testNameFromHash', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberHasTestAccess', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'sortMembers', 'gradeGroupFor', 'mergeTestDefinitions', 'admissionChecklistHtml', 'admissionChecksComplete', 'motoChecksComplete', 'alsChecklistHtml', 'alsChecksComplete', 'alsCaseListHtml', 'smulsChecklistHtml', 'smulsChecksComplete', 'smulsCaseListHtml', 'memberStatus', 'testerFunctionsForDisplay', 'isTestFailed', 'maxWrongForTest', 'cachedUserWithinSession', 'questionItemHtml', 'evaluationStageHtml', 'parseIdentityCardText', 'mergeIdentityCardDetails', 'displayTestName', 'departmentCalendarDate', 'latestCompleteBonusPeriodIndex', 'activeBonusPeriodIndex', 'bonusPeriodFor'];
+const names = ['callsignNumber', 'normalizeCallsign', 'testNameFromHash', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberHasTestAccess', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'sortMembers', 'gradeGroupFor', 'mergeTestDefinitions', 'admissionChecklistHtml', 'admissionChecksComplete', 'motoChecksComplete', 'alsChecklistHtml', 'alsChecksComplete', 'alsCaseListHtml', 'smulsChecklistHtml', 'smulsChecksComplete', 'smulsCaseListHtml', 'memberStatus', 'testerFunctionsForDisplay', 'isTestFailed', 'canUseAdmittedVerdict', 'startVerdictButtonCooldown', 'maxWrongForTest', 'cachedUserWithinSession', 'questionItemHtml', 'evaluationStageHtml', 'parseIdentityCardText', 'mergeIdentityCardDetails', 'displayTestName', 'departmentCalendarDate', 'latestCompleteBonusPeriodIndex', 'activeBonusPeriodIndex', 'bonusPeriodFor'];
 const srcs = names.map(extract).join('\n');
 const pattern = source.match(/^const RESIDENT_TESTER_PATTERN = .*$/m)?.[0] || 'const RESIDENT_TESTER_PATTERN = /TESTER/;';
 const normalizeTextSrc = extract('normalizeText');
@@ -46,10 +46,10 @@ const load = new Function(
   'catalog',
   'testDefinitions',
   'testSummaryDefinitions',
-  `${fullSrc}\nreturn { callsignNumber, normalizeCallsign, testNameFromHash, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, mergeTestDefinitions, admissionChecklistHtml, admissionChecksComplete, motoChecksComplete, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, departmentCalendarDate, latestCompleteBonusPeriodIndex, activeBonusPeriodIndex, bonusPeriodFor };`,
+  `${fullSrc}\nreturn { callsignNumber, normalizeCallsign, testNameFromHash, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, mergeTestDefinitions, admissionChecklistHtml, admissionChecksComplete, motoChecksComplete, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, canUseAdmittedVerdict, startVerdictButtonCooldown, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, departmentCalendarDate, latestCompleteBonusPeriodIndex, activeBonusPeriodIndex, bonusPeriodFor };`,
 )(catalog, definitions, testSummaryDefinitions);
 
-const { callsignNumber, normalizeCallsign, testNameFromHash, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, mergeTestDefinitions, admissionChecklistHtml, admissionChecksComplete, motoChecksComplete, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, departmentCalendarDate, latestCompleteBonusPeriodIndex, activeBonusPeriodIndex, bonusPeriodFor } = load;
+const { callsignNumber, normalizeCallsign, testNameFromHash, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, mergeTestDefinitions, admissionChecklistHtml, admissionChecksComplete, motoChecksComplete, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, canUseAdmittedVerdict, startVerdictButtonCooldown, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, departmentCalendarDate, latestCompleteBonusPeriodIndex, activeBonusPeriodIndex, bonusPeriodFor } = load;
 
 test('Discord auth preserves the Discord display name, username, and avatar', () => {
   const mapperSource = discordAuthSource.match(/function mapSheetRowToUser\(row, discordUser\) \{[\s\S]*?^\}/m)?.[0];
@@ -597,6 +597,34 @@ test('admission test rejects the fourth mistake', () => {
   assert.match(source, /if \(count\) count\.textContent = wrongCount/);
 });
 
+test('admitted verdicts enforce the mistake limit and verdict buttons cool down for 15 seconds', () => {
+  assert.equal(canUseAdmittedVerdict(2, 2), true);
+  assert.equal(canUseAdmittedVerdict(3, 2), false);
+
+  const timers = [];
+  let mistakesWithinLimit = true;
+  const button = {
+    disabled: false,
+    dataset: {},
+    isConnected: true,
+    classList: { contains: className => className === 'evaluation-verdict-admitted' }
+  };
+  const schedule = (callback, delay) => timers.push({ callback, delay });
+
+  assert.equal(startVerdictButtonCooldown(button, () => mistakesWithinLimit, schedule), true);
+  assert.equal(button.disabled, true);
+  assert.equal(timers[0].delay, 15_000);
+  assert.equal(startVerdictButtonCooldown(button, () => mistakesWithinLimit, schedule), false);
+  mistakesWithinLimit = false;
+  timers[0].callback();
+  assert.equal(button.disabled, true);
+
+  const rejectedButton = { ...button, disabled: false, dataset: {}, classList: { contains: () => false } };
+  assert.equal(startVerdictButtonCooldown(rejectedButton, () => false, schedule), true);
+  timers[1].callback();
+  assert.equal(rejectedButton.disabled, false);
+});
+
 test('Discord session and browser auth cache both last 24 hours', () => {
   assert.match(source, /const AUTH_TTL=24\*60\*60\*1000/);
   assert.match(serverSource, /const SESSION_TTL = 24 \* 60 \* 60 \* 1000/);
@@ -719,7 +747,12 @@ test('admission Discord message aligns each photo with its text in one container
   assert.match(container.components[2].components[0].content, /Rezultat[\s\S]*Respins/);
   assert.doesNotMatch(container.components[2].components[0].content, /Callsign/);
   assert.equal(container.components[2].accessory.media.url, 'attachment://drug-test.jpg');
+  const componentsUrl = new URL(webhookComponentsUrl('https://discord.com/api/webhooks/123/token?thread_id=456'));
+  assert.equal(componentsUrl.searchParams.get('thread_id'), '456');
+  assert.equal(componentsUrl.searchParams.get('with_components'), 'true');
+  assert.equal(componentsUrl.searchParams.get('wait'), 'true');
   assert.match(testResultsSource, /sendWebhookComponents\(testersWebhook, createAdmissionTesterComponents\(details\), \[/);
+  assert.match(testResultsSource, /fetch\(webhookComponentsUrl\(url\)/);
   assert.match(testResultsSource, /flags: 1 << 15/);
   assert.match(testResultsSource, /testName === 'Test admitere' \|\| testName === 'Test transfer'/);
   assert.match(source, /submissionDetails = \{ candidateName, candidateId, candidateCallsign, identityImage, medicalSheetImage, drugTestImage \}/);
@@ -768,17 +801,18 @@ test('ALS guide form includes callsign and candidate name inputs', () => {
   assert.match(source, /class="candidate-identity-fields">\$\{candidateCallsign\}\$\{candidateNameField\}/);
 });
 
-test('bulletin photo targets use the themed circular GIF without changing other uploads', () => {
+test('candidate document, medical sheet, and drug-test uploads share the themed GIF', () => {
   assert.match(source, /function bulletinGifArtworkHtml\(\)/);
   assert.match(source, /const isBulletinPhoto = id === 'candidate-document' \|\| id === 'certificate-document'/);
-  assert.match(source, /class="image-paste-target\$\{isBulletinPhoto \? ' bulletin-image-target' : ''\}"/);
+  assert.match(source, /const hasArtwork = isBulletinPhoto \|\| \['candidate-medical-sheet', 'candidate-drug-test', 'certificate-medical-sheet'\]\.includes\(id\)/);
+  assert.match(source, /class="image-paste-target\$\{hasArtwork \? ' photo-artwork-target' : ''\}"/);
   assert.match(source, /class="bulletin-dot-art" src="\/gif\.gif"/);
   assert.doesNotMatch(source, /bulletinArtwork\.style\.setProperty\('--hole-/);
   assert.match(source, /class="candidate-photo-spinner"/);
   assert.match(source, /data-photo-state="empty"/);
   assert.doesNotMatch(source, /Lipește poza buletinului aici/);
   const stylesheet = readFileSync(join(here, '..', 'style.css'), 'utf8');
-  assert.match(stylesheet, /\.image-paste-target\.bulletin-image-target\{[^}]*border:0[^}]*border-radius:50%/);
+  assert.match(stylesheet, /\.image-paste-target\.photo-artwork-target\{[^}]*border:0[^}]*border-radius:50%/);
   assert.match(stylesheet, /\.bulletin-dot-art\{[^}]*mix-blend-mode:screen/);
   assert.doesNotMatch(stylesheet, /mask-image:radial-gradient\(circle 20px at var\(--hole-x,50%\) var\(--hole-y,50%\)/);
   for (const file of ['server.js', 'tests/dev-server.mjs']) {

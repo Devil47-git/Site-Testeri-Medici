@@ -182,14 +182,14 @@ body.dark-mode .tester-access-table td:nth-child(4) .tag.cyan{border-color:rgba(
 .candidate-photo-field{display:grid;gap:8px;min-width:0}
 .image-paste-target{display:grid;place-items:center;min-height:76px;padding:10px 12px;border:1px solid #e45b64;border-radius:6px;background:linear-gradient(110deg,#7f2636,#c93643);box-shadow:0 0 8px #c9364350;color:#fff;cursor:pointer}
 .image-paste-target:hover,.image-paste-target:focus-visible{background:linear-gradient(110deg,#963044,#d84450);outline:2px solid #f19aa0;outline-offset:1px}
-.image-paste-target.bulletin-image-target{justify-self:center;width:min(100%,148px);min-height:0;aspect-ratio:1;overflow:visible;padding:0;border:0;border-radius:50%;background:transparent;box-shadow:none}
-.image-paste-target.bulletin-image-target:hover,.image-paste-target.bulletin-image-target:focus-visible{outline:none;background:transparent;box-shadow:none}
+.image-paste-target.photo-artwork-target{justify-self:center;width:min(100%,148px);min-height:0;aspect-ratio:1;overflow:visible;padding:0;border:0;border-radius:50%;background:transparent;box-shadow:none}
+.image-paste-target.photo-artwork-target:hover,.image-paste-target.photo-artwork-target:focus-visible{outline:none;background:transparent;box-shadow:none}
 .bulletin-dot-art{display:block;width:100%;aspect-ratio:1;border-radius:50%;object-fit:cover;filter:grayscale(1) sepia(1) saturate(7) hue-rotate(320deg) drop-shadow(0 0 6px #c6383d90);mix-blend-mode:screen}
 .candidate-photo-field[data-photo-field="candidate-document"],.candidate-photo-field[data-photo-field="certificate-document"]{justify-items:center}
 .candidate-photo-field[data-photo-field="candidate-document"] .candidate-document-upload,.candidate-photo-field[data-photo-field="certificate-document"] .candidate-document-upload{justify-items:center;text-align:center}
 .candidate-photo-field[data-photo-field="candidate-document"] .candidate-document-upload input,.candidate-photo-field[data-photo-field="certificate-document"] .candidate-document-upload input{width:max-content;max-width:100%;margin-inline:auto}
 .candidate-photo-field[data-photo-field="candidate-document"] .candidate-photo-progress,.candidate-photo-field[data-photo-field="certificate-document"] .candidate-photo-progress{justify-content:center;text-align:center}
-.bulletin-image-target .candidate-photo-spinner{display:none}
+.photo-artwork-target .candidate-photo-spinner{display:none}
 .candidate-photo-progress{display:flex;align-items:center;gap:8px;min-height:20px;color:var(--muted);font-size:11px;line-height:1.4}
 .candidate-photo-spinner{position:relative;display:grid;place-items:center;flex:none;width:30px;height:30px;border:3px solid #ffffff50;border-top-color:#fff;border-radius:50%}
 .candidate-photo-field[data-photo-state="loading"] .candidate-photo-spinner{animation:candidate-photo-spin .75s linear infinite}

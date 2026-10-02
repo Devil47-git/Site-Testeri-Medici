@@ -141,6 +141,13 @@ async function sendWebhookImages(url, embeds, images, testerDiscordId) {
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
 }
 
+export function webhookComponentsUrl(value) {
+  const url = new URL(value);
+  url.searchParams.set('with_components', 'true');
+  url.searchParams.set('wait', 'true');
+  return url.toString();
+}
+
 async function sendWebhookComponents(url, components, images, testerDiscordId) {
   const form = new FormData();
   const mentionPayload = discordTesterMentionPayload(testerDiscordId);
@@ -151,8 +158,12 @@ async function sendWebhookComponents(url, components, images, testerDiscordId) {
     attachments: images.map((image, id) => ({ id, filename: image.filename }))
   }));
   images.forEach((image, id) => form.set(`files[${id}]`, new Blob([image.buffer], { type: image.mimeType }), image.filename));
-  const response = await fetch(url, { method: 'POST', body: form });
-  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const response = await fetch(webhookComponentsUrl(url), { method: 'POST', body: form });
+  if (!response.ok) {
+    const details = (await response.text().catch(() => '')).slice(0, 1000);
+    console.error(`Discord tester webhook returned HTTP ${response.status}: ${details}`);
+    throw new Error(`HTTP ${response.status}`);
+  }
 }
 
 export function createAdmissionEmbed({ testName, testerName, candidateName, result }) {
