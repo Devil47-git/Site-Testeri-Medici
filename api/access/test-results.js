@@ -55,8 +55,8 @@ function departmentDateKey(value) {
 export function bonusEntryFromRow(row, testerNames = new Map()) {
   const discordId = String(row?.[0] || '').trim();
   return {
-    callsign: String(row?.[5] || row?.[1] || '').trim(),
-    testerName: String(row?.[6] || testerNames.get(discordId) || '').trim(),
+    callsign: String(row?.[1] || '').trim(),
+    testerName: String(testerNames.get(discordId) || '').trim(),
     testName: String(row?.[2] || '').trim(),
     result: String(row?.[3] || '').trim(),
     createdAt: String(row?.[4] || '').trim()
@@ -138,7 +138,7 @@ async function sendWebhookImages(url, embeds, images, testerDiscordId) {
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
 }
 
-export function createAdmissionEmbeds({ testerName, candidateName, candidateId, candidateCallsign, result }) {
+export function createAdmissionEmbeds({ testName, testerName, candidateName, candidateId, candidateCallsign, result }) {
   const summaryFields = [
     { name: 'Nume Tester', value: testerName || '—', inline: false },
     { name: 'Nume Candidat', value: candidateName || '—', inline: false },
@@ -152,10 +152,8 @@ export function createAdmissionEmbeds({ testerName, candidateName, candidateId, 
   ];
   if (result === 'Admis' && candidateCallsign) testersFields.push({ name: 'Callsign', value: candidateCallsign, inline: false });
   return {
-    admission: { title: 'Admitere', color: 0x23A2E8, fields: summaryFields },
-    testers: { title: 'Test Admitere', color: 0x23A2E8, fields: testersFields, thumbnail: { url: 'attachment://buletin-candidat.jpg' } },
-    medicalSheet: { title: 'Fișă medicală', color: 0x23A2E8, thumbnail: { url: 'attachment://fisa-medicala.jpg' } },
-    drugTest: { title: 'Drug-test', color: 0x23A2E8, thumbnail: { url: 'attachment://drug-test.jpg' } }
+    admission: { title: testName === 'Test transfer' ? 'Transfer' : 'Admitere', color: 0x23A2E8, fields: summaryFields },
+    testers: { title: testName === 'Test transfer' ? 'Test Transfer' : 'Test Admitere', color: 0x23A2E8, fields: testersFields, thumbnail: { url: 'attachment://buletin-candidat.jpg' } }
   };
 }
 
@@ -179,7 +177,7 @@ async function sendAdmissionNotifications(details) {
   const embeds = createAdmissionEmbeds(details);
   const deliveries = await Promise.all([
     sendWebhookMessage(admissionWebhook, embeds.admission, details.testerDiscordId).then(() => null, error => `Canalul de rezultate: ${error.message.startsWith('HTTP ') ? error.message : 'eroare de rețea Discord'}.`),
-    sendWebhookImages(testersWebhook, [embeds.testers, embeds.medicalSheet, embeds.drugTest], [
+    sendWebhookImages(testersWebhook, [embeds.testers], [
       { ...details.identityImage, filename: 'buletin-candidat.jpg' },
       { ...details.medicalSheetImage, filename: 'fisa-medicala.jpg' },
       { ...details.drugTestImage, filename: 'drug-test.jpg' }
@@ -305,7 +303,7 @@ export default async function handler(req, res) {
       let admissionDetails = null;
       let specialtyDetails = null;
       let certificateDetails = null;
-      if (testName === 'Test admitere') {
+      if (testName === 'Test admitere' || testName === 'Test transfer') {
         const candidateName = String(req.body?.candidateName || '').trim().slice(0, 100);
         const candidateId = String(req.body?.candidateId || '').trim().slice(0, 24);
         const candidateCallsign = String(req.body?.candidateCallsign || '').trim().slice(0, 24);
@@ -317,7 +315,7 @@ export default async function handler(req, res) {
         if (!candidateName || !candidateId || !identityImage || !medicalSheetImage || !drugTestImage || (result === 'Admis' && !candidateCallsign)) {
           return json(res, 400, { error: 'Numele, ID-ul și fotografiile buletinului, fișei medicale și drug-testului sunt obligatorii; la Admis este necesar și callsign-ul.' });
         }
-        admissionDetails = { candidateName, candidateId, candidateCallsign, result, identityImage, medicalSheetImage, drugTestImage };
+        admissionDetails = { testName, candidateName, candidateId, candidateCallsign, result, identityImage, medicalSheetImage, drugTestImage };
       }
       if (Object.hasOwn(SPECIALTY_WEBHOOKS, testName)) {
         const candidateCallsign = String(req.body?.candidateCallsign || '').trim().slice(0, 24);

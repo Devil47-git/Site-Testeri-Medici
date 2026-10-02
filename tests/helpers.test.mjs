@@ -10,6 +10,7 @@ import { cooldownIsActive, parseCooldownS } from '../api/access/cooldowns.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const source = readFileSync(join(here, '..', 'script.js'), 'utf8');
+const testResultsSource = readFileSync(join(here, '..', 'api', 'access', 'test-results.js'), 'utf8');
 const serverSource = readFileSync(join(here, '..', 'server.js'), 'utf8');
 const testCatalogSource = readFileSync(join(here, '..', 'tests.js'), 'utf8');
 const discordAuthSource = readFileSync(join(here, '..', 'api', 'auth', 'discord.js'), 'utf8');
@@ -158,10 +159,10 @@ test('bonus periods follow two-week cycles and include September 21 through Octo
   assert.equal(latestCompleteBonusPeriodIndex(new Date('2026-10-18T22:00:00.000Z')), 1);
 });
 
-test('bonus history attributes specialty results to the candidate and supports legacy rows', () => {
+test('bonus history attributes specialty results to the tester', () => {
   const testerNames = new Map([['tester-discord', 'Tester Name']]);
   assert.deepEqual(bonusEntryFromRow(['tester-discord', '001', 'Test ALS', 'Admis', '2026-10-02T09:00:00.000Z', '210', 'Elena Stan'], testerNames), {
-    callsign: '210', testerName: 'Elena Stan', testName: 'Test ALS', result: 'Admis', createdAt: '2026-10-02T09:00:00.000Z'
+    callsign: '001', testerName: 'Tester Name', testName: 'Test ALS', result: 'Admis', createdAt: '2026-10-02T09:00:00.000Z'
   });
   const legacy = bonusEntryFromRow(['tester-discord', '105', 'Test ALS', 'Admis', '2026-10-02T09:00:00.000Z'], testerNames);
   assert.equal(legacy.callsign, '105');
@@ -706,17 +707,18 @@ test('OCR retry preserves split surname and given name for medical certificates'
 });
 
 test('admission Discord embeds use vertical fields and hide callsign on rejection', () => {
-  const rejected = createAdmissionEmbeds({ testerName: 'Tester', candidateName: 'Candidat', candidateId: '12345', candidateCallsign: '', result: 'Respins' });
+  const rejected = createAdmissionEmbeds({ testName: 'Test admitere', testerName: 'Tester', candidateName: 'Candidat', candidateId: '12345', candidateCallsign: '', result: 'Respins' });
   assert.deepEqual(rejected.admission.fields.map(field => field.name), ['Nume Tester', 'Nume Candidat', 'Rezultat']);
   assert.deepEqual(rejected.testers.fields.map(field => field.name), ['Nume Tester', 'Nume Candidat', 'ID', 'Rezultat']);
   assert.equal(rejected.testers.thumbnail.url, 'attachment://buletin-candidat.jpg');
-  assert.equal(rejected.testers.thumbnail.url, 'attachment://buletin-candidat.jpg');
-  assert.equal(rejected.medicalSheet.thumbnail.url, 'attachment://fisa-medicala.jpg');
-  assert.equal(rejected.drugTest.thumbnail.url, 'attachment://drug-test.jpg');
-  assert.deepEqual(Object.keys(rejected), ['admission', 'testers', 'medicalSheet', 'drugTest']);
+  assert.deepEqual(Object.keys(rejected), ['admission', 'testers']);
+  assert.match(testResultsSource, /sendWebhookImages\(testersWebhook, \[embeds\.testers\], \[/);
+  assert.match(testResultsSource, /testName === 'Test admitere' \|\| testName === 'Test transfer'/);
   assert.match(source, /submissionDetails = \{ candidateName, candidateId, candidateCallsign, identityImage, medicalSheetImage, drugTestImage \}/);
-  const admitted = createAdmissionEmbeds({ testerName: 'Tester', candidateName: 'Candidat', candidateId: '12345', candidateCallsign: 'M-302', result: 'Admis' });
+  const admitted = createAdmissionEmbeds({ testName: 'Test admitere', testerName: 'Tester', candidateName: 'Candidat', candidateId: '12345', candidateCallsign: 'M-302', result: 'Admis' });
   assert.equal(admitted.testers.fields.at(-1).name, 'Callsign');
+  const transfer = createAdmissionEmbeds({ testName: 'Test transfer', testerName: 'Tester', candidateName: 'Candidat', candidateId: '12345', candidateCallsign: 'M-302', result: 'Admis' });
+  assert.equal(transfer.testers.title, 'Test Transfer');
 });
 
 test('ALS result embed contains tester, candidate, callsign, and verdict', () => {

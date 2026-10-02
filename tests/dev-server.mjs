@@ -47,13 +47,16 @@ http.createServer(async (req, res) => {
     if (url.searchParams.get('view') === 'bonuses') {
       const from = url.searchParams.get('from');
       const fixtures = BONUS_TESTS.map((entry, index) => ({ ...entry, createdAt: `${from}T${String(9 + index).padStart(2, '0')}:00:00+03:00` }));
-      const recorded = testResults.map((entry, index) => ({
-        callsign: entry.candidateCallsign || '001',
-        testerName: entry.candidateName || 'Candidat demo',
-        testName: entry.testName,
-        result: entry.result,
-        createdAt: `${from}T${String(16 + index).padStart(2, '0')}:00:00+03:00`
-      }));
+      const recorded = testResults.map((entry, index) => {
+        const tester = MOCK.find(member => member.discordId === entry.requesterId);
+        return {
+          callsign: tester?.callsign || '001',
+          testerName: tester?.name || 'Tester demo',
+          testName: entry.testName,
+          result: entry.result,
+          createdAt: `${from}T${String(16 + index).padStart(2, '0')}:00:00+03:00`
+        };
+      });
       const entries = [...fixtures, ...recorded];
       res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ entries })); return;
     }
