@@ -32,6 +32,7 @@ const BONUS_TESTS = [
   { callsign: '320', testerName: 'Radu Test', testName: 'Test SMULS', result: 'Admis' }
 ];
 const testResults = [];
+const lifetimeTestResults = [];
 http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   if (url.pathname.startsWith('/api/access/directory')) {
@@ -67,11 +68,12 @@ http.createServer(async (req, res) => {
       try {
         const payload = JSON.parse(body);
         if (payload.action === 'reset-counts') { cleared = testResults.length; testResults.length = 0; }
-        else testResults.push(payload);
+        else { testResults.push(payload); lifetimeTestResults.push(payload); }
       } catch {}
     }
     const counts = testResults.map(result => ({ discordId: result.requesterId, callsign: '001', testName: result.testName, count: testResults.filter(item => item.requesterId === result.requesterId && item.testName === result.testName).length }));
-    res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ counts, ...(req.method === 'POST' ? { success: true, ...(cleared === null ? { discordNotificationsSent: false, discordNotificationError: 'Serverul demo local nu trimite notificari Discord.' } : { cleared }) } : {}) })); return;
+    const processedCounts = lifetimeTestResults.map(result => ({ discordId: result.requesterId, callsign: '001', testName: result.testName, count: lifetimeTestResults.filter(item => item.requesterId === result.requesterId && item.testName === result.testName).length }));
+    res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ counts, processedCounts, ...(req.method === 'POST' ? { success: true, ...(cleared === null ? { discordNotificationsSent: false, discordNotificationError: 'Serverul demo local nu trimite notificari Discord.' } : { cleared }) } : {}) })); return;
   }
   if (url.pathname.startsWith('/api/')) { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ grants: [] })); return; }
   let pathname;

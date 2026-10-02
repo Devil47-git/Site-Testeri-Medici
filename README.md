@@ -26,6 +26,8 @@ Specialty-test candidates are checked against column S in `LISTA DEPARTAMENT`. S
 
 The `Bonusuri` page is leadership-only. It shows the active 14-day period, anchored on 21 September 2026, plus a tester-callsign-sorted table of Pilot, Moto, combined admission/transfer, medical-certificate, ALS, and SMULS totals. Each row copies only those six tab-separated totals for pasting into the matching sheet columns.
 
+The tester statistics list also includes lifetime `Teste Procesate` badges for each assigned test function. The API creates a separate `TEST_LIFETIME` sheet, imports existing `TEST_HISTORY` entries once, and appends each new result there. Resetting current test counts clears only `TEST_HISTORY`; lifetime totals remain intact.
+
 Bonus entries are stored in Upstash Redis when both `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are configured. New test results continue to be written to `TEST_HISTORY`; bonus queries import existing rows into Redis on demand, once per Bucharest calendar day. Without both Upstash variables, the bonus page continues reading from Google Sheets. The reusable Redis client is in `api/storage/upstash-redis.js`; application keys use the `site-testeri-medici:` namespace.
 
 Create a free Redis database in Upstash, then add its REST URL and REST token as server-side environment variables in the deployment settings. For local development, add them to the ignored `.env` file. The blank names are included in `.env.example`; never commit actual credentials.

@@ -10,6 +10,7 @@ import { cooldownIsActive, parseCooldownS } from '../api/access/cooldowns.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const source = readFileSync(join(here, '..', 'script.js'), 'utf8');
+const directorySource = readFileSync(join(here, '..', 'api', 'access', 'directory.js'), 'utf8');
 const testResultsSource = readFileSync(join(here, '..', 'api', 'access', 'test-results.js'), 'utf8');
 const serverSource = readFileSync(join(here, '..', 'server.js'), 'utf8');
 const testCatalogSource = readFileSync(join(here, '..', 'tests.js'), 'utf8');
@@ -35,7 +36,7 @@ function extract(name) {
 const catalog = ['Test admitere', 'Test transfer', 'Adeverință medicală', 'Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști'];
 const definitions = Object.fromEntries(catalog.map(n => [n, { name: n, questions: [] }]));
 
-const names = ['callsignNumber', 'normalizeCallsign', 'testNameFromHash', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberHasTestAccess', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'sortMembers', 'gradeGroupFor', 'mergeTestDefinitions', 'admissionChecklistHtml', 'admissionChecksComplete', 'motoChecksComplete', 'alsChecklistHtml', 'alsChecksComplete', 'alsCaseListHtml', 'smulsChecklistHtml', 'smulsChecksComplete', 'smulsCaseListHtml', 'memberStatus', 'testerFunctionsForDisplay', 'isTestFailed', 'canUseAdmittedVerdict', 'startVerdictButtonCooldown', 'maxWrongForTest', 'cachedUserWithinSession', 'questionItemHtml', 'evaluationStageHtml', 'parseIdentityCardText', 'mergeIdentityCardDetails', 'displayTestName', 'departmentCalendarDate', 'latestCompleteBonusPeriodIndex', 'activeBonusPeriodIndex', 'bonusPeriodFor'];
+const names = ['callsignNumber', 'normalizeCallsign', 'testNameFromHash', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberHasTestAccess', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'processedTestGroups', 'processedTestBadgesHtml', 'sortMembers', 'gradeGroupFor', 'mergeTestDefinitions', 'admissionChecklistHtml', 'admissionChecksComplete', 'motoChecksComplete', 'pilotLicenseChecklistHtml', 'alsChecklistHtml', 'alsChecksComplete', 'alsCaseListHtml', 'smulsChecklistHtml', 'smulsChecksComplete', 'smulsCaseListHtml', 'memberStatus', 'testerFunctionsForDisplay', 'isTestFailed', 'canUseAdmittedVerdict', 'startVerdictButtonCooldown', 'maxWrongForTest', 'cachedUserWithinSession', 'questionItemHtml', 'evaluationStageHtml', 'parseIdentityCardText', 'mergeIdentityCardDetails', 'displayTestName', 'departmentCalendarDate', 'latestCompleteBonusPeriodIndex', 'activeBonusPeriodIndex', 'bonusPeriodFor'];
 const srcs = names.map(extract).join('\n');
 const pattern = source.match(/^const RESIDENT_TESTER_PATTERN = .*$/m)?.[0] || 'const RESIDENT_TESTER_PATTERN = /TESTER/;';
 const normalizeTextSrc = extract('normalizeText');
@@ -46,10 +47,10 @@ const load = new Function(
   'catalog',
   'testDefinitions',
   'testSummaryDefinitions',
-  `${fullSrc}\nreturn { callsignNumber, normalizeCallsign, testNameFromHash, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, mergeTestDefinitions, admissionChecklistHtml, admissionChecksComplete, motoChecksComplete, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, canUseAdmittedVerdict, startVerdictButtonCooldown, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, departmentCalendarDate, latestCompleteBonusPeriodIndex, activeBonusPeriodIndex, bonusPeriodFor };`,
+  `${fullSrc}\nreturn { callsignNumber, normalizeCallsign, testNameFromHash, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, processedTestGroups, processedTestBadgesHtml, sortMembers, gradeGroupFor, mergeTestDefinitions, admissionChecklistHtml, admissionChecksComplete, motoChecksComplete, pilotLicenseChecklistHtml, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, canUseAdmittedVerdict, startVerdictButtonCooldown, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, departmentCalendarDate, latestCompleteBonusPeriodIndex, activeBonusPeriodIndex, bonusPeriodFor };`,
 )(catalog, definitions, testSummaryDefinitions);
 
-const { callsignNumber, normalizeCallsign, testNameFromHash, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, sortMembers, gradeGroupFor, mergeTestDefinitions, admissionChecklistHtml, admissionChecksComplete, motoChecksComplete, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, canUseAdmittedVerdict, startVerdictButtonCooldown, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, departmentCalendarDate, latestCompleteBonusPeriodIndex, activeBonusPeriodIndex, bonusPeriodFor } = load;
+const { callsignNumber, normalizeCallsign, testNameFromHash, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, processedTestGroups, processedTestBadgesHtml, sortMembers, gradeGroupFor, mergeTestDefinitions, admissionChecklistHtml, admissionChecksComplete, motoChecksComplete, pilotLicenseChecklistHtml, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, canUseAdmittedVerdict, startVerdictButtonCooldown, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, departmentCalendarDate, latestCompleteBonusPeriodIndex, activeBonusPeriodIndex, bonusPeriodFor } = load;
 
 test('Discord auth preserves the Discord display name, username, and avatar', () => {
   const mapperSource = discordAuthSource.match(/function mapSheetRowToUser\(row, discordUser\) \{[\s\S]*?^\}/m)?.[0];
@@ -70,6 +71,21 @@ test('Discord auth preserves the Discord display name, username, and avatar', ()
   assert.equal(mappedUser.discordDisplayName, 'Discord Display Name');
   assert.equal(mappedUser.discordUsername, 'discord_user');
   assert.equal(mappedUser.avatar, 'https://cdn.discordapp.com/avatars/discord-id/avatar-hash.png');
+});
+
+test('tester table uses each member Discord avatar and shared fixed column widths', () => {
+  assert.match(source, /function avatarFor\(member\)[\s\S]*?const url = String\(member\?\.avatar \|\| ''\)\.trim\(\)/);
+  assert.match(directorySource, /avatar: row\[20\] \? `https:\/\/cdn\.discordapp\.com\/avatars\/\$\{discordId\}\/\$\{String\(row\[20\] \|\| ''\)\.trim\(\)\}\.png`/);
+  assert.match(source, /tester-name-column/);
+  assert.match(source, /renderTestersView[\s\S]*testerTableHtml\(group\.members\)/);
+});
+
+test('leadership general access is displayed as a distinct green badge', () => {
+  const accessMarkup = source.match(/function testerAccessHtml\(member\) \{[\s\S]*?\n\}/)?.[0] || '';
+  assert.match(accessMarkup, /if \(isLeadershipUser\(member\)\) return '<span class="tag green">Acces general<\/span>'/);
+  const stylesheet = readFileSync(join(here, '..', 'style.css'), 'utf8');
+  assert.match(stylesheet, /\.tester-access-table td:nth-child\(4\) \.tag\.green\{/);
+  assert.match(stylesheet, /body\.dark-mode \.tester-access-table td:nth-child\(4\) \.tag\.green\{/);
 });
 
 test('callsignNumber strips non-digits and returns 0 for empty', () => {
@@ -393,6 +409,31 @@ test('Docs-based dashboard filters match dotted SMULS and ALS functions', () => 
   assert.equal(memberCanGiveTest({ grantedTests: ['Test parașutiști'] }, 'Test parașutiști'), true);
 });
 
+test('processed test badges show only assigned tests and aggregate the Tester bundle', () => {
+  const tester = { discordId: '105', functions: 'TESTER | A.L.S.', grantedTests: [] };
+  assert.deepEqual(processedTestGroups(tester), [
+    { label: 'Tester', tests: coreTests },
+    { label: 'Test ALS', tests: ['Test ALS'] }
+  ]);
+  const markup = processedTestBadgesHtml(tester, {
+    '105': { 'Test admitere': 2, 'Test transfer': 1, 'Adeverință medicală': 3, 'Test ALS': 4, 'Test MOTO': 99 }
+  });
+  assert.match(markup, /Tester[\s\S]*<strong>6<\/strong>/);
+  assert.match(markup, /Test ALS[\s\S]*<strong>4<\/strong>/);
+  assert.doesNotMatch(markup, /Test MOTO/);
+  const override = { discordId: '220', grantMode: 'override', functions: 'TESTER | A.L.S.', grantedTests: ['Test PILOT'] };
+  assert.deepEqual(processedTestGroups(override), [{ label: 'Test PILOT', tests: ['Test PILOT'] }]);
+  assert.match(source, /class="statistics-processed-column"><dt>TESTE PROCESATE/);
+});
+
+test('lifetime tester totals are archived before only the active history is reset', () => {
+  const resetHandler = testResultsSource.match(/if \(req\.body\?\.action === 'reset-counts'\) \{[\s\S]*?return json\(res, 200, \{ success: true, cleared:/)?.[0] || '';
+  assert.match(resetHandler, /await syncLifetimeHistory\(sheets, rows\.slice\(1\)\)/);
+  assert.match(resetHandler, /values\.clear\([\s\S]*!A2:H/);
+  assert.doesNotMatch(resetHandler, /LIFETIME_RANGE[\s\S]*values\.clear/);
+  assert.match(testResultsSource, /processedCounts: lifetimeTestCounts\(lifetimeRows\)/);
+});
+
 test('sortMembers places leadership first, then by csNum', () => {
   const sorted = sortMembers([{ csNum: 250 }, { csNum: 20 }, { csNum: 5 }]).map(m => m.csNum);
   assert.deepEqual(sorted, [5, 20, 250]);
@@ -512,7 +553,19 @@ test('Moto and Pilot staged practical content is present in test definitions', (
 
 test('Pilot certification description and instructions share one intro box', () => {
   assert.match(source, /const introBoxClass = testName === 'Test PILOT' \? 'pilot-intro-box' : isMotoTest \? 'moto-intro-box' : isSmulsTest \? 'smuls-intro-box' : 'als-intro-box'/);
-  assert.match(source, /const testIntro = isStagedTest \? `<div class="\$\{introBoxClass\}"><p class="muted">\$\{description\}<\/p>\$\{instructions\}<\/div>`/);
+  assert.match(source, /const testIntro = isTransferTest \|\| isMedicalCertificate \? '' : isStagedTest \? `<div class="\$\{introBoxClass\}">\$\{descriptionMarkup\}\$\{instructions\}<\/div>`/);
+  assert.match(source, /const description = isAdmissionTest \? '[^']*' : isParachutismTest \? '' : definition\.description/);
+  assert.match(source, /const guideBody = sideBySideGuide[\s\S]*test-guide-columns[\s\S]*test-guide-information/);
+});
+
+test('Pilot license checkbox is required to unlock and submit theory', () => {
+  assert.match(pilotLicenseChecklistHtml(), /Licență Pilot/);
+  assert.match(pilotLicenseChecklistHtml(), /data-pilot-license-check/);
+  assert.match(source, /const pilotLicenseCheck = isPilotTest \? pilotLicenseChecklistHtml\(\) : ''/);
+  assert.match(source, /const guideCriteria = `\$\{candidateIdentityBeforeChecks\}\$\{pilotLicenseCheck\}\$\{stagedCandidateSummary\}/);
+  assert.match(source, /testContent\.hidden = !candidateComplete \|\| !licenseVerified/);
+  assert.match(source, /pilotLicenseCheck\?\.addEventListener\('change', refreshPilotTheoryGate\)/);
+  assert.match(source, /if \(isPilotTest && !document\.querySelector\('\[data-pilot-license-check\]'\)\?\.checked\)/);
 });
 
 test('every test page omits the permanent-access subtitle and places access controls in its header', () => {
@@ -547,7 +600,8 @@ test('ALS case completion uses the existing Discord result submission path', () 
 test('Moto candidate fields render before checks while remaining outside the gated quiz', () => {
   assert.match(source, /const candidateIdentityBeforeChecks = isMotoTest \|\| isSmulsTest \|\| isAlsTest \|\| isParachutismTest \|\| isPilotTest \? candidateIdentityFields : ''/);
   assert.match(source, /const candidateIdentityInQuiz = isMotoTest \|\| isSmulsTest \|\| isAlsTest \|\| isParachutismTest \|\| isPilotTest \? '' : candidateIdentityFields/);
-  assert.match(source, /testIntro\}\$\{candidateIdentityBeforeChecks\}\$\{stagedCandidateSummary\}\$\{alsChecks\}\$\{motoChecks\}\$\{smulsChecks\}/);
+  assert.match(source, /const guideCriteria = `\$\{candidateIdentityBeforeChecks\}\$\{pilotLicenseCheck\}\$\{stagedCandidateSummary\}\$\{alsChecks\}\$\{motoChecks\}\$\{smulsChecks\}\$\{parachutismChecks\}`/);
+  assert.match(source, /class="test-guide-criteria">\$\{guideCriteria\}/);
   assert.match(source, /class="question-list">\$\{candidateIdentityInQuiz\}/);
 });
 
@@ -595,6 +649,9 @@ test('admission test rejects the fourth mistake', () => {
   assert.equal(maxWrongForTest('Test PILOT'), 1);
   assert.equal(maxWrongForTest('Test transfer', 2), 2);
   assert.match(source, /if \(count\) count\.textContent = wrongCount/);
+  const wrongAnswerHandler = source.match(/wrongInputs\.forEach\(input => input\.onchange = \(\) => \{[\s\S]*?\n  \}\);/)?.[0] || '';
+  assert.match(wrongAnswerHandler, /wrongInputs\.forEach\(item => \{ item\.disabled = true; \}\)/);
+  assert.doesNotMatch(wrongAnswerHandler, /requestSubmit/);
 });
 
 test('admitted verdicts enforce the mistake limit and verdict buttons cool down for 15 seconds', () => {
@@ -802,11 +859,17 @@ test('ALS guide form includes callsign and candidate name inputs', () => {
 });
 
 test('candidate document, medical sheet, and drug-test uploads share the themed GIF', () => {
-  assert.match(source, /function bulletinGifArtworkHtml\(\)/);
+  assert.match(source, /function bulletinGifArtworkHtml\(id\)/);
   assert.match(source, /const isBulletinPhoto = id === 'candidate-document' \|\| id === 'certificate-document'/);
   assert.match(source, /const hasArtwork = isBulletinPhoto \|\| \['candidate-medical-sheet', 'candidate-drug-test', 'certificate-medical-sheet'\]\.includes\(id\)/);
   assert.match(source, /class="image-paste-target\$\{hasArtwork \? ' photo-artwork-target' : ''\}"/);
   assert.match(source, /class="bulletin-dot-art" src="\/gif\.gif"/);
+  assert.match(source, /class="candidate-photo-preview" data-photo-preview="\$\{escapeHtml\(id\)\}"/);
+  assert.match(source, /function setCandidatePhotoPreview\(id, file\)/);
+  assert.match(source, /<span class="candidate-upload-title">\$\{label\}<\/span><button type="button" class="candidate-file-select" data-photo-select="\$\{id\}" aria-label="Selectează \$\{escapeHtml\(label\)\}">Choose File<\/button><span class="candidate-file-name" id="\$\{id\}-file-name">No file chosen<\/span>/);
+  assert.match(source, /fileSelect\.onclick = \(\) => input\.click\(\)/);
+  const imageField = source.match(/function candidateImageFieldHtml\(id, label\) \{[\s\S]*?\n\}/)?.[0] || '';
+  assert.ok(imageField.indexOf('image-paste-target') < imageField.indexOf('candidate-document-upload'));
   assert.doesNotMatch(source, /bulletinArtwork\.style\.setProperty\('--hole-/);
   assert.match(source, /class="candidate-photo-spinner"/);
   assert.match(source, /data-photo-state="empty"/);
@@ -814,6 +877,9 @@ test('candidate document, medical sheet, and drug-test uploads share the themed 
   const stylesheet = readFileSync(join(here, '..', 'style.css'), 'utf8');
   assert.match(stylesheet, /\.image-paste-target\.photo-artwork-target\{[^}]*border:0[^}]*border-radius:50%/);
   assert.match(stylesheet, /\.bulletin-dot-art\{[^}]*mix-blend-mode:screen/);
+  assert.match(stylesheet, /\.bulletin-dot-art\{[^}]*z-index:2/);
+  assert.match(stylesheet, /\.candidate-photo-preview\{[^}]*z-index:1[^}]*animation:photo-preview-orbit/);
+  assert.match(stylesheet, /@keyframes photo-preview-orbit/);
   assert.doesNotMatch(stylesheet, /mask-image:radial-gradient\(circle 20px at var\(--hole-x,50%\) var\(--hole-y,50%\)/);
   for (const file of ['server.js', 'tests/dev-server.mjs']) {
     const server = readFileSync(join(here, '..', file), 'utf8');

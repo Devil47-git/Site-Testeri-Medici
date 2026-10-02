@@ -1,14 +1,17 @@
+import { randomUUID } from 'node:crypto';
 import { catalog, callsignNumber, candidateForCallsign, effectiveTestsForMember, functionsForMember, isLeadershipRow, normalizeTests } from './shared.js';
 import { cooldownIsActive, parseCooldownS } from './cooldowns.js';
 import { UpstashRedis } from '../storage/upstash-redis.js';
 import { addBonusEntries, BONUS_TEST_NAMES, clearBonusEntries, importLegacyBonusEntries, listBonusEntries } from './bonus-store.js';
+import { LIFETIME_HISTORY_HEADER, lifetimeRowForNewResult, lifetimeRowsToAppend, lifetimeTestCounts } from './lifetime-test-history.js';
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:T400';
 const GRANTS_RANGE = process.env.GOOGLE_GRANTS_RANGE || 'GRANTS!A1:F';
-const RESULTS_RANGE = process.env.GOOGLE_TEST_RESULTS_RANGE || 'TEST_HISTORY!A1:G';
+const RESULTS_RANGE = process.env.GOOGLE_TEST_RESULTS_RANGE || 'TEST_HISTORY!A1:H';
+const LIFETIME_RANGE = process.env.GOOGLE_TEST_LIFETIME_RANGE || 'TEST_LIFETIME!A1:H';
 const MEDICAL_CERTIFICATES_RANGE = process.env.GOOGLE_MEDICAL_CERTIFICATES_RANGE || 'MEDICAL_CERTIFICATES!A1:K';
-const RESULTS_HEADER = ['discordId', 'callsign', 'testName', 'result', 'createdAt', 'candidateCallsign', 'candidateName'];
+const RESULTS_HEADER = ['discordId', 'callsign', 'testName', 'result', 'createdAt', 'candidateCallsign', 'candidateName', 'eventId'];
 const MEDICAL_CERTIFICATES_HEADER = ['number', 'testerDiscordId', 'testerName', 'candidateId', 'lastName', 'firstName', 'phone', 'hoursAccount', 'hoursCharacter', 'result', 'createdAt'];
 const MEDICAL_CERTIFICATE_LAST_NUMBER = 7014;
 const MEDICAL_CERTIFICATE_MAX_NUMBER = 30000;
@@ -48,6 +51,7 @@ async function sheetsClient() {
 }
 
 function sheetTitle() { return RESULTS_RANGE.split('!')[0].replace(/^'|'$/g, ''); }
+function lifetimeSheetTitle() { return LIFETIME_RANGE.split('!')[0].replace(/^'|'$/g, ''); }
 function departmentDateKey(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return '';
@@ -66,12 +70,14 @@ export function bonusEntryFromRow(row, testerNames = new Map()) {
   };
 }
 
-async function ensureResultsSheet(sheets) {
+async function ensureSheet(sheets, title) {
   const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: SHEET_ID, fields: 'sheets.properties.title' });
-  if ((spreadsheet.data.sheets || []).some(sheet => sheet.properties?.title === sheetTitle())) return;
-  const request = { addSheet: { properties: { title: sheetTitle() } } };
+  if ((spreadsheet.data.sheets || []).some(sheet => sheet.properties?.title === title)) return;
+  const request = { addSheet: { properties: { title } } };
   await sheets.spreadsheets.batchUpdate({ spreadsheetId: SHEET_ID, requestBody: { requests: [request] } });
 }
+
+async function ensureResultsSheet(sheets) { return ensureSheet(sheets, sheetTitle()); }
 
 async function readValues(sheets, range) {
   const result = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range });
@@ -82,16 +88,57 @@ async function ensureResultsHeader(sheets) {
   await ensureResultsSheet(sheets);
   const rows = await readValues(sheets, RESULTS_RANGE);
   if (!rows.length) {
-    const range = RESULTS_RANGE.split('!')[0] + '!A1:G1';
+    const range = RESULTS_RANGE.split('!')[0] + '!A1:H1';
     await sheets.spreadsheets.values.update({ spreadsheetId: SHEET_ID, range, valueInputOption: 'RAW', requestBody: { values: [RESULTS_HEADER] } });
     return [RESULTS_HEADER];
   }
-  if (rows[0]?.[5] !== 'candidateCallsign' || rows[0]?.[6] !== 'candidateName') {
-    const range = RESULTS_RANGE.split('!')[0] + '!A1:G1';
+  if (rows[0]?.[5] !== 'candidateCallsign' || rows[0]?.[6] !== 'candidateName' || rows[0]?.[7] !== 'eventId') {
+    const range = RESULTS_RANGE.split('!')[0] + '!A1:H1';
     await sheets.spreadsheets.values.update({ spreadsheetId: SHEET_ID, range, valueInputOption: 'RAW', requestBody: { values: [RESULTS_HEADER] } });
     rows[0] = RESULTS_HEADER;
   }
+  let missingEventIds = false;
+  rows.slice(1).forEach((row, index) => {
+    if (String(row[7] || '').trim()) return;
+    row[7] = `legacy:${index + 2}:${String(row[4] || '').trim()}`;
+    missingEventIds = true;
+  });
+  if (missingEventIds) {
+    const range = RESULTS_RANGE.split('!')[0] + `!H2:H${rows.length}`;
+    await sheets.spreadsheets.values.update({ spreadsheetId: SHEET_ID, range, valueInputOption: 'RAW', requestBody: { values: rows.slice(1).map(row => [row[7]]) } });
+  }
   return rows;
+}
+
+async function ensureLifetimeHeader(sheets) {
+  await ensureSheet(sheets, lifetimeSheetTitle());
+  const rows = await readValues(sheets, LIFETIME_RANGE);
+  if (!rows.length || rows[0]?.[0] !== 'eventId') {
+    const range = LIFETIME_RANGE.split('!')[0] + '!A1:H1';
+    await sheets.spreadsheets.values.update({ spreadsheetId: SHEET_ID, range, valueInputOption: 'RAW', requestBody: { values: [LIFETIME_HISTORY_HEADER] } });
+    if (!rows.length) return [LIFETIME_HISTORY_HEADER];
+    rows[0] = LIFETIME_HISTORY_HEADER;
+  }
+  return rows;
+}
+
+async function appendLifetimeRows(sheets, rows) {
+  if (!rows.length) return;
+  const title = lifetimeSheetTitle().replace(/'/g, "''");
+  await sheets.spreadsheets.values.append({
+    spreadsheetId: SHEET_ID,
+    range: `'${title}'!A1:H`,
+    valueInputOption: 'RAW',
+    insertDataOption: 'INSERT_ROWS',
+    requestBody: { values: rows }
+  });
+}
+
+async function syncLifetimeHistory(sheets, activeRows) {
+  const lifetimeRows = await ensureLifetimeHeader(sheets);
+  const missingRows = lifetimeRowsToAppend(lifetimeRows, activeRows);
+  await appendLifetimeRows(sheets, missingRows);
+  return [...lifetimeRows, ...missingRows];
 }
 
 async function findRequester(sheets, discordId) {
@@ -343,8 +390,9 @@ export default async function handler(req, res) {
         if (!canResetTestCounts(member)) return json(res, 403, { error: 'Resetarea testelor este rezervată conducerii cu callsign între 001 și 020' });
         if (bonusRedis.isConfigured) await clearBonusEntries(bonusRedis);
         const rows = await ensureResultsHeader(sheets);
+        await syncLifetimeHistory(sheets, rows.slice(1));
         const title = sheetTitle().replace(/'/g, "''");
-        await sheets.spreadsheets.values.clear({ spreadsheetId: SHEET_ID, range: `'${title}'!A2:G` });
+        await sheets.spreadsheets.values.clear({ spreadsheetId: SHEET_ID, range: `'${title}'!A2:H` });
         return json(res, 200, { success: true, cleared: Math.max(0, rows.length - 1) });
       }
       const testName = String(req.body?.testName || '').trim();
@@ -403,17 +451,37 @@ export default async function handler(req, res) {
         if (!['Admis', 'Respins'].includes(details.medicalStatus)) return json(res, 400, { error: 'Invalid medical status' });
         certificateDetails = details;
       }
-      await ensureResultsHeader(sheets);
+      const currentRows = await ensureResultsHeader(sheets);
+      await syncLifetimeHistory(sheets, currentRows.slice(1));
       const title = sheetTitle().replace(/'/g, "''");
+      const eventId = randomUUID();
+      const testerCallsign = String(member[2] || '').trim();
+      const candidateCallsign = specialtyDetails?.candidateCallsign || String(req.body?.candidateCallsign || '').trim().slice(0, 24);
+      const candidateName = specialtyDetails?.candidateName || String(req.body?.candidateName || '').trim().slice(0, 100);
       const createdAt = new Date().toISOString();
       const recordedResult = String(req.body?.result || '').slice(0, 32);
+      const resultRow = [discordId, testerCallsign, testName, recordedResult, createdAt, candidateCallsign, candidateName, eventId];
       await sheets.spreadsheets.values.append({
         spreadsheetId: SHEET_ID,
-        range: `'${title}'!A1:G`,
+        range: `'${title}'!A1:H`,
         valueInputOption: 'RAW',
         insertDataOption: 'INSERT_ROWS',
-        requestBody: { values: [[discordId, String(member[2] || '').trim(), testName, recordedResult, createdAt, specialtyDetails?.candidateCallsign || String(req.body?.candidateCallsign || '').trim().slice(0, 24), specialtyDetails?.candidateName || String(req.body?.candidateName || '').trim().slice(0, 100)]] }
+        requestBody: { values: [resultRow] }
       });
+      try {
+        await appendLifetimeRows(sheets, [lifetimeRowForNewResult({
+          eventId,
+          discordId,
+          callsign: testerCallsign,
+          testName,
+          result: recordedResult,
+          createdAt,
+          candidateCallsign,
+          candidateName
+        })]);
+      } catch (error) {
+        console.error('Lifetime test history write failed; active history remains available for recovery:', error);
+      }
       if (bonusRedis.isConfigured && BONUS_TEST_NAMES.has(testName)) {
         try {
           await addBonusEntries(bonusRedis, [{
@@ -448,6 +516,7 @@ export default async function handler(req, res) {
     }
 
     const rows = await ensureResultsHeader(sheets);
+    const lifetimeRows = await syncLifetimeHistory(sheets, rows.slice(1));
     const counts = new Map();
     for (const row of rows.slice(1)) {
       const id = String(row[0] || '').trim();
@@ -458,7 +527,7 @@ export default async function handler(req, res) {
       count.count += 1;
       counts.set(key, count);
     }
-    return json(res, 200, { counts: [...counts.values()] });
+    return json(res, 200, { counts: [...counts.values()], processedCounts: lifetimeTestCounts(lifetimeRows) });
   } catch (error) {
     console.error('Test history failed:', error);
     return json(res, 500, { error: 'Test history unavailable' });

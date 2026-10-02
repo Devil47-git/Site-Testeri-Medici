@@ -87,6 +87,7 @@ let currentUser = null;
 /** @type {Member[]} */
 let testers = readStored(GRANTS_KEY, []).filter(member => String(member?.name || '').trim()).map(member => ({ ...member, grantedTests: normalizeGrantBundle(member.grantedTests || []) }));
 let testRunCounts = {};
+let processedTestCounts = {};
 let selectedBonusPeriodIndex = null;
 function saveTesters() { localStorage.setItem(GRANTS_KEY, JSON.stringify(testers)); }
 function refreshCurrentView() {
@@ -256,7 +257,7 @@ function memberStatusHtml(member) {
 }
 function testerAccessHtml(member) {
   const assignedTests = normalizeGrantBundle(member.grantedTests || []);
-  if (isLeadershipUser(member)) return '<span class="muted">Acces general</span>';
+  if (isLeadershipUser(member)) return '<span class="tag green">Acces general</span>';
   const hasTesterBundle = coreTests.every(test => assignedTests.includes(test));
   const visibleTests = [...(hasTesterBundle ? ['Tester'] : []), ...assignedTests.filter(test => !hasTesterBundle || !coreTests.includes(test))];
   return visibleTests.length
@@ -269,7 +270,7 @@ function testerRowHtml(member, index) {
   return `<tr><td><div class="tester">${avatarFor(member)}<span>${escapeHtml(memberNameFor(member))}</span></div></td><td>${escapeHtml(normalizeCallsign(member.callsign))}</td><td>${escapeHtml(rankFor(member))}</td><td><div class="tags">${tags}</div></td><td>${memberStatusHtml(member)}</td><td>${profileAction}</td></tr>`;
 }
 function testerTableHtml(members) {
-  return `<div class="table-wrap"><table class="tester-access-table"><thead><tr><th>TESTER</th><th>CALLSIGN</th><th>RANK</th><th>TESTE ALOCATE</th><th>STATUS</th><th></th></tr></thead><tbody>${members.map((member, index) => testerRowHtml(member, index)).join('')}</tbody></table></div>`;
+  return `<div class="table-wrap"><table class="tester-access-table"><colgroup><col class="tester-name-column"><col class="tester-callsign-column"><col class="tester-rank-column"><col class="tester-tests-column"><col class="tester-status-column"><col class="tester-action-column"></colgroup><thead><tr><th>TESTER</th><th>CALLSIGN</th><th>RANK</th><th>TESTE ALOCATE</th><th>STATUS</th><th></th></tr></thead><tbody>${members.map((member, index) => testerRowHtml(member, index)).join('')}</tbody></table></div>`;
 }
 function currentFilteredTesters() {
   const q = String(document.querySelector('#search')?.value || '').trim().toLowerCase();
@@ -336,11 +337,36 @@ function renderDashboardData() {
     const members = sortMembers(testers);
     testerList.innerHTML = members.length ? members.map(member => {
       const key = String(member.discordId || normalizeCallsign(member.callsign));
-      return `<article class="statistics-tester"><div class="statistics-tester-row"><dl class="statistics-tester-fields"><div><dt>CALLSIGN</dt><dd>${escapeHtml(normalizeCallsign(member.callsign))}</dd></div><div><dt>NUME</dt><dd>${escapeHtml(memberNameFor(member))}</dd></div><div><dt>GRAD</dt><dd>${escapeHtml(rankFor(member))}</dd></div></dl><button type="button" class="outline statistics-tests-toggle" data-statistics-member="${escapeHtml(key)}">Teste</button></div></article>`;
+      return `<article class="statistics-tester"><div class="statistics-tester-row"><dl class="statistics-tester-fields"><div><dt>CALLSIGN</dt><dd>${escapeHtml(normalizeCallsign(member.callsign))}</dd></div><div><dt>NUME</dt><dd>${escapeHtml(memberNameFor(member))}</dd></div><div><dt>GRAD</dt><dd>${escapeHtml(rankFor(member))}</dd></div><div class="statistics-processed-column"><dt>TESTE PROCESATE</dt><dd>${processedTestBadgesHtml(member, processedTestCounts)}</dd></div></dl><button type="button" class="outline statistics-tests-toggle" data-statistics-member="${escapeHtml(key)}">Teste</button></div></article>`;
     }).join('') : '<div class="empty-state">Nu există testeri.</div>';
   }
   const overview = document.querySelector('#overview-view');
   if (overview) overview.dataset.updatedAt = new Date().toISOString();
+}
+function processedTestGroups(member) {
+  const grantedTests = member?.grantMode === 'override'
+    ? member.grantedTests || []
+    : [...(member?.grantedTests || []), ...docsAssignedTests(member)];
+  const assignedTests = [...new Set(grantedTests)].filter(test => catalog.includes(test));
+  const hasTesterBundle = coreTests.every(test => assignedTests.includes(test));
+  return [
+    ...(hasTesterBundle ? [{ label: 'Tester', tests: coreTests }] : []),
+    ...assignedTests
+      .filter(test => !hasTesterBundle || !coreTests.includes(test))
+      .map(test => ({ label: displayTestName(test), tests: [test] }))
+  ];
+}
+function processedTestBadgesHtml(member, counts) {
+  const memberId = String(member?.discordId || normalizeCallsign(member?.callsign));
+  const memberCounts = counts[memberId] || {};
+  const groups = processedTestGroups(member);
+  return groups.length
+    ? groups.map((group, index) => {
+      const count = group.tests.reduce((total, test) => total + (Number(memberCounts[test]) || 0), 0);
+      const color = index % 3 === 1 ? ' orange' : index % 3 === 2 ? ' cyan' : '';
+      return `<span class="statistics-processed-badge${color}"><span>${escapeHtml(group.label)}</span><strong>${count}</strong></span>`;
+    }).join('')
+    : '<span class="statistics-no-processed-tests">—</span>';
 }
 function renderStatisticsView() {
   return `<div class="statistics-view"><div class="panel-head"><div><h2>Statistica Teste</h2><p class="muted">Testerii și testele înregistrate pentru fiecare persoană.</p></div></div><section class="tester-statistics-list" id="tester-statistics-list" aria-label="Statistica testerilor"></section></div>`;
@@ -382,18 +408,24 @@ function profileTestTagsHtml(member) {
     : '<span class="muted">Nu ai certificări sau teste alocate.</span>';
 }
 async function loadTestRunCounts() {
-  if (!currentUser?.discordId) { testRunCounts = {}; return; }
+  if (!currentUser?.discordId) { testRunCounts = {}; processedTestCounts = {}; return; }
   try {
     const response = await fetch(`/api/access/test-results?requesterId=${encodeURIComponent(currentUser.discordId)}`);
     const payload = await parseApiResponse(response);
     if (!response.ok) throw new Error(payload.error || 'Istoricul testelor nu a putut fi încărcat.');
     testRunCounts = {};
+    processedTestCounts = {};
     for (const item of payload.counts || []) {
       testRunCounts[item.discordId] ||= {};
       testRunCounts[item.discordId][item.testName] = Number(item.count) || 0;
     }
+    for (const item of payload.processedCounts || payload.counts || []) {
+      processedTestCounts[item.discordId] ||= {};
+      processedTestCounts[item.discordId][item.testName] = Number(item.count) || 0;
+    }
   } catch (error) {
     testRunCounts = {};
+    processedTestCounts = {};
     console.error('Test history load failed:', error);
   }
 }
@@ -426,6 +458,8 @@ async function recordTestRun(testName, result = '', details = {}) {
   if (!response.ok) throw new Error(payload.error || 'Testul susținut nu a putut fi înregistrat.');
   testRunCounts[currentUser.discordId] ||= {};
   testRunCounts[currentUser.discordId][testName] = (testRunCounts[currentUser.discordId][testName] || 0) + 1;
+  processedTestCounts[currentUser.discordId] ||= {};
+  processedTestCounts[currentUser.discordId][testName] = (processedTestCounts[currentUser.discordId][testName] || 0) + 1;
   renderDashboardData();
   return payload;
 }
@@ -467,7 +501,7 @@ function renderTestersView() {
   const orphan = sortMembers(testers.filter(member => !DASHBOARD_GROUPS.some(group => group.members(member))));
   if (orphan.length) groups.push({ label: 'Alți membri', members: orphan });
   const actions = isLeadershipUser(currentUser) ? '<div class="welcome-actions"><button class="primary" id="view-add">＋ Adaugă tester</button><button class="primary" id="view-remove">－ Scoatere Tester</button></div>' : '';
-  const sections = groups.map(group => `<section class="tester-group"><h3>${escapeHtml(group.label)}</h3><div class="table-wrap"><table class="tester-access-table"><thead><tr><th>TESTER</th><th>CALLSIGN</th><th>RANK</th><th>TESTE ALOCATE</th><th>STATUS</th><th></th></tr></thead><tbody>${group.members.map((member, index) => testerRowHtml(member, index)).join('')}</tbody></table></div></section>`).join('');
+  const sections = groups.map(group => `<section class="tester-group"><h3>${escapeHtml(group.label)}</h3>${testerTableHtml(group.members)}</section>`).join('');
   return `<div class="panel view-panel"><div class="panel-head"><div><h2>Testerii departamentului</h2></div>${actions}</div>${sections || '<div class="empty-state">Nu există testeri.</div>'}</div>`;
 }
 function renderTesterProfileView(member) {
@@ -477,7 +511,7 @@ function renderTesterProfileView(member) {
   const removalControls = hasLeadershipCallsign(currentUser) && !hasLeadershipCallsign(member)
     ? `<button class="profile-settings-button" id="profile-test-settings" type="button" aria-label="Gestionează testele" title="Gestionează testele">⚙</button><div class="profile-test-removal" id="profile-test-removal" hidden><h3>Teste alocate</h3><div class="profile-test-removal-list">${(member.grantedTests || []).length ? member.grantedTests.map(test => `<div class="profile-test-removal-item"><span>${escapeHtml(displayTestName(test))}</span><button class="outline danger-button" type="button" data-remove-profile-test="${escapeHtml(test)}">Scoate</button></div>`).join('') : '<p class="muted">Nu există teste alocate.</p>'}</div><p class="profile-test-removal-status muted" role="status" aria-live="polite"></p></div>`
     : '';
-  return `<div class="tester-profile-view"><div class="panel-head"><div><p class="eyebrow">PROFIL TESTER</p><h2>${escapeHtml(name)}</h2></div><button class="outline" id="back-to-testers" type="button">← Înapoi</button></div><div class="profile-layout"><section class="panel profile-card">${removalControls}<div class="profile-identity"><div>${avatarFor(member)}</div><div><h1>${escapeHtml(name)}</h1></div></div><dl class="profile-details"><div><dt>CALLSIGN</dt><dd>${escapeHtml(callsign || '—')}</dd></div><div><dt>NUME</dt><dd>${escapeHtml(member.name || '—')}</dd></div><div><dt>GRAD</dt><dd>${escapeHtml(member.rank || '—')}</dd></div></dl></section><section class="panel profile-certifications"><div class="panel-head"><div><h2>Grade de test</h2><p class="muted">Certificările și testele alocate contului tău</p></div></div><div class="tags profile-test-tags">${profileTestTagsHtml(member)}</div></section></div><section class="panel profile-test-history"><div class="panel-head"><div><h2>Statistica Teste</h2></div></div><div class="statistics-test-grid">${testCountGrid}</div></section></div>`;
+  return `<div class="tester-profile-view"><div class="panel-head"><div><p class="eyebrow">PROFIL TESTER</p><h2>${escapeHtml(name)}</h2></div><button class="outline" id="back-to-testers" type="button">← Înapoi</button></div><div class="profile-layout"><section class="panel profile-card">${removalControls}<div class="profile-identity"><div>${avatarFor(member)}</div><div><h1>${escapeHtml(name)}</h1></div></div><dl class="profile-details"><div><dt>CALLSIGN</dt><dd>${escapeHtml(callsign || '—')}</dd></div><div><dt>NUME</dt><dd>${escapeHtml(member.name || '—')}</dd></div><div><dt>GRAD</dt><dd>${escapeHtml(member.rank || '—')}</dd></div></dl></section><section class="panel profile-certifications"><div class="panel-head"><div><h2>Funcții tester</h2><p class="muted">Certificările și testele alocate contului tău</p></div></div><div class="tags profile-test-tags">${profileTestTagsHtml(member)}</div></section></div><section class="panel profile-test-history"><div class="panel-head"><div><h2>Statistica Teste</h2></div></div><div class="statistics-test-grid">${testCountGrid}</div></section></div>`;
 }
 function openTesterProfile(member, { push = true, previousView: requestedPreviousView } = {}) {
   if (!hasLeadershipCallsign(currentUser)) return;
@@ -765,18 +799,21 @@ function openTest(testName, { push = true, previousView: requestedPreviousView }
   wireTestEvents(testName, definition);
 }
 function admissionChecklistHtml() {
-  return `<section class="admission-checklist" aria-labelledby="admission-checklist-title"><h3 id="admission-checklist-title">Verificări înainte de proba teoretică</h3>${admissionRequirements.map((requirement, index) => `<label class="admission-check-row"><span>${escapeHtml(requirement)}</span><span class="admission-check-control"><input type="checkbox" data-admission-check="${index}" aria-label="${escapeHtml(requirement)}"><span class="admission-check-error" aria-hidden="true">!</span></span></label>`).join('')}</section>`;
+  return `<section class="admission-checklist site-guide-frame" aria-labelledby="admission-checklist-title"><h3 id="admission-checklist-title">Verificări înainte de proba teoretică</h3>${admissionRequirements.map((requirement, index) => `<label class="admission-check-row"><span>${escapeHtml(requirement)}</span><span class="admission-check-control"><input type="checkbox" data-admission-check="${index}" aria-label="${escapeHtml(requirement)}"><span class="admission-check-error" aria-hidden="true">!</span></span></label>`).join('')}</section>`;
 }
 function admissionChecksComplete(checks) { return checks.length === admissionRequirements.length && checks.every(Boolean); }
 function motoChecklistHtml() {
-  return `<section class="admission-checklist moto-checklist" aria-labelledby="moto-checklist-title"><h3 id="moto-checklist-title">Verificări înainte de test</h3>${motoRequirements.map((requirement, index) => `<label class="admission-check-row"><span>${escapeHtml(requirement)}</span><span class="admission-check-control"><input type="checkbox" data-moto-check="${index}" aria-label="${escapeHtml(requirement)}"><span class="admission-check-error" aria-hidden="true">!</span></span></label>`).join('')}</section>`;
+  return `<section class="admission-checklist moto-checklist site-guide-frame" aria-labelledby="moto-checklist-title"><h3 id="moto-checklist-title">Verificări înainte de test</h3>${motoRequirements.map((requirement, index) => `<label class="admission-check-row"><span>${escapeHtml(requirement)}</span><span class="admission-check-control"><input type="checkbox" data-moto-check="${index}" aria-label="${escapeHtml(requirement)}"><span class="admission-check-error" aria-hidden="true">!</span></span></label>`).join('')}</section>`;
+}
+function pilotLicenseChecklistHtml() {
+  return '<section class="admission-checklist pilot-license-checklist site-guide-frame" aria-labelledby="pilot-license-title"><h3 id="pilot-license-title">Criterii pentru proba teoretică</h3><label class="admission-check-row"><span>Licență Pilot</span><span class="admission-check-control"><input type="checkbox" data-pilot-license-check aria-label="Licență Pilot"><span class="admission-check-error" aria-hidden="true">!</span></span></label></section>';
 }
 function motoCandidateBriefingHtml(briefing = {}) {
   const points = (briefing.points || []).map(point => `<li>${escapeHtml(point)}</li>`).join('');
   return `<section class="moto-candidate-briefing"><h3>Candidatului i se vor aduce la cunoștință următoarele:</h3><ul>${points}</ul><h4>Atenție</h4><p>${escapeHtml(briefing.warning || '')}</p><p>${escapeHtml(briefing.route || '')}</p></section>`;
 }
 function parachutismChecklistHtml(criteria = []) {
-  return `<section class="admission-checklist parachutism-checklist" aria-labelledby="parachutism-checklist-title"><h3 id="parachutism-checklist-title">Criterii pentru proba teoretică</h3>${criteria.map((criterion, index) => `<label class="admission-check-row"><span>${escapeHtml(criterion)}</span><span class="admission-check-control"><input type="checkbox" data-parachutism-check="${index}" aria-label="${escapeHtml(criterion)}"><span class="admission-check-error" aria-hidden="true">!</span></span></label>`).join('')}</section>`;
+  return `<section class="admission-checklist parachutism-checklist site-guide-frame" aria-labelledby="parachutism-checklist-title"><h3 id="parachutism-checklist-title">Criterii pentru proba teoretică</h3>${criteria.map((criterion, index) => `<label class="admission-check-row"><span>${escapeHtml(criterion)}</span><span class="admission-check-control"><input type="checkbox" data-parachutism-check="${index}" aria-label="${escapeHtml(criterion)}"><span class="admission-check-error" aria-hidden="true">!</span></span></label>`).join('')}</section>`;
 }
 function parachutismInformationHtml(definition = {}) {
   const candidatePoints = (definition.candidateInformation || []).map(point => `<li>${escapeHtml(point)}</li>`).join('');
@@ -786,11 +823,11 @@ function parachutismInformationHtml(definition = {}) {
 function motoChecksComplete(checks) { return checks.length === motoRequirements.length && checks.every(Boolean); }
 function smulsChecklistHtml() {
   const requirements = ['Verificare test teoretic', 'Licență Navală', 'Permis Categoria B', 'Mașina Stalker full tunată'];
-  return `<section class="admission-checklist smuls-checklist" aria-labelledby="smuls-checklist-title"><h3 id="smuls-checklist-title">Verificări înainte de test</h3>${requirements.map((requirement, index) => `<label class="admission-check-row"><span>${escapeHtml(requirement)}</span><span class="admission-check-control"><input type="checkbox" data-smuls-check="${index}" aria-label="${escapeHtml(requirement)}"><span class="admission-check-error" aria-hidden="true">!</span></span></label>`).join('')}</section>`;
+  return `<section class="admission-checklist smuls-checklist site-guide-frame" aria-labelledby="smuls-checklist-title"><h3 id="smuls-checklist-title">Verificări înainte de test</h3>${requirements.map((requirement, index) => `<label class="admission-check-row"><span>${escapeHtml(requirement)}</span><span class="admission-check-control"><input type="checkbox" data-smuls-check="${index}" aria-label="${escapeHtml(requirement)}"><span class="admission-check-error" aria-hidden="true">!</span></span></label>`).join('')}</section>`;
 }
 function smulsChecksComplete(checks) { return checks.length === 4 && checks.every(Boolean); }
 function alsChecklistHtml() {
-  return `<section class="admission-checklist als-checklist" aria-labelledby="als-checklist-title"><h3 id="als-checklist-title">Verificări înainte de test</h3>${alsRequirements.map((requirement, index) => `<label class="admission-check-row"><span>${escapeHtml(requirement)}</span><span class="admission-check-control"><input type="checkbox" data-als-check="${index}" aria-label="${escapeHtml(requirement)}"><span class="admission-check-error" aria-hidden="true">!</span></span></label>`).join('')}</section>`;
+  return `<section class="admission-checklist als-checklist site-guide-frame" aria-labelledby="als-checklist-title"><h3 id="als-checklist-title">Verificări înainte de test</h3>${alsRequirements.map((requirement, index) => `<label class="admission-check-row"><span>${escapeHtml(requirement)}</span><span class="admission-check-control"><input type="checkbox" data-als-check="${index}" aria-label="${escapeHtml(requirement)}"><span class="admission-check-error" aria-hidden="true">!</span></span></label>`).join('')}</section>`;
 }
 function alsChecksComplete(checks) { return checks.length === alsRequirements.length && checks.every(Boolean); }
 function alsCaseListHtml(cases) {
@@ -913,14 +950,14 @@ function mergeIdentityCardDetails(primary, retry) {
     cnp: primary.cnp || retry.cnp
   };
 }
-function bulletinGifArtworkHtml() {
-  return '<img class="bulletin-dot-art" src="/gif.gif" alt="" aria-hidden="true" draggable="false">';
+function bulletinGifArtworkHtml(id) {
+  return `<img class="bulletin-dot-art" src="/gif.gif" alt="" aria-hidden="true" draggable="false"><img class="candidate-photo-preview" data-photo-preview="${escapeHtml(id)}" alt="Previzualizare ${escapeHtml(id)}" hidden>`;
 }
 function candidateImageFieldHtml(id, label) {
   const isBulletinPhoto = id === 'candidate-document' || id === 'certificate-document';
   const hasArtwork = isBulletinPhoto || ['candidate-medical-sheet', 'candidate-drug-test', 'certificate-medical-sheet'].includes(id);
-  const artwork = hasArtwork ? bulletinGifArtworkHtml() : '';
-  return `<section class="candidate-photo-field" data-photo-field="${id}" data-photo-state="empty"><label class="candidate-document-upload">${label}<input id="${id}" type="file" accept="image/*"></label><div class="image-paste-target${hasArtwork ? ' photo-artwork-target' : ''}" data-paste-for="${id}" tabindex="0" role="button" aria-label="${label}: selectează sau lipește o fotografie">${artwork}<span class="candidate-photo-spinner" aria-hidden="true"></span></div><div class="candidate-photo-progress" role="status" aria-live="polite"><span id="${id}-status">Așteaptă fotografia</span></div></section>`;
+  const artwork = hasArtwork ? bulletinGifArtworkHtml(id) : '';
+  return `<section class="candidate-photo-field" data-photo-field="${id}" data-photo-state="empty"><div class="image-paste-target${hasArtwork ? ' photo-artwork-target' : ''}" data-paste-for="${id}" tabindex="0" role="button" aria-label="${label}: selectează sau lipește o fotografie">${artwork}<span class="candidate-photo-spinner" aria-hidden="true"></span></div><div class="candidate-document-upload"><span class="candidate-upload-title">${label}</span><button type="button" class="candidate-file-select" data-photo-select="${id}" aria-label="Selectează ${escapeHtml(label)}">Choose File</button><span class="candidate-file-name" id="${id}-file-name">No file chosen</span><input class="candidate-photo-file-input" id="${id}" type="file" accept="image/*" aria-hidden="true" tabindex="-1"></div><div class="candidate-photo-progress" role="status" aria-live="polite"><span id="${id}-status">Așteaptă fotografia</span></div></section>`;
 }
 function setCandidatePhotoStatus(id, state, message) {
   const input = document.querySelector(`#${id}`);
@@ -929,12 +966,28 @@ function setCandidatePhotoStatus(id, state, message) {
   if (photoField) photoField.dataset.photoState = state;
   if (status) status.textContent = message;
 }
+function setCandidatePhotoPreview(id, file) {
+  const preview = document.querySelector(`[data-photo-preview="${id}"]`);
+  if (!preview) return;
+  const previousUrl = preview.dataset.objectUrl;
+  if (previousUrl) URL.revokeObjectURL(previousUrl);
+  delete preview.dataset.objectUrl;
+  if (!file) {
+    preview.removeAttribute('src');
+    preview.hidden = true;
+    return;
+  }
+  const objectUrl = URL.createObjectURL(file);
+  preview.src = objectUrl;
+  preview.dataset.objectUrl = objectUrl;
+  preview.hidden = false;
+}
 function admissionCandidateDetailsHtml() {
   const photoField = candidateImageFieldHtml;
-  return `<section class="admission-candidate-details" aria-labelledby="admission-candidate-title"><h3 id="admission-candidate-title">Date candidat</h3><div class="admission-candidate-grid"><label>Nume și prenume<input id="candidate-name" type="text" autocomplete="name"></label><label>CNP<input id="candidate-cnp" type="text" inputmode="numeric" maxlength="24" autocomplete="off"></label><label>ID candidat<input id="candidate-id" type="text" autocomplete="off"></label><label>Callsign atribuit<input id="candidate-callsign" type="text" placeholder="M-510" autocomplete="off"></label></div><div class="candidate-photo-grid">${photoField('candidate-document', 'Fotografie buletin')}${photoField('candidate-medical-sheet', 'Fotografie fișă medicală')}${photoField('candidate-drug-test', 'Fotografie drug-test')}</div></section>`;
+  return `<section class="admission-candidate-details site-guide-frame" aria-labelledby="admission-candidate-title"><h3 id="admission-candidate-title">Date candidat</h3><div class="admission-candidate-grid"><label>Nume și prenume<input id="candidate-name" type="text" autocomplete="name"></label><label>CNP<input id="candidate-cnp" type="text" inputmode="numeric" maxlength="24" autocomplete="off"></label><label>ID candidat<input id="candidate-id" type="text" autocomplete="off"></label><label>Callsign atribuit<input id="candidate-callsign" type="text" placeholder="M-510" autocomplete="off"></label></div><div class="candidate-photo-grid">${photoField('candidate-document', 'Fotografie buletin')}${photoField('candidate-medical-sheet', 'Fotografie fișă medicală')}${photoField('candidate-drug-test', 'Fotografie drug-test')}</div></section>`;
 }
 function medicalCertificateDetailsHtml() {
-  return `<section class="admission-candidate-details" aria-labelledby="medical-certificate-title"><h3 id="medical-certificate-title">Date adeverință</h3><div class="admission-candidate-grid"><label>Nume<input id="certificate-last-name" type="text" autocomplete="family-name"></label><label>Prenume<input id="certificate-first-name" type="text" autocomplete="given-name"></label><label>CNP<input id="certificate-cnp" type="text" inputmode="numeric" maxlength="24" autocomplete="off"></label><label>ID (CNP)<input id="certificate-id" type="text" inputmode="numeric" autocomplete="off"></label><label>Număr de telefon<input id="certificate-phone" type="tel" autocomplete="tel"></label><label>Ore cont<input id="certificate-hours-account" type="number" min="0" step="0.01"></label><label>Ore character<input id="certificate-hours-character" type="number" min="0" step="0.01"></label><label>Apt medical<select id="certificate-medical-status"><option value="Admis">Apt medical</option><option value="Respins">Inapt medical</option></select></label></div><div class="candidate-photo-grid">${candidateImageFieldHtml('certificate-document', 'Fotografie buletin')}${candidateImageFieldHtml('certificate-medical-sheet', 'Fotografie fișă medicală')}</div></section>`;
+  return `<section class="admission-candidate-details site-guide-frame" aria-labelledby="medical-certificate-title"><h3 id="medical-certificate-title">Date adeverință</h3><div class="admission-candidate-grid"><label>Nume<input id="certificate-last-name" type="text" autocomplete="family-name"></label><label>Prenume<input id="certificate-first-name" type="text" autocomplete="given-name"></label><label>CNP<input id="certificate-cnp" type="text" inputmode="numeric" maxlength="24" autocomplete="off"></label><label>ID (CNP)<input id="certificate-id" type="text" inputmode="numeric" autocomplete="off"></label><label>Număr de telefon<input id="certificate-phone" type="tel" autocomplete="tel"></label><label>Ore cont<input id="certificate-hours-account" type="number" min="0" step="0.01"></label><label>Ore character<input id="certificate-hours-character" type="number" min="0" step="0.01"></label><label>Apt medical<select id="certificate-medical-status"><option value="Admis">Apt medical</option><option value="Respins">Inapt medical</option></select></label></div><div class="candidate-photo-grid certificate-photo-grid">${candidateImageFieldHtml('certificate-document', 'Fotografie buletin')}${candidateImageFieldHtml('certificate-medical-sheet', 'Fotografie fișă medicală')}</div></section>`;
 }
 function admissionCandidateSummary(result) {
   const value = selector => document.querySelector(selector)?.value?.trim() || '—';
@@ -1053,7 +1106,7 @@ function buildTestMarkup(testName, definition, questions) {
   const motoChecks = isMotoTest ? motoChecklistHtml() : '';
   const parachutismChecks = isParachutismTest ? parachutismChecklistHtml(definition.eligibilityCriteria) : '';
   const parachutismInformation = isParachutismTest ? parachutismInformationHtml(definition) : '';
-  const description = isAdmissionTest ? 'Candidatul poate greși de maximum 3 ori; la a 4-a greșeală este respins. Promovare: minimum 17/20.' : definition.description;
+  const description = isAdmissionTest ? 'Candidatul poate greși de maximum 3 ori; la a 4-a greșeală este respins. Promovare: minimum 17/20.' : isParachutismTest ? '' : definition.description;
   const images = (definition.images || []).map(image => `<a class="test-image-link${image.inline ? ' test-image-preview' : ''}" href="${image.url}" target="_blank" rel="noopener">${image.inline ? `<img src="${image.url}" alt="${escapeHtml(image.label || testName)}">` : image.label || 'Deschide imaginea'}</a>`).join('');
   const cases = isSmulsTest || isAlsTest ? '' : (definition.cases || []).map((item, index) => `<option value="${index}">${item.title}</option>`).join('');
   const parachutismPracticalOptions = (definition.practical || []).map((item, index) => `<option value="${index}">${item.name}</option>`).join('');
@@ -1071,6 +1124,7 @@ function buildTestMarkup(testName, definition, questions) {
   const stagedCandidateSummary = isSmulsTest || isAlsTest || isParachutismTest || isPilotTest ? '<div id="candidate-summary" class="candidate-summary"></div>' : '';
   const smulsChecks = isSmulsTest ? smulsChecklistHtml() : '';
   const alsChecks = isAlsTest ? alsChecklistHtml() : '';
+  const pilotLicenseCheck = isPilotTest ? pilotLicenseChecklistHtml() : '';
   const evaluationActions = testName === 'Test PILOT'
     ? '<div class="evaluation-stage-actions"><button class="primary evaluation-verdict evaluation-verdict-admitted" type="submit" data-pilot-theory-result="Admis">Admis Proba Teoretică</button><button class="primary evaluation-verdict evaluation-verdict-rejected" type="submit" data-pilot-theory-result="Respins">Respins Proba Teoretică</button></div>'
     : isMotoTest
@@ -1085,9 +1139,16 @@ function buildTestMarkup(testName, definition, questions) {
   const parachutismResultStageFlow = isParachutismTest ? '<div id="evaluation-stage-flow" hidden></div>' : '';
   const instructions = isAdmissionTest || testName === 'Test transfer' || isMedicalCertificate || !definition.instructions ? '' : `<p class="test-instructions">${definition.instructions}</p>`;
   const introBoxClass = testName === 'Test PILOT' ? 'pilot-intro-box' : isMotoTest ? 'moto-intro-box' : isSmulsTest ? 'smuls-intro-box' : 'als-intro-box';
-  const testIntro = isStagedTest ? `<div class="${introBoxClass}"><p class="muted">${description}</p>${instructions}</div>` : `<p class="muted">${description}</p>${instructions}`;
+  const descriptionMarkup = description ? `<p class="muted">${description}</p>` : '';
+  const testIntro = isTransferTest || isMedicalCertificate ? '' : isStagedTest ? `<div class="${introBoxClass}">${descriptionMarkup}${instructions}</div>` : `${descriptionMarkup}${instructions}`;
   const motoBriefing = isMotoTest ? motoCandidateBriefingHtml(definition.candidateBriefing) : '';
-  const guideBody = `${candidateDetails}${admissionChecks}${transferChecks}${testIntro}${candidateIdentityBeforeChecks}${stagedCandidateSummary}${alsChecks}${motoChecks}${smulsChecks}${parachutismChecks}${parachutismInformation}${motoBriefing}${cases ? `<label>Cazul ales de candidat<select id="case-select">${cases}</select></label><div id="case-steps" class="case-steps"></div>` : ''}${practical ? `<label>Probă practică<select id="practical-select">${practical}</select><div id="practical-steps" class="case-steps"></div>` : ''}${gatedQuestionForm}${isSmulsTest || isAlsTest || isParachutismTest ? '' : evaluationStageFlow}`;
+  const sideBySideGuide = isStagedTest || isParachutismTest;
+  const guideCriteria = `${candidateIdentityBeforeChecks}${pilotLicenseCheck}${stagedCandidateSummary}${alsChecks}${motoChecks}${smulsChecks}${parachutismChecks}`;
+  const guideInformation = `${testIntro}${parachutismInformation}${motoBriefing}`;
+  const guideExtras = `${cases ? `<label>Cazul ales de candidat<select id="case-select">${cases}</select></label><div id="case-steps" class="case-steps"></div>` : ''}${practical ? `<label>Probă practică<select id="practical-select">${practical}</select><div id="practical-steps" class="case-steps"></div>` : ''}${gatedQuestionForm}${isSmulsTest || isAlsTest || isParachutismTest ? '' : evaluationStageFlow}`;
+  const guideBody = sideBySideGuide
+    ? `<div class="test-guide-columns"><div class="test-guide-criteria">${guideCriteria}</div><div class="test-guide-information site-guide-frame">${guideInformation}</div></div>${guideExtras}`
+    : `${candidateDetails}${admissionChecks}${transferChecks}${testIntro}${guideCriteria}${parachutismInformation}${motoBriefing}${guideExtras}`;
   const content = isSmulsTest || isAlsTest || isParachutismTest
     ? guideBody
     : testName === 'Test SMULS' && images
@@ -1131,10 +1192,15 @@ function wireTestEvents(testName, definition) {
     for (const field of imageFields) {
       const input = document.querySelector(`#${field.id}`);
       const pasteTarget = document.querySelector(`[data-paste-for="${field.id}"]`);
+      const fileSelect = document.querySelector(`[data-photo-select="${field.id}"]`);
+      const fileName = document.querySelector(`#${field.id}-file-name`);
       const status = document.querySelector(`#${field.id}-status`);
-      if (!input || !pasteTarget || !status) continue;
+      if (!input || !pasteTarget || !fileSelect || !fileName || !status) continue;
+      fileSelect.onclick = () => input.click();
       input.onchange = async () => {
         const file = input.files?.[0];
+        fileName.textContent = file?.name || 'No file chosen';
+        setCandidatePhotoPreview(field.id, file);
         if (!file) { setCandidatePhotoStatus(field.id, 'empty', 'Așteaptă fotografia'); return; }
         status.classList.remove('error-text');
         if (!field.readIdentity) {
@@ -1363,10 +1429,6 @@ function wireTestEvents(testName, definition) {
     updateAdmittedVerdicts();
     if (limitExceeded) {
       wrongInputs.forEach(item => { item.disabled = true; });
-      const rejectedButton = document.querySelector(`[data-pilot-theory-result="Respins"], [data-moto-theory-result="Respins"], [data-parachutism-theory-result="Respins"]`);
-      const form = document.querySelector('#test-form');
-      if (form && rejectedButton) form.requestSubmit(rejectedButton);
-      else form?.requestSubmit();
     }
   });
   const candidateInput = document.querySelector('#candidate-callsign'); const candidateSummaryEl = document.querySelector('#candidate-summary'); const alsCandidateNameInput = document.querySelector('#als-candidate-name');
@@ -1438,16 +1500,22 @@ function wireTestEvents(testName, definition) {
   }
   if (isPilotTest) {
     const testContent = document.querySelector('#pilot-test-content');
+    const pilotLicenseCheck = document.querySelector('[data-pilot-license-check]');
     refreshPilotTheoryGate = () => {
       const candidateComplete = Boolean(candidateInput?.value.trim() && alsCandidateNameInput?.value.trim());
-      if (testContent) testContent.hidden = !candidateComplete || Boolean(candidateCooldownMessage);
+      const licenseVerified = Boolean(pilotLicenseCheck?.checked);
+      if (testContent) testContent.hidden = !candidateComplete || !licenseVerified || Boolean(candidateCooldownMessage);
       if (!candidateComplete && candidateSummaryEl && candidateInput?.value.trim()) candidateSummaryEl.textContent = 'Verifică callsign-ul candidatului înainte de proba teoretică.';
+      else if (candidateComplete && !licenseVerified && candidateSummaryEl) candidateSummaryEl.textContent = 'Verifică și bifează licența Pilot înainte de proba teoretică.';
+      else if (candidateComplete && licenseVerified && candidateSummaryEl?.textContent.includes('licența Pilot')) candidateSummaryEl.textContent = '';
     };
+    pilotLicenseCheck?.addEventListener('change', refreshPilotTheoryGate);
     refreshPilotTheoryGate();
   }
   const form = document.querySelector('#test-form'); if (form) form.onsubmit = async event => {
     event.preventDefault();
     if (testName === 'Test PILOT' && !event.submitter?.dataset.pilotTheoryResult) return;
+    if (isPilotTest && !document.querySelector('[data-pilot-license-check]')?.checked) { refreshPilotTheoryGate(); return; }
     if (isMotoTest && !event.submitter?.dataset.motoTheoryResult) return;
     if (isParachutismTest && !event.submitter?.dataset.parachutismTheoryResult) return;
     const wrong = wrongInputs.filter(item => item.checked).length;
