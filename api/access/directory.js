@@ -1,11 +1,14 @@
 import { normalize, callsignNumber, candidateForCallsign, isLeadershipRow, gradeGroupFor, GRADE_GROUPS, LEADERSHIP_MAX, effectiveTestsForMember, normalizeTests, functionsForMember } from './shared.js';
 import { parseCooldownS } from './cooldowns.js';
+import { avatarUrlForDiscordMember, discordAvatarHashFromUrl, readDiscordAvatarHashes, storeDiscordAvatarHash } from './avatar-store.js';
+import { UpstashRedis } from '../storage/upstash-redis.js';
 
 const RESIDENT_TESTER_PATTERN = /S\.?\s*M\.?\s*U\.?\s*L\.?\s*S\.?|MOTO|A\.?\s*L\.?\s*S\.?|PILOT/;
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:U400';
 const GRANTS_RANGE = process.env.GOOGLE_GRANTS_RANGE || 'GRANTS!A1:F';
+const avatarRedis = new UpstashRedis();
 function isLeadership(row) { return isLeadershipRow(row); }
 function readTests(value = '') { return String(value).split('|').filter(Boolean); }
 function relevantMember(row) {
@@ -48,13 +51,23 @@ async function readPublic(range) {
 function json(res, status, body) { return res.status(status).json(body); }
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
-  if (req.method !== 'GET') return json(res, 405, { error: 'Method not allowed' });
-  const requesterId = typeof req.query?.requesterId === 'string' ? req.query.requesterId.trim() : '';
+  const isAvatarSync = req.method === 'POST';
+  if (req.method !== 'GET' && !isAvatarSync) return json(res, 405, { error: 'Method not allowed' });
+  const body = req.body && typeof req.body === 'object' ? req.body : {};
+  const requesterId = isAvatarSync
+    ? typeof body.requesterId === 'string' ? body.requesterId.trim() : ''
+    : typeof req.query?.requesterId === 'string' ? req.query.requesterId.trim() : '';
+  const avatarHash = isAvatarSync ? discordAvatarHashFromUrl(body.avatarUrl, requesterId) : '';
+  if (isAvatarSync && (!avatarHash || !avatarRedis.isConfigured)) return json(res, 400, { error: 'Invalid avatar sync request' });
   if (!requesterId) return json(res, 400, { error: 'Missing requesterId' });
   try {
     const members = (await readPublic(MEMBER_RANGE)).slice(1).filter(Array.isArray);
     const requester = members.find(row => String(row[19] || '').trim() === requesterId);
     if (!requester) return json(res, 403, { error: 'Requester is not a department member' });
+    if (isAvatarSync) {
+      await storeDiscordAvatarHash(avatarRedis, requesterId, avatarHash);
+      return json(res, 200, { success: true });
+    }
     if (typeof req.query?.callsign === 'string') {
       const candidate = candidateForCallsign(members, req.query.callsign);
       const row = candidate && members.find(item => callsignNumber(item[2]) === callsignNumber(req.query.callsign) && String(item[3] || '').trim());
@@ -62,6 +75,10 @@ export default async function handler(req, res) {
     }
     const grants = (await readPublic(GRANTS_RANGE).catch(() => [])).slice(1).filter(Array.isArray);
     const grantsByDiscord = new Map(grants.map(row => [String(row[0] || '').trim(), { grantedTests: readTests(row[2]), updatedAt: String(row[3] || '').trim(), lastSeen: String(row[4] || '').trim(), grantMode: String(row[5] || '').trim() }]));
+    const avatarHashes = await readDiscordAvatarHashes(avatarRedis, members.map(row => row[19])).catch(error => {
+      console.error('Discord avatar Redis read failed:', error);
+      return new Map();
+    });
     const result = members.filter(row => String(row[3] || '').trim() && (relevantMember(row) || isLeadership(row))).map(row => {
       const discordId = String(row[19] || '').trim();
       const storedGrant = grantsByDiscord.get(discordId);
@@ -71,7 +88,7 @@ export default async function handler(req, res) {
       const grantedTests = effectiveTestsForMember(functions, storedGrant);
       return {
         discordId, name: String(row[3] || '').trim(), callsign: String(row[2] || '').trim(), csNum: callsignNumber(row[2]), rank: String(row[4] || '').trim(), dept: String(row[5] || '').trim(), functions, status, gradeGroup: groupLabel(row),
-        isLeadership: isConducere, leadershipTitle: isConducere ? leadershipTitle(row) : '', avatar: row[20] ? `https://cdn.discordapp.com/avatars/${discordId}/${String(row[20] || '').trim()}.png` : '',
+        isLeadership: isConducere, leadershipTitle: isConducere ? leadershipTitle(row) : '', avatar: avatarUrlForDiscordMember(discordId, row[20], avatarHashes),
         grantedTests, grantMode: storedGrant?.grantMode || '', updatedAt: storedGrant?.updatedAt || '', lastSeen: storedGrant?.lastSeen || '',
         isTester: ['leadership', 'primar', 'specialist'].includes(gradeGroupFor(callsignNumber(row[2]))) || (callsignNumber(row[2]) >= 301 && callsignNumber(row[2]) <= 340 && RESIDENT_TESTER_PATTERN.test(normalize(functions))) || /TESTER/.test(normalize(functions)) || grantsByDiscord.has(discordId)
       };

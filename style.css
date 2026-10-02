@@ -466,3 +466,14 @@ body.dark-mode .nav-item{color:#fff;border-color:rgba(205,54,60,.58)}
 body.dark-mode .nav-item.active,body.dark-mode .nav-item:hover{color:#fff;border-color:#cd363c;box-shadow:0 0 11px rgba(255,255,255,.32),inset 0 0 0 1px #cd363c}
 body:not(.dark-mode) .nav-item{color:#fff;background:#14253a;border-color:#245ab1}
 body:not(.dark-mode) .nav-item.active,body:not(.dark-mode) .nav-item:hover{color:#fff;background:#203954;border-color:#245ab1;box-shadow:0 0 11px rgba(255,255,255,.32),inset 0 0 0 1px #245ab1}
+.test-tag.test-tester{--test-tag-color:#FF876E}
+.test-tag.test-als{--test-tag-color:#FAB846}
+.test-tag.test-smuls{--test-tag-color:#FF4633}
+.test-tag.test-moto{--test-tag-color:#33C2FF}
+.test-tag.test-pilot{--test-tag-color:#843AF2}
+.test-tag.test-parachutism{--test-tag-color:#FAF5F5}
+.test-tag.test-neutral{--test-tag-color:#FAF5F5}
+.tag.test-tag{border-color:var(--test-tag-color);background:rgba(255,255,255,.05);background:color-mix(in srgb,var(--test-tag-color) 15%,transparent);color:var(--test-tag-color);box-shadow:0 0 8px color-mix(in srgb,var(--test-tag-color) 42%,transparent),inset 0 1px rgba(255,255,255,.18);filter:none;opacity:1}
+.tester-access-table td:nth-child(4) .tag.test-tag{border-color:var(--test-tag-color);background:rgba(255,255,255,.05);background:color-mix(in srgb,var(--test-tag-color) 15%,transparent);color:var(--test-tag-color);box-shadow:0 0 8px color-mix(in srgb,var(--test-tag-color) 42%,transparent),inset 0 1px rgba(255,255,255,.18)}
+#profile-tests .tag.test-tag,.profile-test-tags .tag.test-tag{border-color:var(--test-tag-color);background:rgba(255,255,255,.05);background:color-mix(in srgb,var(--test-tag-color) 15%,transparent);color:var(--test-tag-color);box-shadow:0 0 8px color-mix(in srgb,var(--test-tag-color) 42%,transparent),inset 0 1px rgba(255,255,255,.18)}
+body.dark-mode .tester-access-table td:nth-child(4) .tag.test-tag,body.dark-mode #profile-tests .tag.test-tag,body.dark-mode .profile-test-tags .tag.test-tag{border-color:var(--test-tag-color);background:rgba(255,255,255,.05);background:color-mix(in srgb,var(--test-tag-color) 15%,transparent);color:var(--test-tag-color);box-shadow:0 0 8px color-mix(in srgb,var(--test-tag-color) 42%,transparent),inset 0 1px rgba(255,255,255,.18)}

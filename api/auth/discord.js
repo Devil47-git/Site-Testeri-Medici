@@ -1,9 +1,12 @@
 import { accessFor, normalizeTests } from '../access/shared.js';
+import { storeDiscordAvatarHash } from '../access/avatar-store.js';
+import { UpstashRedis } from '../storage/upstash-redis.js';
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const SHEET_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:T400';
 const GRANTS_RANGE = process.env.GOOGLE_GRANTS_RANGE || 'GRANTS!A1:F';
 const AVATAR_RANGE = process.env.GOOGLE_AVATAR_RANGE || 'LISTA DEPARTAMENT!T:U';
+const avatarRedis = new UpstashRedis();
 
 export default async function handler(req, res) {
   const allowedOrigin = process.env.APP_ORIGIN || 'https://site-wheat-zeta-76.vercel.app';
@@ -72,6 +75,13 @@ function avatarUrl(discordId, hash) {
 async function persistAvatarHash(user, discordUser) {
   const hash = String(discordUser.avatar || '').trim();
   user.avatar = avatarUrl(discordUser.id, hash);
+  if (avatarRedis.isConfigured) {
+    try {
+      await storeDiscordAvatarHash(avatarRedis, discordUser.id, hash);
+    } catch (error) {
+      console.error('Discord avatar Redis persistence failed:', error);
+    }
+  }
   if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON && !process.env.GOOGLE_APPLICATION_CREDENTIALS) return;
   try {
     const { google } = await import('googleapis');

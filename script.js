@@ -263,13 +263,24 @@ function memberStatusHtml(member) {
   const statusClass = status === 'Activ' ? 'online' : status === 'Concediu' ? 'leave' : status === 'Co Civil' ? 'civil' : 'offline';
   return `<span class="status ${statusClass}"><i></i>${status}</span>`;
 }
+function testTagClass(test) {
+  const classes = {
+    Tester: 'test-tester',
+    'Test ALS': 'test-als',
+    'Test SMULS': 'test-smuls',
+    'Test MOTO': 'test-moto',
+    'Test PILOT': 'test-pilot',
+    'Test parașutiști': 'test-parachutism'
+  };
+  return classes[test] || 'test-neutral';
+}
 function testerAccessHtml(member) {
   const assignedTests = normalizeGrantBundle(member.grantedTests || []);
   if (isLeadershipUser(member)) return '<span class="tag green">Acces general</span>';
   const hasTesterBundle = coreTests.every(test => assignedTests.includes(test));
   const visibleTests = [...(hasTesterBundle ? ['Tester'] : []), ...assignedTests.filter(test => !hasTesterBundle || !coreTests.includes(test))];
   return visibleTests.length
-    ? visibleTests.map((test, i) => `<span class="tag ${i % 3 === 1 ? 'orange' : i % 3 === 2 ? 'cyan' : ''}">${escapeHtml(displayTestName(test))}</span>`).join('')
+    ? visibleTests.map(test => `<span class="tag test-tag ${testTagClass(test)}">${escapeHtml(displayTestName(test))}</span>`).join('')
     : '<span class="muted">Fără teste alocate</span>';
 }
 function testerRowHtml(member, index) {
@@ -319,6 +330,9 @@ function testerSearchResultHtml(member) {
 let directoryMembers = [];
 async function loadDirectory() {
   if (!currentUser?.discordId) return;
+  if (currentUser.avatar) {
+    await fetch('/api/access/directory', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requesterId: currentUser.discordId, avatarUrl: currentUser.avatar }) }).catch(() => {});
+  }
   const response = await fetch(`/api/access/directory?requesterId=${encodeURIComponent(currentUser.discordId)}`);
   if (!response.ok) return;
   const payload = await response.json();
@@ -412,7 +426,7 @@ function profileTestTagsHtml(member) {
   const hasTesterBundle = coreTests.every(test => assignedTests.includes(test));
   const visibleTests = [...(hasTesterBundle ? ['Tester'] : []), ...assignedTests.filter(test => !hasTesterBundle || !coreTests.includes(test))];
   return visibleTests.length
-    ? visibleTests.map((test, index) => `<span class="tag ${index % 3 === 1 ? 'orange' : index % 3 === 2 ? 'cyan' : ''}">${escapeHtml(displayTestName(test))}</span>`).join('')
+    ? visibleTests.map(test => `<span class="tag test-tag ${testTagClass(test)}">${escapeHtml(displayTestName(test))}</span>`).join('')
     : '<span class="muted">Nu ai certificări sau teste alocate.</span>';
 }
 async function loadTestRunCounts() {

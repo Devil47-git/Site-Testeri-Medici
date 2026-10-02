@@ -1,12 +1,27 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { UpstashRedis } from '../api/storage/upstash-redis.js';
+import { avatarUrlForDiscordMember, discordAvatarHashFromUrl, readDiscordAvatarHashes, storeDiscordAvatarHash } from '../api/access/avatar-store.js';
 import { addBonusEntries, clearBonusEntries, importLegacyBonusEntries, listBonusEntries } from '../api/access/bonus-store.js';
 
 function memoryRedis() {
   const sets = new Map();
   const values = new Map();
   return {
+    get isConfigured() { return true; },
+    async command(command, key, ...args) {
+      if (command === 'HSET') {
+        const hashes = values.get(key) || new Map();
+        hashes.set(args[0], args[1]);
+        values.set(key, hashes);
+        return 1;
+      }
+      if (command === 'HMGET') {
+        const hashes = values.get(key) || new Map();
+        return args.map(id => hashes.has(id) ? hashes.get(id) : null);
+      }
+      throw new Error(`Unexpected Redis command: ${command}`);
+    },
     async pipeline(commands) {
       return commands.map(([command, key, value]) => {
         if (command === 'SADD') {
@@ -25,6 +40,28 @@ function memoryRedis() {
     }
   };
 }
+
+test('Discord avatar hashes are shared across members and override sheet values', async () => {
+  const redis = memoryRedis();
+  await storeDiscordAvatarHash(redis, '123', 'current-hash');
+  await storeDiscordAvatarHash(redis, '456', 'other-hash');
+  const hashes = await readDiscordAvatarHashes(redis, ['123', '456', '789']);
+
+  assert.equal(avatarUrlForDiscordMember('123', 'stale-sheet-hash', hashes), 'https://cdn.discordapp.com/avatars/123/current-hash.png');
+  assert.equal(avatarUrlForDiscordMember('456', '', hashes), 'https://cdn.discordapp.com/avatars/456/other-hash.png');
+  assert.equal(avatarUrlForDiscordMember('789', 'sheet-hash', hashes), 'https://cdn.discordapp.com/avatars/789/sheet-hash.png');
+
+  await storeDiscordAvatarHash(redis, '123', '');
+  const hashesAfterRemoval = await readDiscordAvatarHashes(redis, ['123']);
+  assert.equal(avatarUrlForDiscordMember('123', 'stale-sheet-hash', hashesAfterRemoval), '');
+});
+
+test('cached Discord avatar sync accepts only the matching member CDN URL', () => {
+  assert.equal(discordAvatarHashFromUrl('https://cdn.discordapp.com/avatars/123/a_hash.png', '123'), 'a_hash');
+  assert.equal(discordAvatarHashFromUrl('https://cdn.discordapp.com/avatars/456/hash.png', '123'), '');
+  assert.equal(discordAvatarHashFromUrl('https://example.com/avatars/123/hash.png', '123'), '');
+  assert.equal(discordAvatarHashFromUrl('https://cdn.discordapp.com/avatars/123/hash.png?size=64', '123'), '');
+});
 
 test('Upstash REST client sends authenticated commands and parses results', async () => {
   let request;
