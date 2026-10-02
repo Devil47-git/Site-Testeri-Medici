@@ -1,5 +1,5 @@
-import '../config.js';
-import { normalize, callsignNumber, isLeadershipRow, normalizeTests } from './shared.js';
+import '../../lib/config.js';
+import { normalize, callsignNumber, isLeadershipRow, normalizeTests } from '../../lib/access/shared.js';
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:T400';

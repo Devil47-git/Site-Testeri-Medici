@@ -1,8 +1,8 @@
-import '../config.js';
-import { normalize, callsignNumber, candidateForCallsign, isLeadershipRow, gradeGroupFor, GRADE_GROUPS, LEADERSHIP_MAX, effectiveTestsForMember, normalizeTests, functionsForMember } from './shared.js';
-import { parseCooldownS } from './cooldowns.js';
-import { avatarUrlForDiscordMember, discordAvatarHashFromUrl, readDiscordAvatarHashes, storeDiscordAvatarHash } from './avatar-store.js';
-import { UpstashRedis } from '../storage/upstash-redis.js';
+import '../../lib/config.js';
+import { normalize, callsignNumber, candidateForCallsign, isLeadershipRow, gradeGroupFor, GRADE_GROUPS, LEADERSHIP_MAX, effectiveTestsForMember, normalizeTests, functionsForMember } from '../../lib/access/shared.js';
+import { parseCooldownS } from '../../lib/access/cooldowns.js';
+import { avatarUrlForDiscordMember, discordAvatarHashFromUrl, readDiscordAvatarHashes, storeDiscordAvatarHash } from '../../lib/access/avatar-store.js';
+import { UpstashRedis } from '../../lib/storage/upstash-redis.js';
 
 const RESIDENT_TESTER_PATTERN = /S\.?\s*M\.?\s*U\.?\s*L\.?\s*S\.?|MOTO|A\.?\s*L\.?\s*S\.?|PILOT/;
 

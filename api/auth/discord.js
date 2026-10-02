@@ -1,7 +1,7 @@
-import '../config.js';
-import { accessFor, normalizeTests } from '../access/shared.js';
-import { storeDiscordAvatarHash } from '../access/avatar-store.js';
-import { UpstashRedis } from '../storage/upstash-redis.js';
+import '../../lib/config.js';
+import { accessFor, normalizeTests } from '../../lib/access/shared.js';
+import { storeDiscordAvatarHash } from '../../lib/access/avatar-store.js';
+import { UpstashRedis } from '../../lib/storage/upstash-redis.js';
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const SHEET_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:T400';

@@ -1,10 +1,10 @@
-import '../config.js';
+import '../../lib/config.js';
 import { randomUUID } from 'node:crypto';
-import { catalog, callsignNumber, candidateForCallsign, effectiveTestsForMember, functionsForMember, isLeadershipRow, normalizeTests } from './shared.js';
-import { cooldownIsActive, parseCooldownS } from './cooldowns.js';
-import { UpstashRedis } from '../storage/upstash-redis.js';
-import { addBonusEntries, BONUS_TEST_NAMES, clearBonusEntries, importLegacyBonusEntries, listBonusEntries } from './bonus-store.js';
-import { LIFETIME_HISTORY_HEADER, lifetimeRowForNewResult, lifetimeRowsToAppend, lifetimeTestCounts } from './lifetime-test-history.js';
+import { catalog, callsignNumber, candidateForCallsign, effectiveTestsForMember, functionsForMember, isLeadershipRow, normalizeTests } from '../../lib/access/shared.js';
+import { cooldownIsActive, parseCooldownS } from '../../lib/access/cooldowns.js';
+import { UpstashRedis } from '../../lib/storage/upstash-redis.js';
+import { addBonusEntries, BONUS_TEST_NAMES, clearBonusEntries, importLegacyBonusEntries, listBonusEntries } from '../../lib/access/bonus-store.js';
+import { LIFETIME_HISTORY_HEADER, lifetimeRowForNewResult, lifetimeRowsToAppend, lifetimeTestCounts } from '../../lib/access/lifetime-test-history.js';
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:T400';

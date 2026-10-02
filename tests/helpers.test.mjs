@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { accessFor, candidateForCallsign, catalog as accessCatalog, coreTests, effectiveTestsForMember, functionsForMember, isLeadership, normalizeTests, testsForFunctions } from '../api/access/shared.js';
+import { accessFor, candidateForCallsign, catalog as accessCatalog, coreTests, effectiveTestsForMember, functionsForMember, isLeadership, normalizeTests, testsForFunctions } from '../lib/access/shared.js';
 import { canResetTestCounts, discordTesterMentionPayload, createAdmissionEmbed, createAdmissionTesterComponents, webhookComponentsUrl, createAlsResultEmbed, createSpecialtyResultEmbed, specialtyNotificationDetails, createMedicalCertificateEmbeds, medicalCertificateNumberForRow, bonusEntryFromRow } from '../api/access/test-results.js';
 import { statusFromRow } from '../api/access/directory.js';
-import { cooldownIsActive, parseCooldownS } from '../api/access/cooldowns.js';
+import { cooldownIsActive, parseCooldownS } from '../lib/access/cooldowns.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const source = readFileSync(join(here, '..', 'script.js'), 'utf8');
