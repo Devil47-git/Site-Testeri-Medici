@@ -680,3 +680,56 @@ body.dark-mode .als-stretcher-note{color:#fff;font-weight:700}
 .candidate-cooldown{grid-column:1/-1;width:100%;margin-top:12px;padding:10px 14px;border:1px solid #ffb347;border-radius:10px;background:rgba(255,179,71,.1);color:#ffd9a0;font-weight:700;text-align:center}
 .candidate-cooldown[hidden]{display:none}
 .pilot-license-checklist input:disabled{opacity:.4;cursor:not-allowed}
+
+/* centrare Teste, Functii tester, buton reset */
+.statistics-tests-toggle{justify-content:center!important;text-align:center}
+.profile-test-tags{display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:10px;width:100%}
+.cooldown-reset-button.site-guide-frame{min-height:38px;padding:0 18px;border-width:2px!important;color:var(--ink);font-weight:700;border-radius:999px}
+
+/* card profil in stilul mockup-ului */
+body.dark-mode .profile-card{overflow:hidden}
+body.dark-mode .profile-card::after{content:"⚕";position:absolute;right:70px;top:50%;transform:translateY(-50%);font-size:190px;line-height:1;color:rgba(43,140,255,.1);text-shadow:0 0 30px rgba(43,140,255,.25);pointer-events:none}
+body.dark-mode .profile-card>*{position:relative;z-index:1}
+body.dark-mode .profile-datetime{font-size:15px;font-weight:800;letter-spacing:.4px}
+body.dark-mode .profile-datetime>span:first-child::before{content:"📅 ";filter:drop-shadow(0 0 4px #ff2d3d)}
+body.dark-mode .profile-datetime>span:first-child{color:#ff2d3d;text-shadow:0 0 10px rgba(255,45,61,.55)}
+body.dark-mode .profile-datetime time{color:#8fc3ff;font-size:15px;font-weight:600}
+body.dark-mode .profile-card .profile-identity .avatar{border:2px solid var(--neon-blue);box-shadow:0 0 14px rgba(43,140,255,.7),0 0 0 3px rgba(255,45,61,.25)}
+body.dark-mode .profile-details{grid-template-columns:repeat(3,minmax(0,1fr));column-gap:0;padding-top:18px;border-top:1px solid rgba(143,195,255,.28)}
+body.dark-mode .profile-details>div{padding:0 22px}
+body.dark-mode .profile-details>div:first-child{padding-left:0}
+body.dark-mode .profile-details>div+div{border-left:1px solid rgba(143,195,255,.22)}
+body.dark-mode .profile-details dt{color:#8fc3ff;font-size:11px}
+body.dark-mode .profile-details dt::before{font-size:14px;margin-right:8px;letter-spacing:0}
+body.dark-mode .profile-details>div:nth-child(1) dt::before{content:"🪪"}
+body.dark-mode .profile-details>div:nth-child(2) dt::before{content:"👤"}
+body.dark-mode .profile-details>div:nth-child(3) dt::before{content:"🎖️"}
+body.dark-mode .profile-details dd{font-size:15px;color:#fff}
+
+/* liste derulante in tema site-ului */
+body.dark-mode select{color-scheme:dark;background-color:#0a1128;color:#fff;border:2px solid var(--neon-red);border-radius:12px;box-shadow:0 0 12px rgba(255,45,61,.35)}
+body.dark-mode select:focus{outline:none;border-color:var(--neon-blue);box-shadow:0 0 14px rgba(43,140,255,.55)}
+body.dark-mode select option{background:#0a1128;color:#fff;font-weight:600}
+body.dark-mode select option:checked,body.dark-mode select option:hover{background:linear-gradient(#ff2d3d,#ff2d3d);color:#fff}
+
+/* antet TESTER deasupra numelui */
+.tester-access-table th:nth-child(2){text-align:left;padding-left:59px}
+
+/* reparatii card profil */
+body.dark-mode .profile-card>.profile-settings-button{position:absolute;top:16px;right:16px;left:auto;z-index:2}
+body.dark-mode .profile-card .profile-datetime{margin-top:-6px;padding-right:56px}
+body.dark-mode .profile-details>div{text-align:center;justify-items:center}
+body.dark-mode .profile-details>div:first-child{padding-left:22px}
+
+/* fara puncte in liste */
+.moto-candidate-briefing ul,.parachutism-information-card ul,.test-guide-information ul,.site-guide-frame ul{list-style:none;padding-left:0;margin-left:0}
+.moto-candidate-briefing li::marker,.parachutism-information-card li::marker,.test-guide-information li::marker{content:""}
+
+/* Testeri alb ca Profilul tau */
+body.dark-mode .nav-item[data-view="testers"],body.dark-mode .nav-item[data-view="testers"] .nav-label{color:#fff!important;opacity:1!important;font-weight:800}
+
+/* Statistica Teste ca la Testeri */
+.statistics-access-table .statistics-processed-col{width:38%}
+.statistics-access-table td .statistics-processed-cell{display:flex;flex-wrap:wrap;justify-content:center;gap:6px}
+body.dark-mode .statistics-access-table th:nth-child(2){text-align:left;padding-left:59px}
+.statistics-access-table .statistics-tests-toggle{margin:0 auto;min-width:84px}

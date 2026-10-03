@@ -198,11 +198,11 @@ export function webhookComponentsUrl(value) {
   return url.toString();
 }
 
-async function sendWebhookComponents(url, components, images, testerDiscordId) {
+async function sendWebhookComponents(url, components, images, testerDiscordId, roleIds = []) {
   const form = new FormData();
   const mentionPayload = discordTesterMentionPayload(testerDiscordId);
   form.set('payload_json', JSON.stringify({
-    allowed_mentions: mentionPayload.allowed_mentions,
+    allowed_mentions: roleIds.length ? { ...mentionPayload.allowed_mentions, roles: roleIds } : mentionPayload.allowed_mentions,
     flags: 1 << 15,
     components,
     attachments: images.map((image, id) => ({ id, filename: image.filename }))
@@ -230,6 +230,10 @@ export function createAdmissionEmbed({ testName, testType, testerName, testerDis
   };
 }
 
+const ADMISSION_ROLE_IDS = ['1033692302767558717', '825071956101169202'];
+export function admissionRoleMentions(result) {
+  return result === 'Admis' ? ADMISSION_ROLE_IDS : ADMISSION_ROLE_IDS.slice(1);
+}
 export function createAdmissionTesterComponents({ testName, testType, testerName, testerDiscordId, candidateName, candidateId, candidateCallsign, result }) {
   const section = (content, filename, description) => ({
     type: 9,
@@ -245,7 +249,8 @@ export function createAdmissionTesterComponents({ testName, testType, testerName
     components: [
       section(`## ${title}\n**👨‍⚕️ Tester**\n${discordMention(testerDiscordId, testerName)}`, 'buletin-candidat.jpg', 'Buletin candidat'),
       section(`**🧑‍⚕️ Candidat**\n${candidateName || '—'}\n**🆔 ID:** ${candidateId || '—'}`, 'fisa-medicala.jpg', 'Fișă medicală'),
-      section(resultDetails, 'drug-test.jpg', 'Drug-test')
+      section(resultDetails, 'drug-test.jpg', 'Drug-test'),
+      { type: 10, content: admissionRoleMentions(result).map(id => `<@&${id}>`).join(' ') }
     ]
   }];
 }
@@ -274,7 +279,7 @@ async function sendAdmissionNotifications(details) {
       { ...details.identityImage, filename: 'buletin-candidat.jpg' },
       { ...details.medicalSheetImage, filename: 'fisa-medicala.jpg' },
       { ...details.drugTestImage, filename: 'drug-test.jpg' }
-    ], details.testerDiscordId).then(() => null, error => `Canalul testerilor: ${error.message.startsWith('HTTP ') ? error.message : 'eroare de rețea Discord'}.`)
+    ], details.testerDiscordId, admissionRoleMentions(details.result)).then(() => null, error => `Canalul testerilor: ${error.message.startsWith('HTTP ') ? error.message : 'eroare de rețea Discord'}.`)
   ]);
   const errors = deliveries.filter(Boolean);
   return { sent: errors.length === 0, error: errors.join(' ') };
@@ -569,9 +574,12 @@ export function createMedicalCertificateEmbeds(details, number) {
     title: `D.M.L.S. - EVIDENTA MEDICALA NR. ${number}`,
     description: `\`\`\`text\n${description}\n\`\`\``,
     color: SITE_BRAND_EMBED_COLOR,
-    thumbnail: { url: 'attachment://fisa-medicala.jpg' },
+    thumbnail: { url: 'attachment://logo-medici.png' },
     image: { url: 'attachment://buletin-candidat.jpg' },
     footer: { text: 'DMLS', icon_url: 'attachment://logo-medici.png' }
+  }, {
+    color: SITE_BRAND_EMBED_COLOR,
+    image: { url: 'attachment://fisa-medicala.jpg' }
   }];
 }
 

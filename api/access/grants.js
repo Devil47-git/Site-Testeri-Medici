@@ -18,7 +18,9 @@ async function sheetsClient() {
 const GRANTS_WRITE_HEADER = ['discordId', 'callsign', 'grantedTests', 'updatedAt', 'lastSeen', 'grantMode'];
 function grantRowValues(grant) { return [grant.discordId, grant.callsign, normalizeTests(grant.grantedTests).join('|'), grant.updatedAt, grant.lastSeen || '', grant.grantMode === 'override' ? 'override' : '']; }
 function grantsSheetTitle() { return GRANTS_RANGE.split('!')[0].replace(/^'|'$/g, '') || 'GRANTS'; }
+let grantsSheetEnsured = false;
 async function ensureGrantsSheet(sheets) {
+  if (grantsSheetEnsured) return;
   const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: SHEET_ID, fields: 'sheets.properties.title' });
   const exists = (spreadsheet.data.sheets || []).some(sheet => sheet.properties?.title === grantsSheetTitle());
   if (!exists) {
@@ -28,10 +30,14 @@ async function ensureGrantsSheet(sheets) {
     request.addSheet.properties.title = grantsSheetTitle();
     await sheets.spreadsheets.batchUpdate({ spreadsheetId: SHEET_ID, requestBody: { requests: [request] } });
   }
-}
+      grantsSheetEnsured = true;
+    }
 async function readValues(sheets, range) {
+  if (range === MEMBER_RANGE && sheets.__memberRows) return sheets.__memberRows;
   const result = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range });
-  return Array.isArray(result.data.values) ? result.data.values : [];
+  const values = Array.isArray(result.data.values) ? result.data.values : [];
+  if (range === MEMBER_RANGE) sheets.__memberRows = values;
+  return values;
 }
 async function readPublicValues(range) {
   const key = process.env.GOOGLE_API_KEY;

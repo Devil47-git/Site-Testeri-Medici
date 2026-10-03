@@ -196,6 +196,10 @@ function mergeTestDefinitions(defaults, stored) {
   const definitions = { ...(defaults || {}), ...(stored || {}) };
   return Object.fromEntries(Object.entries(definitions).map(([name, definition]) => {
     const merged = { ...(defaults?.[name] || {}), ...(definition || {}) };
+    if (['Test ALS', 'Test SMULS', 'Test PILOT'].includes(name) && defaults?.[name]) {
+      if (defaults[name].description) merged.description = defaults[name].description;
+      if (defaults[name].instructions) merged.instructions = defaults[name].instructions;
+    }
     if (Array.isArray(merged.questions)) {
       merged.questions = merged.questions.map(q => Array.isArray(q) ? { text: q[0] || '', answer: q[1] || '' } : q);
     }
@@ -574,11 +578,14 @@ async function loadDirectory() {
 function renderDashboardData() {
   const testerList = document.querySelector('#tester-statistics-list');
   if (testerList) {
-    const members = sortMembers(testers);
-    testerList.innerHTML = members.length ? members.map(member => {
+    const groups = DASHBOARD_GROUPS.map(group => ({ label: group.label, members: sortMembers(testers.filter(group.members)) })).filter(group => group.members.length);
+    const orphan = sortMembers(testers.filter(member => !DASHBOARD_GROUPS.some(group => group.members(member))));
+    if (orphan.length) groups.push({ label: 'Alți membri', members: orphan });
+    const rowHtml = member => {
       const key = String(member.discordId || normalizeCallsign(member.callsign));
-      return `<article class="statistics-tester"><div class="statistics-tester-row"><dl class="statistics-tester-fields"><div><dt>CALLSIGN</dt><dd>${escapeHtml(normalizeCallsign(member.callsign))}</dd></div><div><dt>NUME</dt><dd>${escapeHtml(memberNameFor(member))}</dd></div><div><dt>GRAD</dt><dd>${escapeHtml(rankFor(member))}</dd></div><div class="statistics-processed-column"><dt>TESTE PROCESATE</dt><dd>${processedTestBadgesHtml(member, processedTestCounts)}</dd></div></dl><button type="button" class="outline site-guide-frame statistics-tests-toggle" data-statistics-member="${escapeHtml(key)}">Teste</button></div></article>`;
-    }).join('') : '<div class="empty-state">Nu există testeri.</div>';
+      return `<tr><td>${escapeHtml(normalizeCallsign(member.callsign))}</td><td><div class="tester">${avatarFor(member)}<span>${escapeHtml(memberNameFor(member))}</span></div></td><td>${escapeHtml(rankFor(member))}</td><td><div class="tags statistics-processed-cell">${processedTestBadgesHtml(member, processedTestCounts)}</div></td><td><button type="button" class="outline site-guide-frame statistics-tests-toggle" data-statistics-member="${escapeHtml(key)}">Teste</button></td></tr>`;
+    };
+    testerList.innerHTML = groups.length ? groups.map(group => `<section class="tester-group"><h3>${escapeHtml(group.label)}</h3><div class="table-wrap"><table class="tester-access-table statistics-access-table"><colgroup><col class="tester-callsign-column"><col class="tester-name-column"><col class="tester-rank-column"><col class="statistics-processed-col"><col class="tester-action-column"></colgroup><thead><tr><th>CALLSIGN</th><th>TESTER</th><th>RANK</th><th>TESTE PROCESATE</th><th></th></tr></thead><tbody>${group.members.map(rowHtml).join('')}</tbody></table></div></section>`).join('') : '<div class="empty-state">Nu există testeri.</div>';
   }
   const overview = document.querySelector('#overview-view');
   if (overview) overview.dataset.updatedAt = new Date().toISOString();
@@ -611,7 +618,7 @@ function processedTestBadgesHtml(member, counts) {
     : '<span class="statistics-no-processed-tests">—</span>';
 }
 function renderStatisticsView() {
-  return `<div class="statistics-view"><div class="panel-head"><div><h2>Statistica Teste</h2><p class="muted">Testerii și testele înregistrate pentru fiecare persoană.</p></div></div><section class="tester-statistics-list" id="tester-statistics-list" aria-label="Statistica testerilor"></section></div>`;
+  return `<div class="panel view-panel statistics-view"><div class="panel-head"><div><h2>Statistica Teste</h2><p class="muted">Testerii și testele înregistrate pentru fiecare persoană.</p></div></div><section class="tester-statistics-list" id="tester-statistics-list" aria-label="Statistica testerilor"></section></div>`;
 }
 function renderProfileData() {
   if (!currentUser) return;
@@ -738,6 +745,11 @@ function wireTestAccessEvents() {
     };
   });
 }
+function removableTestEntries(member) {
+  const tests = member.grantedTests || [];
+  const hasBundle = coreTests.every(test => tests.includes(test));
+  return [...(hasBundle ? ['Tester'] : []), ...tests.filter(test => !hasBundle || !coreTests.includes(test))];
+}
 function displayTestName(testName) {
   const title = String(testDefinitions[testName]?.title || '').trim();
   return title || (testName === 'Test parașutiști' ? 'Test Parasutism' : testName);
@@ -755,7 +767,7 @@ function renderTesterProfileView(member) {
     const name = memberNameFor(member);
   const testCountGrid = testerTestCountGridHtml(member);
   const removalControls = hasLeadershipCallsign(currentUser) && !hasLeadershipCallsign(member)
-    ? `<button class="profile-settings-button" id="profile-test-settings" type="button" aria-label="Gestionează testele" title="Gestionează testele">⚙</button><div class="profile-test-removal" id="profile-test-removal" hidden><h3>Teste alocate</h3><div class="profile-test-removal-list">${(member.grantedTests || []).length ? member.grantedTests.map(test => `<div class="profile-test-removal-item"><span>${escapeHtml(displayTestName(test))}</span><button class="outline danger-button" type="button" data-remove-profile-test="${escapeHtml(test)}">Scoate</button></div>`).join('') : '<p class="muted">Nu există teste alocate.</p>'}</div><p class="profile-test-removal-status muted" role="status" aria-live="polite"></p></div>`
+    ? `<button class="profile-settings-button" id="profile-test-settings" type="button" aria-label="Gestionează testele" title="Gestionează testele">⚙</button><div class="profile-test-removal" id="profile-test-removal" hidden><h3>Teste alocate</h3><div class="profile-test-removal-list">${removableTestEntries(member).length ? removableTestEntries(member).map(test => `<div class="profile-test-removal-item"><span>${escapeHtml(test === 'Tester' ? 'Tester' : displayTestName(test))}</span><button class="outline danger-button" type="button" data-remove-profile-test="${escapeHtml(test)}">Scoate</button></div>`).join('') : '<p class="muted">Nu există teste alocate.</p>'}</div><p class="profile-test-removal-status muted" role="status" aria-live="polite"></p></div>`
     : '';
   return `<div class="tester-profile-view"><div class="panel-head"><div><p class="eyebrow">PROFIL TESTER</p><h2>${escapeHtml(name)}</h2></div><button class="outline" id="back-to-testers" type="button">← Înapoi</button></div><div class="profile-layout"><section class="panel profile-card">${removalControls}<div class="profile-identity"><div>${avatarFor(member)}</div><div><h1>${escapeHtml(name)}</h1></div></div><dl class="profile-details"><div><dt>CALLSIGN</dt><dd>${escapeHtml(callsign || '—')}</dd></div><div><dt>NUME</dt><dd>${escapeHtml(member.name || '—')}</dd></div><div><dt>GRAD</dt><dd>${escapeHtml(member.rank || '—')}</dd></div></dl></section><section class="panel profile-certifications"><div class="panel-head"><div><h2>Funcții tester</h2><p class="muted">Certificările și testele alocate contului tău</p></div></div><div class="tags profile-test-tags">${profileTestTagsHtml(member)}</div></section></div><section class="panel profile-test-history"><div class="panel-head"><div><h2>Statistica Teste</h2></div></div><div class="statistics-test-grid">${testCountGrid}</div></section></div>`;
 }
@@ -811,7 +823,7 @@ function wireProfileTestRemoval(member) {
       const status = removalPanel.querySelector('.profile-test-removal-status');
       if (!member.discordId) { status.textContent = 'Membrul nu are un Discord ID asociat.'; return; }
       const test = button.dataset.removeProfileTest;
-      const nextTests = (member.grantedTests || []).filter(item => item !== test);
+      const nextTests = (member.grantedTests || []).filter(item => test === 'Tester' ? !coreTests.includes(item) : item !== test);
       button.disabled = true;
       status.textContent = 'Se salvează…';
       try {
@@ -1039,7 +1051,7 @@ function renderCooldownPaymentsView() {
   const testOptions = Object.entries(COOLDOWN_PAYMENT_LABELS)
     .map(([value, label]) => `<option value="${value}" ${draft.test === value ? 'selected' : ''}>${label} — ${new Intl.NumberFormat('ro-RO').format(COOLDOWN_PAYMENT_RATES[value])}$/zi</option>`)
     .join('');
-  return `<section class="panel cooldown-payment-panel"><div class="panel-head"><div><p class="eyebrow">MODEL DE COPIAT</p><h2>Cooldownuri preluate</h2><p class="muted">Completează callsign-ul persoanei care plătește. Datele se preiau din director, iar testerul aplică manual cooldown-ul.</p></div></div><div class="cooldown-payment-grid"><label>Callsign plătitor<span class="cooldown-callsign-input"><span aria-hidden="true">M-</span><input id="cooldown-payer-callsign" type="text" value="" placeholder="507" inputmode="numeric" pattern="[0-9]*" autocomplete="off" aria-label="Numărul callsign-ului plătitor, prefixul M este adăugat automat"></span></label><label>Calificare<select id="cooldown-payment-test"><option value="">Alege testul</option>${testOptions}</select></label><label>Număr zile<input id="cooldown-payment-days" type="number" min="1" max="5" step="1" inputmode="numeric" value="${escapeHtml(draft.days || '')}" placeholder="3"></label></div><p class="cooldown-payer-status muted" id="cooldown-payer-status" role="status" aria-live="polite">Introdu numărul callsign-ului. Prefixul M- este adăugat automat.</p><dl class="cooldown-payer-details" id="cooldown-payer-details" hidden><div><dt>NUME</dt><dd id="cooldown-payer-name">—</dd></div><div><dt>GRAD</dt><dd id="cooldown-payer-rank">—</dd></div><div><dt>DISCORD ID</dt><dd id="cooldown-payer-discord">—</dd></div><div><dt>PREȚ / ZI</dt><dd id="cooldown-payment-rate">—</dd></div><div><dt>TOTAL</dt><dd id="cooldown-payment-total">—</dd></div></dl><label class="cooldown-payment-model-label">Model pentru Discord<textarea id="cooldown-payment-model" rows="6" readonly placeholder="Modelul complet va apărea aici după ce alegi callsign-ul, testul și numărul de zile."></textarea></label><div class="cooldown-payment-actions"><button class="primary" id="cooldown-payment-copy" type="button" disabled>Copiază modelul</button><button class="outline" id="cooldown-payment-reset" type="button">Resetează formularul</button><span class="muted" id="cooldown-payment-copy-status" role="status" aria-live="polite"></span></div><p class="cooldown-payment-note">Acest formular doar calculează și generează textul. Nu modifică evidența cooldownurilor și nu trimite mesaje.</p></section>`;
+  return `<section class="panel cooldown-payment-panel"><div class="panel-head"><div><p class="eyebrow">MODEL DE COPIAT</p><h2>Cooldownuri preluate</h2><p class="muted">Completează callsign-ul persoanei care plătește. Datele se preiau din director, iar testerul aplică manual cooldown-ul.</p></div></div><div class="cooldown-payment-grid"><label>Callsign plătitor<span class="cooldown-callsign-input"><span aria-hidden="true">M-</span><input id="cooldown-payer-callsign" type="text" value="" placeholder="507" inputmode="numeric" pattern="[0-9]*" autocomplete="off" aria-label="Numărul callsign-ului plătitor, prefixul M este adăugat automat"></span></label><label>Calificare<select id="cooldown-payment-test"><option value="">Alege testul</option>${testOptions}</select></label><label>Număr zile<input id="cooldown-payment-days" type="number" min="1" max="5" step="1" inputmode="numeric" value="${escapeHtml(draft.days || '')}" placeholder="3"></label></div><p class="cooldown-payer-status muted" id="cooldown-payer-status" role="status" aria-live="polite">Introdu numărul callsign-ului. Prefixul M- este adăugat automat.</p><dl class="cooldown-payer-details" id="cooldown-payer-details" hidden><div><dt>NUME</dt><dd id="cooldown-payer-name">—</dd></div><div><dt>GRAD</dt><dd id="cooldown-payer-rank">—</dd></div><div><dt>DISCORD ID</dt><dd id="cooldown-payer-discord">—</dd></div><div><dt>PREȚ / ZI</dt><dd id="cooldown-payment-rate">—</dd></div><div><dt>TOTAL</dt><dd id="cooldown-payment-total">—</dd></div></dl><label class="cooldown-payment-model-label">Model pentru Discord<textarea id="cooldown-payment-model" rows="6" readonly placeholder="Modelul complet va apărea aici după ce alegi callsign-ul, testul și numărul de zile."></textarea></label><div class="cooldown-payment-actions"><button class="primary" id="cooldown-payment-copy" type="button" disabled>Copiază modelul</button><button class="outline site-guide-frame cooldown-reset-button" id="cooldown-payment-reset" type="button">Resetează formularul</button><span class="muted" id="cooldown-payment-copy-status" role="status" aria-live="polite"></span></div><p class="cooldown-payment-note">Acest formular doar calculează și generează textul. Nu modifică evidența cooldownurilor și nu trimite mesaje.</p></section>`;
 }
 
 function wireCooldownPaymentsEvents() {
@@ -1544,7 +1556,7 @@ function buildTestMarkup(testName, definition, questions) {
     : `${guideBody}${images ? `<div class="test-images">${images}</div>` : ''}`;
   const testAccessControl = testAccessMarkup(testName);
   const headerActions = `<div class="test-guide-header-actions">${testAccessControl}<button class="outline site-guide-frame" id="back-to-tests">← Înapoi</button></div>`;
-  return `<div class="panel view-panel${isSmulsTest ? ' smuls-background-panel' : isAlsTest ? ' als-background-panel' : isAdmissionTest ? ' admission-background-panel' : isTransferTest ? ' transfer-background-panel' : isMotoTest ? ' moto-background-panel' : isPilotTest ? ' pilot-background-panel' : isMedicalCertificate ? ' adeverinta-background-panel' : isParachutismTest ? ' parasutism-background-panel' : ''}"><div class="panel-head"><div><p class="eyebrow">GHID PENTRU TESTER</p><h2>${displayTestName(testName)}</h2></div>${headerActions}</div>${content}${isSmulsTest || isAlsTest ? evaluationStageFlow : ''}${parachutismResultStageFlow}${parachutismPracticalStage}${isSmulsTest ? '<img class="test-corner-logo" src="/logo%20smuls%202.png" alt="Sigla S.M.U.L.S." aria-hidden="true">' : isMotoTest ? '<img class="test-corner-logo" src="/moto%202.png" alt="Sigla Moto" aria-hidden="true">' : isPilotTest ? '<img class="test-corner-logo" src="/logo%20pilot.png" alt="Sigla Pilot" aria-hidden="true">' : isParachutismTest ? '<img class="test-corner-logo" src="/logo%20parasuta.png" alt="Sigla parașutism" aria-hidden="true">' : ''}</div>`;
+  return `<div class="panel view-panel${isSmulsTest ? ' smuls-background-panel' : isAlsTest ? ' als-background-panel' : isAdmissionTest ? ' admission-background-panel' : isTransferTest ? ' transfer-background-panel' : isMotoTest ? ' moto-background-panel' : isPilotTest ? ' pilot-background-panel' : isMedicalCertificate ? ' adeverinta-background-panel' : isParachutismTest ? ' parasutism-background-panel' : ''}"><div class="panel-head"><div><p class="eyebrow">GHID PENTRU TESTER</p><h2>${displayTestName(testName)}</h2></div>${headerActions}</div>${content}${isSmulsTest || isAlsTest ? evaluationStageFlow : ''}${parachutismResultStageFlow}${parachutismPracticalStage}${isAlsTest ? '<img class="test-corner-logo" src="/logo%20als%202.png" alt="Sigla ALS" aria-hidden="true">' : ''}${isSmulsTest ? '<img class="test-corner-logo" src="/logo%20smuls%202.png" alt="Sigla S.M.U.L.S." aria-hidden="true">' : isMotoTest ? '<img class="test-corner-logo" src="/moto%202.png" alt="Sigla Moto" aria-hidden="true">' : isPilotTest ? '<img class="test-corner-logo" src="/logo%20pilot.png" alt="Sigla Pilot" aria-hidden="true">' : isParachutismTest ? '<img class="test-corner-logo" src="/logo%20parasuta.png" alt="Sigla parașutism" aria-hidden="true">' : ''}</div>`;
 }
 function wireTestEvents(testName, definition) {
   const isAdmissionTest = testName === 'Test admitere';
