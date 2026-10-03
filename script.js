@@ -38,6 +38,8 @@ const COOLDOWN_PAYMENT_LABELS = {
   PARASUTIST: 'PARAȘUTIST'
 };
 const ACTIVE_ROUTE_STORAGE_PREFIX = 'medici-active-route:';
+const TEST_PROGRESS_STORAGE_PREFIX = 'medici-test-progress:';
+const COOLDOWN_DRAFT_STORAGE_PREFIX = 'medici-cooldown-draft:';
 const admissionRequirements = ['Verificarea ținutei', 'Verificarea tatuajelor faciale', 'Verificarea cazierului', 'Minimum 50 de ore jucate', 'Controlul cu stetoscopul (amănunțit, în salon)', 'Drug-testul'];
 const motoRequirements = ['Grad Medic-Rezident', 'Certificat S.M.U.L.S.', 'Permis Categoria A'];
 const alsRequirements = ['Verificare BLS', 'Verificare Radio', 'Au trecut minimum 3 zile de la promovarea ultimului test Radio sau BLS', 'Permis categoria B'];
@@ -73,6 +75,86 @@ function validSavedRoute(route) {
   if (route?.view === 'tester-profile' && typeof route.callsign === 'string' && route.callsign) return route;
   return labels[route?.view] ? route : null;
 }
+function testProgressStorageKey(user, testName) {
+  return `${TEST_PROGRESS_STORAGE_PREFIX}${String(user?.discordId || '')}:${testName}`;
+}
+function saveTestProgress(testName) {
+  if (!currentUser?.discordId) return;
+  const panel = viewContent.querySelector('.view-panel');
+  if (!panel) return;
+  const controls = [...panel.querySelectorAll('input:not([type="file"]),select,textarea')].map((control, index) => {
+    const key = control.id || control.dataset.progressKey || `control-${index}`;
+    control.dataset.progressKey = key;
+    return {
+      key,
+      value: control.value,
+      checked: control.type === 'checkbox' || control.type === 'radio' ? control.checked : undefined
+    };
+  });
+  try {
+    localStorage.setItem(testProgressStorageKey(currentUser, testName), JSON.stringify({
+      controls,
+      stage: panel.dataset.progressStage || '',
+      stageIndex: Number(panel.dataset.progressIndex) || 0
+    }));
+  } catch (error) {
+    console.error(`Progress for ${testName} could not be saved:`, error);
+  }
+}
+function restoreTestProgress(testName) {
+  if (!currentUser?.discordId) return null;
+  const progress = readStored(testProgressStorageKey(currentUser, testName), null);
+  if (!progress || !Array.isArray(progress.controls)) return null;
+  const panel = viewContent.querySelector('.view-panel');
+  if (!panel) return null;
+  const controls = [...panel.querySelectorAll('input:not([type="file"]),select,textarea')];
+  controls.forEach((control, index) => {
+    const key = control.id || control.dataset.progressKey || `control-${index}`;
+    control.dataset.progressKey = key;
+    const saved = progress.controls.find(item => item.key === key);
+    if (!saved) return;
+    if (control.type === 'checkbox' || control.type === 'radio') control.checked = Boolean(saved.checked);
+    else if (!control.readOnly) control.value = String(saved.value ?? '');
+  });
+  panel.dataset.progressStage = String(progress.stage || '');
+  panel.dataset.progressIndex = String(Number(progress.stageIndex) || 0);
+  return progress;
+}
+function saveTestProgressStage(testName, stage, stageIndex = 0) {
+  const panel = viewContent.querySelector('.view-panel');
+  if (!panel) return;
+  panel.dataset.progressStage = stage;
+  panel.dataset.progressIndex = String(stageIndex);
+  saveTestProgress(testName);
+}
+function clearTestProgress(testName) {
+  if (!currentUser?.discordId) return;
+  try {
+    localStorage.removeItem(testProgressStorageKey(currentUser, testName));
+  } catch (error) {
+    console.error(`Progress for ${testName} could not be cleared:`, error);
+  }
+}
+function cooldownDraftStorageKey(user) {
+  return `${COOLDOWN_DRAFT_STORAGE_PREFIX}${String(user?.discordId || '')}`;
+}
+function saveCooldownDraft(test, days) {
+  if (!currentUser?.discordId) return;
+  try {
+    if (!test && !days) localStorage.removeItem(cooldownDraftStorageKey(currentUser));
+    else localStorage.setItem(cooldownDraftStorageKey(currentUser), JSON.stringify({ test, days }));
+  } catch (error) {
+    console.error('Cooldown payment draft could not be saved:', error);
+  }
+}
+function clearCooldownDraft() {
+  if (!currentUser?.discordId) return;
+  try {
+    localStorage.removeItem(cooldownDraftStorageKey(currentUser));
+  } catch (error) {
+    console.error('Cooldown payment draft could not be cleared:', error);
+  }
+}
 function cooldownPaymentAmount(test, days) {
   const rate = COOLDOWN_PAYMENT_RATES[test];
   const count = Number(days);
@@ -101,7 +183,7 @@ function cooldownPaymentMessage(member, test, days) {
   const rank = String(member.rank || '').replace(/\s+/g, ' ').trim();
   if (callsignNumber(callsign) < 1 || !/^\d+$/.test(discordId) || !name) return '';
   return [
-    `CANDIDAT: <@${discordId}>`,
+    `CANDIDAT: @[${callsign}] ${name}`,
     `Grad: ${rank || '—'}`,
     `Calificare: ${COOLDOWN_PAYMENT_LABELS[test]}`,
     `Nr. zile: ${Number(days)}`,
@@ -632,7 +714,7 @@ function renderAvailableTestsSubmenu() {
   const bonusNav = document.querySelector('#bonuses-nav');
   if (bonusNav) bonusNav.hidden = !isLeadershipUser(currentUser);
   if (!submenu || !currentUser) return;
-  const selectedTest = window.history.state?.testName;
+  const selectedTest = window.history.state?.view === 'test' ? window.history.state.testName : '';
   const tests = allowedForUser(currentUser);
   submenu.innerHTML = tests.length
           ? tests.map(test => `<button type="button" class="nav-subitem ${selectedTest === test ? 'active' : ''}" data-available-test="${escapeHtml(test)}">${escapeHtml(displayTestName(test))}</button>`).join('')
@@ -696,6 +778,7 @@ function openTesterProfile(member, { push = true, previousView: requestedPreviou
   if (push) window.history.pushState(routeState, '', route);
   else window.history.replaceState(routeState, '', route);
   saveActiveRoute(routeState);
+  renderAvailableTestsSubmenu();
   const profile = { ...member, grantedTests: normalizeGrantBundle([...(member.grantedTests || []), ...docsAssignedTests(member)]) };
   document.querySelector('#overview-view').hidden = true;
   document.querySelector('#overview-view').style.display = 'none';
@@ -952,11 +1035,11 @@ function activeBonusPeriodIndex(now = new Date()) {
     });
   }
 function renderCooldownPaymentsView() {
-  const callsign = String(callsignNumber(currentUser?.callsign || currentUser?.callSign || '') || '');
+  const draft = readStored(cooldownDraftStorageKey(currentUser), {}) || {};
   const testOptions = Object.entries(COOLDOWN_PAYMENT_LABELS)
-    .map(([value, label]) => `<option value="${value}">${label} — ${new Intl.NumberFormat('ro-RO').format(COOLDOWN_PAYMENT_RATES[value])}$/zi</option>`)
+    .map(([value, label]) => `<option value="${value}" ${draft.test === value ? 'selected' : ''}>${label} — ${new Intl.NumberFormat('ro-RO').format(COOLDOWN_PAYMENT_RATES[value])}$/zi</option>`)
     .join('');
-  return `<section class="panel cooldown-payment-panel"><div class="panel-head"><div><p class="eyebrow">MODEL DE COPIAT</p><h2>Cooldownuri preluate</h2><p class="muted">Completează callsign-ul persoanei care plătește. Datele se preiau din director, iar testerul aplică manual cooldown-ul.</p></div></div><div class="cooldown-payment-grid"><label>Callsign plătitor<span class="cooldown-callsign-input"><span aria-hidden="true">M-</span><input id="cooldown-payer-callsign" type="text" value="${escapeHtml(callsign)}" placeholder="507" inputmode="numeric" pattern="[0-9]*" autocomplete="off" aria-label="Numărul callsign-ului plătitor, prefixul M este adăugat automat"></span></label><label>Calificare<select id="cooldown-payment-test"><option value="">Alege testul</option>${testOptions}</select></label><label>Număr zile<input id="cooldown-payment-days" type="number" min="1" max="5" step="1" inputmode="numeric" placeholder="3"></label></div><p class="cooldown-payer-status muted" id="cooldown-payer-status" role="status" aria-live="polite">Introdu numărul callsign-ului. Prefixul M- este adăugat automat.</p><dl class="cooldown-payer-details" id="cooldown-payer-details" hidden><div><dt>NUME</dt><dd id="cooldown-payer-name">—</dd></div><div><dt>GRAD</dt><dd id="cooldown-payer-rank">—</dd></div><div><dt>DISCORD ID</dt><dd id="cooldown-payer-discord">—</dd></div><div><dt>PREȚ / ZI</dt><dd id="cooldown-payment-rate">—</dd></div><div><dt>TOTAL</dt><dd id="cooldown-payment-total">—</dd></div></dl><label class="cooldown-payment-model-label">Model pentru Discord<textarea id="cooldown-payment-model" rows="6" readonly placeholder="Modelul complet va apărea aici după ce alegi callsign-ul, testul și numărul de zile."></textarea></label><div class="cooldown-payment-actions"><button class="primary" id="cooldown-payment-copy" type="button" disabled>Copiază modelul</button><span class="muted" id="cooldown-payment-copy-status" role="status" aria-live="polite"></span></div><p class="cooldown-payment-note">Acest formular doar calculează și generează textul. Nu modifică evidența cooldownurilor și nu trimite mesaje.</p></section>`;
+  return `<section class="panel cooldown-payment-panel"><div class="panel-head"><div><p class="eyebrow">MODEL DE COPIAT</p><h2>Cooldownuri preluate</h2><p class="muted">Completează callsign-ul persoanei care plătește. Datele se preiau din director, iar testerul aplică manual cooldown-ul.</p></div></div><div class="cooldown-payment-grid"><label>Callsign plătitor<span class="cooldown-callsign-input"><span aria-hidden="true">M-</span><input id="cooldown-payer-callsign" type="text" value="" placeholder="507" inputmode="numeric" pattern="[0-9]*" autocomplete="off" aria-label="Numărul callsign-ului plătitor, prefixul M este adăugat automat"></span></label><label>Calificare<select id="cooldown-payment-test"><option value="">Alege testul</option>${testOptions}</select></label><label>Număr zile<input id="cooldown-payment-days" type="number" min="1" max="5" step="1" inputmode="numeric" value="${escapeHtml(draft.days || '')}" placeholder="3"></label></div><p class="cooldown-payer-status muted" id="cooldown-payer-status" role="status" aria-live="polite">Introdu numărul callsign-ului. Prefixul M- este adăugat automat.</p><dl class="cooldown-payer-details" id="cooldown-payer-details" hidden><div><dt>NUME</dt><dd id="cooldown-payer-name">—</dd></div><div><dt>GRAD</dt><dd id="cooldown-payer-rank">—</dd></div><div><dt>DISCORD ID</dt><dd id="cooldown-payer-discord">—</dd></div><div><dt>PREȚ / ZI</dt><dd id="cooldown-payment-rate">—</dd></div><div><dt>TOTAL</dt><dd id="cooldown-payment-total">—</dd></div></dl><label class="cooldown-payment-model-label">Model pentru Discord<textarea id="cooldown-payment-model" rows="6" readonly placeholder="Modelul complet va apărea aici după ce alegi callsign-ul, testul și numărul de zile."></textarea></label><div class="cooldown-payment-actions"><button class="primary" id="cooldown-payment-copy" type="button" disabled>Copiază modelul</button><button class="outline" id="cooldown-payment-reset" type="button">Resetează formularul</button><span class="muted" id="cooldown-payment-copy-status" role="status" aria-live="polite"></span></div><p class="cooldown-payment-note">Acest formular doar calculează și generează textul. Nu modifică evidența cooldownurilor și nu trimite mesaje.</p></section>`;
 }
 
 function wireCooldownPaymentsEvents() {
@@ -967,7 +1050,8 @@ function wireCooldownPaymentsEvents() {
   const copyStatus = document.querySelector('#cooldown-payment-copy-status');
   const model = document.querySelector('#cooldown-payment-model');
   const copyButton = document.querySelector('#cooldown-payment-copy');
-  if (!callsignInput || !testSelect || !daysInput || !payerStatus || !copyStatus || !model || !copyButton) return;
+  const resetButton = document.querySelector('#cooldown-payment-reset');
+  if (!callsignInput || !testSelect || !daysInput || !payerStatus || !copyStatus || !model || !copyButton || !resetButton) return;
 
   const update = () => {
     callsignInput.value = callsignInput.value.replace(/\D/g, '');
@@ -976,6 +1060,7 @@ function wireCooldownPaymentsEvents() {
     const indexedPayer = cooldownPaymentPayerForCallsign(enteredCallsign, cooldownPayerMembers);
     const test = testSelect.value;
     const days = daysInput.value;
+    saveCooldownDraft(test, days);
     const maxDays = cooldownPaymentMaxDays(test);
     daysInput.max = String(maxDays || 5);
     const rate = COOLDOWN_PAYMENT_RATES[test];
@@ -1004,6 +1089,13 @@ function wireCooldownPaymentsEvents() {
   callsignInput.addEventListener('input', update);
   testSelect.addEventListener('change', update);
   daysInput.addEventListener('input', update);
+  resetButton.addEventListener('click', () => {
+    callsignInput.value = '';
+    testSelect.value = '';
+    daysInput.value = '';
+    clearCooldownDraft();
+    update();
+  });
   update();
   loadCooldownPayers().then(update).catch(error => {
     payerStatus.textContent = error.message;
@@ -1068,12 +1160,16 @@ function openTest(testName, { push = true, previousView: requestedPreviousView }
   document.querySelector('#overview-view').style.display = 'none';
   viewContent.hidden = false;
   viewContent.style.display = 'block';
+  renderAvailableTestsSubmenu();
   document.querySelector('#section-label').textContent = 'Site Testeri';
   document.querySelector('#page-label').textContent = displayTestName(testName);
   document.querySelectorAll('.nav-item').forEach(item => item.classList.toggle('active', item.id === 'available-tests-toggle'));
   document.querySelectorAll('[data-available-test]').forEach(item => item.classList.toggle('active', item.dataset.availableTest === testName));
   document.querySelector('.sidebar').classList.remove('open');
   viewContent.innerHTML = buildTestMarkup(testName, definition, questions);
+  const panel = viewContent.querySelector('.view-panel');
+  panel?.addEventListener('input', () => saveTestProgress(testName));
+  panel?.addEventListener('change', () => saveTestProgress(testName));
   wireTestAccessEvents();
   wireTestEvents(testName, definition);
 }
@@ -1409,7 +1505,7 @@ function buildTestMarkup(testName, definition, questions) {
   const candidateCallsign = isApplicationTest || isMedicalCertificate ? '' : '<label class="candidate-call-sign">Callsign candidat<input id="candidate-callsign" type="text" placeholder="510 sau M-510"><span id="candidate-callsign-error" class="candidate-callsign-error" role="alert" hidden></span></label>';
   const candidateNameField = ['Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști'].includes(testName) ? '<label class="candidate-call-sign">Nume candidat<input id="als-candidate-name" type="text" autocomplete="name" readonly placeholder="Se completează după callsign"></label>' : '';
   const candidateIdentityFields = candidateCallsign || candidateNameField
-    ? `<section class="candidate-identity-fields site-guide-frame">${candidateCallsign}${candidateNameField}${isPilotTest ? '<div id="pilot-cooldown" class="pilot-cooldown" role="status" hidden></div>' : ''}</section>`
+    ? `<section class="candidate-identity-fields site-guide-frame">${candidateCallsign}${candidateNameField}${['Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști'].includes(testName) ? '<div id="candidate-cooldown" class="candidate-cooldown" role="status" hidden></div>' : ''}</section>`
     : '';
   const candidateIdentityBeforeChecks = isMotoTest || isSmulsTest || isAlsTest || isParachutismTest || isPilotTest ? candidateIdentityFields : '';
   const candidateIdentityInQuiz = isMotoTest || isSmulsTest || isAlsTest || isParachutismTest || isPilotTest ? '' : candidateIdentityFields;
@@ -1460,8 +1556,25 @@ function wireTestEvents(testName, definition) {
   const isSmulsTest = testName === 'Test SMULS';
   const isMedicalCertificate = testName === 'Adeverință medicală';
   const isApplicationTest = isAdmissionTest || testName === 'Test transfer';
+  const restoredProgress = restoreTestProgress(testName);
+  let restoreSavedTestStage = () => {};
+  let restoreSavedStageUI = () => {};
   let candidateCooldowns = {};
   let candidateCooldownMessage = '';
+  const finishRestoredStage = async (stageFlow, finalResult) => {
+    stageFlow.querySelectorAll('button').forEach(button => { button.disabled = true; });
+    stageFlow.innerHTML = '<p class="muted">Se înregistrează rezultatul...</p>';
+    const candidateCallsign = document.querySelector('#candidate-callsign')?.value?.trim() || '';
+    const candidateName = document.querySelector('#als-candidate-name')?.value?.trim() || '';
+    try {
+      const saved = await recordTestRun(testName, finalResult, { candidateCallsign, candidateName });
+      clearTestProgress(testName);
+      const notificationStatus = saved.discordNotificationsSent ? 'Notificarea Discord a fost trimisă.' : `Notificarea Discord nu a fost trimisă. ${saved.discordNotificationError || ''}`;
+      stageFlow.innerHTML = `<pre class="candidate-summary">Test: ${escapeHtml(displayTestName(testName))}\nCandidat: ${escapeHtml(candidateName)}\nCallsign: ${escapeHtml(candidateCallsign)}\nRezultat: ${finalResult}</pre><p class="muted">Testul a fost înregistrat. ${escapeHtml(notificationStatus)}</p>`;
+    } catch (error) {
+      stageFlow.innerHTML = `<p class="error-text">Rezultatul nu s-a putut înregistra: ${escapeHtml(error.message)}</p>`;
+    }
+  };
   document.querySelector('#back-to-tests').onclick = () => {
     if (window.history.state?.view === 'test') window.history.back();
     else navigateTo('overview');
@@ -1567,6 +1680,7 @@ function wireTestEvents(testName, definition) {
       const candidateName = document.querySelector('#als-candidate-name')?.value?.trim() || '';
       try {
         const saved = await recordTestRun(testName, finalResult, { candidateCallsign, candidateName });
+        clearTestProgress(testName);
         const notificationStatus = saved.discordNotificationsSent ? 'Notificarea Discord a fost trimisă.' : `Notificarea Discord nu a fost trimisă. ${saved.discordNotificationError || ''}`;
         stageFlow.innerHTML = `<pre class="candidate-summary">Test: ${escapeHtml(displayTestName(testName))}\nCandidat: ${escapeHtml(candidateName)}\nCallsign: ${escapeHtml(candidateCallsign)}\nRezultat: ${finalResult}</pre><p class="muted">Testul a fost înregistrat. ${escapeHtml(notificationStatus)}</p>`;
       } catch (error) {
@@ -1583,6 +1697,7 @@ function wireTestEvents(testName, definition) {
       stageFlow.innerHTML = routeImages
         ? `<div class="smuls-offroad-layout"><div>${offroadCard}</div><aside class="test-map-column">${routeImages}</aside></div>`
         : offroadCard;
+      saveTestProgressStage(testName, 'smuls-offroad');
       stageFlow.scrollIntoView({ behavior: 'smooth', block: 'start' });
       stageFlow.querySelectorAll('[data-evaluation-result]').forEach(button => button.onclick = async () => finishSmulsTest(button.dataset.evaluationResult));
     };
@@ -1605,6 +1720,7 @@ function wireTestEvents(testName, definition) {
       document.querySelector('.view-panel')?.classList.add('smuls-stage-active');
       stageFlow.hidden = false;
       stageFlow.innerHTML = smulsCaseListHtml(definition.cases, definition.descarcerationImages);
+      saveTestProgressStage(testName, 'smuls-cases');
       stageFlow.scrollIntoView({ behavior: 'smooth', block: 'start' });
       stageFlow.querySelectorAll('[data-smuls-descarceration-result]').forEach(button => button.onclick = async () => {
         if (button.dataset.smulsDescarcerationResult === 'Respins') await finishSmulsTest('Respins');
@@ -1613,6 +1729,24 @@ function wireTestEvents(testName, definition) {
     };
     checks.forEach(check => check.onchange = refreshSmulsStageGate);
     refreshSmulsStageGate();
+    restoreSavedTestStage = progress => {
+      if (!['smuls-cases', 'smuls-offroad'].includes(progress?.stage)) return;
+      stageOpened = true;
+      checks.forEach(check => { check.disabled = true; });
+      document.querySelector('#candidate-callsign').disabled = true;
+      document.querySelector('#als-candidate-name').disabled = true;
+      document.querySelector('.view-panel')?.classList.add('smuls-stage-active');
+      stageFlow.hidden = false;
+      if (progress.stage === 'smuls-offroad') showOffroadStage();
+      else {
+        stageFlow.innerHTML = smulsCaseListHtml(definition.cases, definition.descarcerationImages);
+        saveTestProgressStage(testName, 'smuls-cases');
+        stageFlow.querySelectorAll('[data-smuls-descarceration-result]').forEach(button => button.onclick = async () => {
+          if (button.dataset.smulsDescarcerationResult === 'Respins') await finishRestoredStage(stageFlow, 'Respins');
+          else showOffroadStage();
+        });
+      }
+    };
   }
   let refreshAlsStageGate = () => {};
   if (isAlsTest) {
@@ -1626,6 +1760,7 @@ function wireTestEvents(testName, definition) {
       const candidateName = document.querySelector('#als-candidate-name')?.value?.trim() || '';
       try {
         const saved = await recordTestRun(testName, finalResult, { candidateCallsign, candidateName });
+        clearTestProgress(testName);
         const notificationStatus = saved.discordNotificationsSent ? 'Notificarea Discord a fost trimisă.' : `Notificarea Discord nu a fost trimisă. ${saved.discordNotificationError || ''}`;
         stageFlow.innerHTML = `<pre class="candidate-summary">Test: ${escapeHtml(displayTestName(testName))}\nCandidat: ${escapeHtml(candidateName)}\nCallsign: ${escapeHtml(candidateCallsign)}\nRezultat: ${finalResult}</pre><p class="muted">Testul a fost înregistrat. ${escapeHtml(notificationStatus)}</p>`;
       } catch (error) {
@@ -1651,11 +1786,24 @@ function wireTestEvents(testName, definition) {
       document.querySelector('.view-panel')?.classList.add('als-stage-active');
       stageFlow.hidden = false;
       stageFlow.innerHTML = alsCaseListHtml(definition.cases);
+      saveTestProgressStage(testName, 'als-cases');
       stageFlow.scrollIntoView({ behavior: 'smooth', block: 'start' });
       stageFlow.querySelectorAll('[data-als-result]').forEach(button => button.onclick = async () => finishAlsTest(button.dataset.alsResult));
     };
     checks.forEach(check => check.onchange = refreshAlsStageGate);
     refreshAlsStageGate();
+    restoreSavedTestStage = progress => {
+      if (progress?.stage !== 'als-cases') return;
+      stageOpened = true;
+      checks.forEach(check => { check.disabled = true; });
+      document.querySelector('#candidate-callsign').disabled = true;
+      document.querySelector('#als-candidate-name').disabled = true;
+      document.querySelector('.view-panel')?.classList.add('als-stage-active');
+      stageFlow.hidden = false;
+      stageFlow.innerHTML = alsCaseListHtml(definition.cases);
+      saveTestProgressStage(testName, 'als-cases');
+      stageFlow.querySelectorAll('[data-als-result]').forEach(button => button.onclick = async () => finishRestoredStage(stageFlow, button.dataset.alsResult));
+    };
   }
   const caseSelect = document.querySelector('#case-select'); const caseSteps = document.querySelector('#case-steps');
   const renderCase = () => { if (!caseSelect || !caseSteps) return; const item = definition.cases[Number(caseSelect.value)]; caseSteps.innerHTML = `<h3>${item.title}</h3><p>Minimum interacțiuni: ${item.minimumMe || 0} /me</p><ol>${item.steps.map(step => `<li>${step}</li>`).join('')}</ol>`; }; if (caseSelect) { caseSelect.onchange = renderCase; renderCase(); }
@@ -1731,27 +1879,27 @@ function wireTestEvents(testName, definition) {
   let candidateLookupSequence = 0;
   let refreshParachutismTheoryGate = () => {};
   let refreshPilotTheoryGate = () => {};
-  let pilotCooldownTimer;
-  const pilotCooldownEl = document.querySelector('#pilot-cooldown');
-  const stopPilotCooldown = () => {
-    clearInterval(pilotCooldownTimer);
-    if (pilotCooldownEl) { pilotCooldownEl.hidden = true; pilotCooldownEl.textContent = ''; }
+  let candidateCooldownTimer;
+  const candidateCooldownEl = document.querySelector('#candidate-cooldown');
+  const stopCandidateCooldown = () => {
+    clearInterval(candidateCooldownTimer);
+    if (candidateCooldownEl) { candidateCooldownEl.hidden = true; candidateCooldownEl.textContent = ''; }
     const license = document.querySelector('[data-pilot-license-check]');
     if (license) license.disabled = false;
   };
-  const startPilotCooldown = (expiry, expiryDate) => {
+  const startCandidateCooldown = (expiry, expiryDate) => {
     const license = document.querySelector('[data-pilot-license-check]');
     if (license) { license.checked = false; license.disabled = true; }
     const render = () => {
       const left = expiry - Date.now();
-      if (left <= 0) { candidateCooldownMessage = ''; stopPilotCooldown(); refreshPilotTheoryGate(); return; }
+      if (left <= 0) { candidateCooldownMessage = ''; stopCandidateCooldown(); candidateInput?.dispatchEvent(new Event('input', { bubbles: true })); return; }
       const days = Math.floor(left / 86400000), hours = Math.floor(left % 86400000 / 3600000), minutes = Math.floor(left % 3600000 / 60000);
       const parts = [days ? `${days} ${days === 1 ? 'zi' : 'zile'}` : '', `${hours} ${hours === 1 ? 'oră' : 'ore'}`, `${minutes} ${minutes === 1 ? 'minut' : 'minute'}`].filter(Boolean);
-      if (pilotCooldownEl) { pilotCooldownEl.textContent = `⏳ Candidatul are cooldown pentru Test PILOT până pe ${expiryDate}. Mai are ${parts.join(', ')} până poate da testul.`; pilotCooldownEl.hidden = false; }
+      if (candidateCooldownEl) { candidateCooldownEl.textContent = `Candidatul are cooldown pentru ${displayTestName(testName)} până pe ${expiryDate}. Mai are ${parts.join(', ')} până poate da testul.`; candidateCooldownEl.hidden = false; }
     };
     render();
-    clearInterval(pilotCooldownTimer);
-    pilotCooldownTimer = setInterval(() => { if (!document.body.contains(pilotCooldownEl)) clearInterval(pilotCooldownTimer); else render(); }, 30000);
+    clearInterval(candidateCooldownTimer);
+    candidateCooldownTimer = setInterval(() => { if (!document.body.contains(candidateCooldownEl)) clearInterval(candidateCooldownTimer); else render(); }, 30000);
     refreshPilotTheoryGate();
   };
   if (candidateInput && !isApplicationTest) candidateInput.oninput = () => {
@@ -1760,7 +1908,7 @@ function wireTestEvents(testName, definition) {
     const callsign = candidateInput.value.trim();
     candidateCooldowns = {};
     candidateCooldownMessage = '';
-    stopPilotCooldown();
+    stopCandidateCooldown();
     showCandidateCallsignError('');
     if (isPilotTest) { const content = document.querySelector('#pilot-test-content'); if (content) content.hidden = true; }
     if (isMotoTest) { const content = document.querySelector('#moto-test-content'); if (content) content.hidden = true; }
@@ -1791,15 +1939,11 @@ function wireTestEvents(testName, definition) {
         candidateCooldowns = candidate.cooldowns || {};
         if (candidateSummaryEl) candidateSummaryEl.textContent = `Candidat: @[${normalizeCallsign(candidate.callsign)}] ${candidate.name}`;
         const activeCooldown = candidateCooldowns[testName];
-        if (isPilotTest && activeCooldown && activeCooldown > Date.now()) {
+        if (activeCooldown && activeCooldown > Date.now()) {
           const expiryDate = new Date(activeCooldown).toLocaleDateString('ro-RO', { timeZone: 'Europe/Bucharest', day: '2-digit', month: '2-digit', year: 'numeric' });
           candidateCooldownMessage = `CD activ pentru ${displayTestName(testName)} până pe ${expiryDate}. Testarea nu poate continua.`;
-          if (candidateSummaryEl) candidateSummaryEl.textContent = '';
-          startPilotCooldown(activeCooldown, expiryDate);
-        } else if (activeCooldown && activeCooldown > Date.now()) {
-          const expiryDate = new Date(activeCooldown).toLocaleDateString('ro-RO', { timeZone: 'Europe/Bucharest', day: '2-digit', month: '2-digit', year: 'numeric' });
-          candidateCooldownMessage = `CD activ pentru ${displayTestName(testName)} până pe ${expiryDate}. Testarea nu poate continua.`;
-          if (candidateSummaryEl) candidateSummaryEl.textContent += `\n${candidateCooldownMessage}`;
+          if (candidateSummaryEl) candidateSummaryEl.textContent = candidateCooldownMessage;
+          startCandidateCooldown(activeCooldown, expiryDate);
         }
         if (isSmulsTest) refreshSmulsStageGate();
         if (isAlsTest) refreshAlsStageGate();
@@ -1811,6 +1955,7 @@ function wireTestEvents(testName, definition) {
           if (testContent && candidateCooldownMessage) testContent.hidden = true;
           else if (testContent) testContent.hidden = !motoChecksComplete(checks.map(check => check.checked)) || !candidate.name;
         }
+        if (restoredProgress && !candidateCooldownMessage) restoreSavedStageUI(restoredProgress);
       } catch (error) {
         if (sequence === candidateLookupSequence && candidateSummaryEl) candidateSummaryEl.textContent = error.message;
         if (sequence === candidateLookupSequence && isParachutismTest) refreshParachutismTheoryGate();
@@ -1936,6 +2081,7 @@ function wireTestEvents(testName, definition) {
         output.innerHTML = '<p class="muted">Se înregistrează rezultatul...</p>';
         try {
           const saved = await recordTestRun(testName, finalResult, submissionDetails);
+          clearTestProgress(testName);
           const candidateCallsign = submissionDetails.candidateCallsign || '—';
           const candidateName = submissionDetails.candidateName || '—';
           const notificationStatus = saved.discordNotificationsSent ? 'Notificarea Discord a fost trimisă.' : `Notificarea Discord nu a fost trimisă. ${saved.discordNotificationError || ''}`;
@@ -1957,6 +2103,7 @@ function wireTestEvents(testName, definition) {
       }
       document.querySelector('.view-panel')?.classList.add('parachutism-stage-active');
       practicalStage.hidden = false;
+      saveTestProgressStage(testName, 'parachutism-practical');
       practicalStage.scrollIntoView({ behavior: 'smooth', block: 'start' });
       practicalStage.querySelectorAll('[data-parachutism-final-result]').forEach(button => {
         button.onclick = async () => {
@@ -1976,6 +2123,7 @@ function wireTestEvents(testName, definition) {
         stageFlow.innerHTML = '<p class="muted">Se înregistrează rezultatul...</p>';
         try {
           const saved = await recordTestRun(testName, finalResult, submissionDetails);
+          clearTestProgress(testName);
           const candidate = candidateInput?.value?.trim() || '—';
           const candidateName = alsCandidateNameInput?.value?.trim() || '—';
           const notificationStatus = saved.discordNotificationsSent ? 'Notificarea Discord a fost trimisă.' : `Notificarea Discord nu a fost trimisă. ${saved.discordNotificationError || ''}`;
@@ -1999,6 +2147,7 @@ function wireTestEvents(testName, definition) {
             : [{ result: 'Admis', text: `Admis Proba ${stageIndex + 2}` }, { result: 'Respins', text: `Respins Proba ${stageIndex + 2}` }];
           stageFlow.replaceChildren();
           stageFlow.innerHTML = evaluationStageHtml(stage, verdicts);
+          saveTestProgressStage(testName, 'pilot-stage', stageIndex);
           stageFlow.scrollIntoView({ behavior: 'smooth', block: 'start' });
           stageFlow.querySelectorAll('[data-evaluation-result]').forEach(button => button.onclick = async () => {
             if (button.dataset.evaluationResult === 'Respins') { await finishStagedTest('Respins'); return; }
@@ -2020,6 +2169,7 @@ function wireTestEvents(testName, definition) {
           { result: 'Admis', text: 'Admis Proba 2' },
           { result: 'Respins', text: 'Respins Proba 2' }
         ]);
+        saveTestProgressStage(testName, 'moto-practical');
         stageFlow.scrollIntoView({ behavior: 'smooth', block: 'start' });
         stageFlow.querySelectorAll('[data-evaluation-result]').forEach(button => button.onclick = async () => finishStagedTest(button.dataset.evaluationResult));
         return;
@@ -2028,6 +2178,7 @@ function wireTestEvents(testName, definition) {
       form.closest('.view-panel')?.classList.add('smuls-stage-active');
       if (result === 'Respins') { await finishStagedTest('Respins'); return; }
       stageFlow.innerHTML = smulsCaseListHtml(definition.cases, definition.descarcerationImages);
+      saveTestProgressStage(testName, 'smuls-cases');
       stageFlow.scrollIntoView({ behavior: 'smooth', block: 'start' });
       stageFlow.querySelectorAll('[data-smuls-descarceration-result]').forEach(button => button.onclick = async () => {
         if (button.dataset.smulsDescarcerationResult === 'Respins') { await finishStagedTest('Respins'); return; }
@@ -2039,6 +2190,7 @@ function wireTestEvents(testName, definition) {
         stageFlow.innerHTML = routeImages
           ? `<div class="smuls-offroad-layout"><div>${offroadCard}</div><aside class="test-map-column">${routeImages}</aside></div>`
           : offroadCard;
+        saveTestProgressStage(testName, 'smuls-offroad');
         stageFlow.scrollIntoView({ behavior: 'smooth', block: 'start' });
         stageFlow.querySelectorAll('[data-evaluation-result]').forEach(resultButton => resultButton.onclick = async () => finishStagedTest(resultButton.dataset.evaluationResult));
       });
@@ -2047,6 +2199,7 @@ function wireTestEvents(testName, definition) {
     let certificateNumber = null;
     try {
       const saved = await recordTestRun(testName, result, submissionDetails);
+      clearTestProgress(testName);
       if ((isApplicationTest || isMedicalCertificate || Object.hasOwn({ 'Test ALS': true, 'Test SMULS': true, 'Test MOTO': true, 'Test PILOT': true, 'Test parașutiști': true }, testName)) && !saved.discordNotificationsSent) status = `Rezultatul a fost salvat, dar notificările Discord nu au fost trimise. ${saved.discordNotificationError || 'Verifică setările webhook.'}`;
       if (isMedicalCertificate) {
         certificateNumber = saved.certificateNumber;
@@ -2070,6 +2223,70 @@ function wireTestEvents(testName, definition) {
       try { await recordTestRun(testName); status.textContent = 'Testul a fost înregistrat.'; }
       catch (error) { status.textContent = error.message; button.disabled = false; }
     };
+  }
+  if (restoredProgress) {
+    const panel = viewContent.querySelector('.view-panel');
+    panel?.querySelectorAll('input[type="checkbox"],input[type="radio"],select').forEach(control => {
+      control.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    candidateInput?.dispatchEvent(new Event('input', { bubbles: true }));
+    restoreSavedStageUI = progress => {
+    if (progress.stage === 'pilot-stage') {
+      const form = document.querySelector('#test-form');
+      const stageFlow = document.querySelector('#evaluation-stage-flow');
+      const stages = window.MEDICAL_TESTS?.['Test PILOT']?.evaluationStages || definition.evaluationStages || [];
+      if (form && stageFlow && stages.length) {
+        form.hidden = true;
+        form.querySelectorAll('input,button').forEach(input => { input.disabled = true; });
+        panel?.classList.add('pilot-stage-active');
+        stageFlow.hidden = false;
+        const render = stageIndex => {
+          const index = Math.min(Math.max(0, progress.stageIndex + (stageIndex || 0)), stages.length - 1);
+          const isFinalStage = index === stages.length - 1;
+          const stage = stages[index];
+          const verdicts = isFinalStage
+            ? [{ result: 'Admis', text: 'Admis test Pilot' }, { result: 'Respins', text: 'Respins Test pilot' }]
+            : [{ result: 'Admis', text: `Admis Proba ${index + 2}` }, { result: 'Respins', text: `Respins Proba ${index + 2}` }];
+          stageFlow.innerHTML = evaluationStageHtml(stage, verdicts);
+          saveTestProgressStage(testName, 'pilot-stage', index);
+          stageFlow.querySelectorAll('[data-evaluation-result]').forEach(button => button.onclick = async () => {
+            if (button.dataset.evaluationResult === 'Respins' || isFinalStage) await finishRestoredStage(stageFlow, button.dataset.evaluationResult);
+            else {
+              progress.stageIndex = index + 1;
+              render(0);
+            }
+          });
+        };
+        render(0);
+      }
+    } else if (progress.stage === 'moto-practical') {
+      const form = document.querySelector('#test-form');
+      const stageFlow = document.querySelector('#evaluation-stage-flow');
+      if (form && stageFlow) {
+        form.hidden = true;
+        form.querySelectorAll('input,button').forEach(input => { input.disabled = true; });
+        panel?.classList.add('moto-stage-active');
+        stageFlow.hidden = false;
+        stageFlow.innerHTML = evaluationStageHtml(definition.practicalStage, [
+          { result: 'Admis', text: 'Admis Proba 2' },
+          { result: 'Respins', text: 'Respins Proba 2' }
+        ]);
+        saveTestProgressStage(testName, 'moto-practical');
+        stageFlow.querySelectorAll('[data-evaluation-result]').forEach(button => button.onclick = async () => finishRestoredStage(stageFlow, button.dataset.evaluationResult));
+      }
+    } else if (progress.stage === 'parachutism-practical') {
+      const form = document.querySelector('#test-form');
+      const practicalStage = document.querySelector('#parachutism-practical-stage');
+      if (form && practicalStage) {
+        form.hidden = true;
+        panel?.classList.add('parachutism-stage-active');
+        practicalStage.hidden = false;
+        practicalStage.querySelectorAll('[data-parachutism-final-result]').forEach(button => button.onclick = async () => finishRestoredStage(practicalStage, button.dataset.parachutismFinalResult));
+      }
+    }
+      restoreSavedTestStage(progress);
+    };
+    if (!candidateInput || !restoredProgress.stage) restoreSavedStageUI(restoredProgress);
   }
 }
 renderRows();
@@ -2243,7 +2460,7 @@ document.addEventListener('click', event => {
   lastVerdictPressAt = Date.now();
 }, true);
 document.addEventListener('click', event => { if (testFilterMenu && !testFilterMenu.hidden && !document.querySelector('#test-filter')?.contains(event.target)) { testFilterMenu.hidden = true; testFilterBtn?.setAttribute('aria-expanded', 'false'); } });
-testerGroups?.addEventListener('click', event => { const button = event.target.closest('[data-member-menu]'); if (!button) return; const member = testers.find(item => normalizeCallsign(item.callsign) === button.dataset.memberMenu); if (member) { selectedMember = member; openAddModal(member); } }); rows?.addEventListener('click', event => { const button = event.target.closest('[data-member-menu]'); if (!button) return; const member = testers.find(item => normalizeCallsign(item.callsign) === button.dataset.memberMenu); if (member) { selectedMember = member; openAddModal(member); } }); document.querySelector('#brand-settings').onclick = () => navigateTo('overview'); document.querySelector('#user-menu').onclick = () => navigateTo('overview'); document.querySelector('#profile-settings').onclick = () => navigateTo('settings'); document.querySelector('#help-btn').onclick = () => alert('Folosește meniul din stânga pentru a naviga.');
+testerGroups?.addEventListener('click', event => { const button = event.target.closest('[data-member-menu]'); if (!button) return; const member = testers.find(item => normalizeCallsign(item.callsign) === button.dataset.memberMenu); if (member) { selectedMember = member; openAddModal(member); } }); rows?.addEventListener('click', event => { const button = event.target.closest('[data-member-menu]'); if (!button) return; const member = testers.find(item => normalizeCallsign(item.callsign) === button.dataset.memberMenu); if (member) { selectedMember = member; openAddModal(member); } }); document.querySelector('#brand-settings').onclick = () => navigateTo('overview'); document.querySelector('#user-menu').onclick = () => navigateTo('overview'); document.querySelector('#profile-settings').onclick = () => navigateTo('settings');
 viewContent.addEventListener('click', event => {
   const button = event.target.closest('[data-member-profile]');
   if (!button || !hasLeadershipCallsign(currentUser)) return;
@@ -2254,7 +2471,7 @@ document.querySelector('#admin-add-tester').addEventListener('click', () => open
 document.querySelector('#admin-remove-tester').addEventListener('click', () => openRemoveModal());
 document.querySelector('#admin-reset-tests').addEventListener('click', resetAllTestCounts);
 document.querySelector('#admin-settings').addEventListener('click', () => navigateTo('settings'));
-document.querySelector('#brand-settings').onclick = () => navigateTo('overview'); document.querySelector('#user-menu').onclick = () => navigateTo('overview'); document.querySelector('#profile-settings').onclick = () => navigateTo('settings'); document.querySelector('#help-btn').onclick = () => alert('Folosește meniul din stânga pentru a naviga.');
+document.querySelector('#brand-settings').onclick = () => navigateTo('overview'); document.querySelector('#user-menu').onclick = () => navigateTo('overview'); document.querySelector('#profile-settings').onclick = () => navigateTo('settings');
 const labels = { overview: 'Profilul tău', testers: 'Testerii departamentului', statistics: 'Statistica Teste', cooldowns: 'Cooldownuri preluate', bonuses: 'Bonusuri', settings: 'Setări' };
 function navigateTo(view, { push = true } = {}) {
   if (view === 'bonuses' && !isLeadershipUser(currentUser)) view = 'overview';
@@ -2270,6 +2487,7 @@ function navigateTo(view, { push = true } = {}) {
   if (push && window.history.state?.view !== view) window.history.pushState({ view }, '', `#${view}`);
   else if (!push && (window.history.state?.view !== view || window.location.hash !== `#${view}`)) window.history.replaceState({ view }, '', `#${view}`);
   saveActiveRoute({ view });
+  renderAvailableTestsSubmenu();
   document.querySelectorAll('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.view === view));
   document.querySelector('#page-label').textContent = labels[view];
   document.querySelector('#section-label').textContent = 'Site Testeri';
@@ -2394,7 +2612,11 @@ async function enterApp(user) {
   sendPresence();
   authScreen.style.display = 'none';
   appShell.classList.add('ready');
-  navigateTo(requestedView || 'overview', { push: false });
+  if (requestedTestName && allowedForUser(currentUser).includes(requestedTestName)) {
+    openTest(requestedTestName, { push: false, previousView: requestedRoute.previousView || 'overview' });
+  } else {
+    navigateTo(requestedView || 'overview', { push: false });
+  }
   try {
     await fetchGlobalTestDefinitions();
     await loadDirectory();

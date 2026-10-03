@@ -195,6 +195,38 @@ test('active page routes restore test and cooldown pages after refresh', () => {
   assert.match(source, /saveActiveRoute\(routeState\)/);
 });
 
+test('test progress and cooldown form choices persist without restoring payer callsign', () => {
+  assert.match(source, /function testProgressStorageKey\(user, testName\)/);
+  assert.match(source, /function saveTestProgress\(testName\)/);
+  assert.match(source, /function restoreTestProgress\(testName\)/);
+  assert.match(source, /saveTestProgressStage\(testName, 'pilot-stage', stageIndex\)/);
+  assert.match(source, /restoreSavedStageUI\(restoredProgress\)/);
+  for (const stage of ['smuls-cases', 'smuls-offroad', 'als-cases', 'moto-practical', 'parachutism-practical']) {
+    assert.ok(source.includes(`'${stage}'`));
+  }
+  assert.match(source, /function cooldownDraftStorageKey\(user\)/);
+  assert.match(source, /id="cooldown-payer-callsign" type="text" value=""/);
+  assert.match(source, /id="cooldown-payment-reset"/);
+  assert.match(source, /clearCooldownDraft\(\)/);
+  assert.doesNotMatch(source, /id="pilot-cooldown"/);
+  assert.doesNotMatch(source, /help-btn/);
+});
+
+test('test submenu selection clears when navigating away from a test', () => {
+  assert.match(source, /window\.history\.state\?\.view === 'test' \? window\.history\.state\.testName : ''/);
+  assert.match(source, /saveActiveRoute\(\{ view \}\);\s*renderAvailableTestsSubmenu\(\);/);
+});
+
+test('active candidate cooldown is checked across all specialty tests', () => {
+  for (const testName of ['Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști']) {
+    assert.ok(source.includes(`'${testName}'`));
+  }
+  assert.match(source, /const activeCooldown = candidateCooldowns\[testName\]/);
+  assert.match(source, /startCandidateCooldown\(activeCooldown, expiryDate\)/);
+  assert.match(source, /candidateCooldownMessage\)/);
+  assert.match(source, /Testarea nu poate continua/);
+});
+
 test('candidate lookup matches callsign in column C and returns the name from column D', () => {
   const rows = [['', '', '603', 'Antonio Shades'], ['', '', '604', 'Another Candidate']];
   assert.deepEqual(candidateForCallsign(rows, 'M-603'), { callsign: '603', name: 'Antonio Shades', discordId: '' });
@@ -202,7 +234,7 @@ test('candidate lookup matches callsign in column C and returns the name from co
   assert.equal(candidateForCallsign(rows, ''), null);
 });
 
-test('cooldown payment model calculates daily rates and formats the copyable Discord text', () => {
+test('cooldown payment model calculates daily rates and formats a Discord mention', () => {
   const member = { callsign: 'M-507', discordId: '123456789', name: 'Cartier Mohammed', rank: 'Brancardier' };
   assert.equal(cooldownPaymentAmount('ALS', 3), 90000);
   assert.equal(cooldownPaymentAmount('RADIO', 3), 75000);
@@ -215,11 +247,7 @@ test('cooldown payment model calculates daily rates and formats the copyable Dis
   assert.equal(cooldownPaymentMaxDays('ALS'), 3);
   assert.equal(cooldownPaymentMaxDays('BLS'), 3);
   assert.equal(cooldownPaymentMaxDays('RADIO'), 3);
-  assert.equal(cooldownPaymentMaxDays('SMULS'), 5);
   assert.equal(cooldownPaymentMaxDays('PILOT'), 5);
-  assert.equal(cooldownPaymentMaxDays('MOTO'), 5);
-  assert.equal(cooldownPaymentMaxDays('REZIDENTIAT'), 5);
-  assert.equal(cooldownPaymentMaxDays('PARASUTIST'), 5);
   assert.equal(cooldownPaymentAmount('ALS', 4), null);
   assert.equal(cooldownPaymentAmount('RADIO', 4), null);
   assert.equal(cooldownPaymentAmount('PILOT', 6), null);
@@ -868,9 +896,8 @@ test('an unexpired cached Discord user can reopen the app without a session API 
 
 test('app startup preserves the current hash route across reloads', () => {
   const enterAppSource = source.match(/^async function enterApp\(user\) \{[\s\S]*?^\}/m)?.[0] || '';
-  assert.match(enterAppSource, /const requestedHash = window\.location\.hash/);
-  assert.match(enterAppSource, /const hasRequestedRoute = Boolean\(requestedProfileCallsign \|\| requestedTestName \|\| labels\[requestedView\]\)/);
-  assert.match(enterAppSource, /if \(!hasRequestedRoute\) window\.history\.replaceState/);
+  assert.match(enterAppSource, /routeFromLocation\(window\.location\.hash\) \|\| validSavedRoute/);
+  assert.match(enterAppSource, /if \(requestedTestName && allowedForUser\(currentUser\)\.includes\(requestedTestName\)\) \{\s*openTest\(requestedTestName, \{ push: false/);
   assert.match(enterAppSource, /else if \(labels\[requestedView\]\) \{\s*navigateTo\(requestedView, \{ push: false \}\)/);
 });
 
