@@ -41,6 +41,19 @@ export function statusFromRow(row) {
   if (status === 'CO CIVIL' || status === 'CO-CIVIL') return 'Co Civil';
   return 'Inactiv';
 }
+export function cooldownPayersFromRows(rows) {
+  return (Array.isArray(rows) ? rows : []).filter(row =>
+    Array.isArray(row) &&
+    callsignNumber(row[2]) >= 1 &&
+    String(row[3] || '').trim() &&
+    /^\d+$/.test(String(row[19] || '').trim())
+  ).map(row => ({
+    discordId: String(row[19]).trim(),
+    name: String(row[3]).trim(),
+    callsign: String(row[2]).trim(),
+    rank: String(row[4] || '').trim()
+  }));
+}
 async function readPublic(range) {
   const key = process.env.GOOGLE_API_KEY;
   if (!key) throw new Error('GOOGLE_API_KEY is not configured');
@@ -65,6 +78,9 @@ export default async function handler(req, res) {
     const members = (await readPublic(MEMBER_RANGE)).slice(1).filter(Array.isArray);
     const requester = members.find(row => String(row[19] || '').trim() === requesterId);
     if (!requester) return json(res, 403, { error: 'Requester is not a department member' });
+    if (req.method === 'GET' && req.query?.view === 'cooldown-payers') {
+      return json(res, 200, { members: cooldownPayersFromRows(members) });
+    }
     if (isAvatarSync) {
       await storeDiscordAvatarHash(avatarRedis, requesterId, avatarHash);
       return json(res, 200, { success: true });

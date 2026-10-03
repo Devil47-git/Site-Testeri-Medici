@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { accessFor, candidateForCallsign, catalog as accessCatalog, coreTests, effectiveTestsForMember, functionsForMember, isLeadership, normalizeTests, testsForFunctions } from '../lib/access/shared.js';
 import { canResetTestCounts, discordTesterMentionPayload, createAdmissionEmbed, createAdmissionTesterComponents, webhookComponentsUrl, createAlsResultEmbed, createSpecialtyResultEmbed, specialtyNotificationDetails, createMedicalCertificateEmbeds, medicalCertificateNumberForRow, bonusEntryFromRow } from '../api/access/test-results.js';
-import { statusFromRow } from '../api/access/directory.js';
+import { cooldownPayersFromRows, statusFromRow } from '../api/access/directory.js';
 import { cooldownIsActive, parseCooldownS } from '../lib/access/cooldowns.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -37,21 +37,21 @@ function extract(name) {
 const catalog = ['Test admitere', 'Test transfer', 'Adeverință medicală', 'Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști'];
 const definitions = Object.fromEntries(catalog.map(n => [n, { name: n, questions: [] }]));
 
-const names = ['callsignNumber', 'bonusTesterCallsign', 'normalizeCallsign', 'isAdmissionChecklistReminder', 'testNameFromHash', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberHasTestAccess', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'processedTestGroups', 'processedTestBadgesHtml', 'sortMembers', 'avatarUrlForMember', 'testTagClass', 'gradeGroupFor', 'mergeTestDefinitions', 'admissionChecklistHtml', 'admissionConsentHtml', 'admissionChecksComplete', 'motoChecksComplete', 'pilotLicenseChecklistHtml', 'alsChecklistHtml', 'alsChecksComplete', 'alsCaseListHtml', 'smulsChecklistHtml', 'smulsChecksComplete', 'smulsCaseListHtml', 'memberStatus', 'testerFunctionsForDisplay', 'isTestFailed', 'canUseAdmittedVerdict', 'startVerdictButtonCooldown', 'maxWrongForTest', 'cachedUserWithinSession', 'questionItemHtml', 'evaluationStageHtml', 'parseIdentityCardText', 'mergeIdentityCardDetails', 'displayTestName', 'departmentCalendarDate', 'latestCompleteBonusPeriodIndex', 'activeBonusPeriodIndex', 'bonusPeriodFor'];
+const names = ['callsignNumber', 'bonusTesterCallsign', 'normalizeCallsign', 'cooldownPaymentAmount', 'cooldownPaymentMaxDays', 'cooldownPaymentPayerForCallsign', 'cooldownPaymentMessage', 'isAdmissionChecklistReminder', 'testNameFromHash', 'routeFromLocation', 'validSavedRoute', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberHasTestAccess', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'processedTestGroups', 'processedTestBadgesHtml', 'sortMembers', 'avatarUrlForMember', 'testTagClass', 'gradeGroupFor', 'mergeTestDefinitions', 'admissionChecklistHtml', 'admissionConsentHtml', 'admissionChecksComplete', 'motoChecksComplete', 'pilotLicenseChecklistHtml', 'alsChecklistHtml', 'alsChecksComplete', 'alsCaseListHtml', 'smulsChecklistHtml', 'smulsChecksComplete', 'smulsCaseListHtml', 'memberStatus', 'testerFunctionsForDisplay', 'isTestFailed', 'canUseAdmittedVerdict', 'startVerdictButtonCooldown', 'maxWrongForTest', 'cachedUserWithinSession', 'questionItemHtml', 'evaluationStageHtml', 'parseIdentityCardText', 'mergeIdentityCardDetails', 'displayTestName', 'departmentCalendarDate', 'latestCompleteBonusPeriodIndex', 'activeBonusPeriodIndex', 'bonusPeriodFor'];
 const srcs = names.map(extract).join('\n');
 const pattern = source.match(/^const RESIDENT_TESTER_PATTERN = .*$/m)?.[0] || 'const RESIDENT_TESTER_PATTERN = /TESTER/;';
 const normalizeTextSrc = extract('normalizeText');
 const escapeHtmlSrc = extract('escapeHtml');
-const fullSrc = `${pattern}\nconst AUTH_SCHEMA_VERSION = 4;\nconst coreTests = ['Test admitere', 'Test transfer', 'Adeverință medicală'];\nconst admissionRequirements = ['Verificarea ținutei', 'Verificarea tatuajelor faciale', 'Verificarea cazierului', 'Minimum 50 de ore jucate', 'Controlul cu stetoscopul (amănunțit, în salon)', 'Drug-testul'];\nconst BONUS_ANCHOR_UTC = Date.UTC(2026, 8, 21);\nconst BONUS_PERIOD_MS = 14 * 24 * 60 * 60 * 1000;\nconst motoRequirements = ['Grad Medic-Rezident', 'Certificat S.M.U.L.S.', 'Permis Categoria A'];\nconst alsRequirements = ['Verificare BLS', 'Verificare Radio', 'Au trecut minimum 3 zile de la promovarea ultimului test Radio sau BLS', 'Permis categoria B'];\n${normalizeTextSrc}\n${escapeHtmlSrc}\n${srcs}`;
+const fullSrc = `${pattern}\nconst AUTH_SCHEMA_VERSION = 4;\nconst coreTests = ['Test admitere', 'Test transfer', 'Adeverință medicală'];\nconst labels = { overview: 'Profilul tău', testers: 'Testeri', statistics: 'Statistica Teste', cooldowns: 'Cooldownuri preluate', bonuses: 'Bonusuri', settings: 'Setări' };\nconst COOLDOWN_PAYMENT_RATES = { RADIO: 25000, BLS: 30000, ALS: 30000, SMULS: 30000, PILOT: 30000, MOTO: 25000, REZIDENTIAT: 35000, PARASUTIST: 30000 };\nconst COOLDOWN_PAYMENT_LABELS = { RADIO: 'RADIO', BLS: 'BLS', ALS: 'ALS', SMULS: 'SMULS', PILOT: 'PILOT', MOTO: 'MOTO', REZIDENTIAT: 'REZIDENTIAT', PARASUTIST: 'PARAȘUTIST' };\nconst admissionRequirements = ['Verificarea ținutei', 'Verificarea tatuajelor faciale', 'Verificarea cazierului', 'Minimum 50 de ore jucate', 'Controlul cu stetoscopul (amănunțit, în salon)', 'Drug-testul'];\nconst BONUS_ANCHOR_UTC = Date.UTC(2026, 8, 21);\nconst BONUS_PERIOD_MS = 14 * 24 * 60 * 60 * 1000;\nconst motoRequirements = ['Grad Medic-Rezident', 'Certificat S.M.U.L.S.', 'Permis Categoria A'];\nconst alsRequirements = ['Verificare BLS', 'Verificare Radio', 'Au trecut minimum 3 zile de la promovarea ultimului test Radio sau BLS', 'Permis categoria B'];\n${normalizeTextSrc}\n${escapeHtmlSrc}\n${srcs}`;
 const testSummaryDefinitions = [['Test SMULS'], ['Test MOTO'], ['Test PILOT'], ['Test ALS'], ['Test parașutiști']];
 const load = new Function(
   'catalog',
   'testDefinitions',
   'testSummaryDefinitions',
-  `${fullSrc}\nreturn { callsignNumber, bonusTesterCallsign, normalizeCallsign, isAdmissionChecklistReminder, testNameFromHash, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, processedTestGroups, processedTestBadgesHtml, sortMembers, avatarUrlForMember, testTagClass, gradeGroupFor, mergeTestDefinitions, admissionChecklistHtml, admissionConsentHtml, admissionChecksComplete, motoChecksComplete, pilotLicenseChecklistHtml, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, canUseAdmittedVerdict, startVerdictButtonCooldown, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, departmentCalendarDate, latestCompleteBonusPeriodIndex, activeBonusPeriodIndex, bonusPeriodFor };`,
+  `${fullSrc}\nreturn { callsignNumber, bonusTesterCallsign, normalizeCallsign, cooldownPaymentAmount, cooldownPaymentMaxDays, cooldownPaymentPayerForCallsign, cooldownPaymentMessage, isAdmissionChecklistReminder, testNameFromHash, routeFromLocation, validSavedRoute, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, processedTestGroups, processedTestBadgesHtml, sortMembers, avatarUrlForMember, testTagClass, gradeGroupFor, mergeTestDefinitions, admissionChecklistHtml, admissionConsentHtml, admissionChecksComplete, motoChecksComplete, pilotLicenseChecklistHtml, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, canUseAdmittedVerdict, startVerdictButtonCooldown, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, departmentCalendarDate, latestCompleteBonusPeriodIndex, activeBonusPeriodIndex, bonusPeriodFor };`,
 )(catalog, definitions, testSummaryDefinitions);
 
-const { callsignNumber, bonusTesterCallsign, normalizeCallsign, isAdmissionChecklistReminder, testNameFromHash, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, processedTestGroups, processedTestBadgesHtml, sortMembers, avatarUrlForMember, testTagClass, gradeGroupFor, mergeTestDefinitions, admissionChecklistHtml, admissionConsentHtml, admissionChecksComplete, motoChecksComplete, pilotLicenseChecklistHtml, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, canUseAdmittedVerdict, startVerdictButtonCooldown, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, departmentCalendarDate, latestCompleteBonusPeriodIndex, activeBonusPeriodIndex, bonusPeriodFor } = load;
+const { callsignNumber, bonusTesterCallsign, normalizeCallsign, cooldownPaymentAmount, cooldownPaymentMaxDays, cooldownPaymentPayerForCallsign, cooldownPaymentMessage, isAdmissionChecklistReminder, testNameFromHash, routeFromLocation, validSavedRoute, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, processedTestGroups, processedTestBadgesHtml, sortMembers, avatarUrlForMember, testTagClass, gradeGroupFor, mergeTestDefinitions, admissionChecklistHtml, admissionConsentHtml, admissionChecksComplete, motoChecksComplete, pilotLicenseChecklistHtml, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, canUseAdmittedVerdict, startVerdictButtonCooldown, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, departmentCalendarDate, latestCompleteBonusPeriodIndex, activeBonusPeriodIndex, bonusPeriodFor } = load;
 
 test('Discord auth preserves the Discord display name, username, and avatar', () => {
   const mapperSource = discordAuthSource.match(/function mapSheetRowToUser\(row, discordUser\) \{[\s\S]*?^\}/m)?.[0];
@@ -186,11 +186,81 @@ test('testNameFromHash restores URL-encoded test routes safely', () => {
   assert.equal(testNameFromHash('#test-%E0%A4%A'), '');
 });
 
+test('active page routes restore test and cooldown pages after refresh', () => {
+  assert.deepEqual(routeFromLocation('#test-Test%20PILOT'), { view: 'test', testName: 'Test PILOT', previousView: 'overview' });
+  assert.deepEqual(routeFromLocation('#cooldowns'), { view: 'cooldowns' });
+  assert.deepEqual(validSavedRoute({ view: 'test', testName: 'Test PILOT', previousView: 'cooldowns' }), { view: 'test', testName: 'Test PILOT', previousView: 'cooldowns' });
+  assert.equal(validSavedRoute({ view: 'unknown' }), null);
+  assert.match(source, /routeFromLocation\(window\.location\.hash\)\s*\|\|\s*validSavedRoute\(readStored\(activeRouteStorageKey\(user\), null\)\)/);
+  assert.match(source, /saveActiveRoute\(routeState\)/);
+});
+
 test('candidate lookup matches callsign in column C and returns the name from column D', () => {
   const rows = [['', '', '603', 'Antonio Shades'], ['', '', '604', 'Another Candidate']];
   assert.deepEqual(candidateForCallsign(rows, 'M-603'), { callsign: '603', name: 'Antonio Shades', discordId: '' });
   assert.equal(candidateForCallsign(rows, 'M-999'), null);
   assert.equal(candidateForCallsign(rows, ''), null);
+});
+
+test('cooldown payment model calculates daily rates and formats the copyable Discord text', () => {
+  const member = { callsign: 'M-507', discordId: '123456789', name: 'Cartier Mohammed', rank: 'Brancardier' };
+  assert.equal(cooldownPaymentAmount('ALS', 3), 90000);
+  assert.equal(cooldownPaymentAmount('RADIO', 3), 75000);
+  assert.equal(cooldownPaymentAmount('REZIDENTIAT', 5), 175000);
+  assert.equal(cooldownPaymentAmount('BLS', 1), 30000);
+  assert.equal(cooldownPaymentAmount('SMULS', 1), 30000);
+  assert.equal(cooldownPaymentAmount('PILOT', 1), 30000);
+  assert.equal(cooldownPaymentAmount('MOTO', 1), 25000);
+  assert.equal(cooldownPaymentAmount('PARASUTIST', 1), 30000);
+  assert.equal(cooldownPaymentMaxDays('ALS'), 3);
+  assert.equal(cooldownPaymentMaxDays('BLS'), 3);
+  assert.equal(cooldownPaymentMaxDays('RADIO'), 3);
+  assert.equal(cooldownPaymentMaxDays('SMULS'), 5);
+  assert.equal(cooldownPaymentMaxDays('PILOT'), 5);
+  assert.equal(cooldownPaymentMaxDays('MOTO'), 5);
+  assert.equal(cooldownPaymentMaxDays('REZIDENTIAT'), 5);
+  assert.equal(cooldownPaymentMaxDays('PARASUTIST'), 5);
+  assert.equal(cooldownPaymentAmount('ALS', 4), null);
+  assert.equal(cooldownPaymentAmount('RADIO', 4), null);
+  assert.equal(cooldownPaymentAmount('PILOT', 6), null);
+  assert.equal(cooldownPaymentAmount('ALS', 0), null);
+  assert.equal(cooldownPaymentAmount('UNKNOWN', 3), null);
+  const directory = [member, { ...member, callsign: 'M-199' }];
+  assert.equal(cooldownPaymentPayerForCallsign('M-507', directory), member);
+  assert.equal(cooldownPaymentPayerForCallsign('M-199', directory), directory[1]);
+  assert.equal(
+    cooldownPaymentMessage(member, 'ALS', 3),
+    'CANDIDAT: @[M-507] Cartier Mohammed\nGrad: Brancardier\nCalificare: ALS\nNr. zile: 3\nSuma: 90.000$'
+  );
+  assert.equal(cooldownPaymentMessage({ ...member, callsign: 'M-007' }, 'ALS', 3), 'CANDIDAT: @[M-007] Cartier Mohammed\nGrad: Brancardier\nCalificare: ALS\nNr. zile: 3\nSuma: 90.000$');
+});
+
+test('cooldown payer lookup supports any department callsign', () => {
+  const row = [];
+  row[2] = 'M-507';
+  row[3] = 'Cartier Mohammed';
+  row[4] = 'Brancardier';
+  row[19] = '123456789';
+  const otherPayer = [...row];
+  otherPayer[2] = 'M-007';
+  const noDiscordId = [...row];
+  noDiscordId[19] = '';
+
+  assert.deepEqual(cooldownPayersFromRows([row, otherPayer, noDiscordId]), [{
+    discordId: '123456789',
+    name: 'Cartier Mohammed',
+    callsign: 'M-507',
+    rank: 'Brancardier'
+  }, {
+    discordId: '123456789',
+    name: 'Cartier Mohammed',
+    callsign: 'M-007',
+    rank: 'Brancardier'
+  }]);
+  assert.match(directorySource, /cooldownPayersFromRows\(members\)/);
+  assert.match(source, /<span aria-hidden="true">M-<\/span><input id="cooldown-payer-callsign"/);
+  assert.doesNotMatch(source, /minimum 200/);
+  assert.doesNotMatch(source, /callsignNumber\(enteredCallsign\) < 200/);
 });
 
 test('column S cooldown parsing supports shared and per-test dates and SMULS variants', () => {

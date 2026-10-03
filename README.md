@@ -25,6 +25,8 @@ Medical certificates use a separate `MEDICAL_CERTIFICATES` sheet and `DISCORD_ME
 
 Admission and transfer retain their prerequisite checklist. Medical certificates use the Apt/Inapt selector; their hours start blank and their questions do not have a mistake counter.
 
+The `Cooldownuri preluate` page generates a copyable Discord message for a payer with any department callsign. Enter only the numeric callsign; the `M-` prefix is supplied automatically. The page looks up the member's name, rank, and Discord ID from the department directory, then calculates the amount from the selected test and number of days: Radio 25,000/day (up to 3 days), BLS/ALS 30,000/day (up to 3 days), SMULS/Pilot/Parasutist 30,000/day, Moto 25,000/day, and Rezidentiat 35,000/day; all other cooldowns allow up to 5 days. It only creates the message; the tester who accepts the cooldown must post it and record the cooldown manually.
+
 Specialty-test candidates are checked against column S in `LISTA DEPARTAMENT`. Supported entries include SMULS (including T/P), Parasutist, Moto, Pilot, ALS, BLS, Radio, and Rezidentiat aliases. A candidate can take the test starting at 00:00 on the written expiry date in `Europe/Bucharest`.
 
 The `Bonusuri` page is leadership-only. It shows the active 14-day period, anchored on 21 September 2026, plus a tester-callsign-sorted table of Pilot, Moto, combined admission/transfer, medical-certificate, ALS, and SMULS totals. Each row copies only those six tab-separated totals for pasting into the matching sheet columns.

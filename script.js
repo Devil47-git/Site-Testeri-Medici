@@ -17,6 +17,27 @@
 
 const coreTests = ['Test admitere','Test transfer','Adeverință medicală'];
 const TESTER_BUNDLE_KEY = '__tester_bundle__';
+const COOLDOWN_PAYMENT_RATES = {
+  RADIO: 25000,
+  BLS: 30000,
+  ALS: 30000,
+  SMULS: 30000,
+  PILOT: 30000,
+  MOTO: 25000,
+  REZIDENTIAT: 35000,
+  PARASUTIST: 30000
+};
+const COOLDOWN_PAYMENT_LABELS = {
+  RADIO: 'RADIO',
+  BLS: 'BLS',
+  ALS: 'ALS',
+  SMULS: 'SMULS',
+  PILOT: 'PILOT',
+  MOTO: 'MOTO',
+  REZIDENTIAT: 'REZIDENTIAT',
+  PARASUTIST: 'PARAȘUTIST'
+};
+const ACTIVE_ROUTE_STORAGE_PREFIX = 'medici-active-route:';
 const admissionRequirements = ['Verificarea ținutei', 'Verificarea tatuajelor faciale', 'Verificarea cazierului', 'Minimum 50 de ore jucate', 'Controlul cu stetoscopul (amănunțit, în salon)', 'Drug-testul'];
 const motoRequirements = ['Grad Medic-Rezident', 'Certificat S.M.U.L.S.', 'Permis Categoria A'];
 const alsRequirements = ['Verificare BLS', 'Verificare Radio', 'Au trecut minimum 3 zile de la promovarea ultimului test Radio sau BLS', 'Permis categoria B'];
@@ -27,6 +48,66 @@ const catalog = [...coreTests, ...specialtyTests];
 const TEST_CATALOG_KEY = 'medici-test-catalog-v4';
 /** @param {string} key @param {any} fallback @returns {any} */
 function readStored(key, fallback) { try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; } catch { return fallback; } }
+function activeRouteStorageKey(user) { return `${ACTIVE_ROUTE_STORAGE_PREFIX}${String(user?.discordId || '')}`; }
+function saveActiveRoute(route) {
+  if (!currentUser?.discordId) return;
+  try {
+    localStorage.setItem(activeRouteStorageKey(currentUser), JSON.stringify(route));
+  } catch (error) {
+    console.error('Active page could not be saved for refresh:', error);
+  }
+}
+function routeFromLocation(hash) {
+  const profileMatch = String(hash || '').match(/^#tester-profile-(.+)$/);
+  if (profileMatch) {
+    try { return { view: 'tester-profile', callsign: decodeURIComponent(profileMatch[1]), previousView: 'testers' }; }
+    catch { return null; }
+  }
+  const testName = testNameFromHash(hash);
+  if (testName) return { view: 'test', testName, previousView: 'overview' };
+  const view = String(hash || '').replace(/^#/, '');
+  return labels[view] ? { view } : null;
+}
+function validSavedRoute(route) {
+  if (route?.view === 'test' && typeof route.testName === 'string' && route.testName) return route;
+  if (route?.view === 'tester-profile' && typeof route.callsign === 'string' && route.callsign) return route;
+  return labels[route?.view] ? route : null;
+}
+function cooldownPaymentAmount(test, days) {
+  const rate = COOLDOWN_PAYMENT_RATES[test];
+  const count = Number(days);
+  if (!rate || !Number.isSafeInteger(count) || count < 1 || count > cooldownPaymentMaxDays(test)) return null;
+  const amount = rate * count;
+  return Number.isSafeInteger(amount) ? amount : null;
+}
+function cooldownPaymentMaxDays(test) {
+  return ['ALS', 'BLS', 'RADIO'].includes(test) ? 3 : Object.hasOwn(COOLDOWN_PAYMENT_RATES, test) ? 5 : 0;
+}
+function cooldownPaymentPayerForCallsign(callsign, members) {
+  const number = callsignNumber(callsign);
+  if (number < 1) return null;
+  return (Array.isArray(members) ? members : []).find(member =>
+    callsignNumber(member?.callsign || member?.callSign) === number &&
+    String(member?.name || '').trim() &&
+    /^\d+$/.test(String(member?.discordId || '').trim())
+  ) || null;
+}
+function cooldownPaymentMessage(member, test, days) {
+  const amount = cooldownPaymentAmount(test, days);
+  if (!member || !amount) return '';
+  const callsign = normalizeCallsign(member.callsign || member.callSign);
+  const discordId = String(member.discordId || '').trim();
+  const name = String(member.name || '').replace(/\s+/g, ' ').trim();
+  const rank = String(member.rank || '').replace(/\s+/g, ' ').trim();
+  if (callsignNumber(callsign) < 1 || !/^\d+$/.test(discordId) || !name) return '';
+  return [
+    `CANDIDAT: @[${callsign}] ${name}`,
+    `Grad: ${rank || '—'}`,
+    `Calificare: ${COOLDOWN_PAYMENT_LABELS[test]}`,
+    `Nr. zile: ${Number(days)}`,
+    `Suma: ${new Intl.NumberFormat('ro-RO').format(amount)}$`
+  ].join('\n');
+}
 function mergeTestDefinitions(defaults, stored) {
   defaults ||= {};
   stored ||= {};
@@ -364,8 +445,32 @@ function testerSearchResultHtml(member) {
 }
 /** @type {Member[]} */
 let directoryMembers = [];
+let cooldownPayerMembers = [];
+let cooldownPayersLoaded = false;
+let cooldownPayersRequest = null;
+async function loadCooldownPayers() {
+  if (cooldownPayersLoaded) return;
+  if (cooldownPayersRequest) return cooldownPayersRequest;
+  cooldownPayersRequest = (async () => {
+    if (!currentUser?.discordId) throw new Error('Sesiunea nu conține Discord ID.');
+    const query = new URLSearchParams({ requesterId: currentUser.discordId, view: 'cooldown-payers' });
+    const response = await fetch(`/api/access/directory?${query}`);
+    const payload = await parseApiResponse(response);
+    if (!response.ok) throw new Error(payload.error || 'Lista plătitorilor nu a putut fi încărcată.');
+    if (!Array.isArray(payload.members)) throw new Error('Răspuns invalid de la lista plătitorilor.');
+    cooldownPayerMembers = payload.members;
+    cooldownPayersLoaded = true;
+  })();
+  try {
+    await cooldownPayersRequest;
+  } finally {
+    cooldownPayersRequest = null;
+  }
+}
 async function loadDirectory() {
   if (!currentUser?.discordId) return;
+  cooldownPayersLoaded = false;
+  cooldownPayerMembers = [];
   const response = await fetch(`/api/access/directory?requesterId=${encodeURIComponent(currentUser.discordId)}`);
   if (!response.ok) return;
   const payload = await response.json();
@@ -590,6 +695,7 @@ function openTesterProfile(member, { push = true, previousView: requestedPreviou
   const route = `#tester-profile-${encodeURIComponent(callsign)}`;
   if (push) window.history.pushState(routeState, '', route);
   else window.history.replaceState(routeState, '', route);
+  saveActiveRoute(routeState);
   const profile = { ...member, grantedTests: normalizeGrantBundle([...(member.grantedTests || []), ...docsAssignedTests(member)]) };
   document.querySelector('#overview-view').hidden = true;
   document.querySelector('#overview-view').style.display = 'none';
@@ -744,11 +850,12 @@ function renderView(view) {
   viewContent.style.display = isOverview ? 'none' : 'block';
   overview.style.display = isOverview ? 'block' : 'none';
   if (isOverview) { renderProfileData(); return; }
-  const title = labels[view] || 'Spațiul tău';
-  document.querySelector('#section-label').textContent = view === 'settings' ? 'Administrare' : 'Spațiul tău';
+  const title = labels[view] || 'Site Testeri';
+  document.querySelector('#section-label').textContent = 'Site Testeri';
   if (view === 'testers') { viewContent.innerHTML = renderTestersView(); wireTestersEvents(); }
   else if (view === 'statistics') { viewContent.innerHTML = renderStatisticsView(); renderDashboardData(); }
   else if (view === 'bonuses') { viewContent.innerHTML = renderBonusesView(); wireBonusesEvents(); }
+  else if (view === 'cooldowns') { viewContent.innerHTML = renderCooldownPaymentsView(); wireCooldownPaymentsEvents(); }
   else { viewContent.innerHTML = renderSettingsView(title); wireSettingsEvents(); }
 }
   const BONUS_ANCHOR_UTC = Date.UTC(2026, 8, 21);
@@ -844,6 +951,95 @@ function activeBonusPeriodIndex(now = new Date()) {
       }
     });
   }
+function renderCooldownPaymentsView() {
+  const callsign = String(callsignNumber(currentUser?.callsign || currentUser?.callSign || '') || '');
+  const testOptions = Object.entries(COOLDOWN_PAYMENT_LABELS)
+    .map(([value, label]) => `<option value="${value}">${label} — ${new Intl.NumberFormat('ro-RO').format(COOLDOWN_PAYMENT_RATES[value])}$/zi</option>`)
+    .join('');
+  return `<section class="panel cooldown-payment-panel"><div class="panel-head"><div><p class="eyebrow">MODEL DE COPIAT</p><h2>Cooldownuri preluate</h2><p class="muted">Completează callsign-ul persoanei care plătește. Datele se preiau din director, iar testerul aplică manual cooldown-ul.</p></div></div><div class="cooldown-payment-grid"><label>Callsign plătitor<span class="cooldown-callsign-input"><span aria-hidden="true">M-</span><input id="cooldown-payer-callsign" type="text" value="${escapeHtml(callsign)}" placeholder="507" inputmode="numeric" pattern="[0-9]*" autocomplete="off" aria-label="Numărul callsign-ului plătitor, prefixul M este adăugat automat"></span></label><label>Calificare<select id="cooldown-payment-test"><option value="">Alege testul</option>${testOptions}</select></label><label>Număr zile<input id="cooldown-payment-days" type="number" min="1" max="5" step="1" inputmode="numeric" placeholder="3"></label></div><p class="cooldown-payer-status muted" id="cooldown-payer-status" role="status" aria-live="polite">Introdu numărul callsign-ului. Prefixul M- este adăugat automat.</p><dl class="cooldown-payer-details" id="cooldown-payer-details" hidden><div><dt>NUME</dt><dd id="cooldown-payer-name">—</dd></div><div><dt>GRAD</dt><dd id="cooldown-payer-rank">—</dd></div><div><dt>DISCORD ID</dt><dd id="cooldown-payer-discord">—</dd></div><div><dt>PREȚ / ZI</dt><dd id="cooldown-payment-rate">—</dd></div><div><dt>TOTAL</dt><dd id="cooldown-payment-total">—</dd></div></dl><label class="cooldown-payment-model-label">Model pentru Discord<textarea id="cooldown-payment-model" rows="6" readonly placeholder="Modelul complet va apărea aici după ce alegi callsign-ul, testul și numărul de zile."></textarea></label><div class="cooldown-payment-actions"><button class="primary" id="cooldown-payment-copy" type="button" disabled>Copiază modelul</button><span class="muted" id="cooldown-payment-copy-status" role="status" aria-live="polite"></span></div><p class="cooldown-payment-note">Acest formular doar calculează și generează textul. Nu modifică evidența cooldownurilor și nu trimite mesaje.</p></section>`;
+}
+
+function wireCooldownPaymentsEvents() {
+  const callsignInput = document.querySelector('#cooldown-payer-callsign');
+  const testSelect = document.querySelector('#cooldown-payment-test');
+  const daysInput = document.querySelector('#cooldown-payment-days');
+  const payerStatus = document.querySelector('#cooldown-payer-status');
+  const copyStatus = document.querySelector('#cooldown-payment-copy-status');
+  const model = document.querySelector('#cooldown-payment-model');
+  const copyButton = document.querySelector('#cooldown-payment-copy');
+  if (!callsignInput || !testSelect || !daysInput || !payerStatus || !copyStatus || !model || !copyButton) return;
+
+  const update = () => {
+    callsignInput.value = callsignInput.value.replace(/\D/g, '');
+    const enteredCallsign = callsignInput.value.trim();
+    const payer = cooldownPaymentPayerForCallsign(enteredCallsign, directoryMembers);
+    const indexedPayer = cooldownPaymentPayerForCallsign(enteredCallsign, cooldownPayerMembers);
+    const test = testSelect.value;
+    const days = daysInput.value;
+    const maxDays = cooldownPaymentMaxDays(test);
+    daysInput.max = String(maxDays || 5);
+    const rate = COOLDOWN_PAYMENT_RATES[test];
+    const amount = cooldownPaymentAmount(test, days);
+    const details = document.querySelector('#cooldown-payer-details');
+    const selectedPayer = indexedPayer || payer;
+    document.querySelector('#cooldown-payer-name').textContent = selectedPayer?.name || '—';
+    document.querySelector('#cooldown-payer-rank').textContent = selectedPayer?.rank || '—';
+    document.querySelector('#cooldown-payer-discord').textContent = selectedPayer?.discordId || '—';
+    document.querySelector('#cooldown-payment-rate').textContent = rate ? `${new Intl.NumberFormat('ro-RO').format(rate)}$/zi` : '—';
+    document.querySelector('#cooldown-payment-total').textContent = amount ? `${new Intl.NumberFormat('ro-RO').format(amount)}$` : '—';
+
+    if (!enteredCallsign) payerStatus.textContent = 'Introdu numărul callsign-ului. Prefixul M- este adăugat automat.';
+    else if (!indexedPayer && !payer && !cooldownPayersLoaded) payerStatus.textContent = 'Se caută membrul în director…';
+    else if (!indexedPayer && !payer) payerStatus.textContent = 'Nu am găsit în director un membru cu acest callsign și Discord ID valid.';
+    else payerStatus.textContent = 'Membru găsit. Verifică datele completate automat.';
+    if (test && Number(days) > maxDays) {
+      payerStatus.textContent = `Pentru ${COOLDOWN_PAYMENT_LABELS[test]} se pot plăti maximum ${maxDays} zile.`;
+    }
+    details.hidden = !selectedPayer;
+
+    model.value = cooldownPaymentMessage(selectedPayer, test, days);
+    copyButton.disabled = !model.value;
+    if (copyStatus) copyStatus.textContent = '';
+  };
+  callsignInput.addEventListener('input', update);
+  testSelect.addEventListener('change', update);
+  daysInput.addEventListener('input', update);
+  update();
+  loadCooldownPayers().then(update).catch(error => {
+    payerStatus.textContent = error.message;
+  });
+  copyButton.addEventListener('click', async () => {
+    if (!model.value) return;
+    try {
+      await navigator.clipboard.writeText(model.value);
+      copyStatus.textContent = 'Modelul a fost copiat. Îl poți lipi manual în canalul Discord.';
+    } catch (error) {
+      let copied = false;
+      let fallback;
+      try {
+        fallback = document.createElement('textarea');
+        fallback.value = model.value;
+        fallback.setAttribute('readonly', '');
+        fallback.style.position = 'fixed';
+        fallback.style.opacity = '0';
+        document.body.append(fallback);
+        fallback.select();
+        copied = document.execCommand('copy');
+      } catch (fallbackError) {
+        console.error('Cooldown model clipboard fallback failed:', fallbackError);
+      } finally {
+        fallback?.remove();
+      }
+      if (!copied) {
+        copyStatus.textContent = 'Copierea automată nu a reușit. Selectează și copiază modelul manual.';
+        console.error('Cooldown model clipboard copy failed:', error);
+        return;
+      }
+      copyStatus.textContent = 'Modelul a fost copiat. Îl poți lipi manual în canalul Discord.';
+    }
+  });
+}
+
 function testNameFromHash(hash) {
   const match = String(hash || '').match(/^#test-(.+)$/);
   if (!match) return '';
@@ -867,11 +1063,12 @@ function openTest(testName, { push = true, previousView: requestedPreviousView }
   const route = `#test-${encodeURIComponent(testName)}`;
   if (push && currentView !== 'test') window.history.pushState(routeState, '', route);
   else window.history.replaceState(routeState, '', route);
+  saveActiveRoute(routeState);
   document.querySelector('#overview-view').hidden = true;
   document.querySelector('#overview-view').style.display = 'none';
   viewContent.hidden = false;
   viewContent.style.display = 'block';
-  document.querySelector('#section-label').textContent = 'Spațiul tău';
+  document.querySelector('#section-label').textContent = 'Site Testeri';
   document.querySelector('#page-label').textContent = displayTestName(testName);
   document.querySelectorAll('.nav-item').forEach(item => item.classList.toggle('active', item.id === 'available-tests-toggle'));
   document.querySelectorAll('[data-available-test]').forEach(item => item.classList.toggle('active', item.dataset.availableTest === testName));
@@ -2058,7 +2255,7 @@ document.querySelector('#admin-remove-tester').addEventListener('click', () => o
 document.querySelector('#admin-reset-tests').addEventListener('click', resetAllTestCounts);
 document.querySelector('#admin-settings').addEventListener('click', () => navigateTo('settings'));
 document.querySelector('#brand-settings').onclick = () => navigateTo('overview'); document.querySelector('#user-menu').onclick = () => navigateTo('overview'); document.querySelector('#profile-settings').onclick = () => navigateTo('settings'); document.querySelector('#help-btn').onclick = () => alert('Folosește meniul din stânga pentru a naviga.');
-const labels = { overview: 'Profilul tău', testers: 'Testerii departamentului', statistics: 'Statistica Teste', bonuses: 'Bonusuri', settings: 'Setări' };
+const labels = { overview: 'Profilul tău', testers: 'Testerii departamentului', statistics: 'Statistica Teste', cooldowns: 'Cooldownuri preluate', bonuses: 'Bonusuri', settings: 'Setări' };
 function navigateTo(view, { push = true } = {}) {
   if (view === 'bonuses' && !isLeadershipUser(currentUser)) view = 'overview';
   if (!labels[view]) return;
@@ -2071,9 +2268,11 @@ function navigateTo(view, { push = true } = {}) {
   document.body.classList.remove('adeverinta-background-mode');
   document.body.classList.remove('parasutism-background-mode');
   if (push && window.history.state?.view !== view) window.history.pushState({ view }, '', `#${view}`);
+  else if (!push && (window.history.state?.view !== view || window.location.hash !== `#${view}`)) window.history.replaceState({ view }, '', `#${view}`);
+  saveActiveRoute({ view });
   document.querySelectorAll('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.view === view));
   document.querySelector('#page-label').textContent = labels[view];
-  document.querySelector('#section-label').textContent = view === 'settings' ? 'Administrare' : 'Spațiul tău';
+  document.querySelector('#section-label').textContent = 'Site Testeri';
   document.querySelector('.sidebar').classList.remove('open');
   renderView(view);
 }
@@ -2170,7 +2369,7 @@ function setVisibilityPermissions(user){
   if (profileSettingsButton) profileSettingsButton.hidden = callsign < 1 || callsign > 20;
   if (adminPanel) adminPanel.hidden = callsign < 1 || callsign > 20;
   const sectionLabel = document.querySelector('#section-label');
-  if (sectionLabel) sectionLabel.textContent = 'Spațiul tău';
+  if (sectionLabel) sectionLabel.textContent = 'Site Testeri';
 }
 /** @param {any} user @returns {void} */
 function setStats(user){
@@ -2184,31 +2383,33 @@ function applyUser(user){
 }
 function showAuthError(message){authError.textContent=message;authError.classList.add('show')}
 async function enterApp(user) {
-  const requestedHash = window.location.hash;
-  const requestedProfileMatch = requestedHash.match(/^#tester-profile-(.+)$/);
-  const requestedProfileCallsign = requestedProfileMatch ? decodeURIComponent(requestedProfileMatch[1]) : '';
-  const requestedTestName = testNameFromHash(requestedHash);
-  const requestedView = requestedHash.slice(1);
-  const hasRequestedRoute = Boolean(requestedProfileCallsign || requestedTestName || labels[requestedView]);
+  const requestedRoute = routeFromLocation(window.location.hash) || validSavedRoute(readStored(activeRouteStorageKey(user), null));
+  const requestedProfileCallsign = requestedRoute?.view === 'tester-profile' ? requestedRoute.callsign : '';
+  const requestedTestName = requestedRoute?.view === 'test' ? requestedRoute.testName : '';
+  const requestedView = labels[requestedRoute?.view] ? requestedRoute.view : '';
+  const hasRequestedRoute = Boolean(requestedProfileCallsign || requestedTestName || requestedView);
   if (!hasRequestedRoute) window.history.replaceState({ view: 'overview' }, '', `${window.location.pathname}#overview`);
   applyUser(user);
   markPresence();
   sendPresence();
   authScreen.style.display = 'none';
   appShell.classList.add('ready');
-  navigateTo('overview', { push: false });
+  navigateTo(requestedView || 'overview', { push: false });
   try {
     await fetchGlobalTestDefinitions();
     await loadDirectory();
     await loadRemoteGrants();
     if (requestedProfileCallsign) {
       const member = testers.find(item => normalizeCallsign(item.callsign) === requestedProfileCallsign) || directoryMembers.find(item => normalizeCallsign(item.callsign) === requestedProfileCallsign);
-      if (member) openTesterProfile(member, { push: false, previousView: 'testers' });
+      if (member) openTesterProfile(member, { push: false, previousView: requestedRoute.previousView || 'testers' });
+      else navigateTo('testers', { push: false });
     } else if (requestedTestName && allowedForUser(currentUser).includes(requestedTestName)) {
-      const previousView = window.history.state?.view === 'test' ? window.history.state.previousView : 'overview';
+      const previousView = requestedRoute.previousView || (window.history.state?.view === 'test' ? window.history.state.previousView : 'overview');
       openTest(requestedTestName, { push: false, previousView });
     } else if (labels[requestedView]) {
       navigateTo(requestedView, { push: false });
+    } else if (requestedTestName) {
+      navigateTo('overview', { push: false });
     }
   } catch (error) {
     setSyncDetail('Sincronizarea a eșuat');

@@ -477,6 +477,32 @@ body.dark-mode .nav-item.active{box-shadow:inset 2px 0 var(--purple)}
 .bonus-table tbody tr:last-child td{border-bottom:0}
 .bonus-row-copy{padding:7px 10px;font-size:11px;white-space:nowrap}
 @media(max-width:620px){.bonus-panel{padding:16px}.bonus-panel>.panel-head{align-items:flex-start;gap:12px}.bonus-active-period{line-height:1.5}}
+.cooldown-payment-panel{max-width:850px;margin:0 auto;padding:24px}
+.cooldown-payment-panel>.panel-head{margin-bottom:22px}
+.cooldown-payment-panel>.panel-head h2{margin:0;font-size:20px}
+.cooldown-payment-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.cooldown-payment-grid label,.cooldown-payment-model-label{display:grid;gap:7px;color:var(--surface-text);font-size:11px;font-weight:700}
+.cooldown-payment-grid input,.cooldown-payment-grid select,.cooldown-payment-model-label textarea{width:100%;min-width:0;border:1px solid var(--surface-border);border-radius:6px;padding:10px 11px;background:var(--surface);color:var(--ink);font:13px 'DM Sans',sans-serif}
+.cooldown-callsign-input{display:flex;align-items:center;min-width:0;border:1px solid var(--surface-border);border-radius:6px;background:var(--surface);color:var(--ink);font:13px 'DM Sans',sans-serif}
+.cooldown-callsign-input>span{padding:10px 0 10px 11px;color:var(--muted)}
+.cooldown-callsign-input input{border:0;background:transparent}
+.cooldown-callsign-input input:focus{outline:0}
+.cooldown-callsign-input:focus-within{outline:2px solid var(--purple);outline-offset:1px}
+.cooldown-payment-grid input:focus,.cooldown-payment-grid select:focus,.cooldown-payment-model-label textarea:focus{outline:2px solid var(--purple);outline-offset:1px}
+.cooldown-callsign-input input:focus{outline:0;box-shadow:none}
+.cooldown-payer-status{min-height:18px;margin:14px 0}
+.cooldown-payer-details{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin:0 0 20px;padding:14px;border:1px solid var(--surface-border);border-radius:7px;background:var(--surface-alt)}
+.cooldown-payer-details[hidden]{display:none}
+.cooldown-payer-details div{min-width:0}
+.cooldown-payer-details dt{font-size:9px;font-weight:700;letter-spacing:.7px;color:var(--muted)}
+.cooldown-payer-details dd{margin:5px 0 0;overflow-wrap:anywhere;font-weight:700;color:var(--ink)}
+.cooldown-payment-model-label{margin-top:18px}
+.cooldown-payment-model-label textarea{min-height:142px;resize:vertical;font:12px/1.6 ui-monospace,Consolas,monospace}
+.cooldown-payment-actions{display:flex;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap}
+.cooldown-payment-actions .primary{min-height:38px}
+.cooldown-payment-actions .primary:disabled{opacity:.5;cursor:not-allowed}
+.cooldown-payment-note{margin:18px 0 0;color:var(--muted);font-size:11px;line-height:1.6}
+@media(max-width:620px){.cooldown-payment-panel{padding:16px}.cooldown-payment-grid{grid-template-columns:1fr}}
 body.dark-mode .nav-item.active span,body.dark-mode .nav-item:hover span{color:var(--purple)}
 body.dark-mode .panel-head h2,body.dark-mode .tester-group h3,body.dark-mode .profile-card .eyebrow{color:var(--purple)}
 body.dark-mode .test-filter-option:hover,body.dark-mode .test-filter-option.active{background:#302129;color:#fff4f3}
