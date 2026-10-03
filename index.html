@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="ro">
 
 <head>
@@ -17,53 +17,53 @@
     <div class="auth-screen" id="auth-screen">
         <div class="auth-card">
             <div class="brand auth-brand"><span
-                    class="brand-mark">âœ¦</span><span><b>DEPARTAMENTUL MEDICAL ECLIPSE TOWER</b><small>SUB-DEPARTAMENTUL TESTERILOR</small></span></div>
-            <div class="auth-icon">â—ˆ</div>
+                    class="brand-mark">✦</span><span><b>DEPARTAMENTUL MEDICAL ECLIPSE TOWER</b><small>SUB-DEPARTAMENTUL TESTERILOR</small></span></div>
+            <div class="auth-icon">◈</div>
             <p class="eyebrow">ACCES SECURIZAT</p>
-            <h1>ConecteazÄƒ-te cu Discord</h1>
-            <p class="muted auth-copy">VerificÄƒm automat dacÄƒ faci parte din departament È™i Ã®È›i afiÈ™Äƒm doar testele
+            <h1>Conectează-te cu Discord</h1>
+            <p class="muted auth-copy">Verificăm automat dacă faci parte din departament și îți afișăm doar testele
                 pentru care ai acces.</p>
-            <button class="primary full" id="discord-login">ContinuÄƒ cu Discord <span>â†’</span></button>
-            <p class="auth-note">Sesiunea rÄƒmÃ¢ne activÄƒ 2 zile È™i este reverificatÄƒ. Nu salvÄƒm parola Discord.</p>
+            <button class="primary full" id="discord-login">Continuă cu Discord <span>→</span></button>
+            <p class="auth-note">Sesiunea rămâne activă 2 zile și este reverificată. Nu salvăm parola Discord.</p>
             <div class="auth-error" id="auth-error" role="alert"></div>
         </div>
     </div>
     <div class="app-shell" id="app-shell">
         <aside class="sidebar">
-            <button class="brand brand-button brand-with-logo" id="brand-settings" type="button" title="Deschide profilul tÄƒu"><img class="brand-logo-image" src="/Sigla%20spital.png" alt="Sigla Eclipse Medical Tower"><span><b>DEPARTAMENTUL MEDICAL ECLIPSE TOWER</b><small>SUB-DEPARTAMENTUL TESTERILOR</small></span></button>
+            <button class="brand brand-button brand-with-logo" id="brand-settings" type="button" title="Deschide profilul tău"><img class="brand-logo-image" src="/Sigla%20spital.png" alt="Sigla Eclipse Medical Tower"><span><b>DEPARTAMENTUL MEDICAL ECLIPSE TOWER</b><small>SUB-DEPARTAMENTUL TESTERILOR</small></span></button>
             <div class="workspace-label">SITE TESTERI</div>
             <nav>
-                <button class="nav-item active" data-view="overview"><span class="nav-ico">ðŸ‘¤</span> Profilul tÄƒu</button>
-                <button class="nav-item" data-view="testers"><span class="nav-ico">ðŸ“‹</span><span class="nav-label">Testeri</span><em id="tester-count">0</em></button>
-                <button class="nav-item" data-view="statistics"><span class="nav-ico">ðŸ“Š</span> Statistica Teste</button>
-                <button class="nav-item" id="available-tests-toggle" type="button" aria-expanded="false" aria-controls="available-tests-submenu"><span class="nav-ico">ðŸ“</span> Teste disponibile <span class="nav-chevron" aria-hidden="true">âŒ„</span></button>
+                <button class="nav-item active" data-view="overview"><span class="nav-ico">👤</span> Profilul tău</button>
+                <button class="nav-item" data-view="testers"><span class="nav-ico">📋</span><span class="nav-label">Testeri</span><em id="tester-count">0</em></button>
+                <button class="nav-item" data-view="statistics"><span class="nav-ico">📊</span> Statistica Teste</button>
+                <button class="nav-item" id="available-tests-toggle" type="button" aria-expanded="false" aria-controls="available-tests-submenu"><span class="nav-ico">📝</span> Teste disponibile <span class="nav-chevron" aria-hidden="true">⌄</span></button>
                 <div class="nav-submenu" id="available-tests-submenu" hidden></div>
-                <button class="nav-item" data-view="cooldowns" type="button"><span class="nav-ico">â³</span> Cooldownuri preluate</button>
-                <button class="nav-item" id="bonuses-nav" data-view="bonuses" type="button" hidden><span class="nav-ico">ðŸŽ</span> Bonusuri</button>
+                <button class="nav-item" data-view="cooldowns" type="button"><span class="nav-ico">⏳</span> Cooldownuri preluate</button>
+                <button class="nav-item" id="bonuses-nav" data-view="bonuses" type="button" hidden><span class="nav-ico">🎁</span> Bonusuri</button>
             </nav>
             <div class="sidebar-bottom">
-                                <button class="user-mini" id="user-menu" type="button" title="Deschide profilul tÄƒu">
+                                <button class="user-mini" id="user-menu" type="button" title="Deschide profilul tău">
                     <div class="user-mini-avatar" id="user-avatar"></div>
-                    <div><b id="user-name">Alex M.</b><small id="user-role">Conducere</small></div><span>âŒ„</span>
+                    <div><b id="user-name">Alex M.</b><small id="user-role">Conducere</small></div><span>⌄</span>
                 </button>
             </div>
         </aside>
         <main class="main-content">
-            <header class="topbar"><button class="mobile-menu">â˜°</button>
-                <div class="crumb"><i class="crumb-home">âŒ‚</i><b id="section-label">Site Testeri</b> <span>&gt;</span> <b id="page-label">Profilul tÄƒu</b></div>
+            <header class="topbar"><button class="mobile-menu">☰</button>
+                <div class="crumb"><i class="crumb-home">⌂</i><b id="section-label">Site Testeri</b> <span>&gt;</span> <b id="page-label">Profilul tău</b></div>
                 <div class="top-actions"><span class="top-status" aria-hidden="true"><i></i>Online</span></div>
             </header>
             <section class="page-wrap" id="app">
                 <div id="overview-view">
                 <div class="profile-layout">
                     <section class="panel profile-card">
-                        <button class="profile-settings-button" id="profile-settings" type="button" aria-label="SetÄƒri" title="SetÄƒri" hidden><span aria-hidden="true">âš™</span></button>
-                        <p class="eyebrow profile-datetime"><span id="today-label"></span><time id="local-time" aria-label="Ora RomÃ¢niei"></time></p>
-                        <div class="profile-identity"><div id="profile-avatar"></div><div><h1 id="profile-name">Profilul tÄƒu</h1></div></div>
-                        <dl class="profile-details"><div><dt>CALLSIGN</dt><dd id="profile-callsign">â€”</dd></div><div><dt>NUME</dt><dd id="profile-member-name">â€”</dd></div><div><dt>GRAD</dt><dd id="profile-member-rank">â€”</dd></div></dl>
+                        <button class="profile-settings-button" id="profile-settings" type="button" aria-label="Setări" title="Setări" hidden><span aria-hidden="true">⚙</span></button>
+                        <p class="eyebrow profile-datetime"><span id="today-label"></span><time id="local-time" aria-label="Ora României"></time></p>
+                        <div class="profile-identity"><div id="profile-avatar"></div><div><h1 id="profile-name">Profilul tău</h1></div></div>
+                        <dl class="profile-details"><div><dt>CALLSIGN</dt><dd id="profile-callsign">—</dd></div><div><dt>NUME</dt><dd id="profile-member-name">—</dd></div><div><dt>GRAD</dt><dd id="profile-member-rank">—</dd></div></dl>
                     </section>
                     <section class="panel profile-certifications">
-                        <div class="panel-head"><div><h2>FuncÈ›ii tester</h2><p class="muted">CertificÄƒrile È™i testele alocate contului tÄƒu</p></div></div>
+                        <div class="panel-head"><div><h2>Funcții tester</h2><p class="muted">Certificările și testele alocate contului tău</p></div></div>
                         <div class="tags profile-test-tags" id="profile-tests"></div>
                     </section>
                 </div>
@@ -72,12 +72,12 @@
                     <div class="statistics-test-grid" id="profile-test-history"></div>
                 </section>
                 <section class="panel admin-panel" id="admin-panel" aria-labelledby="admin-panel-title" hidden>
-                    <h2 id="admin-panel-title"><span aria-hidden="true">â—ˆ</span> Panou Administrativ</h2>
-                    <div class="admin-panel-actions" role="group" aria-label="AcÈ›iuni administrative">
-                        <button class="admin-action admin-action-assign" id="admin-add-tester" type="button"><span aria-hidden="true">â™§</span> AdaugÄƒ Tester</button>
-                        <button class="admin-action admin-action-reset" id="admin-remove-tester" type="button"><span aria-hidden="true">ï¼‹</span> Scoatere Tester</button>
-                        <button class="admin-action admin-action-reset-counts" id="admin-reset-tests" type="button"><span aria-hidden="true">â†»</span> Resetare Teste</button>
-                        <button class="admin-action admin-action-settings" id="admin-settings" type="button"><span aria-hidden="true">âš™</span> SetÄƒri</button>
+                    <h2 id="admin-panel-title"><span aria-hidden="true">◈</span> Panou Administrativ</h2>
+                    <div class="admin-panel-actions" role="group" aria-label="Acțiuni administrative">
+                        <button class="admin-action admin-action-assign" id="admin-add-tester" type="button"><span aria-hidden="true">♧</span> Adaugă Tester</button>
+                        <button class="admin-action admin-action-reset" id="admin-remove-tester" type="button"><span aria-hidden="true">＋</span> Scoatere Tester</button>
+                        <button class="admin-action admin-action-reset-counts" id="admin-reset-tests" type="button"><span aria-hidden="true">↻</span> Resetare Teste</button>
+                        <button class="admin-action admin-action-settings" id="admin-settings" type="button"><span aria-hidden="true">⚙</span> Setări</button>
                     </div>
                     <p class="admin-reset-status muted" id="admin-reset-status" role="status" aria-live="polite"></p>
                 </section>
@@ -87,21 +87,21 @@
         </main>
     </div>
     <div class="modal-backdrop" id="modal">
-        <div class="modal"><button class="close" id="close-modal">Ã—</button>
+        <div class="modal"><button class="close" id="close-modal">×</button>
             <p class="eyebrow">ACCES NOU</p>
-            <h2>AdaugÄƒ un tester</h2>
-            <p class="muted">Introdu unul sau mai multe callsign-uri, separate prin virgulÄƒ sau spaÈ›iu, apoi acordÄƒ-le aceleaÈ™i teste.</p><label>Callsign-uri<input id="callsign" type="text" placeholder="007, 105 sau M-210" autocomplete="off"></label><div id="member-result" class="member-result"></div><label>Teste de acordat<div class="checks" id="grant-checks"></div></label><button class="primary full" id="invite-btn">SalveazÄƒ accesul â†’</button>
+            <h2>Adaugă un tester</h2>
+            <p class="muted">Introdu unul sau mai multe callsign-uri, separate prin virgulă sau spațiu, apoi acordă-le aceleași teste.</p><label>Callsign-uri<input id="callsign" type="text" placeholder="007, 105 sau M-210" autocomplete="off"></label><div id="member-result" class="member-result"></div><label>Teste de acordat<div class="checks" id="grant-checks"></div></label><button class="primary full" id="invite-btn">Salvează accesul →</button>
         </div>
     </div>
     <div class="modal-backdrop" id="remove-modal">
-        <div class="modal"><button class="close" id="close-remove-modal">Ã—</button>
+        <div class="modal"><button class="close" id="close-remove-modal">×</button>
             <p class="eyebrow">REVOCARE ACCES</p>
             <h2>Scoatere Tester</h2>
-            <p class="muted">Alege testerul È™i testul de la care vrei sÄƒ-i retragi accesul.</p>
+            <p class="muted">Alege testerul și testul de la care vrei să-i retragi accesul.</p>
             <label>Tester<select id="remove-member-select"></select></label>
             <label>Test de scos<div class="checks" id="remove-test-checks"></div></label>
             <p class="member-result" id="remove-result"></p>
-            <button class="primary full" id="confirm-remove-btn">RevocÄƒ accesul selectat</button>
+            <button class="primary full" id="confirm-remove-btn">Revocă accesul selectat</button>
         </div>
     </div>
     <script src="tests.js"></script>
