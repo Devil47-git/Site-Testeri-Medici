@@ -101,7 +101,7 @@ function cooldownPaymentMessage(member, test, days) {
   const rank = String(member.rank || '').replace(/\s+/g, ' ').trim();
   if (callsignNumber(callsign) < 1 || !/^\d+$/.test(discordId) || !name) return '';
   return [
-    `CANDIDAT: @[${callsign}] ${name}`,
+    `CANDIDAT: <@${discordId}>`,
     `Grad: ${rank || '—'}`,
     `Calificare: ${COOLDOWN_PAYMENT_LABELS[test]}`,
     `Nr. zile: ${Number(days)}`,
