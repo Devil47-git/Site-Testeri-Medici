@@ -174,11 +174,20 @@ function parseIdentityImage(value) {
   return { buffer, mimeType: `image/${match[1]}` };
 }
 
-async function sendWebhookMessage(url, embed, testerDiscordId) {
+export function webhookIdentity(username) {
+  const origin = String(process.env.APP_ORIGIN || 'https://site-wheat-zeta-76.vercel.app').trim().replace(/\/+$/, '');
+  return { username, avatar_url: `${origin}/hr-team.png` };
+}
+
+function admissionWebhookName({ testName, testType }) {
+  return testName === 'Test transfer' ? 'Test Transfer' : `Test ${testType === 'Reintegrare' ? 'Reintegrare' : 'Admitere'}`;
+}
+
+async function sendWebhookMessage(url, embed, testerDiscordId, identity = {}) {
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...discordTesterMentionPayload(testerDiscordId), embeds: [embed] })
+    body: JSON.stringify({ ...identity, ...discordTesterMentionPayload(testerDiscordId), embeds: [embed] })
   });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
 }
@@ -198,10 +207,11 @@ export function webhookComponentsUrl(value) {
   return url.toString();
 }
 
-async function sendWebhookComponents(url, components, images, testerDiscordId, roleIds = []) {
+async function sendWebhookComponents(url, components, images, testerDiscordId, roleIds = [], identity = {}) {
   const form = new FormData();
   const mentionPayload = discordTesterMentionPayload(testerDiscordId);
   form.set('payload_json', JSON.stringify({
+    ...identity,
     allowed_mentions: roleIds.length ? { ...mentionPayload.allowed_mentions, roles: roleIds } : mentionPayload.allowed_mentions,
     flags: 1 << 15,
     components,
@@ -276,12 +286,12 @@ async function sendAdmissionNotifications(details) {
 
   const admissionEmbed = createAdmissionEmbed(details);
   const deliveries = await Promise.all([
-    sendWebhookMessage(admissionWebhook, admissionEmbed).then(() => null, error => `Canalul de rezultate: ${error.message.startsWith('HTTP ') ? error.message : 'eroare de rețea Discord'}.`),
+    sendWebhookMessage(admissionWebhook, admissionEmbed, undefined, webhookIdentity(admissionWebhookName(details))).then(() => null, error => `Canalul de rezultate: ${error.message.startsWith('HTTP ') ? error.message : 'eroare de rețea Discord'}.`),
     sendWebhookComponents(testersWebhook, createAdmissionTesterComponents(details), [
       { ...details.identityImage, filename: 'buletin-candidat.jpg' },
       { ...details.medicalSheetImage, filename: 'fisa-medicala.jpg' },
       { ...details.drugTestImage, filename: 'drug-test.jpg' }
-    ], details.testerDiscordId, admissionRoleMentions(details.result)).then(() => null, error => `Canalul testerilor: ${error.message.startsWith('HTTP ') ? error.message : 'eroare de rețea Discord'}.`)
+    ], details.testerDiscordId, admissionRoleMentions(details.result), webhookIdentity(admissionWebhookName(details))).then(() => null, error => `Canalul testerilor: ${error.message.startsWith('HTTP ') ? error.message : 'eroare de rețea Discord'}.`)
   ]);
   const errors = deliveries.filter(Boolean);
   return { sent: errors.length === 0, error: errors.join(' ') };
@@ -296,7 +306,7 @@ export function createAlsResultEmbed({ testerName, testerDiscordId, candidateNam
   return {
     title: 'Test ALS',
     color: SITE_BRAND_EMBED_COLOR,
-    author: { name: 'DMLS · Departamentul Testerilor' },
+    author: { name: 'Sub-Departamentul Testerilor' },
     fields: [
       { name: '👨‍⚕️ Tester', value: discordMention(testerDiscordId, testerName), inline: false },
       { name: '🧑‍⚕️ Candidat', value: discordMention(candidateDiscordId, candidateName), inline: false },
@@ -311,7 +321,7 @@ export function createSpecialtyResultEmbed({ testName, testerName, testerDiscord
   return {
     title: testName === 'Test PILOT' ? `${testName} 🚁`     : testName === 'Test parașutiști' ? 'Test Parasutism' : testName,
     color: SITE_BRAND_EMBED_COLOR,
-    author: { name: 'DMLS · Departamentul Testerilor' },
+    author: { name: 'Sub-Departamentul Testerilor' },
     fields: [
       { name: '👨‍⚕️ Tester', value: discordMention(testerDiscordId, testerName), inline: false },
       { name: '🧑‍⚕️ Candidat', value: discordMention(candidateDiscordId, candidateName), inline: false },
@@ -336,7 +346,7 @@ async function sendSpecialtyNotification(testName, details) {
     const embed = testName === 'Test ALS'
       ? createAlsResultEmbed(details)
       : createSpecialtyResultEmbed({ testName, ...details });
-    await sendWebhookMessage(url, embed);
+    await sendWebhookMessage(url, embed, undefined, webhookIdentity(testName));
     return { sent: true, error: '' };
   } catch (error) {
     return { sent: false, error: `Canalul ${testName}: ${error.message.startsWith('HTTP ') ? error.message : 'eroare de rețea Discord'}.` };
@@ -355,7 +365,7 @@ async function sendMedicalCertificateNotification(details, number, testerDiscord
     ];
     const logo = await readFile(join(process.cwd(), 'logo medici medici.png')).catch(() => null);
     if (logo) images.push({ buffer: logo, mimeType: 'image/png', filename: 'logo-medici.png' });
-    await sendWebhookComponents(url, createMedicalCertificateComponents(details, number, testerDiscordId), images, testerDiscordId);
+    await sendWebhookComponents(url, createMedicalCertificateComponents(details, number, testerDiscordId), images, testerDiscordId, [], webhookIdentity('Adeverință medicală'));
     return { sent: true, error: '' };
   } catch (error) {
     return { sent: false, error: `Canalul de adeverințe: ${error.message.startsWith('HTTP ') ? error.message : 'eroare de rețea Discord'}.` };
