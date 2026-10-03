@@ -366,9 +366,6 @@ function testerSearchResultHtml(member) {
 let directoryMembers = [];
 async function loadDirectory() {
   if (!currentUser?.discordId) return;
-  if (currentUser.avatar) {
-    await fetch('/api/access/directory', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requesterId: currentUser.discordId, avatarUrl: currentUser.avatar }) }).catch(() => {});
-  }
   const response = await fetch(`/api/access/directory?requesterId=${encodeURIComponent(currentUser.discordId)}`);
   if (!response.ok) return;
   const payload = await response.json();
@@ -2115,7 +2112,8 @@ window.addEventListener('hashchange', () => {
   navigateTo(labels[view] ? view : 'overview', { push: false });
 });
 document.querySelector('.mobile-menu').onclick = () => document.querySelector('.sidebar').classList.toggle('open');
-window.setInterval(() => { markPresence(); sendPresence(); renderRows(); }, 30000);
+window.setInterval(() => { markPresence(); renderRows(); }, 30000);
+window.setInterval(sendPresence, 5 * 60 * 1000);
 window.setInterval(async () => { if (!currentUser) return; try { await loadDirectory(); await loadRemoteGrants(); } catch { /* următoarea sincronizare va reîncerca */ } }, 60*60*1000);
 const profileDateFormatter = new Intl.DateTimeFormat('ro-RO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Bucharest' });
 const romaniaTimeFormatter = new Intl.DateTimeFormat('ro-RO', { hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23', timeZone: 'Europe/Bucharest' });
