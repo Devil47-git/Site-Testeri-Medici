@@ -247,9 +247,11 @@ export function createAdmissionTesterComponents({ testName, testType, testerName
     type: 17,
     accent_color: SITE_BRAND_EMBED_COLOR,
     components: [
-      section(`## ${title}\n**👨‍⚕️ Tester**\n${discordMention(testerDiscordId, testerName)}`, 'buletin-candidat.jpg', 'Buletin candidat'),
-      section(`**🧑‍⚕️ Candidat**\n${candidateName || '—'}\n**🆔 ID:** ${candidateId || '—'}`, 'fisa-medicala.jpg', 'Fișă medicală'),
-      section(resultDetails, 'drug-test.jpg', 'Drug-test'),
+      section(`## ${title}\n**👨‍⚕️ Tester**\n${discordMention(testerDiscordId, testerName)}\n**🧑‍⚕️ Candidat**\n${candidateName || '—'}\n**🆔 ID:** ${candidateId || '—'}\n${resultDetails}`, 'buletin-candidat.jpg', 'Buletin candidat'),
+      { type: 12, items: [
+        { media: { url: 'attachment://fisa-medicala.jpg' }, description: 'Fișă medicală' },
+        { media: { url: 'attachment://drug-test.jpg' }, description: 'Drug-test' }
+      ] },
       { type: 10, content: admissionRoleMentions(result).map(id => `<@&${id}>`).join(' ') }
     ]
   }];
@@ -565,10 +567,9 @@ export function createMedicalCertificateComponents(details, number, testerDiscor
       type: 17,
       accent_color: SITE_BRAND_EMBED_COLOR,
       components: [
-        { type: 9, components: [{ type: 10, content: `**${embed.title}**` }], accessory: { type: 11, media: { url: 'attachment://logo-medici.png' }, description: 'DMLS' } },
-        { type: 9, components: [{ type: 10, content: embed.description }], accessory: { type: 11, media: { url: 'attachment://fisa-medicala.jpg' }, description: 'Fișă medicală' } },
+        { type: 9, components: [{ type: 10, content: `**${embed.title}**\n${embed.description}` }], accessory: { type: 11, media: { url: 'attachment://fisa-medicala.jpg' }, description: 'Fișă medicală' } },
         { type: 12, items: [{ media: { url: 'attachment://buletin-candidat.jpg' }, description: 'Buletin candidat' }] },
-        { type: 10, content: '-# DMLS' }
+        { type: 9, components: [{ type: 10, content: '-# DMLS' }], accessory: { type: 11, media: { url: 'attachment://logo-medici.png' }, description: 'DMLS' } }
       ]
     }
   ];
