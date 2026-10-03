@@ -735,3 +735,9 @@ body.dark-mode .statistics-access-table th:nth-child(2){text-align:left;padding-
 .statistics-access-table .statistics-tests-toggle{margin:0 auto;min-width:84px}
 
 .bonus-table th:nth-child(n+3):nth-child(-n+8){text-align:center}
+
+.test-guide-information,.test-guide-information *{font-size:15px!important;line-height:1.5!important}
+
+.workspace-label,body.dark-mode .workspace-label{color:#fff!important;font-size:15px!important;font-weight:800!important;letter-spacing:.08em}
+
+.workspace-label,body.dark-mode .workspace-label{text-align:center!important;padding-left:0!important;padding-right:0!important}
