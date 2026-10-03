@@ -374,6 +374,7 @@ function bonusTesterCallsign(value) {
 }
 /** @param {any} user @returns {boolean} */
 function isLeadershipUser(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return Boolean(user?.accessLevel === 'leadership' || user?.isConducere || user?.isLeadership || (cs >= 1 && cs <= 20)); }
+function canViewTestersRoom(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return cs >= 1 && cs <= 399; }
 function hasLeadershipCallsign(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return cs >= 1 && cs <= 20; }
 /** @param {any} member @returns {boolean} */
 function memberIsLeadership(member) { return isLeadershipUser(member); }
@@ -720,6 +721,8 @@ function renderAvailableTestsSubmenu() {
   const submenu = document.querySelector('#available-tests-submenu');
   const bonusNav = document.querySelector('#bonuses-nav');
   if (bonusNav) bonusNav.hidden = !isLeadershipUser(currentUser);
+  const testersNav = document.querySelector('.nav-item[data-view="testers"]');
+  if (testersNav) testersNav.hidden = !canViewTestersRoom(currentUser);
   if (!submenu || !currentUser) return;
   const selectedTest = window.history.state?.view === 'test' ? window.history.state.testName : '';
   const tests = allowedForUser(currentUser);
@@ -2487,6 +2490,7 @@ document.querySelector('#brand-settings').onclick = () => navigateTo('overview')
 const labels = { overview: 'Profilul tău', testers: 'Testerii departamentului', statistics: 'Statistica Teste', cooldowns: 'Cooldown-uri', bonuses: 'Bonusuri', settings: 'Setări' };
 function navigateTo(view, { push = true } = {}) {
   if (view === 'bonuses' && !isLeadershipUser(currentUser)) view = 'overview';
+  if (view === 'testers' && !canViewTestersRoom(currentUser)) view = 'overview';
   if (!labels[view]) return;
   document.body.classList.remove('smuls-background-mode');
   document.body.classList.remove('als-background-mode');

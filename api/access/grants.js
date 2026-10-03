@@ -121,6 +121,6 @@ export default async function handler(req, res) {
     return json(res, 200, { success: true, grant: updated });
   } catch (error) {
     console.error('Grant storage failed:', error);
-    return json(res, 500, { error: 'Grant storage failed' });
+    return json(res, 500, { error: `Grant storage failed: ${String(error?.message || error).slice(0, 200)}` });
   }
 }
