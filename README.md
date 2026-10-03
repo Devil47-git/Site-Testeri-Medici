@@ -39,6 +39,8 @@ The tester statistics list also includes lifetime `Teste Procesate` badges for e
 
 Bonus entries are stored in Upstash Redis when both `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are configured. New test results continue to be written to `TEST_HISTORY`; bonus queries import existing rows into Redis on demand, once per Bucharest calendar day. Without both Upstash variables, the bonus page continues reading from Google Sheets. The reusable Redis client is in `api/storage/upstash-redis.js`; application keys use the `site-testeri-medici:` namespace.
 
+The `Bonusuri` table is sorted by numeric callsign and shows only testers with tests during the selected period. Consecutive callsign blocks get their own copy button (for example, 101–103 and then 105+ if 104 has no tests); alternatively, select any rows and use `Copiază selectați`. Copies contain the six tab-separated bonus totals in numeric order, without testers who have no tests.
+
 Create a free Redis database in Upstash, then add its REST URL and REST token as server-side environment variables in the deployment settings. For local development, add them to the ignored `.env` file. The blank names are included in `.env.example`; never commit actual credentials.
 
 The local `tests/dev-server.mjs` is a UI mock and intentionally does not send Discord messages. Real delivery requires the deployed API endpoint and both webhook environment variables to be configured.
