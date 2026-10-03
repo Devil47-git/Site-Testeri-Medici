@@ -575,6 +575,8 @@ function openTesterProfile(member, { push = true, previousView: requestedPreviou
   if (!hasLeadershipCallsign(currentUser)) return;
   document.body.classList.remove('smuls-background-mode');
   document.body.classList.remove('als-background-mode');
+  document.body.classList.remove('admission-background-mode');
+  document.body.classList.remove('transfer-background-mode');
   document.body.classList.remove('moto-background-mode');
   document.body.classList.remove('pilot-background-mode');
   document.body.classList.remove('adeverinta-background-mode');
@@ -850,6 +852,8 @@ function testNameFromHash(hash) {
 function openTest(testName, { push = true, previousView: requestedPreviousView } = {}) {
   document.body.classList.toggle('smuls-background-mode', testName === 'Test SMULS');
   document.body.classList.toggle('als-background-mode', testName === 'Test ALS');
+  document.body.classList.toggle('admission-background-mode', testName === 'Test admitere');
+  document.body.classList.toggle('transfer-background-mode', testName === 'Test transfer');
   document.body.classList.toggle('moto-background-mode', testName === 'Test MOTO');
   document.body.classList.toggle('pilot-background-mode', testName === 'Test PILOT');
   document.body.classList.toggle('adeverinta-background-mode', testName === 'Adeverință medicală');
@@ -1246,7 +1250,7 @@ function buildTestMarkup(testName, definition, questions) {
     : `${guideBody}${images ? `<div class="test-images">${images}</div>` : ''}`;
   const testAccessControl = testAccessMarkup(testName);
   const headerActions = `<div class="test-guide-header-actions">${testAccessControl}<button class="outline site-guide-frame" id="back-to-tests">← Înapoi</button></div>`;
-  return `<div class="panel view-panel${isSmulsTest ? ' smuls-background-panel' : isAlsTest ? ' als-background-panel' : isMotoTest ? ' moto-background-panel' : isPilotTest ? ' pilot-background-panel' : isMedicalCertificate ? ' adeverinta-background-panel' : isParachutismTest ? ' parasutism-background-panel' : ''}"><div class="panel-head"><div><p class="eyebrow">GHID PENTRU TESTER</p><h2>${displayTestName(testName)}</h2></div>${headerActions}</div>${content}${isSmulsTest || isAlsTest ? evaluationStageFlow : ''}${parachutismResultStageFlow}${parachutismPracticalStage}${isSmulsTest ? '<img class="test-corner-logo" src="/logo%20smuls%202.png" alt="Sigla S.M.U.L.S." aria-hidden="true">' : isMotoTest ? '<img class="test-corner-logo" src="/moto%202.png" alt="Sigla Moto" aria-hidden="true">' : isPilotTest ? '<img class="test-corner-logo" src="/logo%20pilot.png" alt="Sigla Pilot" aria-hidden="true">' : isParachutismTest ? '<img class="test-corner-logo" src="/logo%20parasuta.png" alt="Sigla parașutism" aria-hidden="true">' : ''}</div>`;
+  return `<div class="panel view-panel${isSmulsTest ? ' smuls-background-panel' : isAlsTest ? ' als-background-panel' : isAdmissionTest ? ' admission-background-panel' : isTransferTest ? ' transfer-background-panel' : isMotoTest ? ' moto-background-panel' : isPilotTest ? ' pilot-background-panel' : isMedicalCertificate ? ' adeverinta-background-panel' : isParachutismTest ? ' parasutism-background-panel' : ''}"><div class="panel-head"><div><p class="eyebrow">GHID PENTRU TESTER</p><h2>${displayTestName(testName)}</h2></div>${headerActions}</div>${content}${isSmulsTest || isAlsTest ? evaluationStageFlow : ''}${parachutismResultStageFlow}${parachutismPracticalStage}${isSmulsTest ? '<img class="test-corner-logo" src="/logo%20smuls%202.png" alt="Sigla S.M.U.L.S." aria-hidden="true">' : isMotoTest ? '<img class="test-corner-logo" src="/moto%202.png" alt="Sigla Moto" aria-hidden="true">' : isPilotTest ? '<img class="test-corner-logo" src="/logo%20pilot.png" alt="Sigla Pilot" aria-hidden="true">' : isParachutismTest ? '<img class="test-corner-logo" src="/logo%20parasuta.png" alt="Sigla parașutism" aria-hidden="true">' : ''}</div>`;
 }
 function wireTestEvents(testName, definition) {
   const isAdmissionTest = testName === 'Test admitere';
@@ -2011,6 +2015,8 @@ function navigateTo(view, { push = true } = {}) {
   if (!labels[view]) return;
   document.body.classList.remove('smuls-background-mode');
   document.body.classList.remove('als-background-mode');
+  document.body.classList.remove('admission-background-mode');
+  document.body.classList.remove('transfer-background-mode');
   document.body.classList.remove('moto-background-mode');
   document.body.classList.remove('pilot-background-mode');
   document.body.classList.remove('adeverinta-background-mode');
