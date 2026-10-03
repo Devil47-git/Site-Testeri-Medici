@@ -631,3 +631,22 @@ body.dark-mode .admission-check-control input{border:1px solid #ff5a66;border-ra
 body.dark-mode .admission-check-control input:checked{background:#fff1f2}
 body.dark-mode .admission-consent p,body.dark-mode .admission-candidate-details h3,body.dark-mode .admission-checklist h3{text-shadow:0 0 8px rgba(43,140,255,.35)}
 body.dark-mode .candidate-photo-grid .outline,body.dark-mode .candidate-document-upload .outline,body.dark-mode .candidate-document-upload label.outline{border:1px solid #ff5a66;background:linear-gradient(90deg,#c8202f,#ff2d3d);color:#fff;box-shadow:0 0 10px rgba(255,45,61,.55)}
+/* Parachutism photos at natural size */
+.parachutism-photo-grid{display:flex;flex-wrap:wrap;align-items:flex-start;gap:10px}
+.parachutism-photo-slot{display:inline-block;flex:0 1 auto;max-width:100%;aspect-ratio:auto!important;height:auto!important;min-height:0}
+.parachutism-photo-slot img{position:static;display:block;width:auto;height:auto;max-width:100%;object-fit:none}
+/* No ambulance background on profile, testers, statistics */
+body.dark-mode .main-content{background:radial-gradient(ellipse 60% 40% at 85% 0,rgba(255,45,61,.16),transparent 70%),radial-gradient(ellipse 60% 45% at 10% 100%,rgba(43,140,255,.16),transparent 70%),#050916}
+body.dark-mode[class*="-background-mode"] .main-content{background:transparent}
+/* No EKG line */
+body.dark-mode .page-wrap{background:none}
+/* No inner frame in intro boxes */
+body.dark-mode .als-intro-box,body.dark-mode .smuls-intro-box,body.dark-mode .moto-intro-box,body.dark-mode .pilot-intro-box{border:0;background:transparent;box-shadow:none;animation:none;border-radius:0}
+/* Moto information box: all text white and bold */
+body.dark-mode .test-guide-information .moto-intro-box,body.dark-mode .test-guide-information .moto-intro-box *,body.dark-mode .moto-candidate-briefing,body.dark-mode .moto-candidate-briefing *{color:#fff!important;font-weight:700!important}
+/* Parachutism information: no inner frames, white bold text */
+body.dark-mode .parachutism-information-card{border:0!important;background:transparent!important;box-shadow:none!important;animation:none!important;border-radius:0}
+body.dark-mode .test-guide-information,body.dark-mode .test-guide-information *,body.dark-mode .parachutism-information-card,body.dark-mode .parachutism-information-card *{color:#fff!important;font-weight:700!important}
+.als-stretcher-note{margin:0 0 18px;line-height:1.5}
+body.dark-mode .als-stretcher-note{color:#fff;font-weight:700}
+.als-case-stage>h3{margin-bottom:10px}
