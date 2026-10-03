@@ -1215,7 +1215,7 @@ function buildTestMarkup(testName, definition, questions) {
   const candidateCallsign = isApplicationTest || isMedicalCertificate ? '' : '<label class="candidate-call-sign">Callsign candidat<input id="candidate-callsign" type="text" placeholder="510 sau M-510"><span id="candidate-callsign-error" class="candidate-callsign-error" role="alert" hidden></span></label>';
   const candidateNameField = ['Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști'].includes(testName) ? '<label class="candidate-call-sign">Nume candidat<input id="als-candidate-name" type="text" autocomplete="name" readonly placeholder="Se completează după callsign"></label>' : '';
   const candidateIdentityFields = candidateCallsign || candidateNameField
-    ? `<section class="candidate-identity-fields site-guide-frame">${candidateCallsign}${candidateNameField}</section>`
+    ? `<section class="candidate-identity-fields site-guide-frame">${candidateCallsign}${candidateNameField}${isPilotTest ? '<div id="pilot-cooldown" class="pilot-cooldown" role="status" hidden></div>' : ''}</section>`
     : '';
   const candidateIdentityBeforeChecks = isMotoTest || isSmulsTest || isAlsTest || isParachutismTest || isPilotTest ? candidateIdentityFields : '';
   const candidateIdentityInQuiz = isMotoTest || isSmulsTest || isAlsTest || isParachutismTest || isPilotTest ? '' : candidateIdentityFields;
@@ -1537,12 +1537,36 @@ function wireTestEvents(testName, definition) {
   let candidateLookupSequence = 0;
   let refreshParachutismTheoryGate = () => {};
   let refreshPilotTheoryGate = () => {};
+  let pilotCooldownTimer;
+  const pilotCooldownEl = document.querySelector('#pilot-cooldown');
+  const stopPilotCooldown = () => {
+    clearInterval(pilotCooldownTimer);
+    if (pilotCooldownEl) { pilotCooldownEl.hidden = true; pilotCooldownEl.textContent = ''; }
+    const license = document.querySelector('[data-pilot-license-check]');
+    if (license) license.disabled = false;
+  };
+  const startPilotCooldown = (expiry, expiryDate) => {
+    const license = document.querySelector('[data-pilot-license-check]');
+    if (license) { license.checked = false; license.disabled = true; }
+    const render = () => {
+      const left = expiry - Date.now();
+      if (left <= 0) { candidateCooldownMessage = ''; stopPilotCooldown(); refreshPilotTheoryGate(); return; }
+      const days = Math.floor(left / 86400000), hours = Math.floor(left % 86400000 / 3600000), minutes = Math.floor(left % 3600000 / 60000);
+      const parts = [days ? `${days} ${days === 1 ? 'zi' : 'zile'}` : '', `${hours} ${hours === 1 ? 'oră' : 'ore'}`, `${minutes} ${minutes === 1 ? 'minut' : 'minute'}`].filter(Boolean);
+      if (pilotCooldownEl) { pilotCooldownEl.textContent = `⏳ Candidatul are cooldown pentru Test PILOT până pe ${expiryDate}. Mai are ${parts.join(', ')} până poate da testul.`; pilotCooldownEl.hidden = false; }
+    };
+    render();
+    clearInterval(pilotCooldownTimer);
+    pilotCooldownTimer = setInterval(() => { if (!document.body.contains(pilotCooldownEl)) clearInterval(pilotCooldownTimer); else render(); }, 30000);
+    refreshPilotTheoryGate();
+  };
   if (candidateInput && !isApplicationTest) candidateInput.oninput = () => {
     const sequence = ++candidateLookupSequence;
     clearTimeout(candidateLookupTimer);
     const callsign = candidateInput.value.trim();
     candidateCooldowns = {};
     candidateCooldownMessage = '';
+    stopPilotCooldown();
     showCandidateCallsignError('');
     if (isPilotTest) { const content = document.querySelector('#pilot-test-content'); if (content) content.hidden = true; }
     if (isMotoTest) { const content = document.querySelector('#moto-test-content'); if (content) content.hidden = true; }
@@ -1573,7 +1597,12 @@ function wireTestEvents(testName, definition) {
         candidateCooldowns = candidate.cooldowns || {};
         if (candidateSummaryEl) candidateSummaryEl.textContent = `Candidat: @[${normalizeCallsign(candidate.callsign)}] ${candidate.name}`;
         const activeCooldown = candidateCooldowns[testName];
-        if (activeCooldown && activeCooldown > Date.now()) {
+        if (isPilotTest && activeCooldown && activeCooldown > Date.now()) {
+          const expiryDate = new Date(activeCooldown).toLocaleDateString('ro-RO', { timeZone: 'Europe/Bucharest', day: '2-digit', month: '2-digit', year: 'numeric' });
+          candidateCooldownMessage = `CD activ pentru ${displayTestName(testName)} până pe ${expiryDate}. Testarea nu poate continua.`;
+          if (candidateSummaryEl) candidateSummaryEl.textContent = '';
+          startPilotCooldown(activeCooldown, expiryDate);
+        } else if (activeCooldown && activeCooldown > Date.now()) {
           const expiryDate = new Date(activeCooldown).toLocaleDateString('ro-RO', { timeZone: 'Europe/Bucharest', day: '2-digit', month: '2-digit', year: 'numeric' });
           candidateCooldownMessage = `CD activ pentru ${displayTestName(testName)} până pe ${expiryDate}. Testarea nu poate continua.`;
           if (candidateSummaryEl) candidateSummaryEl.textContent += `\n${candidateCooldownMessage}`;
@@ -1614,6 +1643,7 @@ function wireTestEvents(testName, definition) {
       const candidateComplete = Boolean(candidateInput?.value.trim() && alsCandidateNameInput?.value.trim());
       const licenseVerified = Boolean(pilotLicenseCheck?.checked);
       if (testContent) testContent.hidden = !candidateComplete || !licenseVerified || Boolean(candidateCooldownMessage);
+      if (candidateCooldownMessage) { if (candidateSummaryEl) candidateSummaryEl.textContent = ''; return; }
       if (!candidateComplete && candidateSummaryEl && candidateInput?.value.trim()) candidateSummaryEl.textContent = 'Verifică callsign-ul candidatului înainte de proba teoretică.';
       else if (candidateComplete && !licenseVerified && candidateSummaryEl) candidateSummaryEl.textContent = 'Verifică și bifează licența Pilot înainte de proba teoretică.';
       else if (candidateComplete && licenseVerified && candidateSummaryEl?.textContent.includes('licența Pilot')) candidateSummaryEl.textContent = '';

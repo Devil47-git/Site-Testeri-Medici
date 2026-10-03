@@ -650,3 +650,7 @@ body.dark-mode .test-guide-information,body.dark-mode .test-guide-information *,
 .als-stretcher-note{margin:0 0 18px;line-height:1.5}
 body.dark-mode .als-stretcher-note{color:#fff;font-weight:700}
 .als-case-stage>h3{margin-bottom:10px}
+
+.pilot-cooldown{grid-column:1/-1;width:100%;margin-top:12px;padding:10px 14px;border:1px solid #ffb347;border-radius:10px;background:rgba(255,179,71,.1);color:#ffd9a0;font-weight:700;text-align:center}
+.pilot-cooldown[hidden]{display:none}
+.pilot-license-checklist input:disabled{opacity:.4;cursor:not-allowed}
