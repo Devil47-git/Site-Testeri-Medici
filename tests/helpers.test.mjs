@@ -78,6 +78,8 @@ test('tester table uses each member Discord avatar and shared fixed column width
   assert.match(source, /function avatarFor\(member\)[\s\S]*?const url = avatarUrlForMember\(member, currentUser\)/);
   assert.match(directorySource, /avatar: avatarUrlForDiscordMember\(discordId, row\[20\], avatarHashes\)/);
   assert.match(source, /tester-name-column/);
+  assert.match(source, /<col class="tester-callsign-column"><col class="tester-name-column"[\s\S]*?<th>CALLSIGN<\/th><th>TESTER<\/th>/);
+  assert.match(source, /return `<tr><td>\$\{escapeHtml\(normalizeCallsign\(member\.callsign\)\)\}<\/td><td><div class="tester">/);
   assert.match(source, /renderTestersView[\s\S]*testerTableHtml\(group\.members\)/);
   assert.equal(avatarUrlForMember({ discordId: 'self', avatar: '' }, { discordId: 'self', avatar: 'https://cdn.discordapp.com/avatars/self/latest.png' }), 'https://cdn.discordapp.com/avatars/self/latest.png');
   assert.equal(avatarUrlForMember({ discordId: 'other', avatar: 'https://cdn.discordapp.com/avatars/other/saved.png' }, { discordId: 'self', avatar: 'https://cdn.discordapp.com/avatars/self/latest.png' }), 'https://cdn.discordapp.com/avatars/other/saved.png');
@@ -620,7 +622,8 @@ test('Moto and Pilot staged practical content is present in test definitions', (
 test('Pilot certification description and instructions share one intro box', () => {
   assert.match(source, /const introBoxClass = testName === 'Test PILOT' \? 'pilot-intro-box' : isMotoTest \? 'moto-intro-box' : isSmulsTest \? 'smuls-intro-box' : 'als-intro-box'/);
   assert.match(source, /const testIntro = isTransferTest \|\| isMedicalCertificate \? '' : isStagedTest \? `<div class="\$\{introBoxClass\}">\$\{descriptionMarkup\}\$\{instructions\}<\/div>`/);
-  assert.match(source, /const description = isAdmissionTest\s*\? String\(definition\.description \|\| ''\)\.replace\(admissionPromotionText, ''\)\.trim\(\)\s*: isParachutismTest \|\| isAdmissionChecklistReminder\(definition\.description\) \? '' : definition\.description/);
+  assert.match(source, /const rawDescription = isAdmissionTest\s*\? String\(definition\.description \|\| ''\)\.replace\(admissionPromotionText, ''\)\.trim\(\)\s*: definition\.description/);
+  assert.match(source, /const description = isParachutismTest \|\| isAdmissionChecklistReminder\(rawDescription\) \? '' : rawDescription/);
   assert.match(source, /const guideBody = sideBySideGuide[\s\S]*test-guide-columns[\s\S]*test-guide-information/);
 });
 

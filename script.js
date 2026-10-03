@@ -322,10 +322,10 @@ function testerAccessHtml(member) {
 function testerRowHtml(member, index) {
   const tags = testerAccessHtml(member);
   const profileAction = hasLeadershipCallsign(currentUser) ? `<button class="more" type="button" data-member-profile="${escapeHtml(normalizeCallsign(member.callsign))}" aria-label="Vezi profilul ${escapeHtml(memberNameFor(member))}" title="Vezi profilul">•••</button>` : '';
-  return `<tr><td><div class="tester">${avatarFor(member)}<span>${escapeHtml(memberNameFor(member))}</span></div></td><td>${escapeHtml(normalizeCallsign(member.callsign))}</td><td>${escapeHtml(rankFor(member))}</td><td><div class="tags">${tags}</div></td><td>${memberStatusHtml(member)}</td><td>${profileAction}</td></tr>`;
+  return `<tr><td>${escapeHtml(normalizeCallsign(member.callsign))}</td><td><div class="tester">${avatarFor(member)}<span>${escapeHtml(memberNameFor(member))}</span></div></td><td>${escapeHtml(rankFor(member))}</td><td><div class="tags">${tags}</div></td><td>${memberStatusHtml(member)}</td><td>${profileAction}</td></tr>`;
 }
 function testerTableHtml(members) {
-  return `<div class="table-wrap"><table class="tester-access-table"><colgroup><col class="tester-name-column"><col class="tester-callsign-column"><col class="tester-rank-column"><col class="tester-tests-column"><col class="tester-status-column"><col class="tester-action-column"></colgroup><thead><tr><th>TESTER</th><th>CALLSIGN</th><th>RANK</th><th>TESTE ALOCATE</th><th>STATUS</th><th></th></tr></thead><tbody>${members.map((member, index) => testerRowHtml(member, index)).join('')}</tbody></table></div>`;
+  return `<div class="table-wrap"><table class="tester-access-table"><colgroup><col class="tester-callsign-column"><col class="tester-name-column"><col class="tester-rank-column"><col class="tester-tests-column"><col class="tester-status-column"><col class="tester-action-column"></colgroup><thead><tr><th>CALLSIGN</th><th>TESTER</th><th>RANK</th><th>TESTE ALOCATE</th><th>STATUS</th><th></th></tr></thead><tbody>${members.map((member, index) => testerRowHtml(member, index)).join('')}</tbody></table></div>`;
 }
 function currentFilteredTesters() {
   const q = String(document.querySelector('#search')?.value || '').trim().toLowerCase();
@@ -1193,9 +1193,10 @@ function buildTestMarkup(testName, definition, questions) {
   const parachutismInformation = isParachutismTest ? parachutismInformationHtml(definition) : '';
   const admissionPromotionText = 'Candidatul poate greși de maximum 3 ori; la a 4-a greșeală este respins. Promovare: minimum 17/20.';
   const admissionPromotionNote = isAdmissionTest ? `<p class="admission-promotion-note">${admissionPromotionText}</p>` : '';
-  const description = isAdmissionTest
+  const rawDescription = isAdmissionTest
     ? String(definition.description || '').replace(admissionPromotionText, '').trim()
-    : isParachutismTest || isAdmissionChecklistReminder(definition.description) ? '' : definition.description;
+    : definition.description;
+  const description = isParachutismTest || isAdmissionChecklistReminder(rawDescription) ? '' : rawDescription;
   const images = (definition.images || []).map(image => `<a class="test-image-link${image.inline ? ' test-image-preview' : ''}" href="${image.url}" target="_blank" rel="noopener">${image.inline ? `<img src="${image.url}" alt="${escapeHtml(image.label || testName)}">` : image.label || 'Deschide imaginea'}</a>`).join('');
   const cases = isSmulsTest || isAlsTest ? '' : (definition.cases || []).map((item, index) => `<option value="${index}">${item.title}</option>`).join('');
   const parachutismPracticalOptions = (definition.practical || []).map((item, index) => `<option value="${index}">${item.name}</option>`).join('');
