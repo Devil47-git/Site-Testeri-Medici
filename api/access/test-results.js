@@ -353,7 +353,7 @@ async function sendMedicalCertificateNotification(details, number, testerDiscord
     ];
     const logo = await readFile(join(process.cwd(), 'logo medici medici.png')).catch(() => null);
     if (logo) images.push({ buffer: logo, mimeType: 'image/png', filename: 'logo-medici.png' });
-    await sendWebhookImages(url, createMedicalCertificateEmbeds(details, number), images, testerDiscordId);
+    await sendWebhookComponents(url, createMedicalCertificateComponents(details, number, testerDiscordId), images, testerDiscordId);
     return { sent: true, error: '' };
   } catch (error) {
     return { sent: false, error: `Canalul de adeverințe: ${error.message.startsWith('HTTP ') ? error.message : 'eroare de rețea Discord'}.` };
@@ -556,6 +556,23 @@ export function medicalCertificateNumberForRow(rowNumber) {
   return number <= MEDICAL_CERTIFICATE_MAX_NUMBER ? number : null;
 }
 
+export function createMedicalCertificateComponents(details, number, testerDiscordId) {
+  const [embed] = createMedicalCertificateEmbeds(details, number);
+  const mention = String(testerDiscordId || '').trim();
+  return [
+    ...(/^\d+$/.test(mention) ? [{ type: 10, content: `<@${mention}>` }] : []),
+    {
+      type: 17,
+      accent_color: SITE_BRAND_EMBED_COLOR,
+      components: [
+        { type: 9, components: [{ type: 10, content: `**${embed.title}**` }], accessory: { type: 11, media: { url: 'attachment://logo-medici.png' }, description: 'DMLS' } },
+        { type: 9, components: [{ type: 10, content: embed.description }], accessory: { type: 11, media: { url: 'attachment://fisa-medicala.jpg' }, description: 'Fișă medicală' } },
+        { type: 12, items: [{ media: { url: 'attachment://buletin-candidat.jpg' }, description: 'Buletin candidat' }] },
+        { type: 10, content: '-# DMLS' }
+      ]
+    }
+  ];
+}
 export function createMedicalCertificateEmbeds(details, number) {
   const result = details.medicalStatus === 'Admis' ? 'ADMIS' : 'RESPINS';
   const description = [

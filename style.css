@@ -606,7 +606,7 @@ body.dark-mode .main-content{position:relative;background:radial-gradient(ellips
 body.dark-mode .page-wrap{position:relative;background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='900' height='120' viewBox='0 0 900 120'><path d='M0 60H300l15-5 10 5 12-40 14 80 12-60 10 20 8-5H900' fill='none' stroke='%232b8cff' stroke-opacity='.35' stroke-width='2'/></svg>") center bottom 40px/900px 120px repeat-x}
 
 /* Mockup header: logo, department text, breadcrumb pill, ambulance banner */
-body.dark-mode .brand-logo-image{content:url("/logo-eclipse-sidebar.png");filter:none;width:190px;height:70px;margin-left:0;object-fit:contain}
+body.dark-mode .brand-logo-image{content:url("/logo-eclipse-banner.png");filter:none;width:100%;max-width:200px;height:auto;border-radius:8px;margin-left:0;object-fit:contain}
 body.dark-mode button.brand-with-logo{padding-bottom:16px}
 body.dark-mode button.brand-with-logo>span{margin-top:12px}
 body.dark-mode .brand-with-logo b{display:block;color:#4aa3ff;font-size:12px;line-height:1.35;letter-spacing:.3px;text-shadow:0 0 8px rgba(74,163,255,.5)}
