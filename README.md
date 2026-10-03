@@ -13,6 +13,8 @@ Configure the server using one server-side deployment variable: `APP_CONFIG_JSON
 
 During migration, a non-empty value in `APP_CONFIG_JSON` takes precedence over the matching individual environment variable. Missing or empty JSON values fall back to existing individual variables. Move the current values into `APP_CONFIG_JSON`, deploy and verify, then remove the individual Vercel variables. `GOOGLE_SERVICE_ACCOUNT_JSON` may be entered as a nested JSON object; the server serializes it for Google authentication.
 
+Revoking a tester function from the site saves an explicit grant override to the configured `GOOGLE_GRANTS_RANGE` sheet. This keeps the function revoked even while the member's original functions remain listed in the department sheet.
+
 For local use, add newly generated webhook URLs to the ignored `.env` file (see `.env.example`). `npm start` loads that file. The checked-in example intentionally contains no credentials.
 
 Never put webhook URLs in browser code or commit them to the repository. Rotate any webhook URL that has been shared in chat or other public places. The admission page accepts all three images by file selection or clipboard paste. Images are resized in the browser and are not stored in the test-history sheet; CNP is not sent as separate message text. Role mentions are posted separately below the admission-result embed.
