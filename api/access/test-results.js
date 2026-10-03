@@ -567,10 +567,9 @@ export function createMedicalCertificateComponents(details, number, testerDiscor
       type: 17,
       accent_color: SITE_BRAND_EMBED_COLOR,
       components: [
-        { type: 9, components: [{ type: 10, content: `**${embed.title}**` }], accessory: { type: 11, media: { url: 'attachment://logo-medici.png' }, description: 'DMLS' } },
-        { type: 9, components: [{ type: 10, content: embed.description }], accessory: { type: 11, media: { url: 'attachment://fisa-medicala.jpg' }, description: 'Fișă medicală' } },
+        { type: 9, components: [{ type: 10, content: `**${embed.title}**\n${embed.description}` }], accessory: { type: 11, media: { url: 'attachment://fisa-medicala.jpg' }, description: 'Fișă medicală' } },
         { type: 12, items: [{ media: { url: 'attachment://buletin-candidat.jpg' }, description: 'Buletin candidat' }] },
-        { type: 10, content: '-# DMLS' }
+        { type: 9, components: [{ type: 10, content: '-# DMLS' }], accessory: { type: 11, media: { url: 'attachment://logo-medici.png' }, description: 'DMLS' } }
       ]
     }
   ];

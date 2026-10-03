@@ -733,3 +733,5 @@ body.dark-mode .nav-item[data-view="testers"],body.dark-mode .nav-item[data-view
 .statistics-access-table td .statistics-processed-cell{display:flex;flex-wrap:wrap;justify-content:center;gap:6px}
 body.dark-mode .statistics-access-table th:nth-child(2){text-align:left;padding-left:59px}
 .statistics-access-table .statistics-tests-toggle{margin:0 auto;min-width:84px}
+
+.bonus-table th:nth-child(n+3):nth-child(-n+8){text-align:center}
