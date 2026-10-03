@@ -901,10 +901,10 @@ test('admission Discord message aligns each photo with its text in one container
   assert.equal(container.type, 17);
   assert.equal(container.components.length, 3);
   assert.deepEqual(container.components.map(section => section.type), [9, 9, 9]);
-  assert.match(container.components[0].components[0].content, /Test Admitere[\s\S]*Nume Tester[\s\S]*Tester/);
-  assert.doesNotMatch(container.components[0].components[0].content, /<@/);
+  assert.match(container.components[0].components[0].content, /Test Admitere\n\*\*[^\n]*Tester\*\*\n\*\*Tester\*\*/);
+  assert.match(createAdmissionTesterComponents({ ...details, testerDiscordId: '123' })[0].components[0].components[0].content, /Tester\*\*\n<@123>/);
   assert.equal(container.components[0].accessory.media.url, 'attachment://buletin-candidat.jpg');
-  assert.match(container.components[1].components[0].content, /\*\*Nume Candidat:\*\* Candidat\n\n\*\*ID:\*\* 12345/);
+  assert.match(container.components[1].components[0].content, /\*\*[^\n]*Candidat\*\*\nCandidat\n\*\*[^\n]*ID\*\*\n12345/);
   assert.equal(container.components[1].accessory.media.url, 'attachment://fisa-medicala.jpg');
   assert.match(container.components[2].components[0].content, /Rezultat[\s\S]*Respins/);
   assert.doesNotMatch(container.components[2].components[0].content, /Callsign/);
@@ -919,7 +919,7 @@ test('admission Discord message aligns each photo with its text in one container
   assert.match(testResultsSource, /testName === 'Test admitere' \|\| testName === 'Test transfer'/);
   assert.match(source, /submissionDetails = \{ candidateName, candidateId, candidateCallsign, identityImage, medicalSheetImage, drugTestImage \}/);
   const admitted = createAdmissionTesterComponents({ ...details, candidateCallsign: 'M-302', result: 'Admis' });
-  assert.match(admitted[0].components[2].components[0].content, /\*\*Callsign:\*\* M-302\n\*\*Rezultat:\*\* Admis/);
+  assert.match(admitted[0].components[2].components[0].content, /Callsign\*\*\nM-302\n\*\*[^\n]*Rezultat\*\*\n[^\n]*Admis/);
   const transfer = createAdmissionTesterComponents({ ...details, testName: 'Test transfer', result: 'Admis' });
   assert.match(transfer[0].components[0].components[0].content, /Test Transfer/);
   assert.match(testResultsSource, /allowed_mentions: mentionPayload\.allowed_mentions,[\s\S]*?flags: 1 << 15/);
@@ -1007,11 +1007,11 @@ test('medical certificate embed includes the requested fields and medical verdic
   assert.match(certificate.description, /NUME: Cartier\nPRENUME: Mohammed/);
   assert.match(certificate.description, /REZULTAT: ADMIS/);
   assert.match(certificate.description, /ORE\(LUNI\): 2001\.25 \(cont\) 2001\.25 \(character\)/);
-  assert.equal(embeds.length, 2);
-  assert.equal(certificate.thumbnail.url, 'attachment://logo-medici.png');
+  assert.equal(embeds.length, 1);
+  assert.equal(certificate.url, undefined);
+  assert.equal(certificate.thumbnail.url, 'attachment://fisa-medicala.jpg');
   assert.equal(certificate.image.url, 'attachment://buletin-candidat.jpg');
-  assert.equal(embeds[1].image.url, 'attachment://fisa-medicala.jpg');
-  assert.equal(embeds[0].url, embeds[1].url);
+  assert.equal(certificate.footer.icon_url, 'attachment://logo-medici.png');
   const [rejected] = createMedicalCertificateEmbeds({
     lastName: 'Cartier', firstName: 'Mohammed', phone: '735-0616', candidateId: '56937',
     hoursAccount: '2001.25', hoursCharacter: '2001.25', medicalStatus: 'Respins'

@@ -1704,7 +1704,7 @@ function wireTestEvents(testName, definition) {
       const reportParachutismResult = async finalResult => {
         practicalStage.querySelectorAll('button').forEach(button => { button.disabled = true; });
         stageFlow.querySelectorAll('button').forEach(button => { button.disabled = true; });
-        const output = finalResult === 'Respins' && !practicalStage.hidden ? practicalStage : stageFlow;
+        const output = !practicalStage.hidden ? practicalStage : stageFlow;
         output.innerHTML = '<p class="muted">Se înregistrează rezultatul...</p>';
         try {
           const saved = await recordTestRun(testName, finalResult, submissionDetails);
@@ -1996,6 +1996,24 @@ function renderTestFilterMenu() {
   testFilterMenu.querySelectorAll('[data-test-filter]').forEach(option => { option.onclick = () => { activeTesterFilter = option.dataset.testFilter; if (testFilterBtn) testFilterBtn.textContent = activeTesterFilter === 'all' ? 'Filtrează după test ☷' : `${labels[activeTesterFilter]} ☷`; renderTestFilterMenu(); renderRows(); if (testFilterMenu) testFilterMenu.hidden = true; if (testFilterBtn) testFilterBtn.setAttribute('aria-expanded', 'false'); }; });
 }
 if (testFilterBtn) { testFilterBtn.onclick = event => { event.stopPropagation(); if (!testFilterMenu) return; testFilterMenu.hidden = !testFilterMenu.hidden; testFilterBtn.setAttribute('aria-expanded', String(!testFilterMenu.hidden)); if (!testFilterMenu.hidden) renderTestFilterMenu(); }; }
+const VERDICT_COOLDOWN_MS = 15000;
+let lastVerdictPressAt = 0;
+document.addEventListener('click', event => {
+  const button = event.target.closest?.('.view-panel button');
+  if (!button || button.disabled || !/^(admis|respins|finalizeaz)/i.test(button.textContent.trim())) return;
+  const remaining = lastVerdictPressAt + VERDICT_COOLDOWN_MS - Date.now();
+  if (remaining > 0) {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const note = document.querySelector('.verdict-cooldown-note') || Object.assign(document.createElement('div'), { className: 'verdict-cooldown-note', role: 'status' });
+    note.textContent = `Așteaptă ${Math.ceil(remaining / 1000)} secunde până la următoarea apăsare.`;
+    document.body.append(note);
+    clearTimeout(note.hideTimer);
+    note.hideTimer = setTimeout(() => note.remove(), 2500);
+    return;
+  }
+  lastVerdictPressAt = Date.now();
+}, true);
 document.addEventListener('click', event => { if (testFilterMenu && !testFilterMenu.hidden && !document.querySelector('#test-filter')?.contains(event.target)) { testFilterMenu.hidden = true; testFilterBtn?.setAttribute('aria-expanded', 'false'); } });
 testerGroups?.addEventListener('click', event => { const button = event.target.closest('[data-member-menu]'); if (!button) return; const member = testers.find(item => normalizeCallsign(item.callsign) === button.dataset.memberMenu); if (member) { selectedMember = member; openAddModal(member); } }); rows?.addEventListener('click', event => { const button = event.target.closest('[data-member-menu]'); if (!button) return; const member = testers.find(item => normalizeCallsign(item.callsign) === button.dataset.memberMenu); if (member) { selectedMember = member; openAddModal(member); } }); document.querySelector('#brand-settings').onclick = () => navigateTo('overview'); document.querySelector('#user-menu').onclick = () => navigateTo('overview'); document.querySelector('#profile-settings').onclick = () => navigateTo('settings'); document.querySelector('#help-btn').onclick = () => alert('Folosește meniul din stânga pentru a naviga.');
 viewContent.addEventListener('click', event => {

@@ -183,9 +183,9 @@ async function sendWebhookMessage(url, embed, testerDiscordId) {
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
 }
 
-async function sendWebhookImages(url, embeds, images) {
+async function sendWebhookImages(url, embeds, images, testerDiscordId) {
   const form = new FormData();
-  form.set('payload_json', JSON.stringify({ allowed_mentions: { parse: [] }, embeds, attachments: images.map((image, id) => ({ id, filename: image.filename })) }));
+  form.set('payload_json', JSON.stringify({ ...discordTesterMentionPayload(testerDiscordId), embeds, attachments: images.map((image, id) => ({ id, filename: image.filename })) }));
   images.forEach((image, id) => form.set(`files[${id}]`, new Blob([image.buffer], { type: image.mimeType }), image.filename));
   const response = await fetch(url, { method: 'POST', body: form });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -230,7 +230,7 @@ export function createAdmissionEmbed({ testName, testType, testerName, testerDis
   };
 }
 
-export function createAdmissionTesterComponents({ testName, testType, testerName, candidateName, candidateId, candidateCallsign, result }) {
+export function createAdmissionTesterComponents({ testName, testType, testerName, testerDiscordId, candidateName, candidateId, candidateCallsign, result }) {
   const section = (content, filename, description) => ({
     type: 9,
     components: [{ type: 10, content }],
@@ -238,13 +238,13 @@ export function createAdmissionTesterComponents({ testName, testType, testerName
   });
   const admissionType = testType === 'Reintegrare' ? 'Reintegrare' : 'Admitere';
   const title = testName === 'Test transfer' ? 'Test Transfer' : `Test ${admissionType}`;
-  const resultDetails = `${result === 'Admis' && candidateCallsign ? `**Callsign:** ${candidateCallsign}\n` : ''}**Rezultat:** ${result || '—'}`;
+  const resultDetails = `${result === 'Admis' && candidateCallsign ? `**📟 Callsign**\n${candidateCallsign}\n` : ''}**🏁 Rezultat**\n${result === 'Admis' ? '✅ Admis' : result === 'Respins' ? '❌ Respins' : result || '—'}`;
   return [{
     type: 17,
-    accent_color: 0x23A2E8,
+    accent_color: SITE_BRAND_EMBED_COLOR,
     components: [
-      section(`## ${title}\n**Nume Tester:** ${testerName || '—'}`, 'buletin-candidat.jpg', 'Buletin candidat'),
-      section(`**Nume Candidat:** ${candidateName || '—'}\n\n**ID:** ${candidateId || '—'}`, 'fisa-medicala.jpg', 'Fișă medicală'),
+      section(`## ${title}\n**👨‍⚕️ Tester**\n${discordMention(testerDiscordId, testerName)}`, 'buletin-candidat.jpg', 'Buletin candidat'),
+      section(`**🧑‍⚕️ Candidat**\n${candidateName || '—'}\n**🆔 ID**\n${candidateId || '—'}`, 'fisa-medicala.jpg', 'Fișă medicală'),
       section(resultDetails, 'drug-test.jpg', 'Drug-test')
     ]
   }];
@@ -348,7 +348,7 @@ async function sendMedicalCertificateNotification(details, number, testerDiscord
     ];
     const logo = await readFile(join(process.cwd(), 'logo medici medici.png')).catch(() => null);
     if (logo) images.push({ buffer: logo, mimeType: 'image/png', filename: 'logo-medici.png' });
-    await sendWebhookImages(url, createMedicalCertificateEmbeds(details, number), images);
+    await sendWebhookImages(url, createMedicalCertificateEmbeds(details, number), images, testerDiscordId);
     return { sent: true, error: '' };
   } catch (error) {
     return { sent: false, error: `Canalul de adeverințe: ${error.message.startsWith('HTTP ') ? error.message : 'eroare de rețea Discord'}.` };
@@ -565,18 +565,14 @@ export function createMedicalCertificateEmbeds(details, number) {
     `ID (CNP): ${details.candidateId}`,
     `ORE(LUNI): ${details.hoursAccount} (cont) ${details.hoursCharacter} (character)`
   ].join('\n');
-  const galleryUrl = 'https://dmls.ro/evidenta-medicala';
-  return [
-    {
-      title: `D.M.L.S. - EVIDENTA MEDICALA NR. ${number}`,
-      url: galleryUrl,
-      description: `\`\`\`text\n${description}\n\`\`\``,
-      color: SITE_BRAND_EMBED_COLOR,
-      thumbnail: { url: 'attachment://logo-medici.png' },
-      image: { url: 'attachment://buletin-candidat.jpg' }
-    },
-    { url: galleryUrl, color: SITE_BRAND_EMBED_COLOR, image: { url: 'attachment://fisa-medicala.jpg' } }
-  ];
+  return [{
+    title: `D.M.L.S. - EVIDENTA MEDICALA NR. ${number}`,
+    description: `\`\`\`text\n${description}\n\`\`\``,
+    color: SITE_BRAND_EMBED_COLOR,
+    thumbnail: { url: 'attachment://fisa-medicala.jpg' },
+    image: { url: 'attachment://buletin-candidat.jpg' },
+    footer: { text: 'DMLS', icon_url: 'attachment://logo-medici.png' }
+  }];
 }
 
 async function ensureMedicalCertificatesSheet(sheets) {

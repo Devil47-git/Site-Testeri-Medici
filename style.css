@@ -531,3 +531,9 @@ body.transfer-background-mode{isolation:isolate}
 body.transfer-background-mode::before{content:"";position:fixed;top:81px;left:245px;right:0;bottom:0;z-index:-1;background:url("/test%20transfer%20background.png") center calc(100% + 80px)/cover no-repeat;opacity:.2;filter:blur(2px);pointer-events:none}
 body.transfer-background-mode .view-panel.transfer-background-panel{background:rgba(17,29,45,.5)}
 @media(max-width:760px){body.transfer-background-mode::before{left:0}}
+.verdict-cooldown-note{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:1000;padding:10px 16px;border-radius:7px;background:#cd363c;color:#fff;font-weight:700;box-shadow:0 6px 20px rgba(0,0,0,.4)}
+body.dark-mode .sidebar{border-right:2px solid #cd363c;box-shadow:0 0 11px rgba(255,255,255,.32)}
+body.dark-mode .topbar{border-bottom:2px solid #cd363c;box-shadow:0 0 11px rgba(255,255,255,.32)}
+body:not(.dark-mode) .sidebar{border-right:2px solid #245ab1;box-shadow:0 0 11px rgba(255,255,255,.32)}
+body:not(.dark-mode) .topbar{border-bottom:2px solid #245ab1;box-shadow:0 0 11px rgba(255,255,255,.32)}
+@media(min-width:761px){.sidebar{z-index:11}}
