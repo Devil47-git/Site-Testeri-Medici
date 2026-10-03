@@ -37,7 +37,7 @@ function extract(name) {
 const catalog = ['Test admitere', 'Test transfer', 'Adeverință medicală', 'Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști'];
 const definitions = Object.fromEntries(catalog.map(n => [n, { name: n, questions: [] }]));
 
-const names = ['callsignNumber', 'bonusTesterCallsign', 'normalizeCallsign', 'testNameFromHash', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberHasTestAccess', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'processedTestGroups', 'processedTestBadgesHtml', 'sortMembers', 'avatarUrlForMember', 'testTagClass', 'gradeGroupFor', 'mergeTestDefinitions', 'admissionChecklistHtml', 'admissionChecksComplete', 'motoChecksComplete', 'pilotLicenseChecklistHtml', 'alsChecklistHtml', 'alsChecksComplete', 'alsCaseListHtml', 'smulsChecklistHtml', 'smulsChecksComplete', 'smulsCaseListHtml', 'memberStatus', 'testerFunctionsForDisplay', 'isTestFailed', 'canUseAdmittedVerdict', 'startVerdictButtonCooldown', 'maxWrongForTest', 'cachedUserWithinSession', 'questionItemHtml', 'evaluationStageHtml', 'parseIdentityCardText', 'mergeIdentityCardDetails', 'displayTestName', 'departmentCalendarDate', 'latestCompleteBonusPeriodIndex', 'activeBonusPeriodIndex', 'bonusPeriodFor'];
+const names = ['callsignNumber', 'bonusTesterCallsign', 'normalizeCallsign', 'isAdmissionChecklistReminder', 'testNameFromHash', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberHasTestAccess', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'processedTestGroups', 'processedTestBadgesHtml', 'sortMembers', 'avatarUrlForMember', 'testTagClass', 'gradeGroupFor', 'mergeTestDefinitions', 'admissionChecklistHtml', 'admissionConsentHtml', 'admissionChecksComplete', 'motoChecksComplete', 'pilotLicenseChecklistHtml', 'alsChecklistHtml', 'alsChecksComplete', 'alsCaseListHtml', 'smulsChecklistHtml', 'smulsChecksComplete', 'smulsCaseListHtml', 'memberStatus', 'testerFunctionsForDisplay', 'isTestFailed', 'canUseAdmittedVerdict', 'startVerdictButtonCooldown', 'maxWrongForTest', 'cachedUserWithinSession', 'questionItemHtml', 'evaluationStageHtml', 'parseIdentityCardText', 'mergeIdentityCardDetails', 'displayTestName', 'departmentCalendarDate', 'latestCompleteBonusPeriodIndex', 'activeBonusPeriodIndex', 'bonusPeriodFor'];
 const srcs = names.map(extract).join('\n');
 const pattern = source.match(/^const RESIDENT_TESTER_PATTERN = .*$/m)?.[0] || 'const RESIDENT_TESTER_PATTERN = /TESTER/;';
 const normalizeTextSrc = extract('normalizeText');
@@ -48,10 +48,10 @@ const load = new Function(
   'catalog',
   'testDefinitions',
   'testSummaryDefinitions',
-  `${fullSrc}\nreturn { callsignNumber, bonusTesterCallsign, normalizeCallsign, testNameFromHash, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, processedTestGroups, processedTestBadgesHtml, sortMembers, avatarUrlForMember, testTagClass, gradeGroupFor, mergeTestDefinitions, admissionChecklistHtml, admissionChecksComplete, motoChecksComplete, pilotLicenseChecklistHtml, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, canUseAdmittedVerdict, startVerdictButtonCooldown, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, departmentCalendarDate, latestCompleteBonusPeriodIndex, activeBonusPeriodIndex, bonusPeriodFor };`,
+  `${fullSrc}\nreturn { callsignNumber, bonusTesterCallsign, normalizeCallsign, isAdmissionChecklistReminder, testNameFromHash, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, processedTestGroups, processedTestBadgesHtml, sortMembers, avatarUrlForMember, testTagClass, gradeGroupFor, mergeTestDefinitions, admissionChecklistHtml, admissionConsentHtml, admissionChecksComplete, motoChecksComplete, pilotLicenseChecklistHtml, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, canUseAdmittedVerdict, startVerdictButtonCooldown, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, departmentCalendarDate, latestCompleteBonusPeriodIndex, activeBonusPeriodIndex, bonusPeriodFor };`,
 )(catalog, definitions, testSummaryDefinitions);
 
-const { callsignNumber, bonusTesterCallsign, normalizeCallsign, testNameFromHash, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, processedTestGroups, processedTestBadgesHtml, sortMembers, avatarUrlForMember, testTagClass, gradeGroupFor, mergeTestDefinitions, admissionChecklistHtml, admissionChecksComplete, motoChecksComplete, pilotLicenseChecklistHtml, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, canUseAdmittedVerdict, startVerdictButtonCooldown, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, departmentCalendarDate, latestCompleteBonusPeriodIndex, activeBonusPeriodIndex, bonusPeriodFor } = load;
+const { callsignNumber, bonusTesterCallsign, normalizeCallsign, isAdmissionChecklistReminder, testNameFromHash, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, processedTestGroups, processedTestBadgesHtml, sortMembers, avatarUrlForMember, testTagClass, gradeGroupFor, mergeTestDefinitions, admissionChecklistHtml, admissionConsentHtml, admissionChecksComplete, motoChecksComplete, pilotLicenseChecklistHtml, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, canUseAdmittedVerdict, startVerdictButtonCooldown, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, departmentCalendarDate, latestCompleteBonusPeriodIndex, activeBonusPeriodIndex, bonusPeriodFor } = load;
 
 test('Discord auth preserves the Discord display name, username, and avatar', () => {
   const mapperSource = discordAuthSource.match(/function mapSheetRowToUser\(row, discordUser\) \{[\s\S]*?^\}/m)?.[0];
@@ -481,6 +481,9 @@ test('processed test badges show only assigned tests and aggregate the Tester bu
   assert.doesNotMatch(markup, /Test MOTO/);
   const override = { discordId: '220', grantMode: 'override', functions: 'TESTER | A.L.S.', grantedTests: ['Test PILOT'] };
   assert.deepEqual(processedTestGroups(override), [{ label: 'Test PILOT', tests: ['Test PILOT'] }]);
+  assert.equal(processedTestBadgesHtml({ discordId: '1', callsign: '001', grantMode: 'override', grantedTests: ['Test SMULS'] }, {}), '<span class="statistics-no-processed-tests">—</span>');
+  assert.match(processedTestBadgesHtml({ discordId: '2', callsign: '002', grantMode: 'override', grantedTests: ['Test SMULS'] }, {}), /Test SMULS/);
+  assert.match(processedTestBadgesHtml({ discordId: '3', callsign: '003', grantMode: 'override', grantedTests: ['Test SMULS'] }, {}), /Test SMULS/);
   assert.match(source, /class="statistics-processed-column"><dt>TESTE PROCESATE/);
   assert.match(source, /class="outline site-guide-frame statistics-tests-toggle"/);
 });
@@ -522,8 +525,12 @@ test('admission test unlocks only after all six requirements are checked', () =>
 test('Transfer places the six shared pre-test criteria after uploads and gates the questions', () => {
   const markup = admissionChecklistHtml();
   for (const criterion of ['Verificarea ținutei', 'Verificarea tatuajelor faciale', 'Verificarea cazierului', 'Minimum 50 de ore jucate', 'Controlul cu stetoscopul', 'Drug-testul']) assert.ok(markup.includes(criterion));
+  assert.match(admissionConsentHtml(), /Sunteți de acord să respectați toate reglementările și procedurile stabilite de către Departamentul Medical Los Santos și să vă asumați în totalitate responsabilitatea pentru eventualele repercusiuni care pot decurge din nerespectarea acestora\?/);
+  assert.match(admissionConsentHtml(), /class="admission-consent site-guide-frame"/);
+  assert.match(source, /<div class="admission-test-layout">\$\{candidateDetails\}<div class="admission-section-divider" aria-hidden="true"><\/div>\$\{admissionConsentHtml\(\)\}<div class="admission-section-divider" aria-hidden="true"><\/div>\$\{admissionChecks\}/);
   assert.match(source, /const transferChecks = isTransferTest \? admissionChecklistHtml\(\) : ''/);
-  assert.match(source, /candidateDetails\}\$\{admissionChecks\}\$\{transferChecks\}\$\{testIntro\}/);
+  assert.match(source, /isAdmissionTest \? admissionLayout : candidateDetails/);
+  assert.match(source, /isAdmissionTest \? '' : admissionChecks/);
   assert.match(source, /isAdmissionTest \|\| isTransferTest \|\| isMotoTest \|\| isSmulsTest \|\| isAlsTest/);
   assert.match(source, /isAdmissionTest \|\| isTransferTest\)/);
 });
@@ -613,8 +620,14 @@ test('Moto and Pilot staged practical content is present in test definitions', (
 test('Pilot certification description and instructions share one intro box', () => {
   assert.match(source, /const introBoxClass = testName === 'Test PILOT' \? 'pilot-intro-box' : isMotoTest \? 'moto-intro-box' : isSmulsTest \? 'smuls-intro-box' : 'als-intro-box'/);
   assert.match(source, /const testIntro = isTransferTest \|\| isMedicalCertificate \? '' : isStagedTest \? `<div class="\$\{introBoxClass\}">\$\{descriptionMarkup\}\$\{instructions\}<\/div>`/);
-  assert.match(source, /const description = isAdmissionTest\s*\? String\(definition\.description \|\| ''\)\.replace\(admissionPromotionText, ''\)\.trim\(\)\s*: isParachutismTest \? '' : definition\.description/);
+  assert.match(source, /const description = isAdmissionTest\s*\? String\(definition\.description \|\| ''\)\.replace\(admissionPromotionText, ''\)\.trim\(\)\s*: isParachutismTest \|\| isAdmissionChecklistReminder\(definition\.description\) \? '' : definition\.description/);
   assert.match(source, /const guideBody = sideBySideGuide[\s\S]*test-guide-columns[\s\S]*test-guide-information/);
+});
+
+test('admission checklist reminder is hidden without suppressing unrelated descriptions', () => {
+  assert.equal(isAdmissionChecklistReminder('Verifică ținuta, tatuajele faciale, cazierul, minimum 50 de ore, controlul cu stetoscopul și drug-testul înainte de proba teoretică.'), true);
+  assert.equal(isAdmissionChecklistReminder('Verifica tinuta, tatuajele faciale, cazierul, minimum 50 de ore, controlul cu stetoscopul si drug-testul inainte de proba teoretica'), true);
+  assert.equal(isAdmissionChecklistReminder('Certificarea Pilot are 4 probe.'), false);
 });
 
 test('Pilot license checkbox is required to unlock and submit theory', () => {

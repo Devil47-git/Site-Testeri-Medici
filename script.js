@@ -233,6 +233,10 @@ function memberHasTestAccess(member, test) { return !isLeadershipUser(member) &&
 /** @param {any} member @returns {boolean} */
 /** @param {any} value @returns {string} */
 function normalizeText(value) { return String(value || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
+function isAdmissionChecklistReminder(value) {
+  const normalize = text => normalizeText(text).replace(/[^A-Z0-9]+/g, ' ').trim();
+  return normalize(value) === normalize('Verifică ținuta, tatuajele faciale, cazierul, minimum 50 de ore, controlul cu stetoscopul și drug-testul înainte de proba teoretică.');
+}
 function memberCanGiveTest(member, test) {
   if (member?.grantMode === 'override') return (member.grantedTests || []).includes(test);
   if ((member?.grantedTests || []).includes(test)) return true;
@@ -411,7 +415,9 @@ function processedTestGroups(member) {
 function processedTestBadgesHtml(member, counts) {
   const memberId = String(member?.discordId || normalizeCallsign(member?.callsign));
   const memberCounts = counts[memberId] || {};
-  const groups = processedTestGroups(member);
+  const groups = processedTestGroups(member).filter(group =>
+    !(callsignNumber(member?.callsign) === 1 && group.tests.includes('Test SMULS'))
+  );
   return groups.length
     ? groups.map((group, index) => {
       const count = group.tests.reduce((total, test) => total + (Number(memberCounts[test]) || 0), 0);
@@ -1059,6 +1065,9 @@ function admissionCandidateDetailsHtml() {
   const photoField = candidateImageFieldHtml;
   return `<section class="admission-candidate-details site-guide-frame" aria-labelledby="admission-candidate-title"><h3 id="admission-candidate-title">Date candidat</h3><div class="admission-candidate-grid"><label>Tip admitere<select id="admission-type"><option value="Admitere">Admitere</option><option value="Reintegrare">Reintegrare</option></select></label><label>Nume și prenume<input id="candidate-name" type="text" autocomplete="name"></label><label>CNP<input id="candidate-cnp" type="text" inputmode="numeric" maxlength="24" autocomplete="off"></label><label>ID candidat<input id="candidate-id" type="text" autocomplete="off"></label><label class="admission-callsign-field">Callsign atribuit<input id="candidate-callsign" type="text" placeholder="M-510" autocomplete="off"></label></div><div class="candidate-photo-grid">${photoField('candidate-document', 'Fotografie buletin')}${photoField('candidate-medical-sheet', 'Fotografie fișă medicală')}${photoField('candidate-drug-test', 'Fotografie drug-test')}</div></section>`;
 }
+function admissionConsentHtml() {
+  return '<section class="admission-consent site-guide-frame" aria-label="Declarație de acord"><p>Sunteți de acord să respectați toate reglementările și procedurile stabilite de către Departamentul Medical Los Santos și să vă asumați în totalitate responsabilitatea pentru eventualele repercusiuni care pot decurge din nerespectarea acestora?</p></section>';
+}
 function medicalCertificateDetailsHtml() {
   return `<section class="admission-candidate-details site-guide-frame" aria-labelledby="medical-certificate-title"><h3 id="medical-certificate-title">Date adeverință</h3><div class="admission-candidate-grid"><label>Nume<input id="certificate-last-name" type="text" autocomplete="family-name"></label><label>Prenume<input id="certificate-first-name" type="text" autocomplete="given-name"></label><label>CNP<input id="certificate-cnp" type="text" inputmode="numeric" maxlength="24" autocomplete="off"></label><label>ID (CNP)<input id="certificate-id" type="text" inputmode="numeric" autocomplete="off"></label><label>Număr de telefon<input id="certificate-phone" type="tel" autocomplete="tel"></label><label>Ore cont<input id="certificate-hours-account" type="number" min="0" step="0.01"></label><label>Ore character<input id="certificate-hours-character" type="number" min="0" step="0.01"></label><label>Apt medical<select id="certificate-medical-status"><option value="Admis">Apt medical</option><option value="Respins">Inapt medical</option></select></label></div><div class="candidate-photo-grid certificate-photo-grid">${candidateImageFieldHtml('certificate-document', 'Fotografie buletin')}${candidateImageFieldHtml('certificate-medical-sheet', 'Fotografie fișă medicală')}</div></section>`;
 }
@@ -1176,6 +1185,9 @@ function buildTestMarkup(testName, definition, questions) {
   const candidateDetails = isApplicationTest ? admissionCandidateDetailsHtml() : isMedicalCertificate ? medicalCertificateDetailsHtml() : '';
   const admissionChecks = isAdmissionTest ? admissionChecklistHtml() : '';
   const transferChecks = isTransferTest ? admissionChecklistHtml() : '';
+  const admissionLayout = isAdmissionTest
+    ? `<div class="admission-test-layout">${candidateDetails}<div class="admission-section-divider" aria-hidden="true"></div>${admissionConsentHtml()}<div class="admission-section-divider" aria-hidden="true"></div>${admissionChecks}</div>`
+    : '';
   const motoChecks = isMotoTest ? motoChecklistHtml() : '';
   const parachutismChecks = isParachutismTest ? parachutismChecklistHtml(definition.eligibilityCriteria) : '';
   const parachutismInformation = isParachutismTest ? parachutismInformationHtml(definition) : '';
@@ -1183,7 +1195,7 @@ function buildTestMarkup(testName, definition, questions) {
   const admissionPromotionNote = isAdmissionTest ? `<p class="admission-promotion-note">${admissionPromotionText}</p>` : '';
   const description = isAdmissionTest
     ? String(definition.description || '').replace(admissionPromotionText, '').trim()
-    : isParachutismTest ? '' : definition.description;
+    : isParachutismTest || isAdmissionChecklistReminder(definition.description) ? '' : definition.description;
   const images = (definition.images || []).map(image => `<a class="test-image-link${image.inline ? ' test-image-preview' : ''}" href="${image.url}" target="_blank" rel="noopener">${image.inline ? `<img src="${image.url}" alt="${escapeHtml(image.label || testName)}">` : image.label || 'Deschide imaginea'}</a>`).join('');
   const cases = isSmulsTest || isAlsTest ? '' : (definition.cases || []).map((item, index) => `<option value="${index}">${item.title}</option>`).join('');
   const parachutismPracticalOptions = (definition.practical || []).map((item, index) => `<option value="${index}">${item.name}</option>`).join('');
@@ -1225,7 +1237,7 @@ function buildTestMarkup(testName, definition, questions) {
   const guideExtras = `${cases ? `<label>Cazul ales de candidat<select id="case-select">${cases}</select></label><div id="case-steps" class="case-steps"></div>` : ''}${practical ? `<label>Probă practică<select id="practical-select">${practical}</select><div id="practical-steps" class="case-steps"></div>` : ''}${gatedQuestionForm}${isSmulsTest || isAlsTest || isParachutismTest ? '' : evaluationStageFlow}`;
   const guideBody = sideBySideGuide
     ? `<div class="test-guide-columns"><div class="test-guide-criteria">${guideCriteria}</div><div class="test-guide-information site-guide-frame">${guideInformation}</div></div>${guideExtras}`
-    : `${candidateDetails}${admissionChecks}${transferChecks}${testIntro}${guideCriteria}${parachutismInformation}${motoBriefing}${guideExtras}`;
+    : `${isAdmissionTest ? admissionLayout : candidateDetails}${isAdmissionTest ? '' : admissionChecks}${transferChecks}${testIntro}${guideCriteria}${parachutismInformation}${motoBriefing}${guideExtras}`;
   const content = isSmulsTest || isAlsTest || isParachutismTest
     ? guideBody
     : testName === 'Test SMULS' && images
