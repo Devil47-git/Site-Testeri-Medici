@@ -450,10 +450,14 @@ function renderProfileData() {
   const profileHistory = document.querySelector('#profile-test-history');
   if (profileHistory) profileHistory.innerHTML = testerTestCountGridHtml(profile);
 }
+const TEST_ICONS = { admission: '🎓', transfer: '⇄', certificate: '🩺', als: '✚', smuls: '✳', moto: '🏍', pilot: '🚁', parachutism: '🪂' };
+function testKindClass(test) {
+  return ({ 'Test admitere': 'admission', 'Test transfer': 'transfer', 'Adeverință medicală': 'certificate', 'Test ALS': 'als', 'Test SMULS': 'smuls', 'Test MOTO': 'moto', 'Test PILOT': 'pilot', 'Test parașutiști': 'parachutism' })[test] || '';
+}
 function testerTestCountGridHtml(member) {
   const tests = allowedForUser(member);
   return tests.length
-    ? tests.map(test => `<div class="statistics-test-count"><span>${escapeHtml(displayTestName(test))}</span><strong>${Number(testRunCounts[member.discordId]?.[test]) || 0}</strong></div>`).join('')
+    ? tests.map(test => `<div class="statistics-test-count" data-test-kind="${testKindClass(test)}"><i class="stat-icon" aria-hidden="true">${TEST_ICONS[testKindClass(test)] || '✚'}</i><span>${escapeHtml(displayTestName(test))}</span><strong>${Number(testRunCounts[member.discordId]?.[test]) || 0}</strong></div>`).join('')
     : '<p class="statistics-no-tests muted">Nu are teste alocate.</p>';
 }
 function profileTestTagsHtml(member) {

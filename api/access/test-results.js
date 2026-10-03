@@ -238,13 +238,13 @@ export function createAdmissionTesterComponents({ testName, testType, testerName
   });
   const admissionType = testType === 'Reintegrare' ? 'Reintegrare' : 'Admitere';
   const title = testName === 'Test transfer' ? 'Test Transfer' : `Test ${admissionType}`;
-  const resultDetails = `${result === 'Admis' && candidateCallsign ? `**📟 Callsign**\n${candidateCallsign}\n` : ''}**🏁 Rezultat**\n${result === 'Admis' ? '✅ Admis' : result === 'Respins' ? '❌ Respins' : result || '—'}`;
+  const resultDetails = `${result === 'Admis' && candidateCallsign ? `**📟 Callsign:** ${candidateCallsign}\n` : ''}**🏁 Rezultat**\n${result === 'Admis' ? '✅ Admis' : result === 'Respins' ? '❌ Respins' : result || '—'}`;
   return [{
     type: 17,
     accent_color: SITE_BRAND_EMBED_COLOR,
     components: [
       section(`## ${title}\n**👨‍⚕️ Tester**\n${discordMention(testerDiscordId, testerName)}`, 'buletin-candidat.jpg', 'Buletin candidat'),
-      section(`**🧑‍⚕️ Candidat**\n${candidateName || '—'}\n**🆔 ID**\n${candidateId || '—'}`, 'fisa-medicala.jpg', 'Fișă medicală'),
+      section(`**🧑‍⚕️ Candidat**\n${candidateName || '—'}\n**🆔 ID:** ${candidateId || '—'}`, 'fisa-medicala.jpg', 'Fișă medicală'),
       section(resultDetails, 'drug-test.jpg', 'Drug-test')
     ]
   }];

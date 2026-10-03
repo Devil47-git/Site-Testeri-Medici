@@ -33,12 +33,12 @@
             <button class="brand brand-button brand-with-logo" id="brand-settings" type="button" title="Deschide profilul tău"><img class="brand-logo-image" src="/Sigla%20spital.png" alt="Sigla Eclipse Medical Tower"><span><b>DEPARTAMENTUL MEDICAL ECLIPSE TOWER</b><small>SUB-DEPARTAMENTUL TESTERILOR</small></span></button>
             <div class="workspace-label">SITE TESTERI</div>
             <nav>
-                <button class="nav-item active" data-view="overview"><span>♙</span> Profilul tău</button>
-                <button class="nav-item" data-view="testers"><span>♙</span><span class="nav-label">Testeri</span><em id="tester-count">0</em></button>
-                <button class="nav-item" data-view="statistics"><span>▤</span> Statistica Teste</button>
-                <button class="nav-item" id="available-tests-toggle" type="button" aria-expanded="false" aria-controls="available-tests-submenu"><span>▤</span> Teste disponibile <span class="nav-chevron" aria-hidden="true">⌄</span></button>
+                <button class="nav-item active" data-view="overview"><span class="nav-ico">👤</span> Profilul tău</button>
+                <button class="nav-item" data-view="testers"><span class="nav-ico">📋</span><span class="nav-label">Testeri</span><em id="tester-count">0</em></button>
+                <button class="nav-item" data-view="statistics"><span class="nav-ico">📊</span> Statistica Teste</button>
+                <button class="nav-item" id="available-tests-toggle" type="button" aria-expanded="false" aria-controls="available-tests-submenu"><span class="nav-ico">📝</span> Teste disponibile <span class="nav-chevron" aria-hidden="true">⌄</span></button>
                 <div class="nav-submenu" id="available-tests-submenu" hidden></div>
-                <button class="nav-item" id="bonuses-nav" data-view="bonuses" type="button" hidden><span>◷</span> Bonusuri</button>
+                <button class="nav-item" id="bonuses-nav" data-view="bonuses" type="button" hidden><span class="nav-ico">🎁</span> Bonusuri</button>
             </nav>
             <div class="sidebar-bottom">
                                 <button class="user-mini" id="user-menu" type="button" title="Deschide profilul tău">
@@ -49,8 +49,8 @@
         </aside>
         <main class="main-content">
             <header class="topbar"><button class="mobile-menu">☰</button>
-                <div class="crumb"><b id="section-label">Spațiul tău</b> <span>/</span> <b id="page-label">Profilul tău</b></div>
-                <div class="top-actions"><button class="help" id="help-btn" type="button" aria-label="Ajutor" title="Ajutor">?</button></div>
+                <div class="crumb"><i class="crumb-home">⌂</i><b id="section-label">Spațiul tău</b> <span>&gt;</span> <b id="page-label">Profilul tău</b></div>
+                <div class="top-actions"><span class="top-status" aria-hidden="true"><i></i>Online</span><button class="help" id="help-btn" type="button" aria-label="Ajutor" title="Ajutor">?</button></div>
             </header>
             <section class="page-wrap" id="app">
                 <div id="overview-view">

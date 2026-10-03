@@ -84,6 +84,17 @@ async function route(req, res) {
     }
     return json(res, 405, { error: 'Method not allowed' });
   }
+  const accessRoute = url.pathname.match(/^\/api\/access\/([a-z-]+)$/);
+  if (accessRoute) {
+    let handler;
+    try { handler = (await import(`./api/access/${accessRoute[1]}.js`)).default; } catch { return json(res, 404, { error: 'Not found' }); }
+    let raw = ''; for await (const chunk of req) raw += chunk;
+    try { req.body = raw ? JSON.parse(raw) : {}; } catch { req.body = {}; }
+    req.query = Object.fromEntries(url.searchParams);
+    res.status = code => { res.statusCode = code; return res; };
+    res.json = data => { if (!res.headersSent) res.setHeader('Content-Type', 'application/json; charset=utf-8'); res.end(JSON.stringify(data)); return res; };
+    return handler(req, res);
+  }
   if (url.pathname.startsWith('/api/')) return json(res, 404, { error: 'Not found' });
   let pathname;
   try { pathname = decodeURIComponent(url.pathname); } catch { return json(res, 400, { error: 'Invalid path' }); }
