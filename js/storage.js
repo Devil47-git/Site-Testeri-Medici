@@ -1,13 +1,20 @@
 /**
  * Local storage + test-definition persistence layer.
  * Loaded before script.js; classic scripts share one global scope.
+ *
+ * NOTE: constants owned by script.js (coreTests) are deliberately NOT
+ * re-declared here - a duplicate `const` in one global scope is a SyntaxError
+ * that would kill the whole bundle before it can run.
  */
+const ACTIVE_ROUTE_STORAGE_PREFIX = 'medici-active-route:';
+const TEST_PROGRESS_STORAGE_PREFIX = 'medici-test-progress:';
+const COOLDOWN_DRAFT_STORAGE_PREFIX = 'medici-cooldown-draft:';
+const TEST_CATALOG_KEY = 'medici-test-catalog-v4';
 const coreTests = ['Test admitere','Test transfer','Adeverință medicală'];
 const specialtyTests = ['Test ALS','Test SMULS','Test MOTO','Test PILOT','Test parașutiști'];
 const docsTesterFilters = ['Test SMULS', 'Test ALS'];
 const testSummaryDefinitions = [['Test SMULS', 'Test S.M.U.L.S.'], ['Test MOTO', 'Test MOTO'], ['Test PILOT', 'Test PILOT'], ['Test ALS', 'Test A.L.S.'], ['Test parașutiști', 'Test Parasutism']];
 const catalog = [...coreTests, ...specialtyTests];
-const TEST_CATALOG_KEY = 'medici-test-catalog-v4';
 /** @param {string} key @param {any} fallback @returns {any} */
 function readStored(key, fallback) { try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; } catch { return fallback; } }
 function activeRouteStorageKey(user) { return `${ACTIVE_ROUTE_STORAGE_PREFIX}${String(user?.discordId || '')}`; }

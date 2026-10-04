@@ -29,18 +29,69 @@ function cookie(req, key) {
   return undefined;
 }
 const MAX_BODY_BYTES = 1e6;
+const SECURE_COOKIE = process.env.NODE_ENV === 'production' || process.env.HTTPS === 'true';
+function setSessionCookie(res, sid) {
+  res.setHeader('Set-Cookie', `session=${sid}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${Math.floor(SESSION_TTL / 1000)}${SECURE_COOKIE ? '; Secure' : ''}`);
+}
+function applySecurityHeaders(res) {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  res.setHeader('Content-Security-Policy', [
+    "default-src 'self'",
+    "script-src 'self'",
+    "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'",
+    "font-src 'self' https://fonts.gstatic.com",
+    "img-src 'self' data: blob:",
+    "connect-src 'self'",
+    "frame-ancestors 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "object-src 'none'"
+  ].join('; '));
+}
+// Simple sliding-window rate limiter, keyed per client+action.
+const rateBuckets = new Map();
+function rateLimit(key, limit, windowMs) {
+  const now = Date.now();
+  const bucket = (rateBuckets.get(key) || []).filter(ts => ts > now - windowMs);
+  if (bucket.length >= limit) return false;
+  bucket.push(now);
+  rateBuckets.set(key, bucket);
+  return true;
+}
+function clientIp(req) {
+  return String(req.socket?.remoteAddress || 'unknown');
+}
+// Blocks cross-site form posts: a CSRF-safe fetch sends Sec-Fetch-Site,
+// and a same-origin navigation carries a matching Host.
+function sameOrigin(req) {
+  const site = req.headers['sec-fetch-site'];
+  if (site) return site === 'same-origin' || site === 'none';
+  const origin = req.headers.origin;
+  if (origin) { try { return new URL(origin).host === req.headers.host; } catch { return false; } }
+  return true;
+}
+function tooManyRequests(res, retrySeconds) {
+  res.setHeader('Retry-After', String(retrySeconds));
+  return json(res, 429, { error: 'Prea multe cereri. Încearcă din nou în curând.' });
+}
+function applyRateLimit(req, res, action, limit, windowMs) {
+  const retrySeconds = Math.ceil(windowMs / 1000);
+  return rateLimit(`${action}:${clientIp(req)}`, limit, windowMs) || tooManyRequests(res, retrySeconds);
+}
 async function readJsonBody(req, limit = MAX_BODY_BYTES) {
   let size = 0;
   let body = '';
+  let overflow = false;
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > limit) {
-      const error = new Error('Payload prea mare');
-      error.statusCode = 413;
-      throw error;
-    }
+    if (size > limit) { overflow = true; continue; }  // keep draining, discard
     body += chunk;
   }
+  if (overflow) { const error = new Error('Payload prea mare'); error.statusCode = 413; throw error; }
   try { return body ? JSON.parse(body) : {}; }
   catch { const error = new Error('Date invalide'); error.statusCode = 400; throw error; }
 }
@@ -70,20 +121,23 @@ async function sheetMember(discordId) {
   const access = roleAccess(functions, callsign, rank, dept);
   return { discordId, callsign, callSign: callsign, csNum: Number(callsign.replace(/\D/g, '')) || 0, name: row[3] || '', functions, rank, dept, allowedTests: access.tests, eligibleSpecializations: [], ...access };
 }
+const DISCORD_API_BASE = process.env.DISCORD_API_BASE || 'https://discord.com/api';
 async function exchangeDiscord(code) {
   const body = new URLSearchParams({ client_id: process.env.DISCORD_CLIENT_ID, client_secret: process.env.DISCORD_CLIENT_SECRET, grant_type: 'authorization_code', code, redirect_uri: process.env.DISCORD_REDIRECT_URI, scope: 'identify' });
-  const token = await fetch('https://discord.com/api/oauth2/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body }).then(r => r.json());
+  const token = await fetch(`${DISCORD_API_BASE}/oauth2/token`, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body }).then(r => r.json());
   if (!token.access_token) throw new Error('Discord token exchange failed');
-  return fetch('https://discord.com/api/users/@me', { headers: { Authorization: `Bearer ${token.access_token}` } }).then(r => r.json());
+  return fetch(`${DISCORD_API_BASE}/users/@me`, { headers: { Authorization: `Bearer ${token.access_token}` } }).then(r => r.json());
 }
 async function handleAuth(req, res, url) {
   if (url.pathname === '/api/auth/login' || url.pathname === '/api/auth/discord') {
     if (req.method === 'POST' && url.pathname === '/api/auth/discord') {
+      if (!applyRateLimit(req, res, 'discord-auth', 10, 60 * 1000)) return;
       let payload; try { payload = await readJsonBody(req); } catch (e) { return json(res, e.statusCode || 400, { error: 'Invalid request body' }); }
       if (typeof payload.code !== 'string' || !payload.code.trim()) return json(res, 400, { error: 'No code provided' });
       try { const discord = await exchangeDiscord(payload.code.trim()); const member = await sheetMember(discord.id); if (!member) return json(res, 404, { error: 'not_found' }); return json(res, 200, { success: true, user: { ...member, discordUsername: discord.username, avatar: discord.avatar || null } }); } catch (error) { console.error('Discord authentication failed:', error); return json(res, 502, { error: 'Discord authentication failed' }); }
     }
     if (!process.env.DISCORD_CLIENT_ID || !process.env.DISCORD_REDIRECT_URI) return json(res, 500, { error: 'Discord OAuth is not configured' });
+    if (!applyRateLimit(req, res, 'discord-login', 20, 60 * 1000)) return;
     const now = Date.now(); for (const [key, expires] of oauthState) { if (expires < now) oauthState.delete(key); } while (oauthState.size >= 500) oauthState.delete(oauthState.keys().next().value);
     const state = crypto.randomBytes(24).toString('hex'); oauthState.set(state, now + 300000);
     const target = `https://discord.com/oauth2/authorize?client_id=${encodeURIComponent(process.env.DISCORD_CLIENT_ID)}&response_type=code&redirect_uri=${encodeURIComponent(process.env.DISCORD_REDIRECT_URI)}&scope=identify&state=${state}`;
@@ -92,7 +146,7 @@ async function handleAuth(req, res, url) {
   if (url.pathname === '/api/auth/callback') {
     const state = url.searchParams.get('state'); if (!oauthState.has(state) || oauthState.get(state) < Date.now()) return json(res, 400, { error: 'Invalid OAuth state' }); oauthState.delete(state);
     const code = url.searchParams.get('code'); if (!code || !code.trim()) return redirect(res, '/?access=denied');
-    try { const discord = await exchangeDiscord(code.trim()); const member = await sheetMember(discord.id); if (!member) return redirect(res, '/?access=denied'); const sid = crypto.randomBytes(32).toString('hex'); sessions.set(sid, { ...member, discordUsername: discord.username, expires: Date.now() + SESSION_TTL }); res.setHeader('Set-Cookie', `session=${sid}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_TTL / 1000}`); return redirect(res, '/'); } catch (e) { return redirect(res, '/?access=error'); }
+    try { const discord = await exchangeDiscord(code.trim()); const member = await sheetMember(discord.id); if (!member) return redirect(res, '/?access=denied'); const sid = crypto.randomBytes(32).toString('hex'); sessions.set(sid, { ...member, discordUsername: discord.username, expires: Date.now() + SESSION_TTL }); setSessionCookie(res, sid); return redirect(res, '/'); } catch (e) { return redirect(res, '/?access=error'); }
   }
 }
 
@@ -105,7 +159,7 @@ async function handleSession(req, res) {
     if (!fresh) return json(res, 403, { authorized: false });
     const updated = { ...session, ...fresh, expires: Date.now() + SESSION_TTL };
     sessions.set(sessionId, updated);
-    res.setHeader('Set-Cookie', `session=${sessionId}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${SESSION_TTL / 1000}`);
+    setSessionCookie(res, sessionId);
     return json(res, 200, { authorized: true, ...updated });
   } catch {
     return json(res, 200, { authorized: true, ...session });
@@ -120,6 +174,8 @@ async function handleTestDefinitions(req, res) {
       return json(res, 200, { definitions });
     }
     if (req.method === 'PUT') {
+      if (!sameOrigin(req)) return json(res, 403, { error: 'Cerere respinsă' });
+      if (!applyRateLimit(req, res, 'test-definitions-put', 30, 60 * 1000)) return;
       const auth = requireSession(req);
       if (!auth) return json(res, 401, { error: 'Autentificare necesară' });
       const { session } = auth;
@@ -136,6 +192,8 @@ async function handleTestDefinitions(req, res) {
 async function handleAccess(req, res, url) {
   const accessRoute = url.pathname.match(/^\/api\/access\/([a-z-]+)$/);
   if (accessRoute) {
+    if (!applyRateLimit(req, res, `access-${accessRoute[1]}`, 120, 60 * 1000)) return;
+    if (req.method !== 'GET' && !sameOrigin(req)) return json(res, 403, { error: 'Cerere respinsă' });
     let handler;
     try { handler = (await import(`./api/access/${accessRoute[1]}.js`)).default; } catch { return json(res, 404, { error: 'Not found' }); }
     if (typeof handler !== 'function') return json(res, 404, { error: 'Not found' });
@@ -153,11 +211,23 @@ async function serveStatic(req, res, url) {
   try { pathname = decodeURIComponent(url.pathname); } catch { return json(res, 400, { error: 'Invalid path' }); }
   const file = path.resolve(ROOT, pathname === '/' ? 'index.html' : '.' + pathname);
   if (file !== ROOT && !file.startsWith(ROOT + path.sep)) return json(res, 404, { error: 'Not found' });
-  try { const data = await fs.readFile(file); res.writeHead(200, { 'Content-Type': mime[path.extname(file)] || 'application/octet-stream' }); res.end(data); }
+  // Never serve server-side sources, secrets or VCS data over HTTP.
+  // NOTE: js/ holds browser bundles and must stay reachable.
+  const parts = path.relative(ROOT, file).split(path.sep);
+  const BLOCKED = /^(?:\.env.*|\.git.*|node_modules|package(-lock)?\.json|server\.js|tools|api|lib|tests)$/;
+  if (parts.some(part => BLOCKED.test(part)) || /\.(?:mjs|cjs|map)$/i.test(file)) return json(res, 404, { error: 'Not found' });
+  try {
+    const data = await fs.readFile(file);
+    const etag = `"${crypto.createHash('sha1').update(data).digest('hex')}"`;
+    if (req.headers['if-none-match'] === etag) { res.writeHead(304); return res.end(); }
+    res.writeHead(200, { 'Content-Type': mime[path.extname(file)] || 'application/octet-stream', ETag: etag, 'Cache-Control': 'no-cache' });
+    res.end(data);
+  }
   catch { json(res, 404, { error: 'Not found' }); }
 }
 
 async function route(req, res) {
+  applySecurityHeaders(res);
   let url;
   try { url = new URL(req.url, `http://${req.headers.host || 'localhost'}`); }
   catch { return json(res, 400, { error: 'Invalid request URL' }); }
@@ -172,7 +242,11 @@ const sweepTimer = setInterval(() => {
   const now = Date.now();
   for (const [id, session] of sessions) if (!session || session.expires < now) sessions.delete(id);
   for (const [key, expires] of oauthState) if (expires < now) oauthState.delete(key);
+  for (const [key, stamps] of rateBuckets) if (!stamps.some(ts => ts > now - 24 * 60 * 60 * 1000)) rateBuckets.delete(key);
 }, 10 * 60 * 1000);
 sweepTimer.unref?.();
 
-http.createServer((req, res) => route(req, res).catch(e => json(res, e.statusCode || 500, { error: e.message }))).listen(PORT, () => console.log(`Medici panel: http://localhost:${PORT}`));
+http.createServer((req, res) => route(req, res).catch(e => {
+  if (res.headersSent || res.writableEnded) return;
+  json(res, e.statusCode || 500, { error: e.statusCode ? e.message : 'Internal server error' });
+})).listen(PORT, () => console.log(`Medici panel: http://localhost:${PORT}`));

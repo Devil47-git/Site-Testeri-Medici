@@ -925,7 +925,11 @@ test('admitted verdicts enforce the mistake limit and verdict buttons cool down 
 test('Discord session and browser auth cache both last 24 hours', () => {
   assert.match(source, /const AUTH_TTL=24\*60\*60\*1000/);
   assert.match(serverSource, /const SESSION_TTL = 24 \* 60 \* 60 \* 1000/);
-  assert.match(serverSource, /Max-Age=\$\{SESSION_TTL \/ 1000\}/);
+  assert.match(serverSource, /Math\.floor\(SESSION_TTL \/ 1000\)/);
+  // The session cookie must stay HttpOnly and SameSite=Strict, with Secure added
+  // whenever the app runs over HTTPS.
+  assert.match(serverSource, /HttpOnly; SameSite=Strict; Path=\//);
+  assert.match(serverSource, /SECURE_COOKIE \? '; Secure' : ''/);
 });
 
 test('auth screen no longer renders the preview card', () => {

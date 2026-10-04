@@ -15,7 +15,6 @@
  * @property {Array<any>} [questions]
  */
 
-const coreTests = ['Test admitere','Test transfer','Adeverință medicală'];
 const TESTER_BUNDLE_KEY = '__tester_bundle__';
 const COOLDOWN_PAYMENT_RATES = {
   RADIO: 25000,
@@ -37,9 +36,6 @@ const COOLDOWN_PAYMENT_LABELS = {
   REZIDENTIAT: 'REZIDENTIAT',
   PARASUTIST: 'PARAȘUTIST'
 };
-const ACTIVE_ROUTE_STORAGE_PREFIX = 'medici-active-route:';
-const TEST_PROGRESS_STORAGE_PREFIX = 'medici-test-progress:';
-const COOLDOWN_DRAFT_STORAGE_PREFIX = 'medici-cooldown-draft:';
 const admissionRequirements = ['Verificarea ținutei', 'Verificarea tatuajelor faciale', 'Verificarea cazierului', 'Minimum 50 de ore jucate', 'Controlul cu stetoscopul (amănunțit, în salon)', 'Drug-testul'];
 const motoRequirements = ['Grad Medic-Rezident', 'Certificat S.M.U.L.S.', 'Permis Categoria A'];
 const alsRequirements = ['Verificare BLS', 'Verificare Radio', 'Au trecut minimum 3 zile de la promovarea ultimului test Radio sau BLS', 'Permis categoria B'];
