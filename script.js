@@ -126,11 +126,17 @@ function restoreTestProgress(testName) {
   const panel = viewContent.querySelector('.view-panel');
   if (!panel) return null;
   const controls = [...panel.querySelectorAll('input:not([type="file"]),select,textarea')];
+  const legacyCandidateName = String(progress.controls.find(item => item.key === 'candidate-name')?.value || '').trim();
+  const [legacyLastName = '', ...legacyFirstNames] = legacyCandidateName.split(/\s+/);
   controls.forEach((control, index) => {
     const key = control.id || control.dataset.progressKey || `control-${index}`;
     control.dataset.progressKey = key;
     const saved = progress.controls.find(item => item.key === key);
-    if (!saved) return;
+    if (!saved) {
+      if (key === 'candidate-last-name') control.value = legacyLastName;
+      else if (key === 'candidate-first-name') control.value = legacyFirstNames.join(' ');
+      return;
+    }
     if (control.type === 'checkbox' || control.type === 'radio') control.checked = Boolean(saved.checked);
     else if (!control.readOnly) control.value = String(saved.value ?? '');
   });
@@ -666,17 +672,23 @@ function testKindClass(test) {
 }
 function testerTestCountGridHtml(member) {
   const tests = allowedForUser(member);
-  return tests.length
-    ? tests.map(test => `<div class="statistics-test-count" data-test-kind="${testKindClass(test)}"><i class="stat-icon" aria-hidden="true">${TEST_ICONS[testKindClass(test)] || '✚'}</i><span>${escapeHtml(displayTestName(test))}</span><strong>${Number(testRunCounts[member.discordId]?.[test]) || 0}</strong></div>`).join('')
-    : '<p class="statistics-no-tests muted">Nu are teste alocate.</p>';
+  if (!tests.length) return '<p class="statistics-no-tests muted">Nu are teste alocate.</p>';
+  const counts = testRunCounts[member.discordId] || {};
+  const hasTesterTests = coreTests.some(test => tests.includes(test));
+  const countCard = test => `<div class="statistics-test-count" data-test-kind="${testKindClass(test)}"><i class="stat-icon" aria-hidden="true">${TEST_ICONS[testKindClass(test)] || '✚'}</i><span>${escapeHtml(displayTestName(test))}</span><strong>${Number(counts[test]) || 0}</strong></div>`;
+  const visibleTests = tests.filter(test => !coreTests.includes(test));
+  const bundleCard = hasTesterTests
+    ? `<details class="statistics-test-bundle"><summary class="statistics-test-count" data-test-kind="tester"><i class="stat-icon" aria-hidden="true">👤</i><span>TESTER</span><span class="statistics-test-bundle-toggle" aria-hidden="true">⌄</span><strong>${coreTests.reduce((total, test) => total + (Number(counts[test]) || 0), 0)}</strong></summary><div class="statistics-test-bundle-details">${coreTests.map(countCard).join('')}</div></details>`
+    : '';
+  return bundleCard + visibleTests.map(countCard).join('');
 }
-function profileTestTagsHtml(member) {
+function profileTestTagsHtml(member, canRemove = false) {
   const grantedTests = normalizeGrantBundle([...(member.grantedTests || []), ...docsAssignedTests(member)]);
   const assignedTests = (isLeadershipUser(member) ? allowedForUser(member) : grantedTests).filter(test => catalog.includes(test));
   const hasTesterBundle = coreTests.every(test => assignedTests.includes(test));
   const visibleTests = [...(hasTesterBundle ? ['Tester'] : []), ...assignedTests.filter(test => !hasTesterBundle || !coreTests.includes(test))];
   return visibleTests.length
-    ? visibleTests.map(test => `<span class="tag test-tag ${testTagClass(test)}">${escapeHtml(displayTestName(test))}</span>`).join('')
+    ? visibleTests.map(test => `<span class="profile-test-tag-item"><span class="tag test-tag ${testTagClass(test)}">${escapeHtml(displayTestName(test))}</span>${canRemove ? `<button class="profile-test-remove" type="button" data-remove-profile-test="${escapeHtml(test)}" aria-label="Scoate ${escapeHtml(displayTestName(test))}" title="Scoate ${escapeHtml(displayTestName(test))}">×</button>` : ''}</span>`).join('')
     : '<span class="muted">Nu ai certificări sau teste alocate.</span>';
 }
 async function loadTestRunCounts() {
@@ -766,11 +778,6 @@ function wireTestAccessEvents() {
     };
   });
 }
-function removableTestEntries(member) {
-  const tests = member.grantedTests || [];
-  const hasBundle = coreTests.every(test => tests.includes(test));
-  return [...(hasBundle ? ['Tester'] : []), ...tests.filter(test => !hasBundle || !coreTests.includes(test))];
-}
 function displayTestName(testName) {
   const title = String(testDefinitions[testName]?.title || '').trim();
   return title || (testName === 'Test parașutiști' ? 'Test Parasutism' : testName);
@@ -785,12 +792,12 @@ function renderTestersView() {
 }
 function renderTesterProfileView(member) {
   const callsign = normalizeCallsign(member.callsign || member.callSign);
-    const name = memberNameFor(member);
+  const name = memberNameFor(member);
   const testCountGrid = testerTestCountGridHtml(member);
   const removalControls = hasLeadershipCallsign(currentUser) && !hasLeadershipCallsign(member)
-    ? `<button class="profile-settings-button" id="profile-test-settings" type="button" aria-label="Gestionează testele" title="Gestionează testele">⚙</button><div class="profile-test-removal" id="profile-test-removal" hidden><h3>Teste alocate</h3><div class="profile-test-removal-list">${removableTestEntries(member).length ? removableTestEntries(member).map(test => `<div class="profile-test-removal-item"><span>${escapeHtml(test === 'Tester' ? 'Tester' : displayTestName(test))}</span><button class="outline danger-button" type="button" data-remove-profile-test="${escapeHtml(test)}">Scoate</button></div>`).join('') : '<p class="muted">Nu există teste alocate.</p>'}</div><p class="profile-test-removal-status muted" role="status" aria-live="polite"></p></div>`
+    ? `<button class="profile-settings-button" id="profile-test-settings" type="button" aria-label="Gestionează testele" title="Gestionează testele" aria-expanded="false">⚙</button>`
     : '';
-  return `<div class="tester-profile-view"><div class="panel-head"><div><p class="eyebrow">PROFIL TESTER</p><h2>${escapeHtml(name)}</h2></div><button class="outline" id="back-to-testers" type="button">← Înapoi</button></div><div class="profile-layout"><section class="panel profile-card">${removalControls}<div class="profile-identity"><div>${avatarFor(member)}</div><div><h1>${escapeHtml(name)}</h1></div></div><dl class="profile-details"><div><dt>CALLSIGN</dt><dd>${escapeHtml(callsign || '—')}</dd></div><div><dt>NUME</dt><dd>${escapeHtml(member.name || '—')}</dd></div><div><dt>GRAD</dt><dd>${escapeHtml(member.rank || '—')}</dd></div></dl></section><section class="panel profile-certifications"><div class="panel-head"><div><h2>Funcții tester</h2><p class="muted">Certificările și testele alocate contului tău</p></div></div><div class="tags profile-test-tags">${profileTestTagsHtml(member)}</div></section></div><section class="panel profile-test-history"><div class="panel-head"><div><h2>Statistica Teste</h2></div></div><div class="statistics-test-grid">${testCountGrid}</div></section></div>`;
+  return `<div class="tester-profile-view"><div class="panel-head"><div><p class="eyebrow">PROFIL TESTER</p><h2>${escapeHtml(name)}</h2></div><button class="outline" id="back-to-testers" type="button">← Înapoi</button></div><div class="profile-layout"><section class="panel profile-card">${removalControls}<div class="profile-identity"><div>${avatarFor(member)}</div><div><h1>${escapeHtml(name)}</h1></div></div><dl class="profile-details"><div><dt>CALLSIGN</dt><dd>${escapeHtml(callsign || '—')}</dd></div><div><dt>NUME</dt><dd>${escapeHtml(member.name || '—')}</dd></div><div><dt>GRAD</dt><dd>${escapeHtml(member.rank || '—')}</dd></div></dl></section><section class="panel profile-certifications"><div class="panel-head"><div><h2>Funcții tester</h2><p class="muted">Certificările și testele alocate contului tău</p></div></div><div class="tags profile-test-tags">${profileTestTagsHtml(member, Boolean(removalControls))}</div><p class="profile-test-removal-status muted" role="status" aria-live="polite"></p></section></div><section class="panel profile-test-history"><div class="panel-head"><div><h2>Statistica Teste</h2></div></div><div class="statistics-test-grid">${testCountGrid}</div></section></div>`;
 }
 function openTesterProfile(member, { push = true, previousView: requestedPreviousView } = {}) {
   if (!hasLeadershipCallsign(currentUser)) return;
@@ -832,21 +839,21 @@ function openTesterProfile(member, { push = true, previousView: requestedPreviou
 }
 function wireProfileTestRemoval(member) {
   const settings = document.querySelector('#profile-test-settings');
-  const removalPanel = document.querySelector('#profile-test-removal');
-  if (!settings || !removalPanel) return;
+  const certifications = document.querySelector('.tester-profile-view .profile-certifications');
+  const removalStatus = document.querySelector('.profile-test-removal-status');
+  if (!settings || !certifications || !removalStatus) return;
   settings.onclick = () => {
-    removalPanel.hidden = !removalPanel.hidden;
-    settings.setAttribute('aria-expanded', String(!removalPanel.hidden));
+    const isManaging = certifications.classList.toggle('managing-tests');
+    settings.setAttribute('aria-expanded', String(isManaging));
   };
-  removalPanel.querySelectorAll('[data-remove-profile-test]').forEach(button => {
+  certifications.querySelectorAll('[data-remove-profile-test]').forEach(button => {
     button.onclick = async () => {
       if (!hasLeadershipCallsign(currentUser) || hasLeadershipCallsign(member)) return;
-      const status = removalPanel.querySelector('.profile-test-removal-status');
-      if (!member.discordId) { status.textContent = 'Membrul nu are un Discord ID asociat.'; return; }
+      if (!member.discordId) { removalStatus.textContent = 'Membrul nu are un Discord ID asociat.'; return; }
       const test = button.dataset.removeProfileTest;
       const nextTests = (member.grantedTests || []).filter(item => test === 'Tester' ? !coreTests.includes(item) : item !== test);
       button.disabled = true;
-      status.textContent = 'Se salvează…';
+      removalStatus.textContent = 'Se salvează…';
       try {
         const saved = await saveRemoteGrant(normalizeCallsign(member.callsign), nextTests, false, member.discordId, true);
         const updatedMember = {
@@ -866,7 +873,7 @@ function wireProfileTestRemoval(member) {
         const updatedStatus = document.querySelector('.profile-test-removal-status');
         if (updatedStatus) updatedStatus.textContent = `Testul ${displayTestName(test)} a fost scos.`;
       } catch (error) {
-        status.textContent = error.message;
+        removalStatus.textContent = error.message;
         button.disabled = false;
       }
     };
@@ -1373,6 +1380,7 @@ function parseIdentityCardText(text) {
     return words.length === 1 ? words[0] : '';
   };
   const isNameValue = value => {
+    if (/(?:Pren\w{3,}|Fir[1lI3]t)/i.test(String(value || ''))) return false;
     const candidate = cleanNameValue(value);
     return Boolean(candidate && !fieldMarker.test(candidate) && /^[\p{L}][\p{L}'’ -]{0,79}$/u.test(candidate) && candidate.split(/\s+/).length <= 5);
   };
@@ -1397,10 +1405,13 @@ function parseIdentityCardText(text) {
       : lines[index].slice(labelMatch.index + labelMatch[0].length).replace(stripPattern, '');
     const nextField = inline.search(stopPattern);
     if (nextField >= 0) inline = inline.slice(0, nextField);
+    if (isNameValue(inline)) return cleanNameValue(inline);
     for (const line of lines.slice(index + 1)) {
       if (anyLabelAtStart.test(line)) break;
       if (fuzzyFirstNamePattern.test(line)) break;
-      if (isNameValue(line)) return cleanNameValue(line);
+      const valueEnd = line.search(stopPattern);
+      const value = valueEnd < 0 ? line : line.slice(0, valueEnd);
+      if (isNameValue(value)) return cleanNameValue(value);
     }
     return isNameValue(inline) ? cleanNameValue(inline) : '';
   };
@@ -1430,10 +1441,12 @@ function parseIdentityCardText(text) {
   return { name: [lastName, firstName].filter(Boolean).join(' '), lastName, firstName, cnp };
 }
 function mergeIdentityCardDetails(primary, retry) {
+  const lastName = primary.lastName || retry.lastName;
+  const firstName = primary.firstName || retry.firstName;
   return {
-    name: primary.name || retry.name,
-    lastName: primary.lastName || retry.lastName,
-    firstName: primary.firstName || retry.firstName,
+    name: [lastName, firstName].filter(Boolean).join(' ') || primary.name || retry.name,
+    lastName,
+    firstName,
     cnp: primary.cnp || retry.cnp
   };
 }
@@ -1471,7 +1484,7 @@ function setCandidatePhotoPreview(id, file) {
 }
 function admissionCandidateDetailsHtml() {
   const photoField = candidateImageFieldHtml;
-  return `<section class="admission-candidate-details site-guide-frame" aria-labelledby="admission-candidate-title"><h3 id="admission-candidate-title">Date candidat</h3><div class="admission-candidate-grid"><label>Tip admitere<select id="admission-type"><option value="Admitere">Admitere</option><option value="Reintegrare">Reintegrare</option></select></label><label>Nume și prenume<input id="candidate-name" type="text" autocomplete="name"></label><label>CNP<input id="candidate-cnp" type="text" inputmode="numeric" maxlength="24" autocomplete="off"></label><label>ID candidat<input id="candidate-id" type="text" autocomplete="off"></label><label class="admission-callsign-field">Callsign atribuit<span class="cooldown-callsign-input"><span aria-hidden="true">M-</span><input id="candidate-callsign" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" aria-label="Numărul callsign-ului candidatului; prefixul M este adăugat automat"></span></label></div><div class="candidate-photo-grid">${photoField('candidate-document', 'Fotografie buletin')}${photoField('candidate-medical-sheet', 'Fotografie fișă medicală')}${photoField('candidate-drug-test', 'Fotografie drug-test')}</div></section>`;
+  return `<section class="admission-candidate-details site-guide-frame" aria-labelledby="admission-candidate-title"><h3 id="admission-candidate-title">Date candidat</h3><div class="admission-candidate-grid"><label>Tip admitere<select id="admission-type"><option value="Admitere">Admitere</option><option value="Reintegrare">Reintegrare</option></select></label><label>Nume<input id="candidate-last-name" type="text" autocomplete="family-name"></label><label>Prenume<input id="candidate-first-name" type="text" autocomplete="given-name"></label><label>CNP<input id="candidate-cnp" type="text" inputmode="numeric" maxlength="24" autocomplete="off"></label><label>ID candidat<input id="candidate-id" type="text" autocomplete="off"></label><label class="admission-callsign-field">Callsign atribuit<span class="cooldown-callsign-input"><span aria-hidden="true">M-</span><input id="candidate-callsign" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" aria-label="Numărul callsign-ului candidatului; prefixul M este adăugat automat"></span></label></div><div class="candidate-photo-grid">${photoField('candidate-document', 'Fotografie buletin')}${photoField('candidate-medical-sheet', 'Fotografie fișă medicală')}${photoField('candidate-drug-test', 'Fotografie drug-test')}</div></section>`;
 }
 function admissionConsentHtml() {
   return '<section class="admission-consent site-guide-frame" aria-label="Declarație de acord"><p>Sunteți de acord să respectați toate reglementările și procedurile stabilite de către Departamentul Medical Los Santos și să vă asumați în totalitate responsabilitatea pentru eventualele repercusiuni care pot decurge din nerespectarea acestora?</p></section>';
@@ -1481,7 +1494,8 @@ function medicalCertificateDetailsHtml() {
 }
 function admissionCandidateSummary(result) {
   const value = selector => document.querySelector(selector)?.value?.trim() || '—';
-  const summary = [`Nume candidat: ${value('#candidate-name')}`, `CNP: ${value('#candidate-cnp')}`, `ID: ${value('#candidate-id')}`];
+  const candidateName = ['#candidate-last-name', '#candidate-first-name'].map(value).filter(name => name !== '—').join(' ') || '—';
+  const summary = [`Nume candidat: ${candidateName}`, `CNP: ${value('#candidate-cnp')}`, `ID: ${value('#candidate-id')}`];
   if (result === 'Admis') summary.push(`Callsign atribuit: ${value('#candidate-callsign')}`);
   summary.push(`Rezultat: ${result}`);
   return summary.join('\n');
@@ -1503,16 +1517,20 @@ async function readIdentityCard(file) {
   const worker = await tesseract.createWorker('ron+eng');
   try {
     const image = await createImageBitmap(file);
-    const sourceX = Math.round(image.width * 0.28);
-    const sourceY = Math.round(image.height * 0.15);
-    const sourceWidth = Math.round(image.width * 0.43);
-    const sourceHeight = Math.round(image.height * 0.4);
-    const scale = 4;
+    const sourceX = Math.round(image.width * 0.18);
+    const sourceY = Math.round(image.height * 0.12);
+    const sourceWidth = Math.round(image.width * 0.76);
+    const sourceHeight = Math.round(image.height * 0.52);
+    const scale = Math.min(4, 1800 / Math.max(sourceWidth, sourceHeight));
     const crop = document.createElement('canvas');
     crop.width = sourceWidth * scale;
     crop.height = sourceHeight * scale;
     const context = crop.getContext('2d', { willReadFrequently: true });
     context.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, crop.width, crop.height);
+    image.close();
+    await worker.setParameters({ tessedit_pageseg_mode: 6, preserve_interword_spaces: '1' });
+    const standardText = (await worker.recognize(crop)).data.text;
+    const standardDetails = parseIdentityCardText(standardText);
     const pixels = context.getImageData(0, 0, crop.width, crop.height);
     const histogram = new Uint32Array(256);
     for (let index = 0; index < pixels.data.length; index += 4) {
@@ -1548,11 +1566,9 @@ async function readIdentityCard(file) {
       pixels.data[index + 2] = color;
     }
     context.putImageData(pixels, 0, 0);
-    image.close();
-    await worker.setParameters({ tessedit_pageseg_mode: 6, preserve_interword_spaces: '1' });
+    await worker.setParameters({ tessedit_pageseg_mode: 11, preserve_interword_spaces: '1' });
     const focusedText = (await worker.recognize(crop)).data.text;
-    const details = parseIdentityCardText(focusedText);
-    return { ...details, name: [details.lastName, details.firstName].filter(Boolean).join(' ') };
+    return mergeIdentityCardDetails(standardDetails, parseIdentityCardText(focusedText));
   } finally {
     await worker.terminate();
   }
@@ -1629,6 +1645,8 @@ function buildTestMarkup(testName, definition, questions) {
       ? '<div class="evaluation-stage-actions"><button class="primary evaluation-verdict evaluation-verdict-admitted" type="submit" data-moto-theory-result="Admis">Admis Proba Teoretică</button><button class="primary evaluation-verdict evaluation-verdict-rejected" type="submit" data-moto-theory-result="Respins">Respins Proba Teoretică</button></div>'
       : isParachutismTest
         ? '<div class="evaluation-stage-actions"><button class="primary evaluation-verdict evaluation-verdict-admitted" type="submit" data-parachutism-theory-result="Admis">Admis Test Teoretic</button><button class="primary evaluation-verdict evaluation-verdict-rejected" type="submit" data-parachutism-theory-result="Respins">Respins Test Teoretic</button></div>'
+    : isAdmissionTest
+      ? '<div class="evaluation-stage-actions"><button class="primary evaluation-verdict evaluation-verdict-admitted" type="submit" data-admission-result="Admis">Admis</button><button class="primary evaluation-verdict evaluation-verdict-rejected" type="submit" data-admission-result="Respins">Respins</button></div>'
     : '<button class="primary" type="submit">Finalizează evaluarea</button>';
   const candidateDocument = !isApplicationTest && !isMedicalCertificate && testName === 'Adeverință medicală' ? '<label>Imagine document candidat<input id="candidate-document" type="file" accept="image/*"></label><p class="muted">Imaginea este disponibilă testerului pentru verificare manuală.</p>' : '';
   const questionForm = isAlsTest || isSmulsTest ? '' : questions.length ? `<form id="test-form" class="question-list">${candidateIdentityInQuiz}${stagedCandidateSummary ? '' : '<div id="candidate-summary" class="candidate-summary"></div>'}${candidateDocument}${questions.map((question, index) => questionItemHtml(question, index, !isMedicalCertificate)).join('')}${isMedicalCertificate ? '' : `<p>Greșeli: <strong id="wrong-count">0</strong> / ${Number.isFinite(maxWrong) ? maxWrong : '—'}</p>`}${admissionPromotionNote}${evaluationActions}</form>` : '<div class="test-runner"><p>Acest ghid nu are întrebări teoretice configurate.</p></div>';
@@ -1763,7 +1781,8 @@ function wireTestEvents(testName, definition) {
           document.querySelector('#certificate-first-name').value = '';
           document.querySelector('#certificate-cnp').value = '';
         } else {
-          document.querySelector('#candidate-name').value = '';
+          document.querySelector('#candidate-last-name').value = '';
+          document.querySelector('#candidate-first-name').value = '';
           document.querySelector('#candidate-cnp').value = '';
         }
         setCandidatePhotoStatus(field.id, 'loading', 'Se citește buletinul...');
@@ -1775,7 +1794,8 @@ function wireTestEvents(testName, definition) {
             if (details.firstName) document.querySelector('#certificate-first-name').value = details.firstName;
             if (details.cnp) document.querySelector('#certificate-cnp').value = details.cnp;
           } else {
-            if (details.name) document.querySelector('#candidate-name').value = details.name;
+            if (details.lastName) document.querySelector('#candidate-last-name').value = details.lastName;
+            if (details.firstName) document.querySelector('#candidate-first-name').value = details.firstName;
             if (details.cnp) document.querySelector('#candidate-cnp').value = details.cnp;
           }
           setCandidatePhotoStatus(field.id, 'ready', details.name || details.cnp
@@ -2174,12 +2194,17 @@ function wireTestEvents(testName, definition) {
     }
     const result = isMedicalCertificate
       ? document.querySelector('#certificate-medical-status').value
-      : isTestFailed(wrong, limit) ? 'Respins' : 'Admis';
+      : isAdmissionTest && ['Admis', 'Respins'].includes(event.submitter?.dataset.admissionResult)
+        ? event.submitter.dataset.admissionResult
+        : isTestFailed(wrong, limit) ? 'Respins' : 'Admis';
     const member = directoryMembers.find(item => normalizeCallsign(item.callsign) === normalizeCallsign(candidateInput?.value));
     let submissionDetails = {};
     let status = 'Testul a fost înregistrat.';
     if (isApplicationTest) {
-      const candidateName = document.querySelector('#candidate-name').value.trim();
+      const candidateName = ['#candidate-last-name', '#candidate-first-name']
+        .map(selector => document.querySelector(selector).value.trim())
+        .filter(Boolean)
+        .join(' ');
       const candidateId = document.querySelector('#candidate-id').value.trim();
       const candidateCallsign = normalizeCallsign(document.querySelector('#candidate-callsign').value);
       const identityPhoto = document.querySelector('#candidate-document').files?.[0];
