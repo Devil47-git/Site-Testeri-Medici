@@ -154,7 +154,7 @@ async function canRecordTest(sheets, member, discordId, testName) {
   const grants = (await readValues(sheets, GRANTS_RANGE).catch(() => [])).slice(1);
   const grant = grants.find(row => String(row[0] || '').trim() === discordId);
   const storedGrant = grant ? { grantMode: String(grant[5] || '').trim(), grantedTests: normalizeTests(String(grant[2] || '').split('|')) } : null;
-  return effectiveTestsForMember(functionsForMember(callsignNumber(member[2]), member[10]), storedGrant).includes(testName);
+  return effectiveTestsForMember(functionsForMember(callsignNumber(member[2]), member[10]), storedGrant, callsignNumber(member[2]), String(member[4] || '').trim(), String(member[5] || '').trim()).includes(testName);
 }
 
 function webhookUrl(value) {

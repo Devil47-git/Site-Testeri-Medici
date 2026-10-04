@@ -102,7 +102,7 @@ export default async function handler(req, res) {
       const functions = functionsForMember(callsignNumber(row[2]), row[10]);
       const isConducere = isLeadership(row);
       const status = statusFromRow(row);
-      const grantedTests = effectiveTestsForMember(functions, storedGrant);
+      const grantedTests = effectiveTestsForMember(functions, storedGrant, callsignNumber(row[2]), String(row[4] || '').trim(), String(row[5] || '').trim());
       return {
         discordId, name: String(row[3] || '').trim(), callsign: String(row[2] || '').trim(), csNum: callsignNumber(row[2]), rank: String(row[4] || '').trim(), dept: String(row[5] || '').trim(), functions, status, gradeGroup: groupLabel(row),
         isLeadership: isConducere, leadershipTitle: isConducere ? leadershipTitle(row) : '', avatar: avatarUrlForDiscordMember(discordId, row[20], avatarHashes),

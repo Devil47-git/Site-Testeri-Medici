@@ -262,10 +262,13 @@ function testTagClass(test) {
   return classes[test] || 'test-neutral';
 }
 // Single source of truth for "which badges does this member show", so a member's
-// row in the tester table and their own profile can never disagree.
+  // row in the tester table and their own profile can never disagree.
 function memberAccessTests(member) {
+  // Leadership always shows the single green general-access badge. Whatever sits
+  // in "Functii" or in an explicit grant is irrelevant for them, so it never
+  // leaks a single specialisation badge next to it.
+  if (isLeadershipUser(member)) return [];
   const assignedTests = normalizeGrantBundle([...(member.grantedTests || []), ...docsAssignedTests(member)]);
-  if (isLeadershipUser(member) && !assignedTests.length) return [];
   const hasTesterBundle = coreTests.every(test => assignedTests.includes(test));
   return [...(hasTesterBundle ? ['Tester'] : []), ...assignedTests.filter(test => !hasTesterBundle || !coreTests.includes(test))];
 }

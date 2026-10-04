@@ -1069,13 +1069,18 @@ MD22TNYIL34JK58<<<<<<<<23NM45B<<DB08NOWNCT62RGD<<<<<<`;
 });
 
 test('tester table badges match the member own profile badges', () => {
-  // A 007 holding every test must look identical in the list and on their profile.
-  const member = { discordId: '1', callsign: '007', csNum: 7, name: 'Grebla Mihai', functions: 'TESTER', grantedTests: catalog };
+  // A member holding every test must look identical in the list and on their profile.
+  const member = { discordId: '1', callsign: '310', csNum: 310, name: 'Grebla Mihai', functions: 'TESTER | MOTO', grantedTests: catalog };
   assert.deepEqual(badgeLabels(testerAccessHtml(member)), badgeLabels(profileTestTagsHtml(member)));
   assert.match(testerAccessHtml(member), /test-tester/);
-  // Leadership without explicit grants still falls back to the general badge.
+  // Leadership always shows the single general badge - never a specialisation,
+  // even when Functii lists one and even with an explicit grant.
   const lead = { discordId: '2', callsign: '007', csNum: 7, name: 'Grebla Mihai', grantedTests: [] };
   assert.match(testerAccessHtml(lead), /Acces general/);
+  assert.deepEqual(memberAccessTests(lead), []);
+  const leadWithSmuls = { ...lead, functions: 'Manager I.S.U.L.S. | S.M.U.L.S.', grantedTests: ['Test SMULS'] };
+  assert.match(testerAccessHtml(leadWithSmuls), /Acces general/);
+  assert.doesNotMatch(testerAccessHtml(leadWithSmuls), /Test SMULS/);
 });
 
 test('admission and transfer keep the assigned callsign next to the candidate id', () => {
@@ -1090,9 +1095,48 @@ test('admission and transfer keep the assigned callsign next to the candidate id
 
 test('statistics TESTER card matches the height of the other test cards', () => {
   const stylesheet = readFileSync(join(here, '..', 'style.css'), 'utf8');
-  // align-self:start made the bundle shorter than its siblings.
-  assert.match(stylesheet, /\.statistics-test-bundle\{[^}]*align-self:stretch/);
+  // The visible card is the <summary> inside the <details> wrapper. Stretching
+  // only the wrapper left TESTER at content height, so the summary must flex:1.
+  const bundleRules = [...stylesheet.matchAll(/\.statistics-test-bundle\{([^}]*)\}/g)].map(m => m[1]);
+  const bundle = bundleRules[bundleRules.length - 1] || '';
+  // Resolve the height each visible card actually ends up with, last-wins per
+  // selector, the way the cascade does.
+  const resolved = {};
+  for (const rule of stylesheet.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const height = /min-height:\s*([^;]+)/.exec(rule[2]);
+    if (!height) continue;
+    // The captured selector may span a comment or a previous declaration, so
+    // keep only the trailing selector list of the rule.
+    const selectors = rule[1].replace(/\/\*[\s\S]*?\*\//g, ' ').trim().split(',');
+    for (const selector of selectors.map(s => s.trim()).filter(Boolean)) {
+      resolved[selector] = height[1].trim();
+    }
+  }
+  const cardHeight = resolved['body.dark-mode .statistics-test-count'];
+  const summaryHeight = resolved['body.dark-mode .statistics-test-bundle>summary.statistics-test-count'];
+  // The visible TESTER card is that <summary>; it must resolve to the same
+  // height as every sibling card in dark mode.
+  assert.ok(cardHeight, 'dark-mode card must declare a min-height');
+  assert.equal(summaryHeight, cardHeight, `TESTER card is ${summaryHeight}, siblings are ${cardHeight}`);
+  assert.match(bundle, /align-self:stretch/);
+  assert.match(bundle, /display:flex/);
+  assert.match(bundle, /flex-direction:column/);
+  assert.match(stylesheet, /\.statistics-test-grid>\.statistics-test-count,\s*\.statistics-test-grid>\.statistics-test-bundle\{[^}]*align-self:stretch[^}]*height:100%/);
   assert.doesNotMatch(stylesheet, /\.statistics-test-bundle\{[^}]*align-self:start/);
+  assert.match(stylesheet, /\.statistics-test-bundle\[open\]>summary\{[^}]*flex:none/);
+});
+
+test('Google Vision OCR is proxied through the server and never inlined in the client', () => {
+  // The API key must stay server-side; a key in the browser is a leaked key.
+  assert.doesNotMatch(readFileSync(join(here, '..', 'script.js'), 'utf8'), /vision\.googleapis\.com|AIza/);
+  assert.match(serverSource, /\/api\/identity-ocr/);
+  assert.match(serverSource, /process\.env\.GOOGLE_VISION_API_KEY/);
+  // The endpoint demands a session and same-origin, like every other write.
+  const ocrHandler = serverSource.match(/async function handleIdentityOcr\([\s\S]*?\n\}/)?.[0] || '';
+  assert.match(ocrHandler, /requireSession\(req\)/);
+  assert.match(ocrHandler, /sameOrigin\(req\)/);
+  assert.match(ocrHandler, /applyRateLimit/);
+  assert.match(ocrHandler, /DOCUMENT_TEXT_DETECTION/);
 });
 
 test('identity card OCR never fills the fields with hologram noise', () => {
