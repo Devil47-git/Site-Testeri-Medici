@@ -43,253 +43,6 @@ const COOLDOWN_DRAFT_STORAGE_PREFIX = 'medici-cooldown-draft:';
 const admissionRequirements = ['Verificarea ținutei', 'Verificarea tatuajelor faciale', 'Verificarea cazierului', 'Minimum 50 de ore jucate', 'Controlul cu stetoscopul (amănunțit, în salon)', 'Drug-testul'];
 const motoRequirements = ['Grad Medic-Rezident', 'Certificat S.M.U.L.S.', 'Permis Categoria A'];
 const alsRequirements = ['Verificare BLS', 'Verificare Radio', 'Au trecut minimum 3 zile de la promovarea ultimului test Radio sau BLS', 'Permis categoria B'];
-const specialtyTests = ['Test ALS','Test SMULS','Test MOTO','Test PILOT','Test parașutiști'];
-const docsTesterFilters = ['Test SMULS', 'Test ALS'];
-const testSummaryDefinitions = [['Test SMULS', 'Test S.M.U.L.S.'], ['Test MOTO', 'Test MOTO'], ['Test PILOT', 'Test PILOT'], ['Test ALS', 'Test A.L.S.'], ['Test parașutiști', 'Test Parasutism']];
-const catalog = [...coreTests, ...specialtyTests];
-const TEST_CATALOG_KEY = 'medici-test-catalog-v4';
-/** @param {string} key @param {any} fallback @returns {any} */
-function readStored(key, fallback) { try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : fallback; } catch { return fallback; } }
-function activeRouteStorageKey(user) { return `${ACTIVE_ROUTE_STORAGE_PREFIX}${String(user?.discordId || '')}`; }
-function saveActiveRoute(route) {
-  if (!currentUser?.discordId) return;
-  try {
-    localStorage.setItem(activeRouteStorageKey(currentUser), JSON.stringify(route));
-  } catch (error) {
-    console.error('Active page could not be saved for refresh:', error);
-  }
-}
-function routeFromLocation(hash) {
-  const profileMatch = String(hash || '').match(/^#tester-profile-(.+)$/);
-  if (profileMatch) {
-    try { return { view: 'tester-profile', callsign: decodeURIComponent(profileMatch[1]), previousView: 'testers' }; }
-    catch { return null; }
-  }
-  const testName = testNameFromHash(hash);
-  if (testName) return { view: 'test', testName, previousView: 'overview' };
-  const view = String(hash || '').replace(/^#/, '');
-  return labels[view] ? { view } : null;
-}
-function validSavedRoute(route) {
-  if (route?.view === 'test' && typeof route.testName === 'string' && route.testName) return route;
-  if (route?.view === 'tester-profile' && typeof route.callsign === 'string' && route.callsign) return route;
-  return labels[route?.view] ? route : null;
-}
-function testProgressStorageKey(user, testName) {
-  return `${TEST_PROGRESS_STORAGE_PREFIX}${String(user?.discordId || '')}:${testName}`;
-}
-function saveTestProgress(testName) {
-  if (!currentUser?.discordId) return;
-  const panel = viewContent.querySelector('.view-panel');
-  if (!panel) return;
-  const key = testProgressStorageKey(currentUser, testName);
-  const previous = readStored(key, {}) || {};
-  const controls = [...panel.querySelectorAll('input:not([type="file"]),select,textarea')].map((control, index) => {
-    const key = control.id || control.dataset.progressKey || `control-${index}`;
-    control.dataset.progressKey = key;
-    return {
-      key,
-      value: control.value,
-      checked: control.type === 'checkbox' || control.type === 'radio' ? control.checked : undefined
-    };
-  });
-  try {
-    localStorage.setItem(key, JSON.stringify({
-      ...previous,
-      controls,
-      stage: panel.dataset.progressStage || '',
-      stageIndex: Number(panel.dataset.progressIndex) || 0,
-      media: previous.media || {}
-    }));
-  } catch (error) {
-    console.error(`Progress for ${testName} could not be saved:`, error);
-  }
-}
-async function saveTestProgressPhoto(testName, fieldId, file) {
-  if (!currentUser?.discordId) return;
-  const key = testProgressStorageKey(currentUser, testName);
-  const savedPhoto = file ? { name: file.name, dataUrl: await encodeIdentityPhoto(file, 400 * 1024) } : null;
-  const progress = readStored(key, {}) || {};
-  const media = { ...(progress.media || {}) };
-  if (savedPhoto) media[fieldId] = savedPhoto;
-  else delete media[fieldId];
-  try {
-    localStorage.setItem(key, JSON.stringify({ ...progress, media }));
-  } catch (error) {
-    throw new Error('Fotografia nu a putut fi păstrată când schimbi testul.', { cause: error });
-  }
-}
-function restoreTestProgress(testName) {
-  if (!currentUser?.discordId) return null;
-  const progress = readStored(testProgressStorageKey(currentUser, testName), null);
-  if (!progress || !Array.isArray(progress.controls)) return null;
-  const panel = viewContent.querySelector('.view-panel');
-  if (!panel) return null;
-  const controls = [...panel.querySelectorAll('input:not([type="file"]),select,textarea')];
-  const legacyCandidateName = String(progress.controls.find(item => item.key === 'candidate-name')?.value || '').trim();
-  const [legacyLastName = '', ...legacyFirstNames] = legacyCandidateName.split(/\s+/);
-  controls.forEach((control, index) => {
-    const key = control.id || control.dataset.progressKey || `control-${index}`;
-    control.dataset.progressKey = key;
-    const saved = progress.controls.find(item => item.key === key);
-    if (!saved) {
-      if (key === 'candidate-last-name') control.value = legacyLastName;
-      else if (key === 'candidate-first-name') control.value = legacyFirstNames.join(' ');
-      return;
-    }
-    if (control.type === 'checkbox' || control.type === 'radio') control.checked = Boolean(saved.checked);
-    else if (!control.readOnly) control.value = String(saved.value ?? '');
-  });
-  panel.dataset.progressStage = String(progress.stage || '');
-  panel.dataset.progressIndex = String(Number(progress.stageIndex) || 0);
-  return progress;
-}
-function saveTestProgressStage(testName, stage, stageIndex = 0) {
-  const panel = viewContent.querySelector('.view-panel');
-  if (!panel) return;
-  panel.dataset.progressStage = stage;
-  panel.dataset.progressIndex = String(stageIndex);
-  saveTestProgress(testName);
-}
-function clearTestProgress(testName) {
-  if (!currentUser?.discordId) return;
-  try {
-    localStorage.removeItem(testProgressStorageKey(currentUser, testName));
-  } catch (error) {
-    console.error(`Progress for ${testName} could not be cleared:`, error);
-  }
-}
-function cooldownDraftStorageKey(user) {
-  return `${COOLDOWN_DRAFT_STORAGE_PREFIX}${String(user?.discordId || '')}`;
-}
-function saveCooldownDraft(test, days) {
-  if (!currentUser?.discordId) return;
-  try {
-    if (!test && !days) localStorage.removeItem(cooldownDraftStorageKey(currentUser));
-    else localStorage.setItem(cooldownDraftStorageKey(currentUser), JSON.stringify({ test, days }));
-  } catch (error) {
-    console.error('Cooldown payment draft could not be saved:', error);
-  }
-}
-function clearCooldownDraft() {
-  if (!currentUser?.discordId) return;
-  try {
-    localStorage.removeItem(cooldownDraftStorageKey(currentUser));
-  } catch (error) {
-    console.error('Cooldown payment draft could not be cleared:', error);
-  }
-}
-function cooldownPaymentAmount(test, days) {
-  const rate = COOLDOWN_PAYMENT_RATES[test];
-  const count = Number(days);
-  if (!rate || !Number.isSafeInteger(count) || count < 1 || count > cooldownPaymentMaxDays(test)) return null;
-  const amount = rate * count;
-  return Number.isSafeInteger(amount) ? amount : null;
-}
-function cooldownPaymentMaxDays(test) {
-  return ['ALS', 'BLS', 'RADIO'].includes(test) ? 3 : Object.hasOwn(COOLDOWN_PAYMENT_RATES, test) ? 5 : 0;
-}
-function cooldownPaymentPayerForCallsign(callsign, members) {
-  const number = callsignNumber(callsign);
-  if (number < 1) return null;
-  return (Array.isArray(members) ? members : []).find(member =>
-    callsignNumber(member?.callsign || member?.callSign) === number &&
-    String(member?.name || '').trim() &&
-    /^\d+$/.test(String(member?.discordId || '').trim())
-  ) || null;
-}
-function cooldownPaymentMessage(member, test, days) {
-  const amount = cooldownPaymentAmount(test, days);
-  if (!member || !amount) return '';
-  const callsign = normalizeCallsign(member.callsign || member.callSign);
-  const discordId = String(member.discordId || '').trim();
-  const name = String(member.name || '').replace(/\s+/g, ' ').trim();
-  const rank = String(member.rank || '').replace(/\s+/g, ' ').trim();
-  if (callsignNumber(callsign) < 1 || !/^\d+$/.test(discordId) || !name) return '';
-  return [
-    `CANDIDAT: <@${discordId}>`,
-    `Grad: ${rank || '—'}`,
-    `Calificare: ${COOLDOWN_PAYMENT_LABELS[test]}`,
-    `Nr. zile: ${Number(days)}`,
-    `Suma: ${new Intl.NumberFormat('ro-RO').format(amount)}$`
-  ].join('\n');
-}
-function mergeTestDefinitions(defaults, stored) {
-  defaults ||= {};
-  stored ||= {};
-  const definitions = { ...(defaults || {}), ...(stored || {}) };
-  return Object.fromEntries(Object.entries(definitions).map(([name, definition]) => {
-    const merged = { ...(defaults?.[name] || {}), ...(definition || {}) };
-    if (['Test ALS', 'Test SMULS', 'Test PILOT'].includes(name) && defaults?.[name]) {
-      if (defaults[name].description) merged.description = defaults[name].description;
-      if (defaults[name].instructions) merged.instructions = defaults[name].instructions;
-    }
-    if (Array.isArray(merged.questions)) {
-      merged.questions = merged.questions.map(q => Array.isArray(q) ? { text: q[0] || '', answer: q[1] || '' } : q);
-    }
-    const defaultPractical = defaults?.[name]?.practical;
-    const storedPractical = stored?.[name]?.practical;
-    if (Array.isArray(defaultPractical) && Array.isArray(storedPractical)) {
-      merged.practical = defaultPractical.map((stage, index) => {
-        const mergedStage = { ...stage, ...(storedPractical[index] || {}) };
-        if (stage.images?.length) {
-          mergedStage.images = stage.images;
-          mergedStage.imageSlots = Number(stage.imageSlots) || stage.images.length;
-        }
-        return mergedStage;
-      });
-      merged.practical.push(...storedPractical.slice(defaultPractical.length));
-    }
-    const defaultPracticalStage = defaults?.[name]?.practicalStage;
-    const storedPracticalStage = stored?.[name]?.practicalStage;
-    if (defaultPracticalStage && storedPracticalStage) {
-      merged.practicalStage = { ...defaultPracticalStage, ...storedPracticalStage };
-      if (defaultPracticalStage.images?.length) {
-        merged.practicalStage.images = defaultPracticalStage.images;
-        merged.practicalStage.imageSlots = Number(defaultPracticalStage.imageSlots) || defaultPracticalStage.images.length;
-      }
-    }
-    const defaultEvaluationStages = defaults?.[name]?.evaluationStages;
-    const storedEvaluationStages = stored?.[name]?.evaluationStages;
-    if (Array.isArray(defaultEvaluationStages) && Array.isArray(storedEvaluationStages)) {
-      merged.evaluationStages = defaultEvaluationStages.map((stage, index) => {
-        const mergedStage = { ...stage, ...(storedEvaluationStages[index] || {}) };
-        if (stage.images?.length) {
-          mergedStage.images = stage.images;
-          mergedStage.imageSlots = Number(stage.imageSlots) || stage.images.length;
-        }
-        return mergedStage;
-      });
-      merged.evaluationStages.push(...storedEvaluationStages.slice(defaultEvaluationStages.length));
-    }
-    return [name, merged];
-  }));
-}
-/** @type {Record<string, TestDefinition>} */
-const defaultTestDefinitions = window.MEDICAL_TESTS || Object.fromEntries(catalog.map(name => [name, { name, description: `Acces disponibil pentru ${name}.`, questions: [] }]));
-let testDefinitions = mergeTestDefinitions(defaultTestDefinitions, readStored(TEST_CATALOG_KEY, {}));
-function saveTestDefinitions() { localStorage.setItem(TEST_CATALOG_KEY, JSON.stringify(testDefinitions)); }
-async function fetchGlobalTestDefinitions() {
-  try {
-    const res = await fetch('/api/test-definitions', { cache: 'no-store' });
-    if (!res.ok) return;
-    const data = await res.json();
-    if (data && typeof data.definitions === 'object' && data.definitions) {
-      testDefinitions = mergeTestDefinitions(defaultTestDefinitions, data.definitions);
-      saveTestDefinitions();
-    }
-  } catch {}
-}
-async function persistTestDefinitions() {
-  const res = await fetch('/api/test-definitions', {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ definitions: testDefinitions })
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `Eroare server (${res.status})`);
-  return data;
-}
 const rows = document.querySelector('#tester-rows');
 const testerGroups = document.querySelector('#tester-groups');
 const viewContent = document.querySelector('#view-content');
@@ -301,10 +54,22 @@ const GRANTS_KEY = 'medici-grants';
 let currentUser = null;
 /** @type {Member[]} */
 let testers = readStored(GRANTS_KEY, []).filter(member => String(member?.name || '').trim()).map(member => ({ ...member, grantedTests: normalizeGrantBundle(member.grantedTests || []) }));
+/** @type {Record<string, Record<string, number>>} */
 let testRunCounts = {};
 let processedTestCounts = {};
 let selectedBonusPeriodIndex = null;
 function saveTesters() { localStorage.setItem(GRANTS_KEY, JSON.stringify(testers)); }
+/** Single post-refresh render pipeline shared by every loader. */
+function renderAll() {
+  renderRows();
+  renderDashboardData();
+  refreshCurrentView();
+}
+/** Persists the resolved grant state, then refreshes every view. */
+function applyGrantsState() {
+  saveTesters();
+  renderAll();
+}
 function refreshCurrentView() {
   renderAvailableTestsSubmenu();
   if (window.history.state?.view === 'test') return;
@@ -334,10 +99,7 @@ async function loadRemoteGrants() {
   const grantsPayload = Array.isArray(payload?.grants) ? payload.grants : [];
   if (!Array.isArray(payload?.grants)) {
     testers = [];
-    saveTesters();
-    renderRows();
-    renderDashboardData();
-    refreshCurrentView();
+    applyGrantsState();
     return;
   }
   if (isLeadershipUser(currentUser)) {
@@ -360,10 +122,7 @@ async function loadRemoteGrants() {
       : normalizeGrantBundle([...(currentUser.grantedTests || []), ...(ownGrant?.grantedTests || [])]);
     testers = ownGrant ? [{ ...currentUser, ...ownGrant, grantMode: currentUser.grantMode, grantedTests: currentUser.grantedTests }] : [];
   }
-  saveTesters();
-  renderRows();
-  renderDashboardData();
-  refreshCurrentView();
+  applyGrantsState();
 }
 async function saveRemoteGrant(callsign, grantedTests, remove = false, targetDiscordId = '', individualRemoval = false) {
   if (!currentUser?.discordId) throw new Error('Sesiunea nu conține Discord ID.');
@@ -378,11 +137,11 @@ async function parseApiResponse(response) {
   catch { throw new Error(text.trim().slice(0, 240) || `Răspuns invalid de la server (${response.status}).`); }
 }
 function setSyncDetail(message) { const el = document.querySelector('#sync-detail'); if (el) el.textContent = message; }
-/** @param {any} value @returns {string} */
+/** @param {unknown} value @returns {string} */
 function escapeHtml(value) { return String(value == null ? '' : value).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch])); }
-/** @param {any} value @returns {string} */
+/** @param {unknown} value @returns {string} */
 function normalizeCallsign(value) { const number = String(value || '').replace(/\D/g, ''); return number ? `M-${number.padStart(3, '0')}` : ''; }
-/** @param {any} value @returns {number} */
+/** @param {unknown} value @returns {number} */
 function callsignNumber(value) { const digits = String(value == null ? '' : value).replace(/\D/g, ''); const n = Number(digits); return Number.isFinite(n) ? n : 0; }
 const TEST_CALLSIGN_LIMITS = { 'Test ALS': 690, 'Test SMULS': 499, 'Test MOTO': 399, 'Test PILOT': 399, 'Test parașutiști': 299 };
 function callsignLimitForTest(testName) { return TEST_CALLSIGN_LIMITS[testName] ?? null; }
@@ -396,11 +155,11 @@ function bonusTesterCallsign(value) {
   const number = callsignNumber(value);
   return number >= 1 && number <= 399 ? String(number).padStart(3, '0') : '';
 }
-/** @param {any} user @returns {boolean} */
+/** @param {Member} user @returns {boolean} */
 function isLeadershipUser(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return Boolean(user?.accessLevel === 'leadership' || user?.isConducere || user?.isLeadership || (cs >= 1 && cs <= 20)); }
 function canViewTestersRoom(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return cs >= 1 && cs <= 399; }
 function hasLeadershipCallsign(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return cs >= 1 && cs <= 20; }
-/** @param {any} member @returns {boolean} */
+/** @param {Member} member @returns {boolean} */
 function memberIsLeadership(member) { return isLeadershipUser(member); }
 /** @param {any} value @returns {string} */
 function leadershipTitleForCallsign(value) { const cs = callsignNumber(value);
@@ -418,12 +177,12 @@ function gradeGroupFor(csNum) { const n = callsignNumber(csNum);
   return '';
 }
 function gradeGroupForMember(member) { return member?.gradeGroup || gradeGroupFor(member?.csNum || member?.callsign); }
-/** @param {any} user @returns {string[]} */
+/** @param {Member} user @returns {string[]} */
 function allowedForUser(user) { if (isLeadershipUser(user)) return catalog; return [...new Set([...(user?.grantedTests || []), ...docsAssignedTests(user)])].filter(test => catalog.includes(test) && testDefinitions[test]); }
 function memberHasTestAccess(member, test) { return !isLeadershipUser(member) && allowedForUser(member).includes(test); }
 /** @param {any} value @returns {string} */
 /** @param {any} member @returns {boolean} */
-/** @param {any} value @returns {string} */
+/** @param {unknown} value @returns {string} */
 function normalizeText(value) { return String(value || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
 function isAdmissionChecklistReminder(value) {
   const normalize = text => normalizeText(text).replace(/[^A-Z0-9]+/g, ' ').trim();
@@ -563,14 +322,21 @@ async function loadCooldownPayers() {
   if (cooldownPayersLoaded) return;
   if (cooldownPayersRequest) return cooldownPayersRequest;
   cooldownPayersRequest = (async () => {
-    if (!currentUser?.discordId) throw new Error('Sesiunea nu conține Discord ID.');
-    const query = new URLSearchParams({ requesterId: currentUser.discordId, view: 'cooldown-payers' });
-    const response = await fetch(`/api/access/directory?${query}`);
-    const payload = await parseApiResponse(response);
-    if (!response.ok) throw new Error(payload.error || 'Lista plătitorilor nu a putut fi încărcată.');
-    if (!Array.isArray(payload.members)) throw new Error('Răspuns invalid de la lista plătitorilor.');
-    cooldownPayerMembers = payload.members;
-    cooldownPayersLoaded = true;
+    try {
+      if (!currentUser?.discordId) throw new Error('Sesiunea nu conține Discord ID.');
+      const query = new URLSearchParams({ requesterId: currentUser.discordId, view: 'cooldown-payers' });
+      const response = await fetch(`/api/access/directory?${query}`);
+      const payload = await parseApiResponse(response);
+      if (!response.ok) throw new Error(payload.error || 'Lista plătitorilor nu a putut fi încărcată.');
+      if (!Array.isArray(payload.members)) throw new Error('Răspuns invalid de la lista plătitorilor.');
+      cooldownPayerMembers = payload.members;
+      cooldownPayersLoaded = true;
+    } catch (error) {
+      cooldownPayerMembers = [];
+      cooldownPayersLoaded = false;
+      console.error('Cooldown payers load failed:', error);
+      throw error;
+    }
   })();
   try {
     await cooldownPayersRequest;
@@ -582,10 +348,26 @@ async function loadDirectory() {
   if (!currentUser?.discordId) return;
   cooldownPayersLoaded = false;
   cooldownPayerMembers = [];
-  const response = await fetch(`/api/access/directory?requesterId=${encodeURIComponent(currentUser.discordId)}`);
-  if (!response.ok) return;
-  const payload = await response.json();
-  directoryMembers = (payload.members || []).filter(member => String(member?.name || '').trim());
+  let response;
+  try {
+    response = await fetch(`/api/access/directory?requesterId=${encodeURIComponent(currentUser.discordId)}`);
+  } catch (error) {
+    console.error('Directory load failed:', error);
+    directoryMembers = [];
+    renderRows();
+    renderDashboardData();
+    refreshCurrentView();
+    return;
+  }
+  if (!response.ok) { directoryMembers = []; return; }
+  let payload;
+  try { payload = await response.json(); }
+  catch (error) {
+    console.error('Directory response could not be parsed:', error);
+    directoryMembers = [];
+    return;
+  }
+  directoryMembers = (Array.isArray(payload?.members) ? payload.members : []).filter(member => String(member?.name || '').trim());
   const currentDirectoryMember = directoryMembers.find(member => member.discordId === currentUser.discordId);
   if (currentDirectoryMember && !isLeadershipUser(currentUser)) {
     currentUser.grantMode = currentDirectoryMember.grantMode || '';
@@ -595,10 +377,7 @@ async function loadDirectory() {
   }
   await loadTestRunCounts();
   testers = directoryMembers.filter(member => member.isTester || memberIsTester(member)).map(member => ({ ...member, grantedTests: normalizeGrantBundle([...(member.grantedTests || []), ...docsAssignedTests(member)]) }));
-  saveTesters();
-  renderRows();
-  renderDashboardData();
-  refreshCurrentView();
+  applyGrantsState();
 }
 function renderDashboardData() {
   const testerList = document.querySelector('#tester-statistics-list');
@@ -2782,12 +2561,12 @@ function setVisibilityPermissions(user){
   const sectionLabel = document.querySelector('#section-label');
   if (sectionLabel) sectionLabel.textContent = 'Site Testeri';
 }
-/** @param {any} user @returns {void} */
+/** @param {Member} user @returns {void} */
 function setStats(user){
   const stat = document.querySelector('.stat-card:nth-child(2) strong');
   if (stat) stat.textContent = allowedForUser(user).length;
 }
-/** @param {any} user @returns {void} */
+/** @param {Member} user @returns {void} */
 function applyUser(user){
   currentUser = user;
   setWelcomeHeader(user); setVisibilityPermissions(user); setStats(user); renderAvailableTestsSubmenu();

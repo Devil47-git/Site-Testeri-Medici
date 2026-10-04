@@ -9,7 +9,11 @@ import { cooldownPayersFromRows, statusFromRow } from '../api/access/directory.j
 import { cooldownIsActive, parseCooldownS } from '../lib/access/cooldowns.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const source = readFileSync(join(here, '..', 'script.js'), 'utf8');
+const scriptSource = readFileSync(join(here, '..', 'script.js'), 'utf8');
+// js/storage.js is loaded before script.js and shares its global scope;
+// only consulted for helpers that were moved out of the main bundle.
+const storageSource = readFileSync(join(here, '..', 'js', 'storage.js'), 'utf8');
+const source = scriptSource;
 const styleSource = readFileSync(join(here, '..', 'style.css'), 'utf8');
 const directorySource = readFileSync(join(here, '..', 'api', 'access', 'directory.js'), 'utf8');
 const grantsSource = readFileSync(join(here, '..', 'api', 'access', 'grants.js'), 'utf8');
@@ -20,19 +24,23 @@ const discordAuthSource = readFileSync(join(here, '..', 'api', 'auth', 'discord.
 
 /** Extracts a top-level function declaration by name from the app bundle. */
 function extract(name) {
-  const start = source.indexOf(`function ${name}(`);
-  assert.notEqual(start, -1, `function ${name} not found in script.js`);
-  let depth = 0;
-  let i = source.indexOf('{', start);
-  const bodyStart = i;
-  for (; i < source.length; i += 1) {
-    if (source[i] === '{') depth += 1;
-    else if (source[i] === '}') {
-      depth -= 1;
-      if (depth === 0) break;
+  const from = text => {
+    const start = text.indexOf(`function ${name}(`);
+    if (start === -1) return null;
+    let depth = 0;
+    let i = text.indexOf('{', start);
+    for (; i < text.length; i += 1) {
+      if (text[i] === '{') depth += 1;
+      else if (text[i] === '}') {
+        depth -= 1;
+        if (depth === 0) break;
+      }
     }
-  }
-  return source.slice(start, i + 1);
+    return text.slice(start, i + 1);
+  };
+  const extracted = from(scriptSource) ?? from(storageSource);
+  assert.ok(extracted, `function ${name} not found in script.js or js/storage.js`);
+  return extracted;
 }
 
 const catalog = ['Test admitere', 'Test transfer', 'Adeverință medicală', 'Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști'];
@@ -197,22 +205,22 @@ test('active page routes restore test and cooldown pages after refresh', () => {
 });
 
 test('test progress, admission photos, and cooldown form choices persist without restoring payer callsign', () => {
-  assert.match(source, /function testProgressStorageKey\(user, testName\)/);
-  assert.match(source, /function saveTestProgress\(testName\)/);
-  assert.match(source, /async function saveTestProgressPhoto\(testName, fieldId, file\)/);
-  assert.match(source, /media: previous\.media \|\| \{\}/);
+  assert.match(storageSource, /function testProgressStorageKey\(user, testName\)/);
+  assert.match(storageSource, /function saveTestProgress\(testName\)/);
+  assert.match(storageSource, /async function saveTestProgressPhoto\(testName, fieldId, file\)/);
+  assert.match(storageSource, /media: previous\.media \|\| \{\}/);
   assert.match(source, /restoredProgress\?\.media\?\.\[field\.id\]/);
   assert.match(source, /input\.dataset\.restoringProgressPhoto = 'true'/);
-  assert.match(source, /function restoreTestProgress\(testName\)/);
+  assert.match(storageSource, /function restoreTestProgress\(testName\)/);
   assert.match(source, /saveTestProgressStage\(testName, 'pilot-stage', stageIndex\)/);
   assert.match(source, /restoreSavedStageUI\(restoredProgress\)/);
   for (const stage of ['smuls-cases', 'smuls-offroad', 'als-cases', 'moto-practical', 'parachutism-practical']) {
     assert.ok(source.includes(`'${stage}'`));
   }
-  assert.match(source, /function cooldownDraftStorageKey\(user\)/);
+  assert.match(storageSource, /function cooldownDraftStorageKey\(user\)/);
   assert.match(source, /id="cooldown-payer-callsign" type="text" value=""/);
   assert.match(source, /id="cooldown-payment-reset"/);
-  assert.match(source, /clearCooldownDraft\(\)/);
+  assert.match(storageSource, /clearCooldownDraft\(\)|function clearCooldownDraft\(\)/);
   assert.doesNotMatch(source, /id="pilot-cooldown"/);
   assert.doesNotMatch(source, /help-btn/);
 });
@@ -1008,6 +1016,21 @@ test('SMULS guide includes the supplied route image as an inline preview', () =>
 test('identity card OCR parser handles inline labels and preserves OCR-confused CNP letters', () => {
   const details = parseIdentityCardText('Nume/Nom/Last name Cartier Prenume/Prenom/First name Mohammed\nCNP: 1O60 8259 27178');
   assert.deepEqual(details, { name: 'Cartier Mohammed', lastName: 'Cartier', firstName: 'Mohammed', cnp: '1O60825927178' });
+});
+
+test('identity card OCR keeps both candidate names on separate or inline lines', () => {
+  assert.deepEqual(
+    parseIdentityCardText('Nume/Nom/Last name\nHelll\nPrenume/Prenom/First name\nIonut\nCNP 1041125162421'),
+    { name: 'Helll Ionut', lastName: 'Helll', firstName: 'Ionut', cnp: '1041125162421' }
+  );
+  assert.deepEqual(
+    parseIdentityCardText('Nume/Nom/Last name Tma\nPrenume/Prenom/First name Alexandru\nCNP 1090526259846'),
+    { name: 'Tma Alexandru', lastName: 'Tma', firstName: 'Alexandru', cnp: '1090526259846' }
+  );
+  assert.deepEqual(
+    parseIdentityCardText('Nume/Nom/Last name." SEC RC | Tma IN\nPrenume/Prenom/First Anna = FĂ | Alexandru\nCNP 1090526259846'),
+    { name: 'Tma Alexandru', lastName: 'Tma', firstName: 'Alexandru', cnp: '1090526259846' }
+  );
 });
 
 test('identity card OCR parser skips misread blue labels before reading the values below', () => {

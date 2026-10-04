@@ -781,3 +781,23 @@ body.dark-mode #modal .modal.access-modal .grant-preset{border-color:rgba(43,140
 .statistics-test-bundle-details{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding-top:8px}
 .statistics-test-bundle-details .statistics-test-count{min-width:0;min-height:68px}
 @media(max-width:620px){.statistics-test-bundle-details{grid-template-columns:minmax(0,1fr)}}
+
+.admission-candidate-grid .admission-callsign-field .cooldown-callsign-input{display:flex;width:100%;min-height:42px;align-items:center;justify-items:unset;gap:0;border:1px solid var(--surface-border);border-radius:6px;background:var(--surface);color:var(--ink);text-align:left}
+.admission-candidate-grid .admission-callsign-field .cooldown-callsign-input>span{flex:none;padding:10px 0 10px 11px;color:var(--muted)}
+.admission-candidate-grid .admission-callsign-field .cooldown-callsign-input input{flex:1;width:100%;min-width:0;min-height:40px;margin:0;padding:10px 11px;border:0;border-radius:6px;background:transparent;box-shadow:none;color:var(--ink);text-align:left}
+.admission-candidate-grid .admission-callsign-field .cooldown-callsign-input:focus-within{outline:2px solid var(--purple);outline-offset:1px}
+.admission-candidate-grid .admission-callsign-field .cooldown-callsign-input input:focus{outline:0;border:0;box-shadow:none}
+body.dark-mode .admission-candidate-grid .admission-callsign-field .cooldown-callsign-input{border-color:var(--surface-border);background:var(--surface)}
+body.dark-mode .admission-candidate-grid .admission-callsign-field .cooldown-callsign-input input{border:0;background:transparent;box-shadow:none}
+body.dark-mode .admission-candidate-grid .admission-callsign-field .cooldown-callsign-input:focus-within{outline-color:var(--neon-blue)}
+
+.statistics-test-bundle{grid-column:span 1;align-self:start;min-width:0}
+.statistics-test-bundle>summary{display:grid}
+.statistics-test-bundle[open]{grid-column:1/-1}
+.statistics-test-bundle[open]>summary{display:grid;grid-template-columns:auto minmax(0,1fr) auto;grid-template-rows:auto auto}
+.statistics-test-bundle[open]>.statistics-test-bundle-details{grid-template-columns:repeat(auto-fit,minmax(190px,1fr))}
+.statistics-test-bundle[open] .statistics-test-bundle-details .statistics-test-count{min-height:76px}
+.statistics-test-bundle>summary .statistics-test-bundle-toggle{grid-column:3;grid-row:1;justify-self:end;align-self:start}
+.statistics-test-bundle>summary strong{grid-column:3;grid-row:2}
+body.dark-mode .statistics-test-bundle>summary{display:grid}
+@media(max-width:620px){.statistics-test-bundle[open]>.statistics-test-bundle-details{grid-template-columns:minmax(0,1fr)}}
