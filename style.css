@@ -821,3 +821,41 @@ body.dark-mode .admission-candidate-grid .admission-callsign-field .cooldown-cal
 .statistics-test-bundle>summary strong{grid-column:3;grid-row:2}
 body.dark-mode .statistics-test-bundle>summary{display:flex;align-items:center}
 @media(max-width:620px){.statistics-test-bundle[open]>.statistics-test-bundle-details{grid-template-columns:minmax(0,1fr)}}
+/* ===== Design unificat: chenare fara rosu, selecte si fotografii egale ===== */
+
+/* Ramele mari folosesc albastrul site-ului in loc de rosu. */
+body.dark-mode .panel:not(.view-panel),body.dark-mode .view-panel,body.dark-mode .stat-card,body.dark-mode .test-card,body.dark-mode .test-summary-card,body.dark-mode .profile-card,body.dark-mode .bonus-panel,body.dark-mode .sync-panel,body.dark-mode .testers-panel,body.dark-mode .member-group,body.dark-mode .tester-group,body.dark-mode .als-case,body.dark-mode .smuls-case,body.dark-mode .parachutism-case,body.dark-mode .parachutism-information-card,body.dark-mode .evaluation-stage-card,body.dark-mode .activity-item,body.dark-mode .profile-test-removal-item,body.dark-mode .modal,body.dark-mode .auth-card,body.dark-mode .admin-panel,body.dark-mode .statistics-test-count,body.dark-mode .summary-test-count,body.dark-mode .site-guide-frame,body.dark-mode .admission-candidate-details,body.dark-mode .admission-checklist,body.dark-mode .admission-consent,body.dark-mode .candidate-identity-fields{--neon-red:var(--neon-blue)}
+body.dark-mode .panel:not(.view-panel),body.dark-mode .view-panel,body.dark-mode .stat-card,body.dark-mode .test-card,body.dark-mode .test-summary-card,body.dark-mode .profile-card,body.dark-mode .bonus-panel,body.dark-mode .sync-panel,body.dark-mode .testers-panel,body.dark-mode .member-group,body.dark-mode .tester-group,body.dark-mode .als-case,body.dark-mode .smuls-case,body.dark-mode .parachutism-case,body.dark-mode .parachutism-information-card,body.dark-mode .evaluation-stage-card,body.dark-mode .modal,body.dark-mode .auth-card,body.dark-mode .admin-panel,body.dark-mode .statistics-test-count,body.dark-mode .summary-test-count,body.dark-mode .site-guide-frame{box-shadow:0 0 14px rgba(43,140,255,.32),0 0 8px rgba(255,255,255,.12)}
+body.dark-mode .topbar{--neon-red:var(--neon-blue);box-shadow:0 0 14px rgba(43,140,255,.45),0 0 10px rgba(255,255,255,.22)}
+body.dark-mode .profile-card .eyebrow{color:#ff2d3d}
+body.dark-mode .statistics-test-count:nth-child(odd) strong{color:#ff2d3d;text-shadow:0 0 8px rgba(255,45,61,.7)}
+body.dark-mode .smuls-case-image-slot{border-color:rgba(60,140,255,.6);background:rgba(8,16,36,.5)}
+/* Selectele arata ca in designul site-ului: albastru, sageata si text aliniat la stanga. */
+body.dark-mode select{color-scheme:dark;-webkit-appearance:auto;appearance:auto;background-color:#0a1128;color:#fff;border:2px solid rgba(43,140,255,.55);border-radius:12px;box-shadow:0 0 12px rgba(43,140,255,.3)}
+body.dark-mode select:focus{outline:none;border-color:var(--neon-blue);box-shadow:0 0 14px rgba(43,140,255,.55)}
+body.dark-mode select option{background:#0a1128;color:#fff;font-weight:600}
+body.dark-mode select option:checked,body.dark-mode select option:hover{background:#2b8cff;color:#fff}
+.admission-candidate-grid select{text-align:left;text-align-last:left}
+body.dark-mode .admission-candidate-grid select{border:2px solid rgba(43,140,255,.55);border-radius:12px;background-color:#0a1128;box-shadow:0 0 12px rgba(43,140,255,.3)}
+
+/* Fotografiile de test au aceeasi dimensiune si se deschid la click. */
+.parachutism-photo-grid{display:flex;flex-wrap:wrap;align-items:stretch;gap:12px}
+.parachutism-photo-slot{display:block;position:relative;flex:1 1 220px;min-width:0;padding:0;overflow:hidden;aspect-ratio:4/3!important;border:1px solid rgba(120,170,255,.45)}
+.parachutism-photo-slot img{position:absolute;inset:0;width:100%;height:100%;min-height:0;object-fit:contain;border-radius:inherit;cursor:zoom-in}
+
+/* Vizualizator de imagini (click pe orice fotografie de test). */
+.image-viewer{position:fixed;inset:0;z-index:200;display:grid;place-items:center;padding:34px;background:rgba(3,6,14,.9);backdrop-filter:blur(4px)}
+.image-viewer[hidden]{display:none}
+.image-viewer-image{max-width:100%;max-height:100%;object-fit:contain;border:1px solid rgba(120,170,255,.45);border-radius:10px;box-shadow:0 24px 70px rgba(0,0,0,.65)}
+.image-viewer-close{position:absolute;top:18px;right:22px;display:grid;place-items:center;width:44px;height:44px;padding:0;border:1px solid rgba(120,170,255,.5);border-radius:50%;background:rgba(10,20,40,.85);color:#fff;font-size:26px;line-height:1;cursor:pointer}
+.image-viewer-close:hover{background:rgba(30,60,120,.95)}
+body.image-viewer-open{overflow:hidden}
+
+/* Butonul de deconectare din profil. */
+.profile-session-actions{display:flex;justify-content:flex-end;margin-top:22px;padding-top:18px;border-top:1px solid var(--line)}
+.profile-logout-button{display:inline-flex;align-items:center;gap:8px;min-height:36px;padding:0 18px;font-weight:700}
+.profile-logout-button>span{font-size:16px;line-height:1}
+body.dark-mode .profile-session-actions{border-top:1px solid rgba(143,195,255,.28)}
+body.dark-mode .profile-logout-button{border:1px solid rgba(255,138,146,.6);background:rgba(255,45,61,.14);color:#ffb9bf;box-shadow:0 0 10px rgba(255,45,61,.25)}
+body.dark-mode .profile-logout-button:hover{border-color:#ff8a92;background:rgba(255,45,61,.24);color:#fff;box-shadow:0 0 14px rgba(255,45,61,.45)}
+@media(max-width:620px){.profile-session-actions{justify-content:stretch}.profile-logout-button{width:100%;justify-content:center}}

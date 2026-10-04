@@ -2751,3 +2751,71 @@ if (discordLoginBtn) {
   }
 }
 startSession();
+// ===== Deconectare din profil =====
+function clearLocalSession() {
+  try {
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+    const presence = readStored(PRESENCE_KEY, {});
+    if (currentUser?.discordId) {
+      delete presence[currentUser.discordId];
+      localStorage.removeItem(activeRouteStorageKey(currentUser));
+    }
+    localStorage.setItem(PRESENCE_KEY, JSON.stringify(presence));
+  } catch (error) {
+    console.error('Sesiunea locală nu a putut fi ștearsă:', error);
+  }
+}
+function signOutOfSite() {
+  clearLocalSession();
+  currentUser = null;
+  appShell.classList.remove('ready');
+  viewContent.hidden = true;
+  authError.classList.remove('show');
+  authScreen.style.display = '';
+  window.history.replaceState({}, document.title, window.location.pathname);
+}
+const logoutButton = document.querySelector('#logout-button');
+if (logoutButton) {
+  logoutButton.onclick = () => {
+    if (window.confirm('Te deconectezi de pe site?')) signOutOfSite();
+  };
+}
+
+// ===== Vizualizator de imagini pentru testele cu fotografii =====
+/** @type {string} */
+var IMAGE_VIEWER_TRIGGER_SELECTOR = '.evaluation-stage-image-slot img,.parachutism-photo-slot img,.smuls-case-image-slot img,.test-image-preview img,.test-map-column img,.evaluation-stage-images img';
+var imageViewer = document.querySelector('#image-viewer');
+var imageViewerImage = document.querySelector('#image-viewer-image');
+var imageViewerClose = document.querySelector('#image-viewer-close');
+function openImageViewer(src, alt) {
+  if (!imageViewer || !imageViewerImage || !src) return;
+  imageViewerImage.src = src;
+  imageViewerImage.alt = alt || 'Imagine mărită';
+  imageViewer.hidden = false;
+  document.body.classList.add('image-viewer-open');
+}
+function closeImageViewer() {
+  if (!imageViewer) return;
+  imageViewer.hidden = true;
+  imageViewerImage.removeAttribute('src');
+  document.body.classList.remove('image-viewer-open');
+}
+if (imageViewer) {
+  document.addEventListener('click', event => {
+    if (!(event.target instanceof Element)) return;
+    const imageLink = event.target.closest('a.test-image-link');
+    if (imageLink) {
+      event.preventDefault();
+      const innerImage = imageLink.querySelector('img');
+      openImageViewer(innerImage?.currentSrc || innerImage?.src || imageLink.getAttribute('href'), innerImage?.alt || imageLink.textContent.trim());
+      return;
+    }
+    const testImage = event.target.closest(IMAGE_VIEWER_TRIGGER_SELECTOR);
+    if (!testImage) return;
+    event.preventDefault();
+    openImageViewer(testImage.currentSrc || testImage.src, testImage.alt);
+  }, true);
+  imageViewer.addEventListener('click', event => { if (event.target === imageViewer) closeImageViewer(); });
+  if (imageViewerClose) imageViewerClose.onclick = closeImageViewer;
+  document.addEventListener('keydown', event => { if (event.key === 'Escape' && !imageViewer.hidden) closeImageViewer(); });
+}

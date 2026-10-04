@@ -10,7 +10,7 @@
     <link
         href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=20261004d">
+    <link rel="stylesheet" href="style.css?v=20261005a">
 </head>
 
 <body class="dark-mode">
@@ -60,7 +60,7 @@
                         <button class="profile-settings-button" id="profile-settings" type="button" aria-label="Setări" title="Setări" hidden><span aria-hidden="true">⚙</span></button>
                         <p class="eyebrow profile-datetime"><span id="today-label"></span><time id="local-time" aria-label="Ora României"></time></p>
                         <div class="profile-identity"><div id="profile-avatar"></div><div><h1 id="profile-name">Profilul tău</h1></div></div>
-                        <dl class="profile-details"><div><dt>CALLSIGN</dt><dd id="profile-callsign">—</dd></div><div><dt>NUME</dt><dd id="profile-member-name">—</dd></div><div><dt>GRAD</dt><dd id="profile-member-rank">—</dd></div></dl>
+<dl class="profile-details"><div><dt>CALLSIGN</dt><dd id="profile-callsign">—</dd></div><div><dt>NUME</dt><dd id="profile-member-name">—</dd></div><div><dt>GRAD</dt><dd id="profile-member-rank">—</dd></div></dl><div class="profile-session-actions"><button class="outline profile-logout-button" id="logout-button" type="button"><span aria-hidden="true">&#9211;</span> Deconectare</button></div>
                     </section>
                     <section class="panel profile-certifications">
                         <div class="panel-head"><div><h2>Funcții tester</h2><p class="muted">Certificările și testele alocate contului tău</p></div></div>
@@ -104,9 +104,13 @@
             <button class="primary full" id="confirm-remove-btn">Revocă accesul selectat</button>
         </div>
     </div>
+    <div class="image-viewer" id="image-viewer" hidden>
+        <button class="image-viewer-close" id="image-viewer-close" type="button" aria-label="Închide imaginea mărită">&times;</button>
+        <img class="image-viewer-image" id="image-viewer-image" alt="Imagine mărită">
+    </div>
     <script src="tests.js"></script>
-    <script src="js/storage.js?v=20261004d"></script>
-    <script src="script.js?v=20261004d"></script>
+    <script src="js/storage.js?v=20261005a"></script>
+    <script src="script.js?v=20261005a"></script>
 </body>
 
 </html>

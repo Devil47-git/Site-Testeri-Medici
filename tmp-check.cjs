@@ -1,0 +1,10 @@
+const fs = require('fs');
+const s = fs.readFileSync('style.css', 'utf8');
+const lines = s.split(/\r?\n/);
+console.log('total lines', lines.length);
+console.log('has marker:', s.includes('Design unificat'));
+console.log('has viewer:', s.includes('.image-viewer{'));
+console.log('has logout css:', s.includes('.profile-logout-button{'));
+console.log('has parachute grid:', s.includes('.parachutism-photo-slot{display:block;'));
+console.log('--- tail ---');
+lines.slice(-44).forEach((l, i) => console.log((lines.length - 44 + i + 1) + ': ' + l));
