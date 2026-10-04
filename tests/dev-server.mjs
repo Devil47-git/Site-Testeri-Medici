@@ -90,7 +90,7 @@ http.createServer(async (req, res) => {
       for await (const chunk of req) body += chunk;
       try {
         const payload = JSON.parse(body);
-        if (payload.action === 'reset-counts') { cleared = testResults.length; testResults.length = 0; }
+        if (payload.action === 'reset-counts') { cleared = testResults.length; testResults.length = 0; lifetimeTestResults.length = 0; }
         else { testResults.push(payload); lifetimeTestResults.push(payload); }
       } catch {}
     }

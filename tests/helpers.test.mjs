@@ -196,9 +196,13 @@ test('active page routes restore test and cooldown pages after refresh', () => {
   assert.match(source, /saveActiveRoute\(routeState\)/);
 });
 
-test('test progress and cooldown form choices persist without restoring payer callsign', () => {
+test('test progress, admission photos, and cooldown form choices persist without restoring payer callsign', () => {
   assert.match(source, /function testProgressStorageKey\(user, testName\)/);
   assert.match(source, /function saveTestProgress\(testName\)/);
+  assert.match(source, /async function saveTestProgressPhoto\(testName, fieldId, file\)/);
+  assert.match(source, /media: previous\.media \|\| \{\}/);
+  assert.match(source, /restoredProgress\?\.media\?\.\[field\.id\]/);
+  assert.match(source, /input\.dataset\.restoringProgressPhoto = 'true'/);
   assert.match(source, /function restoreTestProgress\(testName\)/);
   assert.match(source, /saveTestProgressStage\(testName, 'pilot-stage', stageIndex\)/);
   assert.match(source, /restoreSavedStageUI\(restoredProgress\)/);
@@ -589,12 +593,14 @@ test('processed test badges show only assigned tests and aggregate the Tester bu
   assert.match(source, /class="outline site-guide-frame statistics-tests-toggle"/);
 });
 
-test('lifetime tester totals are archived before only the active history is reset', () => {
+test('reset clears active and lifetime tester counts for every tester', () => {
   const resetHandler = testResultsSource.match(/if \(req\.body\?\.action === 'reset-counts'\) \{[\s\S]*?return json\(res, 200, \{ success: true, cleared:/)?.[0] || '';
-  assert.match(resetHandler, /await syncLifetimeHistory\(sheets, rows\.slice\(1\)\)/);
   assert.match(resetHandler, /values\.clear\([\s\S]*!A2:H/);
-  assert.doesNotMatch(resetHandler, /LIFETIME_RANGE[\s\S]*values\.clear/);
+  assert.match(resetHandler, /lifetimeTitle = lifetimeSheetTitle\(\)/);
+  assert.match(resetHandler, /values\.clear\([\s\S]*lifetimeTitle[\s\S]*!A2:H/);
   assert.match(testResultsSource, /processedCounts: lifetimeTestCounts\(lifetimeRows\)/);
+  const devServerSource = readFileSync(join(here, '..', 'tests', 'dev-server.mjs'), 'utf8');
+  assert.match(devServerSource, /testResults\.length = 0; lifetimeTestResults\.length = 0/);
 });
 
 test('sortMembers places leadership first, then by csNum', () => {
@@ -621,6 +627,11 @@ test('admission test unlocks only after all six requirements are checked', () =>
   assert.equal(admissionChecksComplete([true, true, true, true, true, false]), false);
   assert.equal(admissionChecksComplete([true, true, true, true, true, true]), true);
   assert.equal(admissionChecksComplete([true, true, true, true, true]), false);
+});
+
+test('admission assigned callsign displays and submits the M- prefix automatically', () => {
+  assert.match(source, /Callsign atribuit<span class="cooldown-callsign-input"><span aria-hidden="true">M-<\/span><input id="candidate-callsign"[^>]*inputmode="numeric"/);
+  assert.match(source, /const candidateCallsign = normalizeCallsign\(document\.querySelector\('#candidate-callsign'\)\.value\)/);
 });
 
 test('Transfer places the six shared pre-test criteria after uploads and gates the questions', () => {
@@ -839,9 +850,10 @@ test('admission promotion note is placed after the mistake counter in bold white
   assert.match(stylesheet, /\.question-list \.admission-promotion-note\{[^}]*color:#fff;font-size:17px;font-weight:800/);
 });
 
-test('at most two questions can be marked wrong at once', () => {
+test('admission allows three marked mistakes and blocks mistakes beyond each test limit', () => {
   const wrongAnswerHandler = source.match(/wrongInputs\.forEach\(input => input\.onchange = \(\) => \{[\s\S]*?\n  \}\);/)?.[0] || '';
-  assert.match(wrongAnswerHandler, /if \(input\.checked && wrongAnswerCount\(\) > 2\) input\.checked = false/);
+  assert.match(wrongAnswerHandler, /if \(input\.checked && wrongAnswerCount\(\) > maxWrongForTest\(testName, definition\.maxWrong\)\) input\.checked = false/);
+  assert.equal(maxWrongForTest('Test admitere'), 3);
   assert.match(wrongAnswerHandler, /const wrongCount = wrongAnswerCount\(\)/);
   assert.doesNotMatch(wrongAnswerHandler, /item\.disabled\s*=\s*true/);
 });
@@ -1117,20 +1129,23 @@ test('candidate document, medical sheet, and drug-test uploads share the themed 
   }
 });
 
-test('medical certificates start at 7015 and stop at 30000', () => {
+test('medical certificates start at 7024 and stop at 30000', () => {
   assert.equal(medicalCertificateNumberForRow(1), null);
-  assert.equal(medicalCertificateNumberForRow(2), 7015);
-  assert.equal(medicalCertificateNumberForRow(22987), 30000);
-  assert.equal(medicalCertificateNumberForRow(22988), null);
+  assert.equal(medicalCertificateNumberForRow(2), 7024);
+  assert.equal(medicalCertificateNumberForRow(22978), 30000);
+  assert.equal(medicalCertificateNumberForRow(22979), null);
+  const existingCertificates = [['number'], ...Array.from({ length: 9 }, (_, index) => [7015 + index])];
+  assert.equal(medicalCertificateNumberForRow(11, existingCertificates), 7024);
+  assert.equal(medicalCertificateNumberForRow(12, [...existingCertificates, ['']]), 7025);
 });
 
 test('medical certificate embed includes the requested fields and medical verdict', () => {
   const embeds = createMedicalCertificateEmbeds({
     lastName: 'Cartier', firstName: 'Mohammed', phone: '735-0616', candidateId: '56937',
     hoursAccount: '2001.25', hoursCharacter: '2001.25', medicalStatus: 'Admis'
-  }, 7015);
+  }, 7024);
   const [certificate] = embeds;
-  assert.equal(certificate.title, 'D.M.L.S. - EVIDENTA MEDICALA NR. 7015');
+  assert.equal(certificate.title, 'D.M.L.S. - EVIDENTA MEDICALA NR. 7024');
   assert.match(certificate.description, /NUME: Cartier\nPRENUME: Mohammed/);
   assert.match(certificate.description, /REZULTAT: ADMIS/);
   assert.match(certificate.description, /ORE\(LUNI\): 2001\.25 \(cont\) 2001\.25 \(character\)/);

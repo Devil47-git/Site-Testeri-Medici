@@ -16,7 +16,7 @@ const LIFETIME_RANGE = process.env.GOOGLE_TEST_LIFETIME_RANGE || 'TEST_LIFETIME!
 const MEDICAL_CERTIFICATES_RANGE = process.env.GOOGLE_MEDICAL_CERTIFICATES_RANGE || 'MEDICAL_CERTIFICATES!A1:K';
 const RESULTS_HEADER = ['discordId', 'callsign', 'testName', 'result', 'createdAt', 'candidateCallsign', 'candidateName', 'eventId'];
 const MEDICAL_CERTIFICATES_HEADER = ['number', 'testerDiscordId', 'testerName', 'candidateId', 'lastName', 'firstName', 'phone', 'hoursAccount', 'hoursCharacter', 'result', 'createdAt'];
-const MEDICAL_CERTIFICATE_LAST_NUMBER = 7014;
+const MEDICAL_CERTIFICATE_START_NUMBER = 7024;
 const MEDICAL_CERTIFICATE_MAX_NUMBER = 30000;
 const MAX_IDENTITY_IMAGE_BYTES = 2 * 1024 * 1024;
 const SITE_BRAND_EMBED_COLOR = 0xCD363C;
@@ -415,9 +415,10 @@ export default async function handler(req, res) {
         if (!canResetTestCounts(member)) return json(res, 403, { error: 'Resetarea testelor este rezervată conducerii cu callsign între 001 și 020' });
         if (bonusRedis.isConfigured) await clearBonusEntries(bonusRedis);
         const rows = await ensureResultsHeader(sheets);
-        await syncLifetimeHistory(sheets, rows.slice(1));
         const title = sheetTitle().replace(/'/g, "''");
+        const lifetimeTitle = lifetimeSheetTitle().replace(/'/g, "''");
         await sheets.spreadsheets.values.clear({ spreadsheetId: SHEET_ID, range: `'${title}'!A2:H` });
+        await sheets.spreadsheets.values.clear({ spreadsheetId: SHEET_ID, range: `'${lifetimeTitle}'!A2:H` });
         return json(res, 200, { success: true, cleared: Math.max(0, rows.length - 1) });
       }
       const testName = String(req.body?.testName || '').trim();
@@ -559,10 +560,19 @@ export default async function handler(req, res) {
   }
 }
 
-export function medicalCertificateNumberForRow(rowNumber) {
+export function medicalCertificateNumberForRow(rowNumber, existingRows = [MEDICAL_CERTIFICATES_HEADER]) {
   const row = Number(rowNumber);
   if (!Number.isInteger(row) || row < 2) return null;
-  const number = MEDICAL_CERTIFICATE_LAST_NUMBER + row - 1;
+  let lastNumber = MEDICAL_CERTIFICATE_START_NUMBER - 1;
+  let lastNumberRow = 1;
+  (existingRows || []).slice(1).forEach((previousRow, index) => {
+    const previousNumber = Number(previousRow?.[0]);
+    if (!Number.isSafeInteger(previousNumber) || previousNumber < 1) return;
+    lastNumber = previousNumber;
+    lastNumberRow = index + 2;
+  });
+  const number = Math.max(MEDICAL_CERTIFICATE_START_NUMBER, lastNumber + 1) + row - lastNumberRow - 1;
+  if (number < MEDICAL_CERTIFICATE_START_NUMBER) return null;
   return number <= MEDICAL_CERTIFICATE_MAX_NUMBER ? number : null;
 }
 
@@ -625,7 +635,7 @@ async function ensureMedicalCertificatesSheet(sheets) {
 
 async function appendMedicalCertificate(sheets, details, tester) {
   const rows = await ensureMedicalCertificatesSheet(sheets);
-  if (rows.length >= MEDICAL_CERTIFICATE_MAX_NUMBER - MEDICAL_CERTIFICATE_LAST_NUMBER + 1) throw new Error('Numărul maxim de adeverințe, 30000, a fost atins.');
+  if (!medicalCertificateNumberForRow(rows.length + 1, rows)) throw new Error('Numărul maxim de adeverințe, 30000, a fost atins.');
   const title = MEDICAL_CERTIFICATES_RANGE.split('!')[0].replace(/'/g, "''");
   const appended = await sheets.spreadsheets.values.append({
     spreadsheetId: SHEET_ID,
@@ -635,7 +645,7 @@ async function appendMedicalCertificate(sheets, details, tester) {
     requestBody: { values: [['', tester.discordId, tester.name, details.candidateId, details.lastName, details.firstName, details.phone, details.hoursAccount, details.hoursCharacter, details.medicalStatus, new Date().toISOString()]] }
   });
   const rowNumber = Number(appended.data.updates?.updatedRange?.match(/![A-Z]+(\d+):/i)?.[1]);
-  const number = medicalCertificateNumberForRow(rowNumber);
+  const number = medicalCertificateNumberForRow(rowNumber, rows);
   if (!number) throw new Error('Nu s-a putut aloca numărul adeverinței.');
   await sheets.spreadsheets.values.update({ spreadsheetId: SHEET_ID, range: `'${title}'!A${rowNumber}:A${rowNumber}`, valueInputOption: 'RAW', requestBody: { values: [[number]] } });
   return number;

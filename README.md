@@ -17,11 +17,13 @@ Revoking a tester function from the site saves an explicit grant override to the
 
 For local use, add newly generated webhook URLs to the ignored `.env` file (see `.env.example`). `npm start` loads that file. The checked-in example intentionally contains no credentials.
 
-Never put webhook URLs in browser code or commit them to the repository. Rotate any webhook URL that has been shared in chat or other public places. The admission page accepts all three images by file selection or clipboard paste. Images are resized in the browser and are not stored in the test-history sheet; CNP is not sent as separate message text. In the testers-channel message, each image is aligned beside its related details, and role mentions appear outside the bordered result container.
+Never put webhook URLs in browser code or commit them to the repository. Rotate any webhook URL that has been shared in chat or other public places. The admission page accepts all three images by file selection or clipboard paste. Form fields and resized photos are saved locally per tester and test, so switching tests does not discard an unfinished admission. Images are not stored in the test-history sheet; CNP is not sent as separate message text. In the testers-channel message, each image is aligned beside its related details, and role mentions appear outside the bordered result container.
 
 The admission flow allows three mistakes; the fourth is a failure. Admission and transfer results use the same candidate form and three images. Both the local auth cache and server session last 24 hours. The testers webhook sends one message with the ID, medical sheet, and drug-test thumbnails aligned beside their related text. The configured Discord users are mentioned only in the testers webhook; the admission webhook mentions only the tester.
 
-Medical certificates use a separate `MEDICAL_CERTIFICATES` sheet and `DISCORD_MEDICAL_CERTIFICATES_WEBHOOK`. The sequence starts at 7015 (7014 is the last existing number) and stops at 30000.
+Medical certificates use a separate `MEDICAL_CERTIFICATES` sheet and `DISCORD_MEDICAL_CERTIFICATES_WEBHOOK`. The sequence starts at 7024 and stops at 30000. Change `MEDICAL_CERTIFICATE_START_NUMBER` in `api/access/test-results.js` to set a different starting number.
+
+The leadership reset clears both current test counts and processed-test totals for all testers.
 
 ## Cooldowns and bonuses
 

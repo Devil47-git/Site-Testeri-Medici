@@ -82,6 +82,8 @@ function saveTestProgress(testName) {
   if (!currentUser?.discordId) return;
   const panel = viewContent.querySelector('.view-panel');
   if (!panel) return;
+  const key = testProgressStorageKey(currentUser, testName);
+  const previous = readStored(key, {}) || {};
   const controls = [...panel.querySelectorAll('input:not([type="file"]),select,textarea')].map((control, index) => {
     const key = control.id || control.dataset.progressKey || `control-${index}`;
     control.dataset.progressKey = key;
@@ -92,13 +94,29 @@ function saveTestProgress(testName) {
     };
   });
   try {
-    localStorage.setItem(testProgressStorageKey(currentUser, testName), JSON.stringify({
+    localStorage.setItem(key, JSON.stringify({
+      ...previous,
       controls,
       stage: panel.dataset.progressStage || '',
-      stageIndex: Number(panel.dataset.progressIndex) || 0
+      stageIndex: Number(panel.dataset.progressIndex) || 0,
+      media: previous.media || {}
     }));
   } catch (error) {
     console.error(`Progress for ${testName} could not be saved:`, error);
+  }
+}
+async function saveTestProgressPhoto(testName, fieldId, file) {
+  if (!currentUser?.discordId) return;
+  const key = testProgressStorageKey(currentUser, testName);
+  const savedPhoto = file ? { name: file.name, dataUrl: await encodeIdentityPhoto(file, 400 * 1024) } : null;
+  const progress = readStored(key, {}) || {};
+  const media = { ...(progress.media || {}) };
+  if (savedPhoto) media[fieldId] = savedPhoto;
+  else delete media[fieldId];
+  try {
+    localStorage.setItem(key, JSON.stringify({ ...progress, media }));
+  } catch (error) {
+    throw new Error('Fotografia nu a putut fi păstrată când schimbi testul.', { cause: error });
   }
 }
 function restoreTestProgress(testName) {
@@ -1453,7 +1471,7 @@ function setCandidatePhotoPreview(id, file) {
 }
 function admissionCandidateDetailsHtml() {
   const photoField = candidateImageFieldHtml;
-  return `<section class="admission-candidate-details site-guide-frame" aria-labelledby="admission-candidate-title"><h3 id="admission-candidate-title">Date candidat</h3><div class="admission-candidate-grid"><label>Tip admitere<select id="admission-type"><option value="Admitere">Admitere</option><option value="Reintegrare">Reintegrare</option></select></label><label>Nume și prenume<input id="candidate-name" type="text" autocomplete="name"></label><label>CNP<input id="candidate-cnp" type="text" inputmode="numeric" maxlength="24" autocomplete="off"></label><label>ID candidat<input id="candidate-id" type="text" autocomplete="off"></label><label class="admission-callsign-field">Callsign atribuit<input id="candidate-callsign" type="text" placeholder="M-510" autocomplete="off"></label></div><div class="candidate-photo-grid">${photoField('candidate-document', 'Fotografie buletin')}${photoField('candidate-medical-sheet', 'Fotografie fișă medicală')}${photoField('candidate-drug-test', 'Fotografie drug-test')}</div></section>`;
+  return `<section class="admission-candidate-details site-guide-frame" aria-labelledby="admission-candidate-title"><h3 id="admission-candidate-title">Date candidat</h3><div class="admission-candidate-grid"><label>Tip admitere<select id="admission-type"><option value="Admitere">Admitere</option><option value="Reintegrare">Reintegrare</option></select></label><label>Nume și prenume<input id="candidate-name" type="text" autocomplete="name"></label><label>CNP<input id="candidate-cnp" type="text" inputmode="numeric" maxlength="24" autocomplete="off"></label><label>ID candidat<input id="candidate-id" type="text" autocomplete="off"></label><label class="admission-callsign-field">Callsign atribuit<span class="cooldown-callsign-input"><span aria-hidden="true">M-</span><input id="candidate-callsign" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" aria-label="Numărul callsign-ului candidatului; prefixul M este adăugat automat"></span></label></div><div class="candidate-photo-grid">${photoField('candidate-document', 'Fotografie buletin')}${photoField('candidate-medical-sheet', 'Fotografie fișă medicală')}${photoField('candidate-drug-test', 'Fotografie drug-test')}</div></section>`;
 }
 function admissionConsentHtml() {
   return '<section class="admission-consent site-guide-frame" aria-label="Declarație de acord"><p>Sunteți de acord să respectați toate reglementările și procedurile stabilite de către Departamentul Medical Los Santos și să vă asumați în totalitate responsabilitatea pentru eventualele repercusiuni care pot decurge din nerespectarea acestora?</p></section>';
@@ -1539,7 +1557,7 @@ async function readIdentityCard(file) {
     await worker.terminate();
   }
 }
-async function encodeIdentityPhoto(file) {
+async function encodeIdentityPhoto(file, maxBytes = 600 * 1024) {
   const image = await createImageBitmap(file);
   const scale = Math.min(1, 1400 / Math.max(image.width, image.height));
   const canvas = document.createElement('canvas');
@@ -1549,7 +1567,7 @@ async function encodeIdentityPhoto(file) {
   image.close();
   for (const quality of [0.8, 0.66, 0.52, 0.4]) {
     const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', quality));
-    if (blob && blob.size <= 600 * 1024) {
+    if (blob && blob.size <= maxBytes) {
       return await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result);
@@ -1653,6 +1671,18 @@ function wireTestEvents(testName, definition) {
   let restoreSavedStageUI = () => {};
   let candidateCooldowns = {};
   let candidateCooldownMessage = '';
+  if (isApplicationTest) {
+    const assignedCallsignInput = document.querySelector('#candidate-callsign');
+    if (assignedCallsignInput) {
+      assignedCallsignInput.value = assignedCallsignInput.value.replace(/\D/g, '');
+      assignedCallsignInput.addEventListener('input', () => {
+        const digits = assignedCallsignInput.value.replace(/\D/g, '');
+        if (assignedCallsignInput.value !== digits) assignedCallsignInput.value = digits;
+        saveTestProgress(testName);
+      });
+      saveTestProgress(testName);
+    }
+  }
   const finishRestoredStage = async (stageFlow, finalResult) => {
     stageFlow.querySelectorAll('button').forEach(button => { button.disabled = true; });
     stageFlow.innerHTML = '<p class="muted">Se înregistrează rezultatul...</p>';
@@ -1698,10 +1728,34 @@ function wireTestEvents(testName, definition) {
         const file = input.files?.[0];
         fileName.textContent = file?.name || 'No file chosen';
         setCandidatePhotoPreview(field.id, file);
-        if (!file) { setCandidatePhotoStatus(field.id, 'empty', 'Așteaptă fotografia'); return; }
+        if (!file) {
+          try { await saveTestProgressPhoto(testName, field.id, null); }
+          catch (error) {
+            console.error(`Photo draft for ${testName} could not be cleared:`, error);
+            if (input.isConnected) {
+              setCandidatePhotoStatus(field.id, 'error', error.message);
+              return;
+            }
+          }
+          if (input.isConnected) setCandidatePhotoStatus(field.id, 'empty', 'Așteaptă fotografia');
+          return;
+        }
         status.classList.remove('error-text');
+        const restoringProgressPhoto = input.dataset.restoringProgressPhoto === 'true';
+        delete input.dataset.restoringProgressPhoto;
+        let persistenceError = '';
+        try { await saveTestProgressPhoto(testName, field.id, file); }
+        catch (error) {
+          console.error(`Photo draft for ${testName} could not be saved:`, error);
+          persistenceError = error.message;
+        }
+        if (!input.isConnected) return;
         if (!field.readIdentity) {
-          setCandidatePhotoStatus(field.id, 'ready', 'Fotografie pregătită pentru trimitere.');
+          setCandidatePhotoStatus(field.id, persistenceError ? 'error' : 'ready', persistenceError || 'Fotografie pregătită pentru trimitere.');
+          return;
+        }
+        if (restoringProgressPhoto) {
+          setCandidatePhotoStatus(field.id, persistenceError ? 'error' : 'ready', persistenceError || 'Fotografie restaurată din formularul salvat.');
           return;
         }
         if (isMedicalCertificate) {
@@ -1715,6 +1769,7 @@ function wireTestEvents(testName, definition) {
         setCandidatePhotoStatus(field.id, 'loading', 'Se citește buletinul...');
         try {
           const details = await readIdentityCard(file);
+          if (!input.isConnected) return;
           if (isMedicalCertificate) {
             if (details.lastName) document.querySelector('#certificate-last-name').value = details.lastName;
             if (details.firstName) document.querySelector('#certificate-first-name').value = details.firstName;
@@ -1727,9 +1782,12 @@ function wireTestEvents(testName, definition) {
             ? 'Datele au fost completate automat. Verifică-le înainte de continuare.'
             : 'Fotografie pregătită; completează datele manual.');
         } catch (error) {
+          if (!input.isConnected) return;
           console.error('Identity card OCR failed:', error);
           setCandidatePhotoStatus(field.id, 'ready', 'Fotografie pregătită; citirea automată nu este disponibilă.');
         }
+        if (persistenceError) setCandidatePhotoStatus(field.id, 'error', persistenceError);
+        saveTestProgress(testName);
       };
       pasteTarget.onclick = () => pasteTarget.focus();
       pasteTarget.onkeydown = event => {
@@ -1745,6 +1803,23 @@ function wireTestEvents(testName, definition) {
         input.files = transfer.files;
         input.dispatchEvent(new Event('change', { bubbles: true }));
       };
+      const savedPhoto = restoredProgress?.media?.[field.id];
+      if (savedPhoto?.dataUrl) {
+        try {
+          const match = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/.exec(savedPhoto.dataUrl);
+          if (!match) throw new Error('Fotografia salvată are un format invalid.');
+          const bytes = Uint8Array.from(atob(match[2]), character => character.charCodeAt(0));
+          const file = new File([bytes], savedPhoto.name || 'fotografie.jpg', { type: match[1] });
+          const transfer = new DataTransfer();
+          transfer.items.add(file);
+          input.files = transfer.files;
+          input.dataset.restoringProgressPhoto = 'true';
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        } catch (error) {
+          console.error(`Photo draft for ${testName} could not be restored:`, error);
+          setCandidatePhotoStatus(field.id, 'error', `Fotografia salvată nu a putut fi restaurată: ${error.message}`);
+        }
+      }
     }
   }
   if (isMotoTest) {
@@ -1954,7 +2029,7 @@ function wireTestEvents(testName, definition) {
   }
   updateAdmittedVerdicts();
   wrongInputs.forEach(input => input.onchange = () => {
-    if (input.checked && wrongAnswerCount() > 2) input.checked = false;
+    if (input.checked && wrongAnswerCount() > maxWrongForTest(testName, definition.maxWrong)) input.checked = false;
     const wrongCount = wrongAnswerCount();
     const count = document.querySelector('#wrong-count');
     if (count) count.textContent = wrongCount;
@@ -2106,7 +2181,7 @@ function wireTestEvents(testName, definition) {
     if (isApplicationTest) {
       const candidateName = document.querySelector('#candidate-name').value.trim();
       const candidateId = document.querySelector('#candidate-id').value.trim();
-      const candidateCallsign = document.querySelector('#candidate-callsign').value.trim();
+      const candidateCallsign = normalizeCallsign(document.querySelector('#candidate-callsign').value);
       const identityPhoto = document.querySelector('#candidate-document').files?.[0];
       const medicalSheetPhoto = document.querySelector('#candidate-medical-sheet').files?.[0];
       const drugTestPhoto = document.querySelector('#candidate-drug-test').files?.[0];
