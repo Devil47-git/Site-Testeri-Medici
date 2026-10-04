@@ -1299,19 +1299,53 @@ async function loadIdentityOcr() {
   });
   return identityOcrLibraryPromise;
 }
+// Identity card photos come in two layouts: the upright Romanian card and the
+  // landscape Los Santos card. A fixed crop only suited one of them and cut the
+  // name rows off the other, leaving OCR noise in the fields. Crop generously
+  // and proportionally so both layouts keep their name rows.
+function identityCardCrop(image) {
+  const portrait = image.height >= image.width;
+  const insetX = portrait ? 0.04 : 0.06;
+  const insetY = portrait ? 0.08 : 0.1;
+  const sourceX = Math.round(image.width * insetX);
+  const sourceY = Math.round(image.height * insetY);
+  const sourceWidth = Math.max(1, Math.round(image.width * (1 - insetX * 2)));
+  const sourceHeight = Math.max(1, Math.round(image.height * (portrait ? 0.62 : 0.78)));
+  return { sourceX, sourceY, sourceWidth, sourceHeight };
+}
+// Discards OCR output that cannot be a human name. The staff cards are low
+// contrast and the OCR happily returns fragments like "ae" or "Aaa PEN", which
+// must never be written into the candidate fields.
+function plausibleIdentityDetails(details) {
+  const implausible = value => {
+    const text_ = String(value || '').trim();
+    if (!text_) return true;
+    const words = text_.split(/\s+/).filter(Boolean);
+    // A real surname/first name on these cards is one or two capitalised words
+    // of at least 3 characters. Anything shorter ("ae", "P", "aa") or mixed with
+    // digits/symbols is OCR debris from the hologram, not a name.
+    const wordPattern = /^[\p{Lu}][\p{L}'’-]*$/u;
+    const capitalPattern = /^\p{Lu}/u;
+    return words.some(word => word.length < 3 || !wordPattern.test(word) || !capitalPattern.test(word))
+      || words.length > 3;
+  };
+  const safe = {};
+  for (const field of ['lastName', 'firstName']) {
+    const value = details?.[field];
+    safe[field] = implausible(value) ? '' : String(value).trim();
+  }
+  return safe;
+}
 async function readIdentityCard(file) {
   const tesseract = await loadIdentityOcr();
   const worker = await tesseract.createWorker('ron+eng');
   try {
     const image = await createImageBitmap(file);
-    const sourceX = Math.round(image.width * 0.18);
-    const sourceY = Math.round(image.height * 0.12);
-    const sourceWidth = Math.round(image.width * 0.76);
-    const sourceHeight = Math.round(image.height * 0.52);
-    const scale = Math.min(4, 1800 / Math.max(sourceWidth, sourceHeight));
+    const { sourceX, sourceY, sourceWidth, sourceHeight } = identityCardCrop(image);
+    const scale = Math.min(5, 2200 / Math.max(sourceWidth, sourceHeight));
     const crop = document.createElement('canvas');
-    crop.width = sourceWidth * scale;
-    crop.height = sourceHeight * scale;
+    crop.width = Math.round(sourceWidth * scale);
+    crop.height = Math.round(sourceHeight * scale);
     const context = crop.getContext('2d', { willReadFrequently: true });
     context.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, crop.width, crop.height);
     image.close();
@@ -1355,7 +1389,10 @@ async function readIdentityCard(file) {
     context.putImageData(pixels, 0, 0);
     await worker.setParameters({ tessedit_pageseg_mode: 11, preserve_interword_spaces: '1' });
     const focusedText = (await worker.recognize(crop)).data.text;
-    return mergeIdentityCardDetails(standardDetails, parseIdentityCardText(focusedText));
+    const merged = mergeIdentityCardDetails(standardDetails, parseIdentityCardText(focusedText));
+    // Guard rail: never let OCR noise look like a real name. When the result is
+    // implausible the fields are left empty so the tester types the truth.
+    return { ...merged, ...plausibleIdentityDetails(merged) };
   } finally {
     await worker.terminate();
   }
