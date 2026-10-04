@@ -1074,6 +1074,28 @@ test('admission and transfer keep the assigned callsign next to the candidate id
   assert.match(source, /const candidateDetails = isApplicationTest \? admissionCandidateDetailsHtml\(\)/);
 });
 
+test('identity card OCR survives the mangled "First name" label on the staff card', () => {
+  // Tesseract reads the hologram-overlapped label row as "Firs anime". Before the
+  // fix the parser treated that label as the first name, yielding "Grebla Firs anime".
+  const header = 'CNP 903236624';
+  const expected = { name: 'Cazan Silviu Petru', lastName: 'Cazan', firstName: 'Silviu Petru', cnp: '903236624' };
+  const variants = [
+    `Name/Nom/Last name\nCazan\nPrenume/Prenom/First name\nSilviu Petru`,
+    `Name/Nom/Last name\nCazan\nPrenume/Prenom/Firs anime\nSilviu Petru`,
+    `Name/Nom/Last name\nCazan\nPrenume/Prenom/F1rst name\nSilviu Petru`,
+    `Name/Nom/Last name Cazan\nPrenume/Prenom/Firs anime Silviu Petru`,
+  ];
+  for (const variant of variants) {
+    assert.deepEqual(parseIdentityCardText(`${header}\n${variant}`), expected, variant);
+  }
+});
+
+test('identity card OCR accepts the short staff CNP and a hyphenated one', () => {
+  // The staff card prints a 9-digit CNP; the old window required 13+ characters.
+  assert.equal(parseIdentityCardText('CNP 903236624\nName/Nom/Last name\nCazan\nPrenume/Prenom/First name\nSilviu').cnp, '903236624');
+  assert.equal(parseIdentityCardText('CNP 903-236-624\nName/Nom/Last name\nCazan\nPrenume/Prenom/First name\nSilviu').cnp, '903236624');
+});
+
 test('identity card OCR keeps both candidate names on separate or inline lines', () => {
   assert.deepEqual(
     parseIdentityCardText('Nume/Nom/Last name\nHelll\nPrenume/Prenom/First name\nIonut\nCNP 1041125162421'),

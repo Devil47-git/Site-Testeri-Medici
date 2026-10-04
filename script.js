@@ -1166,7 +1166,13 @@ function parseIdentityCardText(text) {
   // Romanian ID cards print "Nume/Nom/Last name"; the Los Santos style card
   // prints "Name/Nom/Last name", so bare "Name" must be a last-name alias too.
   const lastNameAliases = '(?:Nume|Nom|Last\\s*name|Name)';
-  const firstNameAliases = '(?:Prenume|Prenom|First\\s*name)';
+  // Tesseract mangles the "First name" label on the hologram-overlapped row of the
+  // staff card ("First name" -> "Firs anime", "F1rst name", "Firs anune"), so the
+  // token missed the first-name label and the parser returned the LABEL itself as
+  // the name ("Grebla Firs anime"). The mangled TAIL is required so that a real
+  // surname such as "Firs" is never mistaken for a label.
+  const ocrFirstNameLabel = 'F[il1I][rs5t]{1,3}\\s+(?:name|anime|anune|amne|nane|mane|nme|amme|em|ene)';
+  const firstNameAliases = '(?:Prenume|Prenom|First\\s*name|' + ocrFirstNameLabel + ')';
   const lastNamePattern = new RegExp(`${labelPrefix}${lastNameAliases}(?:\\s*[\\/|]\\s*${lastNameAliases})*\\b`, 'i');
   const firstNamePattern = new RegExp(`(?:^|[\\s/|])(?:[iIl|]*\\s*)?${firstNameAliases}(?:\\s*[\\/|]\\s*${firstNameAliases})*\\b`, 'i');
   const fuzzyFirstNamePattern = /^\s*(?:[iIl|]*\s*)?Pren\w{3,}(?:\s+[a-z]{2,8})?\b/i;
@@ -1214,9 +1220,10 @@ function parseIdentityCardText(text) {
     : '';
   const nextCnpField = cnpValue.search(/(?:Nume|Nom|Last\s*name|Prenume|Prenom|First\s*name|SERIE?|ID)\b/i);
   if (nextCnpField >= 0) cnpValue = cnpValue.slice(0, nextCnpField);
-  const cnpToken = [...cnpValue.matchAll(/[A-Z0-9](?:[\s.-]*[A-Z0-9]){12,23}/gi)]
+  // The staff card prints a 9-digit CNP, which the previous 13-char window dropped.
+  const cnpToken = [...cnpValue.matchAll(/[A-Z0-9](?:[\s.-]*[A-Z0-9]){7,23}/gi)]
     .map(match => match[0].replace(/[\s.-]/g, '').toUpperCase())
-    .find(value => value.length >= 13 && value.length <= 24 && /\d/.test(value)) || '';
+    .find(value => value.length >= 8 && value.length <= 24 && /\d{6,}/.test(value)) || '';
   const cnp = /[A-Z]/i.test(cnpToken) && cnpToken.length > 13 ? cnpToken.slice(0, 13) : cnpToken;
   return { name: [lastName, firstName].filter(Boolean).join(' '), lastName, firstName, cnp };
 }
