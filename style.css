@@ -624,6 +624,14 @@ body.dark-mode .top-actions{display:flex;align-items:center}
 body.dark-mode .topbar .help{border:2px solid var(--neon-red);box-shadow:0 0 10px rgba(255,45,61,.55)}
 body.dark-mode .main-content{position:relative;background:radial-gradient(ellipse 60% 40% at 85% 0,rgba(255,45,61,.16),transparent 70%),radial-gradient(ellipse 60% 45% at 10% 100%,rgba(43,140,255,.16),transparent 70%)}
 body.dark-mode .page-wrap{position:relative;background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='900' height='120' viewBox='0 0 900 120'><path d='M0 60H300l15-5 10 5 12-40 14 80 12-60 10 20 8-5H900' fill='none' stroke='%232b8cff' stroke-opacity='.35' stroke-width='2'/></svg>") center bottom 40px/900px 120px repeat-x}
+.heartbeat-monitor{position:fixed;z-index:1;left:calc(50% + 122px);bottom:22px;width:min(520px,calc(100vw - 36px));height:80px;transform:translateX(-50%);pointer-events:none;filter:drop-shadow(0 0 10px rgba(43,140,255,.55))}
+.heartbeat-monitor svg{display:block;width:100%;height:100%;overflow:visible}
+.heartbeat-monitor path{fill:none;stroke-linecap:round;stroke-linejoin:round}
+.heartbeat-track{stroke:var(--neon-blue);stroke-width:2;stroke-opacity:.55}
+.heartbeat-pulse{stroke:var(--neon-red);stroke-width:3.5;stroke-dasharray:76 924;stroke-dashoffset:1000;animation:heartbeat-sweep 2.8s linear infinite}
+@keyframes heartbeat-sweep{to{stroke-dashoffset:0}}
+@media(max-width:760px){.heartbeat-monitor{left:50%;bottom:14px;width:min(440px,calc(100vw - 36px));height:72px}}
+@media(prefers-reduced-motion:reduce){.heartbeat-pulse{animation-duration:8s}}
 
 /* Mockup header: logo, department text, breadcrumb pill, ambulance banner */
 body.dark-mode .brand-logo-image{content:url("/logo-eclipse-banner.png");filter:none;width:100%;max-width:200px;height:auto;border-radius:8px;margin-left:0;object-fit:contain}
@@ -832,8 +840,11 @@ body.dark-mode select{color-scheme:dark;-webkit-appearance:auto;appearance:auto;
 body.dark-mode select:focus{outline:none;border-color:var(--neon-blue);box-shadow:0 0 14px rgba(43,140,255,.55)}
 body.dark-mode select option{background:#0a1128;color:#fff;font-weight:600}
 body.dark-mode select option:checked,body.dark-mode select option:hover{background:#2b8cff;color:#fff}
-.admission-candidate-grid select{text-align:left;text-align-last:left}
-body.dark-mode .admission-candidate-grid select{border:2px solid rgba(43,140,255,.55);border-radius:12px;background-color:#0a1128;box-shadow:0 0 12px rgba(43,140,255,.3)}
+.admission-candidate-grid select{text-align:center;text-align-last:center}
+body.dark-mode .admission-candidate-grid select{text-align:center;text-align-last:center}
+body.dark-mode #admission-type option,body.dark-mode #certificate-medical-status option{text-align:center}
+body.dark-mode #admission-type option,body.dark-mode #certificate-medical-status option{background-color:#0a1128;color:#fff;font-weight:700}
+body.dark-mode #admission-type option:checked,body.dark-mode #certificate-medical-status option:checked,body.dark-mode #admission-type option:hover,body.dark-mode #certificate-medical-status option:hover{background-color:#2b8cff;color:#fff}
 
 /* Fotografiile de test au aceeasi dimensiune si se deschid la click. */
 .parachutism-photo-grid{display:flex;flex-wrap:wrap;align-items:stretch;gap:12px}

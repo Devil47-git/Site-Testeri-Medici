@@ -15,6 +15,7 @@ const scriptSource = readFileSync(join(here, '..', 'script.js'), 'utf8');
 const storageSource = readFileSync(join(here, '..', 'js', 'storage.js'), 'utf8');
 const source = scriptSource;
 const styleSource = readFileSync(join(here, '..', 'style.css'), 'utf8');
+const indexSource = readFileSync(join(here, '..', 'index.html'), 'utf8');
 const directorySource = readFileSync(join(here, '..', 'api', 'access', 'directory.js'), 'utf8');
 const grantsSource = readFileSync(join(here, '..', 'api', 'access', 'grants.js'), 'utf8');
 const testResultsSource = readFileSync(join(here, '..', 'api', 'access', 'test-results.js'), 'utf8');
@@ -345,7 +346,16 @@ test('separate medical screening panel and its gates are removed', () => {
   assert.doesNotMatch(source, /medicalScreeningHtml|medicalConditionsInText|data-medical-sheet-reviewed|data-medical-condition|data-stethoscope-check|data-medical-rejection/);
   assert.doesNotMatch(source, /certificate-hours-account[^>]+value=/);
   assert.match(source, /admissionChecksComplete\(checks\.map\(check => check\.checked\)\)/);
-  assert.match(source, /certificate-medical-status/);
+  assert.match(source, /<label>Rezultat<select id="certificate-medical-status"><option value="Admis">Admis<\/option><option value="Respins">Respins<\/option><\/select><\/label>/);
+});
+
+test('admission and medical result dropdowns keep blue styling and centered text', () => {
+  assert.match(styleSource, /body\.dark-mode select\{color-scheme:dark;-webkit-appearance:auto;appearance:auto;background-color:#0a1128;color:#fff;border:2px solid rgba\(43,140,255,\.55\);border-radius:12px;box-shadow:0 0 12px rgba\(43,140,255,\.3\)\}/);
+  assert.match(styleSource, /\.admission-candidate-grid select\{text-align:center;text-align-last:center\}/);
+  assert.match(styleSource, /body\.dark-mode #admission-type option,body\.dark-mode #certificate-medical-status option\{text-align:center\}/);
+  assert.match(styleSource, /body\.dark-mode #admission-type option,body\.dark-mode #certificate-medical-status option\{background-color:#0a1128;color:#fff;font-weight:700\}/);
+  assert.match(styleSource, /body\.dark-mode #admission-type option:checked,body\.dark-mode #certificate-medical-status option:checked,body\.dark-mode #admission-type option:hover,body\.dark-mode #certificate-medical-status option:hover\{background-color:#2b8cff;color:#fff\}/);
+  assert.doesNotMatch(styleSource, /body\.dark-mode #admission-type,body\.dark-mode #certificate-medical-status\{border:2px solid transparent/);
 });
 
 test('bonus periods follow two-week cycles and include September 21 through October 4', () => {
@@ -854,6 +864,16 @@ test('dark-mode borders retain the animated red and blue colors', () => {
   assert.match(styleSource, /body\.dark-mode\{[^}]*--neon-red:#ff2d3d;--neon-blue:#2b8cff/);
   assert.match(styleSource, /conic-gradient\(from var\(--guide-border-angle\),var\(--neon-red\),var\(--neon-blue\),var\(--neon-red\),var\(--neon-blue\),var\(--neon-red\)\)/);
   assert.doesNotMatch(styleSource, /--neon-red:var\(--neon-blue\)/);
+});
+
+test('overview includes a centered animated heartbeat trace', () => {
+  assert.match(indexSource, /class="heartbeat-monitor" aria-hidden="true"/);
+  assert.match(indexSource, /viewBox="0 0 440 80" focusable="false"/);
+  assert.equal((indexSource.match(/class="heartbeat-track"/g) || []).length, 1);
+  assert.equal((indexSource.match(/class="heartbeat-pulse"/g) || []).length, 1);
+  assert.match(styleSource, /\.heartbeat-monitor\{position:fixed;z-index:1;left:calc\(50% \+ 122px\);bottom:22px;width:min\(520px,calc\(100vw - 36px\)\);height:80px/);
+  assert.match(styleSource, /\.heartbeat-pulse\{[^}]*animation:heartbeat-sweep 2\.8s linear infinite\}/);
+  assert.match(indexSource, /class="heartbeat-pulse" pathLength="1000" d="M0 40H88/);
 });
 
 test('admission test rejects the fourth mistake', () => {
