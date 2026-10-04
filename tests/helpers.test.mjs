@@ -1020,12 +1020,12 @@ test('admission Discord message aligns each photo with its text in one container
   assert.deepEqual(admission.fields.map(field => field.name), ['Nume Tester', 'Nume Candidat', 'Rezultat']);
   const [container] = createAdmissionTesterComponents(details);
   assert.equal(container.type, 17);
-  assert.equal(container.components.length, 3);
-  assert.deepEqual(container.components.map(section => section.type), [9, 9, 9]);
+  assert.equal(container.components.length, 4);
+  assert.deepEqual(container.components.map(component => component.type), [9, 9, 9, 10]);
   assert.match(container.components[0].components[0].content, /Test Admitere\n\*\*[^\n]*Tester\*\*\n\*\*Tester\*\*/);
   assert.match(createAdmissionTesterComponents({ ...details, testerDiscordId: '123' })[0].components[0].components[0].content, /Tester\*\*\n<@123>/);
   assert.equal(container.components[0].accessory.media.url, 'attachment://buletin-candidat.jpg');
-  assert.match(container.components[1].components[0].content, /\*\*[^\n]*Candidat\*\*\nCandidat\n\*\*[^\n]*ID\*\*\n12345/);
+  assert.match(container.components[1].components[0].content, /\*\*[^\n]*Candidat\*\*\nCandidat\n\*\*[^\n]*ID:\*\* 12345/);
   assert.equal(container.components[1].accessory.media.url, 'attachment://fisa-medicala.jpg');
   assert.match(container.components[2].components[0].content, /Rezultat[\s\S]*Respins/);
   assert.doesNotMatch(container.components[2].components[0].content, /Callsign/);
@@ -1038,12 +1038,13 @@ test('admission Discord message aligns each photo with its text in one container
   assert.match(testResultsSource, /fetch\(webhookComponentsUrl\(url\)/);
   assert.match(testResultsSource, /flags: 1 << 15/);
   assert.match(testResultsSource, /testName === 'Test admitere' \|\| testName === 'Test transfer'/);
-  assert.match(source, /submissionDetails = \{ candidateName, candidateId, candidateCallsign, identityImage, medicalSheetImage, drugTestImage \}/);
+  assert.match(source, /submissionDetails = \{ candidateName, candidateId, candidateCallsign, identityImage, medicalSheetImage, drugTestImage, testType:/);
   const admitted = createAdmissionTesterComponents({ ...details, candidateCallsign: 'M-302', result: 'Admis' });
-  assert.match(admitted[0].components[2].components[0].content, /Callsign\*\*\nM-302\n\*\*[^\n]*Rezultat\*\*\n[^\n]*Admis/);
+  assert.match(admitted[0].components[2].components[0].content, /Callsign:\*\* M-302\n\*\*[^\n]*Rezultat\*\*\n[^\n]*Admis/);
+  assert.match(container.components[3].content, /<@&\d+>/);
   const transfer = createAdmissionTesterComponents({ ...details, testName: 'Test transfer', result: 'Admis' });
   assert.match(transfer[0].components[0].components[0].content, /Test Transfer/);
-  assert.match(testResultsSource, /allowed_mentions: mentionPayload\.allowed_mentions,[\s\S]*?flags: 1 << 15/);
+  assert.match(testResultsSource, /allowed_mentions: roleIds\.length \? \{[\s\S]*?flags: 1 << 15/);
 });
 
 test('ALS result embed contains tester, candidate, callsign, and verdict', () => {

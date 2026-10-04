@@ -257,11 +257,9 @@ export function createAdmissionTesterComponents({ testName, testType, testerName
     type: 17,
     accent_color: SITE_BRAND_EMBED_COLOR,
     components: [
-      section(`## ${title}\n**👨‍⚕️ Tester**\n${discordMention(testerDiscordId, testerName)}\n**🧑‍⚕️ Candidat**\n${candidateName || '—'}\n**🆔 ID:** ${candidateId || '—'}\n${resultDetails}`, 'buletin-candidat.jpg', 'Buletin candidat'),
-      { type: 12, items: [
-        { media: { url: 'attachment://fisa-medicala.jpg' }, description: 'Fișă medicală' },
-        { media: { url: 'attachment://drug-test.jpg' }, description: 'Drug-test' }
-      ] },
+      section(`## ${title}\n**👨‍⚕️ Tester**\n${discordMention(testerDiscordId, testerName)}`, 'buletin-candidat.jpg', 'Buletin candidat'),
+      section(`**🧑‍⚕️ Candidat**\n${candidateName || '—'}\n**🆔 ID:** ${candidateId || '—'}`, 'fisa-medicala.jpg', 'Fișă medicală'),
+      section(resultDetails, 'drug-test.jpg', 'Drug-test'),
       { type: 10, content: admissionRoleMentions(result).map(id => `<@&${id}>`).join(' ') }
     ]
   }];
