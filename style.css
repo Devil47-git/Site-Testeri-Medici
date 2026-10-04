@@ -796,7 +796,9 @@ body.dark-mode .admission-candidate-grid .admission-callsign-field .cooldown-cal
 body.dark-mode .admission-candidate-grid .admission-callsign-field .cooldown-callsign-input:focus-within{outline:none;border-color:#2b8cff;box-shadow:0 0 10px rgba(43,140,255,.6)}
 body.dark-mode .admission-candidate-grid .admission-callsign-field .cooldown-callsign-input input{border:0;background:transparent;box-shadow:none}
 
-.statistics-test-bundle{grid-column:span 1;align-self:start;min-width:0}
+/* align-self:start made the TESTER bundle shorter than its sibling cards;
+   stretch keeps every card in the statistics row the same height. */
+.statistics-test-bundle{grid-column:span 1;align-self:stretch;min-width:0}
 .statistics-test-bundle>summary{display:grid}
 .statistics-test-bundle[open]{grid-column:1/-1}
 .statistics-test-bundle[open]>summary{display:grid;grid-template-columns:auto minmax(0,1fr) auto;grid-template-rows:auto auto}

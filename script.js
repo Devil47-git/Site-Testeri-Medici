@@ -197,6 +197,10 @@ function memberCanGiveTest(member, test) {
 }
 function docsAssignedTests(member) {
   if (member?.grantMode === 'override') return [];
+  // Leadership holds general access: a rank like "Manager I.S.U.L.S." would
+  // otherwise leak a single specialisation badge (e.g. Test SMULS) instead of
+  // the one green "Acces general" badge every other leader gets.
+  if (isLeadershipUser(member)) return [];
   const assigned = testSummaryDefinitions.map(([test]) => test).filter(test => memberCanGiveTest(member, test));
   if (/\bTESTER\b/.test(normalizeText(member?.functions))) assigned.unshift(...coreTests);
   return [...new Set(assigned)];
@@ -257,17 +261,18 @@ function testTagClass(test) {
   };
   return classes[test] || 'test-neutral';
 }
-function testerAccessHtml(member) {
-  // Mirrors profileTestTagsHtml so a member's row and their own profile show the
-  // exact same badges. Docs-derived tests must be merged in, otherwise someone
-  // whose specialisation comes from "Functii" looks empty in one place only.
+// Single source of truth for "which badges does this member show", so a member's
+// row in the tester table and their own profile can never disagree.
+function memberAccessTests(member) {
   const assignedTests = normalizeGrantBundle([...(member.grantedTests || []), ...docsAssignedTests(member)]);
-  if (isLeadershipUser(member) && !assignedTests.length) return '<span class="tag green">Acces general</span>';
+  if (isLeadershipUser(member) && !assignedTests.length) return [];
   const hasTesterBundle = coreTests.every(test => assignedTests.includes(test));
-  const visibleTests = [...(hasTesterBundle ? ['Tester'] : []), ...assignedTests.filter(test => !hasTesterBundle || !coreTests.includes(test))];
-  return visibleTests.length
-    ? visibleTests.map(test => `<span class="tag test-tag ${testTagClass(test)}">${escapeHtml(displayTestName(test))}</span>`).join('')
-    : '<span class="muted">Fără teste alocate</span>';
+  return [...(hasTesterBundle ? ['Tester'] : []), ...assignedTests.filter(test => !hasTesterBundle || !coreTests.includes(test))];
+}
+function testerAccessHtml(member) {
+  const visibleTests = memberAccessTests(member);
+  if (!visibleTests.length) return isLeadershipUser(member) ? '<span class="tag green">Acces general</span>' : '<span class="muted">Fără teste alocate</span>';
+  return visibleTests.map(test => `<span class="tag test-tag ${testTagClass(test)}">${escapeHtml(displayTestName(test))}</span>`).join('');
 }
 function testerRowHtml(member, index) {
   const tags = testerAccessHtml(member);
@@ -461,10 +466,8 @@ function testerTestCountGridHtml(member) {
   return bundleCard + visibleTests.map(countCard).join('');
 }
 function profileTestTagsHtml(member, canRemove = false) {
-  const grantedTests = normalizeGrantBundle([...(member.grantedTests || []), ...docsAssignedTests(member)]);
-  const assignedTests = (isLeadershipUser(member) ? allowedForUser(member) : grantedTests).filter(test => catalog.includes(test));
-  const hasTesterBundle = coreTests.every(test => assignedTests.includes(test));
-  const visibleTests = [...(hasTesterBundle ? ['Tester'] : []), ...assignedTests.filter(test => !hasTesterBundle || !coreTests.includes(test))];
+  const visibleTests = memberAccessTests(member);
+  if (!visibleTests.length && isLeadershipUser(member)) return '<span class="profile-test-tag-item"><span class="tag green">Acces general</span></span>';
   return visibleTests.length
     ? visibleTests.map(test => `<span class="profile-test-tag-item"><span class="tag test-tag ${testTagClass(test)}">${escapeHtml(displayTestName(test))}</span>${canRemove ? `<button class="profile-test-remove" type="button" data-remove-profile-test="${escapeHtml(test)}" aria-label="Scoate ${escapeHtml(displayTestName(test))}" title="Scoate ${escapeHtml(displayTestName(test))}">×</button>` : ''}</span>`).join('')
     : '<span class="muted">Nu ai certificări sau teste alocate.</span>';
@@ -1287,6 +1290,26 @@ function admissionCandidateSummary(result) {
   summary.push(`Rezultat: ${result}`);
   return summary.join('\n');
 }
+// Reads the card through our own server, which calls Google Cloud Vision.
+// The API key never reaches the browser. Falls back to local Tesseract when the
+// key is not configured or the request fails.
+async function readIdentityCardWithVision(file) {
+  const dataUrl = await encodeIdentityPhoto(file, 1400 * 1024);
+  const image = String(dataUrl).split(',')[1] || '';
+  const response = await fetch('/api/identity-ocr', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ image })
+  });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.error || 'Google Vision nu a putut citi imaginea.');
+  }
+  const payload = await response.json().catch(() => null);
+  const text = String(payload?.text || '');
+  if (!text.trim()) throw new Error('Google Vision nu a găsit text pe imagine.');
+  return text;
+}
 let identityOcrLibraryPromise;
 async function loadIdentityOcr() {
   if (window.Tesseract) return window.Tesseract;
@@ -1337,6 +1360,24 @@ function plausibleIdentityDetails(details) {
   return safe;
 }
 async function readIdentityCard(file) {
+  // Google Cloud Vision first: far more accurate on the low-contrast staff cards
+  // than browser OCR. Tesseract remains as the fallback so the feature keeps
+  // working when no Vision key is configured.
+  let visionError = null;
+  try {
+    const text = await readIdentityCardWithVision(file);
+    const details = plausibleIdentityDetails(parseIdentityCardText(text));
+    if (details.lastName || details.firstName) return { ...parseIdentityCardText(text), ...details };
+    visionError = new Error('Google Vision nu a returnat un numine lizibil.');
+  } catch (error) {
+    visionError = error;
+  }
+  const details = await readIdentityCardLocally(file);
+  const plausible = plausibleIdentityDetails(details);
+  if ((!plausible.lastName && !plausible.firstName) && visionError) throw visionError;
+  return { ...details, ...plausible };
+}
+async function readIdentityCardLocally(file) {
   const tesseract = await loadIdentityOcr();
   const worker = await tesseract.createWorker('ron+eng');
   try {
@@ -1390,9 +1431,7 @@ async function readIdentityCard(file) {
     await worker.setParameters({ tessedit_pageseg_mode: 11, preserve_interword_spaces: '1' });
     const focusedText = (await worker.recognize(crop)).data.text;
     const merged = mergeIdentityCardDetails(standardDetails, parseIdentityCardText(focusedText));
-    // Guard rail: never let OCR noise look like a real name. When the result is
-    // implausible the fields are left empty so the tester types the truth.
-    return { ...merged, ...plausibleIdentityDetails(merged) };
+    return merged;
   } finally {
     await worker.terminate();
   }

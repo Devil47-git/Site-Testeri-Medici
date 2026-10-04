@@ -166,6 +166,41 @@ async function handleSession(req, res) {
   }
 }
 
+async function handleIdentityOcr(req, res) {
+  if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
+  if (!sameOrigin(req)) return json(res, 403, { error: 'Cerere respinsă' });
+  if (!applyRateLimit(req, res, 'identity-ocr', 20, 60 * 1000)) return;
+  const auth = requireSession(req);
+  if (!auth) return json(res, 401, { error: 'Autentificare necesară' });
+  const apiKey = process.env.GOOGLE_VISION_API_KEY;
+  if (!apiKey) return json(res, 503, { error: 'Google Vision nu este configurat.' });
+  let payload;
+  try { payload = await readJsonBody(req); } catch (e) { return json(res, e.statusCode || 400, { error: 'Date invalide' }); }
+  const image = String(payload?.image || '');
+  // Vision accepts at most ~10 MB of base64; anything larger is rejected.
+  if (!image || image.length > 14e6) return json(res, 400, { error: 'Imaginea este prea mare.' });
+  const vision = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${encodeURIComponent(apiKey)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      requests: [{
+        image: { content: image },
+        features: [{ type: 'DOCUMENT_TEXT_DETECTION', maxResults: 30 }]
+      }]
+    })
+  });
+  const data = await vision.json().catch(() => null);
+  if (!vision.ok) {
+    const message = data?.error?.message || 'Google Vision a refuzat cererea.';
+    return json(res, vision.status === 429 ? 429 : 502, { error: message });
+  }
+  const annotation = data?.responses?.[0];
+  const text = annotation?.fullTextAnnotation?.text
+    || annotation?.textAnnotations?.map(item => item.description).join('\n')
+    || '';
+  return json(res, 200, { text });
+}
+
 async function handleTestDefinitions(req, res) {
   {
     if (req.method === 'GET') {
@@ -234,6 +269,7 @@ async function route(req, res) {
   if (url.pathname === '/api/auth/login' || url.pathname === '/api/auth/discord' || url.pathname === '/api/auth/callback') return handleAuth(req, res, url);
   if (url.pathname === '/api/session') return handleSession(req, res);
   if (url.pathname === '/api/test-definitions') return handleTestDefinitions(req, res);
+  if (url.pathname === '/api/identity-ocr') return handleIdentityOcr(req, res);
   if (url.pathname.startsWith('/api/access/')) return handleAccess(req, res, url);
   if (url.pathname.startsWith('/api/')) return json(res, 404, { error: 'Not found' });
   return serveStatic(req, res, url);
