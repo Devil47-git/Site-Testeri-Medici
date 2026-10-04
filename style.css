@@ -156,6 +156,7 @@ body.dark-mode .tester-access-table td:nth-child(4) .tag.cyan{border-color:rgba(
 .evaluation-stage-card p{margin:8px 0;line-height:1.6;white-space:pre-line}
 .evaluation-stage-card h4{margin:14px 0 6px;color:#fff}
 .evaluation-stage-card ul{display:grid;gap:7px;padding-left:20px;line-height:1.5}
+.view-panel.pilot-background-panel .evaluation-stage-card .evaluation-stage-copy{color:#fff;font-weight:700}
 .evaluation-stage-actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
 .evaluation-stage-actions button{min-width:170px}
 .evaluation-verdict-admitted{background:#25864d;border:1px solid #39a563;color:#fff}

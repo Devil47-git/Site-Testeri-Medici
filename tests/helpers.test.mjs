@@ -10,6 +10,7 @@ import { cooldownIsActive, parseCooldownS } from '../lib/access/cooldowns.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const source = readFileSync(join(here, '..', 'script.js'), 'utf8');
+const styleSource = readFileSync(join(here, '..', 'style.css'), 'utf8');
 const directorySource = readFileSync(join(here, '..', 'api', 'access', 'directory.js'), 'utf8');
 const grantsSource = readFileSync(join(here, '..', 'api', 'access', 'grants.js'), 'utf8');
 const testResultsSource = readFileSync(join(here, '..', 'api', 'access', 'test-results.js'), 'utf8');
@@ -812,6 +813,7 @@ test('evaluation stage cards render three right-side image placeholders when req
   const motoMarkup = evaluationStageHtml({ title: 'Proba 2', imageSlots: 1 }, []);
   assert.match(motoMarkup, /style="--image-slot-count:1"/);
   assert.match(motoMarkup, /Imagine 1/);
+  assert.match(styleSource, /\.view-panel\.pilot-background-panel \.evaluation-stage-card \.evaluation-stage-copy\{color:#fff;font-weight:700\}/);
 });
 
 test('admission test rejects the fourth mistake', () => {
@@ -1018,18 +1020,21 @@ test('admission Discord message aligns each photo with its text in one container
   const admission = createAdmissionEmbed(details);
   assert.equal(admission.title, 'Admitere');
   assert.deepEqual(admission.fields.map(field => field.name), ['Nume Tester', 'Nume Candidat', 'Rezultat']);
-  const [container] = createAdmissionTesterComponents(details);
+  const [container, roleMentions] = createAdmissionTesterComponents(details);
   assert.equal(container.type, 17);
   assert.equal(container.components.length, 4);
   assert.deepEqual(container.components.map(component => component.type), [9, 9, 9, 10]);
   assert.match(container.components[0].components[0].content, /Test Admitere\n\*\*[^\n]*Tester\*\*\n\*\*Tester\*\*/);
   assert.match(createAdmissionTesterComponents({ ...details, testerDiscordId: '123' })[0].components[0].components[0].content, /Tester\*\*\n<@123>/);
   assert.equal(container.components[0].accessory.media.url, 'attachment://buletin-candidat.jpg');
-  assert.match(container.components[1].components[0].content, /\*\*[^\n]*Candidat\*\*\nCandidat\n\*\*[^\n]*ID:\*\* 12345/);
+  assert.match(container.components[0].components[0].content, /\*\*[^\n]*Candidat\*\*\nCandidat\n\*\*[^\n]*ID\*\*\n12345/);
   assert.equal(container.components[1].accessory.media.url, 'attachment://fisa-medicala.jpg');
-  assert.match(container.components[2].components[0].content, /Rezultat[\s\S]*Respins/);
-  assert.doesNotMatch(container.components[2].components[0].content, /Callsign/);
+  assert.match(container.components[1].components[0].content, /Callsign[\s\S]*—/);
   assert.equal(container.components[2].accessory.media.url, 'attachment://drug-test.jpg');
+  assert.match(container.components[2].components[0].content, /Rezultat[\s\S]*Respins/);
+  assert.equal(roleMentions.type, 10);
+  assert.match(roleMentions.content, /<@&\d+>/);
+  assert.doesNotMatch(roleMentions.content, /<@&\d+>.*<@&\d+>/);
   const componentsUrl = new URL(webhookComponentsUrl('https://discord.com/api/webhooks/123/token?thread_id=456'));
   assert.equal(componentsUrl.searchParams.get('thread_id'), '456');
   assert.equal(componentsUrl.searchParams.get('with_components'), 'true');
@@ -1038,13 +1043,14 @@ test('admission Discord message aligns each photo with its text in one container
   assert.match(testResultsSource, /fetch\(webhookComponentsUrl\(url\)/);
   assert.match(testResultsSource, /flags: 1 << 15/);
   assert.match(testResultsSource, /testName === 'Test admitere' \|\| testName === 'Test transfer'/);
-  assert.match(source, /submissionDetails = \{ candidateName, candidateId, candidateCallsign, identityImage, medicalSheetImage, drugTestImage, testType:/);
+  assert.match(testResultsSource, /admissionDetails = \{ testName, candidateName, candidateId, candidateCallsign, result, identityImage, medicalSheetImage, drugTestImage \}/);
   const admitted = createAdmissionTesterComponents({ ...details, candidateCallsign: 'M-302', result: 'Admis' });
-  assert.match(admitted[0].components[2].components[0].content, /Callsign:\*\* M-302\n\*\*[^\n]*Rezultat\*\*\n[^\n]*Admis/);
-  assert.match(container.components[3].content, /<@&\d+>/);
+  assert.match(admitted[0].components[1].components[0].content, /Callsign\*\*\nM-302/);
+  assert.match(admitted[0].components[2].components[0].content, /Rezultat[\s\S]*Admis/);
+  assert.equal((admitted[1].content.match(/<@&\d+>/g) || []).length, 2);
   const transfer = createAdmissionTesterComponents({ ...details, testName: 'Test transfer', result: 'Admis' });
   assert.match(transfer[0].components[0].components[0].content, /Test Transfer/);
-  assert.match(testResultsSource, /allowed_mentions: roleIds\.length \? \{[\s\S]*?flags: 1 << 15/);
+  assert.match(testResultsSource, /allowed_mentions: roleIds\.length \? \{ \.\.\.mentionPayload\.allowed_mentions, roles: roleIds \} : mentionPayload\.allowed_mentions,[\s\S]*?flags: 1 << 15/);
 });
 
 test('ALS result embed contains tester, candidate, callsign, and verdict', () => {
