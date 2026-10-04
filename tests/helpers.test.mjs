@@ -850,6 +850,12 @@ test('evaluation stage cards render three right-side image placeholders when req
   assert.match(styleSource, /\.view-panel\.pilot-background-panel \.evaluation-stage-card \.evaluation-stage-copy\{color:#fff;font-weight:700\}/);
 });
 
+test('dark-mode borders retain the animated red and blue colors', () => {
+  assert.match(styleSource, /body\.dark-mode\{[^}]*--neon-red:#ff2d3d;--neon-blue:#2b8cff/);
+  assert.match(styleSource, /conic-gradient\(from var\(--guide-border-angle\),var\(--neon-red\),var\(--neon-blue\),var\(--neon-red\),var\(--neon-blue\),var\(--neon-red\)\)/);
+  assert.doesNotMatch(styleSource, /--neon-red:var\(--neon-blue\)/);
+});
+
 test('admission test rejects the fourth mistake', () => {
   const limit = maxWrongForTest('Test admitere', 2);
   assert.equal(limit, 3);
