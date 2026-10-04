@@ -258,8 +258,11 @@ function testTagClass(test) {
   return classes[test] || 'test-neutral';
 }
 function testerAccessHtml(member) {
-  const assignedTests = normalizeGrantBundle(member.grantedTests || []);
-  if (isLeadershipUser(member)) return '<span class="tag green">Acces general</span>';
+  // Mirrors profileTestTagsHtml so a member's row and their own profile show the
+  // exact same badges. Docs-derived tests must be merged in, otherwise someone
+  // whose specialisation comes from "Functii" looks empty in one place only.
+  const assignedTests = normalizeGrantBundle([...(member.grantedTests || []), ...docsAssignedTests(member)]);
+  if (isLeadershipUser(member) && !assignedTests.length) return '<span class="tag green">Acces general</span>';
   const hasTesterBundle = coreTests.every(test => assignedTests.includes(test));
   const visibleTests = [...(hasTesterBundle ? ['Tester'] : []), ...assignedTests.filter(test => !hasTesterBundle || !coreTests.includes(test))];
   return visibleTests.length
@@ -1160,12 +1163,14 @@ function parseIdentityCardText(text) {
     return Boolean(candidate && !fieldMarker.test(candidate) && /^[\p{L}][\p{L}'’ -]{0,79}$/u.test(candidate) && candidate.split(/\s+/).length <= 5);
   };
   const labelPrefix = '^\\s*(?:[iIl|]*\\s*)?';
-  const lastNameAliases = '(?:Nume|Nom|Last\\s*name)';
+  // Romanian ID cards print "Nume/Nom/Last name"; the Los Santos style card
+  // prints "Name/Nom/Last name", so bare "Name" must be a last-name alias too.
+  const lastNameAliases = '(?:Nume|Nom|Last\\s*name|Name)';
   const firstNameAliases = '(?:Prenume|Prenom|First\\s*name)';
   const lastNamePattern = new RegExp(`${labelPrefix}${lastNameAliases}(?:\\s*[\\/|]\\s*${lastNameAliases})*\\b`, 'i');
   const firstNamePattern = new RegExp(`(?:^|[\\s/|])(?:[iIl|]*\\s*)?${firstNameAliases}(?:\\s*[\\/|]\\s*${firstNameAliases})*\\b`, 'i');
   const fuzzyFirstNamePattern = /^\s*(?:[iIl|]*\s*)?Pren\w{3,}(?:\s+[a-z]{2,8})?\b/i;
-  const anyLabelAtStart = new RegExp(`${labelPrefix}(?:Nume|Nom|Last\\s*name|Prenume|Prenom|First\\s*name|CNP|SERIE?|ID|Nationality|Sex|Birth)\\b`, 'i');
+  const anyLabelAtStart = new RegExp(`${labelPrefix}(?:Nume|Nom|Last\\s*name|Name|Prenume|Prenom|First\\s*name|CNP|SERIE?|ID|Nationality|Sex|Birth)\\b`, 'i');
   const extractName = (labelPattern, stripPattern, stopPattern, fuzzyPattern = null) => {
     let index = lines.findIndex(line => labelPattern.test(line));
     let fuzzyMatch = false;

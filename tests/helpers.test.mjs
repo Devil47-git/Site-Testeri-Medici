@@ -46,7 +46,7 @@ function extract(name) {
 const catalog = ['Test admitere', 'Test transfer', 'Adeverință medicală', 'Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști'];
 const definitions = Object.fromEntries(catalog.map(n => [n, { name: n, questions: [] }]));
 
-const names = ['callsignNumber', 'bonusTesterCallsign', 'bonusClipboardValues', 'bonusRowGroups', 'normalizeCallsign', 'cooldownPaymentAmount', 'cooldownPaymentMaxDays', 'cooldownPaymentPayerForCallsign', 'cooldownPaymentMessage', 'isAdmissionChecklistReminder', 'testNameFromHash', 'routeFromLocation', 'validSavedRoute', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberHasTestAccess', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'processedTestGroups', 'processedTestBadgesHtml', 'sortMembers', 'avatarUrlForMember', 'testTagClass', 'gradeGroupFor', 'mergeTestDefinitions', 'admissionChecklistHtml', 'admissionConsentHtml', 'admissionChecksComplete', 'motoChecksComplete', 'pilotLicenseChecklistHtml', 'alsChecklistHtml', 'alsChecksComplete', 'alsCaseListHtml', 'smulsChecklistHtml', 'smulsChecksComplete', 'smulsCaseListHtml', 'memberStatus', 'testerFunctionsForDisplay', 'isTestFailed', 'canUseAdmittedVerdict', 'startVerdictButtonCooldown', 'maxWrongForTest', 'cachedUserWithinSession', 'questionItemHtml', 'evaluationStageHtml', 'parseIdentityCardText', 'mergeIdentityCardDetails', 'displayTestName', 'departmentCalendarDate', 'latestCompleteBonusPeriodIndex', 'activeBonusPeriodIndex', 'bonusPeriodFor'];
+const names = ['callsignNumber', 'bonusTesterCallsign', 'bonusClipboardValues', 'bonusRowGroups', 'normalizeCallsign', 'cooldownPaymentAmount', 'cooldownPaymentMaxDays', 'cooldownPaymentPayerForCallsign', 'cooldownPaymentMessage', 'isAdmissionChecklistReminder', 'testNameFromHash', 'routeFromLocation', 'validSavedRoute', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberHasTestAccess', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'processedTestGroups', 'processedTestBadgesHtml', 'sortMembers', 'avatarUrlForMember', 'testTagClass', 'gradeGroupFor', 'normalizeGrantBundle', 'testerAccessHtml', 'profileTestTagsHtml', 'mergeTestDefinitions', 'admissionChecklistHtml', 'admissionConsentHtml', 'admissionChecksComplete', 'motoChecksComplete', 'pilotLicenseChecklistHtml', 'alsChecklistHtml', 'alsChecksComplete', 'alsCaseListHtml', 'smulsChecklistHtml', 'smulsChecksComplete', 'smulsCaseListHtml', 'memberStatus', 'testerFunctionsForDisplay', 'isTestFailed', 'canUseAdmittedVerdict', 'startVerdictButtonCooldown', 'maxWrongForTest', 'cachedUserWithinSession', 'questionItemHtml', 'evaluationStageHtml', 'parseIdentityCardText', 'mergeIdentityCardDetails', 'displayTestName', 'departmentCalendarDate', 'latestCompleteBonusPeriodIndex', 'activeBonusPeriodIndex', 'bonusPeriodFor'];
 const srcs = names.map(extract).join('\n');
 const pattern = source.match(/^const RESIDENT_TESTER_PATTERN = .*$/m)?.[0] || 'const RESIDENT_TESTER_PATTERN = /TESTER/;';
 const normalizeTextSrc = extract('normalizeText');
@@ -57,10 +57,10 @@ const load = new Function(
   'catalog',
   'testDefinitions',
   'testSummaryDefinitions',
-  `${fullSrc}\nreturn { callsignNumber, bonusTesterCallsign, bonusClipboardValues, bonusRowGroups, normalizeCallsign, cooldownPaymentAmount, cooldownPaymentMaxDays, cooldownPaymentPayerForCallsign, cooldownPaymentMessage, isAdmissionChecklistReminder, testNameFromHash, routeFromLocation, validSavedRoute, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, processedTestGroups, processedTestBadgesHtml, sortMembers, avatarUrlForMember, testTagClass, gradeGroupFor, mergeTestDefinitions, admissionChecklistHtml, admissionConsentHtml, admissionChecksComplete, motoChecksComplete, pilotLicenseChecklistHtml, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, canUseAdmittedVerdict, startVerdictButtonCooldown, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, departmentCalendarDate, latestCompleteBonusPeriodIndex, activeBonusPeriodIndex, bonusPeriodFor };`,
+  `${fullSrc}\nreturn { callsignNumber, bonusTesterCallsign, bonusClipboardValues, bonusRowGroups, normalizeCallsign, cooldownPaymentAmount, cooldownPaymentMaxDays, cooldownPaymentPayerForCallsign, cooldownPaymentMessage, isAdmissionChecklistReminder, testNameFromHash, routeFromLocation, validSavedRoute, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, processedTestGroups, processedTestBadgesHtml, sortMembers, avatarUrlForMember, testTagClass, gradeGroupFor, testerAccessHtml, profileTestTagsHtml, mergeTestDefinitions, admissionChecklistHtml, admissionConsentHtml, admissionChecksComplete, motoChecksComplete, pilotLicenseChecklistHtml, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, canUseAdmittedVerdict, startVerdictButtonCooldown, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, departmentCalendarDate, latestCompleteBonusPeriodIndex, activeBonusPeriodIndex, bonusPeriodFor };`,
 )(catalog, definitions, testSummaryDefinitions);
 
-const { callsignNumber, bonusTesterCallsign, bonusClipboardValues, bonusRowGroups, normalizeCallsign, cooldownPaymentAmount, cooldownPaymentMaxDays, cooldownPaymentPayerForCallsign, cooldownPaymentMessage, isAdmissionChecklistReminder, testNameFromHash, routeFromLocation, validSavedRoute, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, processedTestGroups, processedTestBadgesHtml, sortMembers, avatarUrlForMember, testTagClass, gradeGroupFor, mergeTestDefinitions, admissionChecklistHtml, admissionConsentHtml, admissionChecksComplete, motoChecksComplete, pilotLicenseChecklistHtml, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, canUseAdmittedVerdict, startVerdictButtonCooldown, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, departmentCalendarDate, latestCompleteBonusPeriodIndex, activeBonusPeriodIndex, bonusPeriodFor } = load;
+const { callsignNumber, bonusTesterCallsign, bonusClipboardValues, bonusRowGroups, normalizeCallsign, cooldownPaymentAmount, cooldownPaymentMaxDays, cooldownPaymentPayerForCallsign, cooldownPaymentMessage, isAdmissionChecklistReminder, testNameFromHash, routeFromLocation, validSavedRoute, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, processedTestGroups, processedTestBadgesHtml, sortMembers, avatarUrlForMember, testTagClass, gradeGroupFor, testerAccessHtml, profileTestTagsHtml, mergeTestDefinitions, admissionChecklistHtml, admissionConsentHtml, admissionChecksComplete, motoChecksComplete, pilotLicenseChecklistHtml, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, canUseAdmittedVerdict, startVerdictButtonCooldown, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, departmentCalendarDate, latestCompleteBonusPeriodIndex, activeBonusPeriodIndex, bonusPeriodFor } = load;
 
 test('Discord auth preserves the Discord display name, username, and avatar', () => {
   const mapperSource = discordAuthSource.match(/function mapSheetRowToUser\(row, discordUser\) \{[\s\S]*?^\}/m)?.[0];
@@ -96,7 +96,7 @@ test('tester table uses each member Discord avatar and shared fixed column width
 
 test('leadership general access is displayed as a distinct green badge', () => {
   const accessMarkup = source.match(/function testerAccessHtml\(member\) \{[\s\S]*?\n\}/)?.[0] || '';
-  assert.match(accessMarkup, /if \(isLeadershipUser\(member\)\) return '<span class="tag green">Acces general<\/span>'/);
+  assert.match(accessMarkup, /if \(isLeadershipUser\(member\) && !assignedTests\.length\) return '<span class="tag green">Acces general<\/span>'/);
   const stylesheet = readFileSync(join(here, '..', 'style.css'), 'utf8');
   assert.match(stylesheet, /\.tester-access-table td:nth-child\(4\) \.tag\.green\{/);
   assert.match(stylesheet, /body\.dark-mode \.tester-access-table td:nth-child\(4\) \.tag\.green\{/);
@@ -1020,6 +1020,58 @@ test('SMULS guide includes the supplied route image as an inline preview', () =>
 test('identity card OCR parser handles inline labels and preserves OCR-confused CNP letters', () => {
   const details = parseIdentityCardText('Nume/Nom/Last name Cartier Prenume/Prenom/First name Mohammed\nCNP: 1O60 8259 27178');
   assert.deepEqual(details, { name: 'Cartier Mohammed', lastName: 'Cartier', firstName: 'Mohammed', cnp: '1O60825927178' });
+});
+
+test('identity card OCR reads the Los Santos "Name/Nom/Last name" label', () => {
+  // The Los Santos card prints "Name/Nom/Last name" instead of "Nume/...".
+  // Without the bare "Name" alias the surname came back empty.
+  const card = `CARTE D'IDENTITE
+CNP 1062261386044
+Name/Nom/Last name
+Grebla
+Prenume/Prenom/First name
+Mihai
+Nationality/Nationalitate/Nationality
+Romania
+Sex/Sex/Sex
+M
+Loc nastere/Lieu de naissance/Place of birth
+Los Santos
+Domiciliu/Address/Adress
+-
+Emisa de/Delivered par/Issued by
+Departamentul de Politie Los Santos
+IDLS<<<<<<<<<<<<<<<<<<<<<<
+MD22TNYIL34JK58<<<<<<<<23NM45B<<DB08NOWNCT62RGD<<<<<<`;
+  assert.deepEqual(
+    parseIdentityCardText(card),
+    { name: 'Grebla Mihai', lastName: 'Grebla', firstName: 'Mihai', cnp: '1062261386044' }
+  );
+  assert.deepEqual(
+    parseIdentityCardText('CNP 1062261386044\nName/Nom/Last name Grebla\nPrenume/Prenom/First name Mihai'),
+    { name: 'Grebla Mihai', lastName: 'Grebla', firstName: 'Mihai', cnp: '1062261386044' }
+  );
+});
+
+test('tester table badges match the member own profile badges', () => {
+  // A 007 holding every test must look identical in the list and on their profile.
+  const member = { discordId: '1', callsign: '007', csNum: 7, name: 'Grebla Mihai', functions: 'TESTER', grantedTests: catalog };
+  const strip = html => html.replace(/<[^>]+>/g, '|').replace(/\|+/g, '|');
+  assert.equal(strip(testerAccessHtml(member)), strip(profileTestTagsHtml(member)));
+  assert.match(testerAccessHtml(member), /test-tester/);
+  // Leadership without explicit grants still falls back to the general badge.
+  const lead = { discordId: '2', callsign: '007', csNum: 7, name: 'Grebla Mihai', grantedTests: [] };
+  assert.match(testerAccessHtml(lead), /Acces general/);
+});
+
+test('admission and transfer keep the assigned callsign next to the candidate id', () => {
+  const stylesheet = readFileSync(join(here, '..', 'style.css'), 'utf8');
+  // The callsign must NOT be forced onto its own full-width row.
+  assert.doesNotMatch(stylesheet, /\.admission-candidate-grid \.admission-callsign-field\{grid-column:1\/-1/);
+  // And it must sit after "ID candidat" in the markup, which both the admission
+  // and the transfer test share through isApplicationTest().
+  assert.match(source, /<label>ID candidat<input id="candidate-id"[\s\S]*?<label class="admission-callsign-field">Callsign atribuit/);
+  assert.match(source, /const candidateDetails = isApplicationTest \? admissionCandidateDetailsHtml\(\)/);
 });
 
 test('identity card OCR keeps both candidate names on separate or inline lines', () => {

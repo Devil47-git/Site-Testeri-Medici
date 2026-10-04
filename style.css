@@ -235,7 +235,9 @@ body.dark-mode .tester-access-table td:nth-child(4) .tag.cyan{border-color:rgba(
 .admission-candidate-details{display:grid;gap:12px;width:min(100%,1040px);margin:16px auto 20px;padding:18px 24px 20px}
 .admission-candidate-details h3{margin:0 0 2px;font-size:13px;text-align:center}
 .admission-candidate-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px}
-.admission-candidate-grid .admission-callsign-field{grid-column:1/-1;justify-self:center;width:min(100%,420px)}
+/* Callsign sits in the normal grid flow so it lands directly to the right of
+   "ID candidat", exactly like the rest of the candidate fields. */
+.admission-candidate-grid .admission-callsign-field{grid-column:auto;justify-self:stretch;width:auto}
 .admission-candidate-grid label,.candidate-document-upload{display:grid;justify-items:center;gap:6px;color:var(--ink);font-size:12px;font-weight:600;text-align:center}
 .candidate-upload-title{color:var(--ink);font-size:12px;font-weight:700}
 .candidate-file-select{min-height:28px;padding:5px 11px;border:1px solid #d64b55;border-radius:5px;background:#852b3b;color:#fff;font:600 11px 'DM Sans';cursor:pointer}
