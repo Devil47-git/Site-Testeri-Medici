@@ -967,6 +967,45 @@ const BONUS_CATEGORIES = [
   { label: 'S.M.U.L.S.', tests: ['Test SMULS'] }
 ];
 const BONUS_TEST_CATEGORY = new Map(BONUS_CATEGORIES.flatMap((category, index) => category.tests.map(test => [test, index])));
+function bonusClipboardValues(rows) { return rows.map(row => row.counts.join('\t')).join('\n'); }
+function bonusRowGroups(rows) {
+  const groups = [];
+  for (const row of rows) {
+    const current = callsignNumber(row.callsign);
+    const previousGroup = groups[groups.length - 1];
+    const previous = previousGroup?.[previousGroup.length - 1];
+    if (!previous || current !== callsignNumber(previous.callsign) + 1) groups.push([]);
+    groups[groups.length - 1].push(row);
+  }
+  return groups;
+}
+async function copyBonusText(text) {
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (clipboardError) {
+    const input = document.createElement('textarea');
+    input.value = text;
+    document.body.append(input);
+    input.select();
+    const copied = document.execCommand('copy');
+    input.remove();
+    if (!copied) throw clipboardError;
+  }
+}
+function updateBonusSelection() {
+  const rows = [...document.querySelectorAll('#bonus-rows tr[data-bonus-row]')];
+  const selected = rows.filter(row => row.querySelector('[data-bonus-select]')?.checked);
+  const selectionToggle = document.querySelector('#bonus-select-all');
+  const copySelected = document.querySelector('#bonus-copy-selected');
+  if (selectionToggle) {
+    selectionToggle.checked = rows.length > 0 && selected.length === rows.length;
+    selectionToggle.indeterminate = selected.length > 0 && selected.length < rows.length;
+  }
+  if (copySelected) {
+    copySelected.disabled = selected.length === 0;
+    copySelected.textContent = `Copiază selectați (${selected.length})`;
+  }
+}
   function departmentCalendarDate(date) {
     const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Bucharest', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date);
     const values = Object.fromEntries(parts.map(part => [part.type, part.value]));
@@ -994,7 +1033,7 @@ function activeBonusPeriodIndex(now = new Date()) {
     if (selectedBonusPeriodIndex === null) selectedBonusPeriodIndex = activeBonusPeriodIndex();
     const period = bonusPeriodFor(selectedBonusPeriodIndex);
     const activePeriod = bonusPeriodFor(activeBonusPeriodIndex());
-    return `<section class="panel bonus-panel"><div class="panel-head"><div><p class="eyebrow">ACTIVITATE TESTERI</p><h2>Bonusuri</h2></div></div><p class="bonus-active-period"><strong>Perioada activă:</strong> ${bonusPeriodLabel(activePeriod)}</p><div class="bonus-period-controls"><button class="outline" type="button" data-bonus-shift="-1" aria-label="Perioada anterioară">←</button><strong>Perioada afișată: ${bonusPeriodLabel(period)}</strong><button class="outline" type="button" data-bonus-shift="1" aria-label="Perioada următoare" ${selectedBonusPeriodIndex >= activePeriod.index ? 'disabled' : ''}>→</button></div><p class="bonus-period-status muted" id="bonus-period-status" role="status" aria-live="polite">Se încarcă testele...</p><div class="bonus-table-wrap"><table class="bonus-table"><thead><tr><th>CALLSIGN</th><th>MEDIC</th>${BONUS_CATEGORIES.map(category => `<th>${category.label}</th>`).join('')}<th></th></tr></thead><tbody id="bonus-rows"><tr><td colspan="9">Se încarcă...</td></tr></tbody></table></div><img class="test-corner-logo bonus-corner-logo" src="/bonusuri.png" alt="Sigla Bonusuri" aria-hidden="true"></section>`;
+    return `<section class="panel bonus-panel"><div class="panel-head"><div><p class="eyebrow">ACTIVITATE TESTERI</p><h2>Bonusuri</h2></div></div><p class="bonus-active-period"><strong>Perioada activă:</strong> ${bonusPeriodLabel(activePeriod)}</p><div class="bonus-period-controls"><button class="outline" type="button" data-bonus-shift="-1" aria-label="Perioada anterioară">←</button><strong>Perioada afișată: ${bonusPeriodLabel(period)}</strong><button class="outline" type="button" data-bonus-shift="1" aria-label="Perioada următoare" ${selectedBonusPeriodIndex >= activePeriod.index ? 'disabled' : ''}>→</button></div><p class="bonus-period-status muted" id="bonus-period-status" role="status" aria-live="polite">Se încarcă testele...</p><div class="bonus-copy-controls"><label><input id="bonus-select-all" type="checkbox" aria-label="Selectează toți testerii cu teste"> Selectează toți</label><button class="primary" id="bonus-copy-selected" type="button" disabled>Copiază selectați (0)</button><span class="muted">Bifează testerii pentru a copia bonusurile în ordine numerică.</span></div><div class="bonus-copy-groups" id="bonus-copy-groups" aria-label="Copiere pe blocuri consecutive"></div><div class="bonus-table-wrap"><table class="bonus-table"><thead><tr><th></th><th>CALLSIGN</th><th>MEDIC</th>${BONUS_CATEGORIES.map(category => `<th>${category.label}</th>`).join('')}<th></th></tr></thead><tbody id="bonus-rows"><tr><td colspan="10">Se încarcă...</td></tr></tbody></table></div><img class="test-corner-logo bonus-corner-logo" src="/bonusuri.png" alt="Sigla Bonusuri" aria-hidden="true"></section>`;
   }
   async function loadBonusEntries(period) {
     const status = document.querySelector('#bonus-period-status');
@@ -1015,10 +1054,17 @@ function activeBonusPeriodIndex(now = new Date()) {
         rowsByCallsign.set(key, row);
       }
       const rows = [...rowsByCallsign.values()].sort((left, right) => callsignNumber(left.callsign) - callsignNumber(right.callsign));
+      const groups = bonusRowGroups(rows);
+      const groupByCallsign = new Map(groups.flatMap((group, index) => group.map(row => [row.callsign, index])));
+      const groupControls = document.querySelector('#bonus-copy-groups');
+      if (groupControls) groupControls.innerHTML = groups.length > 1
+        ? groups.map((group, index) => `<button class="outline bonus-group-copy" type="button" data-bonus-group-copy="${index}">Copiază ${escapeHtml(group[0].callsign)}–${escapeHtml(group[group.length - 1].callsign)} (${group.length})</button>`).join('')
+        : '';
       if (body) body.innerHTML = rows.length
-        ? rows.map(row => `<tr><td>${escapeHtml(row.callsign)}</td><td>${escapeHtml(row.name)}</td>${row.counts.map(count => `<td data-bonus-count>${count}</td>`).join('')}<td><button class="outline bonus-row-copy" type="button" data-bonus-copy title="Copiază doar valorile pentru rândul ${escapeHtml(row.callsign)}">Copiază</button></td></tr>`).join('')
-        : '<tr><td colspan="9">Nu sunt teste în această perioadă.</td></tr>';
+        ? rows.map(row => `<tr data-bonus-row data-bonus-group="${groupByCallsign.get(row.callsign)}"><td><input type="checkbox" data-bonus-select aria-label="Selectează ${escapeHtml(row.callsign)}"></td><td>${escapeHtml(row.callsign)}</td><td>${escapeHtml(row.name)}</td>${row.counts.map(count => `<td data-bonus-count>${count}</td>`).join('')}<td><button class="outline bonus-row-copy" type="button" data-bonus-copy title="Copiază doar valorile pentru rândul ${escapeHtml(row.callsign)}">Copiază</button></td></tr>`).join('')
+        : '<tr><td colspan="10">Nu sunt teste în această perioadă.</td></tr>';
       if (status) status.textContent = `${rows.length} persoane cu teste în perioada ${bonusPeriodLabel(period)}.`;
+      updateBonusSelection();
     } catch (error) {
       if (status) status.textContent = error.message;
     }
@@ -1030,22 +1076,53 @@ function activeBonusPeriodIndex(now = new Date()) {
       selectedBonusPeriodIndex += Number(button.dataset.bonusShift);
       navigateTo('bonuses', { push: false });
     }));
+    document.querySelector('#bonus-select-all')?.addEventListener('change', event => {
+      document.querySelectorAll('#bonus-rows [data-bonus-select]').forEach(input => { input.checked = event.currentTarget.checked; });
+      updateBonusSelection();
+    });
+    document.querySelector('#bonus-rows')?.addEventListener('change', event => {
+      if (event.target.matches('[data-bonus-select]')) updateBonusSelection();
+    });
+    document.querySelector('#bonus-copy-selected')?.addEventListener('click', async () => {
+      const selected = [...document.querySelectorAll('#bonus-rows tr[data-bonus-row]')]
+        .filter(row => row.querySelector('[data-bonus-select]')?.checked);
+      if (!selected.length) return;
+      const values = bonusClipboardValues(selected.map(row => ({
+        counts: [...row.querySelectorAll('[data-bonus-count]')].map(cell => cell.textContent.trim())
+      })));
+      const status = document.querySelector('#bonus-period-status');
+      try {
+        await copyBonusText(values);
+        status.textContent = `Bonusurile pentru ${selected.length} testeri au fost copiate în ordine numerică.`;
+      } catch (error) {
+        status.textContent = `Copierea a eșuat: ${error.message || 'clipboard indisponibil'}.`;
+      }
+    });
+    document.querySelector('#bonus-copy-groups')?.addEventListener('click', async event => {
+      const button = event.target.closest('[data-bonus-group-copy]');
+      if (!button) return;
+      const groupRows = [...document.querySelectorAll(`#bonus-rows tr[data-bonus-group="${button.dataset.bonusGroupCopy}"]`)];
+      const values = bonusClipboardValues(groupRows.map(row => ({
+        counts: [...row.querySelectorAll('[data-bonus-count]')].map(cell => cell.textContent.trim())
+      })));
+      const status = document.querySelector('#bonus-period-status');
+      try {
+        await copyBonusText(values);
+        status.textContent = `Bonusurile pentru ${groupRows.length} testeri (${button.textContent.replace(/^Copiază\s*/, '')}) au fost copiate.`;
+      } catch (error) {
+        status.textContent = `Copierea a eșuat: ${error.message || 'clipboard indisponibil'}.`;
+      }
+    });
     document.querySelector('#bonus-rows')?.addEventListener('click', async event => {
       const button = event.target.closest('[data-bonus-copy]');
       if (!button) return;
       const values = [...button.closest('tr').querySelectorAll('[data-bonus-count]')].map(cell => cell.textContent.trim()).join('\t');
       const status = document.querySelector('#bonus-period-status');
       try {
-        await navigator.clipboard.writeText(values);
-        status.textContent = `Valorile pentru ${button.closest('tr').cells[0].textContent} au fost copiate.`;
-      } catch {
-        const input = document.createElement('textarea');
-        input.value = values;
-        document.body.append(input);
-        input.select();
-        document.execCommand('copy');
-        input.remove();
-        status.textContent = `Valorile pentru ${button.closest('tr').cells[0].textContent} au fost copiate.`;
+        await copyBonusText(values);
+        status.textContent = `Valorile pentru ${button.closest('tr').cells[1].textContent} au fost copiate.`;
+      } catch (error) {
+        status.textContent = `Copierea a eșuat: ${error.message || 'clipboard indisponibil'}.`;
       }
     });
   }

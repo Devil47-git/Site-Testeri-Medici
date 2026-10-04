@@ -13,6 +13,8 @@ Configure the server using one server-side deployment variable: `APP_CONFIG_JSON
 
 During migration, a non-empty value in `APP_CONFIG_JSON` takes precedence over the matching individual environment variable. Missing or empty JSON values fall back to existing individual variables. Move the current values into `APP_CONFIG_JSON`, deploy and verify, then remove the individual Vercel variables. `GOOGLE_SERVICE_ACCOUNT_JSON` may be entered as a nested JSON object; the server serializes it for Google authentication.
 
+Revoking a tester function from the site saves an explicit grant override to the configured `GOOGLE_GRANTS_RANGE` sheet. This keeps the function revoked even while the member's original functions remain listed in the department sheet.
+
 For local use, add newly generated webhook URLs to the ignored `.env` file (see `.env.example`). `npm start` loads that file. The checked-in example intentionally contains no credentials.
 
 Never put webhook URLs in browser code or commit them to the repository. Rotate any webhook URL that has been shared in chat or other public places. The admission page accepts all three images by file selection or clipboard paste. Images are resized in the browser and are not stored in the test-history sheet; CNP is not sent as separate message text. In the testers-channel message, each image is aligned beside its related details, and role mentions appear outside the bordered result container.
@@ -36,6 +38,8 @@ The `Bonusuri` page is leadership-only. It shows the active 14-day period, ancho
 The tester statistics list also includes lifetime `Teste Procesate` badges for each assigned test function. The API creates a separate `TEST_LIFETIME` sheet, imports existing `TEST_HISTORY` entries once, and appends each new result there. Resetting current test counts clears only `TEST_HISTORY`; lifetime totals remain intact.
 
 Bonus entries are stored in Upstash Redis when both `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are configured. New test results continue to be written to `TEST_HISTORY`; bonus queries import existing rows into Redis on demand, once per Bucharest calendar day. Without both Upstash variables, the bonus page continues reading from Google Sheets. The reusable Redis client is in `api/storage/upstash-redis.js`; application keys use the `site-testeri-medici:` namespace.
+
+The `Bonusuri` table is sorted by numeric callsign and shows only testers with tests during the selected period. Consecutive callsign blocks get their own copy button (for example, 101–103 and then 105+ if 104 has no tests); alternatively, select any rows and use `Copiază selectați`. Copies contain the six tab-separated bonus totals in numeric order, without testers who have no tests.
 
 Create a free Redis database in Upstash, then add its REST URL and REST token as server-side environment variables in the deployment settings. For local development, add them to the ignored `.env` file. The blank names are included in `.env.example`; never commit actual credentials.
 

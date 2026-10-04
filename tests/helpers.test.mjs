@@ -38,7 +38,7 @@ function extract(name) {
 const catalog = ['Test admitere', 'Test transfer', 'Adeverință medicală', 'Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști'];
 const definitions = Object.fromEntries(catalog.map(n => [n, { name: n, questions: [] }]));
 
-const names = ['callsignNumber', 'bonusTesterCallsign', 'normalizeCallsign', 'cooldownPaymentAmount', 'cooldownPaymentMaxDays', 'cooldownPaymentPayerForCallsign', 'cooldownPaymentMessage', 'isAdmissionChecklistReminder', 'testNameFromHash', 'routeFromLocation', 'validSavedRoute', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberHasTestAccess', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'processedTestGroups', 'processedTestBadgesHtml', 'sortMembers', 'avatarUrlForMember', 'testTagClass', 'gradeGroupFor', 'mergeTestDefinitions', 'admissionChecklistHtml', 'admissionConsentHtml', 'admissionChecksComplete', 'motoChecksComplete', 'pilotLicenseChecklistHtml', 'alsChecklistHtml', 'alsChecksComplete', 'alsCaseListHtml', 'smulsChecklistHtml', 'smulsChecksComplete', 'smulsCaseListHtml', 'memberStatus', 'testerFunctionsForDisplay', 'isTestFailed', 'canUseAdmittedVerdict', 'startVerdictButtonCooldown', 'maxWrongForTest', 'cachedUserWithinSession', 'questionItemHtml', 'evaluationStageHtml', 'parseIdentityCardText', 'mergeIdentityCardDetails', 'displayTestName', 'departmentCalendarDate', 'latestCompleteBonusPeriodIndex', 'activeBonusPeriodIndex', 'bonusPeriodFor'];
+const names = ['callsignNumber', 'bonusTesterCallsign', 'bonusClipboardValues', 'bonusRowGroups', 'normalizeCallsign', 'cooldownPaymentAmount', 'cooldownPaymentMaxDays', 'cooldownPaymentPayerForCallsign', 'cooldownPaymentMessage', 'isAdmissionChecklistReminder', 'testNameFromHash', 'routeFromLocation', 'validSavedRoute', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberHasTestAccess', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'processedTestGroups', 'processedTestBadgesHtml', 'sortMembers', 'avatarUrlForMember', 'testTagClass', 'gradeGroupFor', 'mergeTestDefinitions', 'admissionChecklistHtml', 'admissionConsentHtml', 'admissionChecksComplete', 'motoChecksComplete', 'pilotLicenseChecklistHtml', 'alsChecklistHtml', 'alsChecksComplete', 'alsCaseListHtml', 'smulsChecklistHtml', 'smulsChecksComplete', 'smulsCaseListHtml', 'memberStatus', 'testerFunctionsForDisplay', 'isTestFailed', 'canUseAdmittedVerdict', 'startVerdictButtonCooldown', 'maxWrongForTest', 'cachedUserWithinSession', 'questionItemHtml', 'evaluationStageHtml', 'parseIdentityCardText', 'mergeIdentityCardDetails', 'displayTestName', 'departmentCalendarDate', 'latestCompleteBonusPeriodIndex', 'activeBonusPeriodIndex', 'bonusPeriodFor'];
 const srcs = names.map(extract).join('\n');
 const pattern = source.match(/^const RESIDENT_TESTER_PATTERN = .*$/m)?.[0] || 'const RESIDENT_TESTER_PATTERN = /TESTER/;';
 const normalizeTextSrc = extract('normalizeText');
@@ -49,10 +49,10 @@ const load = new Function(
   'catalog',
   'testDefinitions',
   'testSummaryDefinitions',
-  `${fullSrc}\nreturn { callsignNumber, bonusTesterCallsign, normalizeCallsign, cooldownPaymentAmount, cooldownPaymentMaxDays, cooldownPaymentPayerForCallsign, cooldownPaymentMessage, isAdmissionChecklistReminder, testNameFromHash, routeFromLocation, validSavedRoute, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, processedTestGroups, processedTestBadgesHtml, sortMembers, avatarUrlForMember, testTagClass, gradeGroupFor, mergeTestDefinitions, admissionChecklistHtml, admissionConsentHtml, admissionChecksComplete, motoChecksComplete, pilotLicenseChecklistHtml, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, canUseAdmittedVerdict, startVerdictButtonCooldown, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, departmentCalendarDate, latestCompleteBonusPeriodIndex, activeBonusPeriodIndex, bonusPeriodFor };`,
+  `${fullSrc}\nreturn { callsignNumber, bonusTesterCallsign, bonusClipboardValues, bonusRowGroups, normalizeCallsign, cooldownPaymentAmount, cooldownPaymentMaxDays, cooldownPaymentPayerForCallsign, cooldownPaymentMessage, isAdmissionChecklistReminder, testNameFromHash, routeFromLocation, validSavedRoute, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, processedTestGroups, processedTestBadgesHtml, sortMembers, avatarUrlForMember, testTagClass, gradeGroupFor, mergeTestDefinitions, admissionChecklistHtml, admissionConsentHtml, admissionChecksComplete, motoChecksComplete, pilotLicenseChecklistHtml, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, canUseAdmittedVerdict, startVerdictButtonCooldown, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, departmentCalendarDate, latestCompleteBonusPeriodIndex, activeBonusPeriodIndex, bonusPeriodFor };`,
 )(catalog, definitions, testSummaryDefinitions);
 
-const { callsignNumber, bonusTesterCallsign, normalizeCallsign, cooldownPaymentAmount, cooldownPaymentMaxDays, cooldownPaymentPayerForCallsign, cooldownPaymentMessage, isAdmissionChecklistReminder, testNameFromHash, routeFromLocation, validSavedRoute, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, processedTestGroups, processedTestBadgesHtml, sortMembers, avatarUrlForMember, testTagClass, gradeGroupFor, mergeTestDefinitions, admissionChecklistHtml, admissionConsentHtml, admissionChecksComplete, motoChecksComplete, pilotLicenseChecklistHtml, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, canUseAdmittedVerdict, startVerdictButtonCooldown, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, departmentCalendarDate, latestCompleteBonusPeriodIndex, activeBonusPeriodIndex, bonusPeriodFor } = load;
+const { callsignNumber, bonusTesterCallsign, bonusClipboardValues, bonusRowGroups, normalizeCallsign, cooldownPaymentAmount, cooldownPaymentMaxDays, cooldownPaymentPayerForCallsign, cooldownPaymentMessage, isAdmissionChecklistReminder, testNameFromHash, routeFromLocation, validSavedRoute, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, processedTestGroups, processedTestBadgesHtml, sortMembers, avatarUrlForMember, testTagClass, gradeGroupFor, mergeTestDefinitions, admissionChecklistHtml, admissionConsentHtml, admissionChecksComplete, motoChecksComplete, pilotLicenseChecklistHtml, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, canUseAdmittedVerdict, startVerdictButtonCooldown, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, departmentCalendarDate, latestCompleteBonusPeriodIndex, activeBonusPeriodIndex, bonusPeriodFor } = load;
 
 test('Discord auth preserves the Discord display name, username, and avatar', () => {
   const mapperSource = discordAuthSource.match(/function mapSheetRowToUser\(row, discordUser\) \{[\s\S]*?^\}/m)?.[0];
@@ -848,6 +848,30 @@ test('at most two questions can be marked wrong at once', () => {
 
 test('bonus page shows its fixed corner logo', () => {
   assert.match(source, /class="test-corner-logo bonus-corner-logo" src="\/bonusuri\.png" alt="Sigla Bonusuri"/);
+});
+
+test('bonus selections copy multiple six-column rows and keep numeric display order', () => {
+  const rows = [
+    { callsign: '101', counts: [1, 0, 2, 0, 0, 1] },
+    { callsign: '102', counts: [0, 1, 0, 0, 1, 0] },
+    { callsign: '103', counts: [0, 0, 1, 1, 0, 0] },
+    { callsign: '105', counts: [2, 0, 0, 0, 0, 1] },
+    { callsign: '106', counts: [0, 1, 0, 0, 0, 0] }
+  ];
+
+  assert.equal(
+    bonusClipboardValues(rows.slice(0, 3)),
+    '1\t0\t2\t0\t0\t1\n0\t1\t0\t0\t1\t0\n0\t0\t1\t1\t0\t0'
+  );
+  assert.equal(bonusClipboardValues(rows.slice(3)), '2\t0\t0\t0\t0\t1\n0\t1\t0\t0\t0\t0');
+  assert.deepEqual(
+    bonusRowGroups(rows).map(group => group.map(row => row.callsign)),
+    [['101', '102', '103'], ['105', '106']]
+  );
+  assert.match(source, /\.sort\(\(left, right\) => callsignNumber\(left\.callsign\) - callsignNumber\(right\.callsign\)\)/);
+  assert.match(source, /id="bonus-copy-groups"/);
+  assert.match(source, /id="bonus-copy-selected"/);
+  assert.match(source, /data-bonus-select/);
 });
 
 test('admitted verdicts enforce the mistake limit and verdict buttons cool down for 15 seconds', () => {

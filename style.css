@@ -470,6 +470,13 @@ body.dark-mode .nav-item.active{box-shadow:inset 2px 0 var(--purple)}
 .bonus-period-controls button:disabled{opacity:.45;cursor:not-allowed}
 .bonus-active-period{margin:0 0 14px;padding:10px 12px;border-left:3px solid #2c8c67;background:rgba(43,140,103,.09);font-size:12px}
 .bonus-period-status{min-height:18px;margin:14px 0 8px}
+.bonus-copy-controls{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin:12px 0}
+.bonus-copy-controls label{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:700}
+.bonus-copy-controls button{padding:9px 13px;font-size:11px}
+.bonus-copy-controls button:disabled{opacity:.5;cursor:not-allowed}
+.bonus-copy-controls>span{font-size:11px}
+.bonus-copy-groups{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+.bonus-group-copy{padding:8px 11px;font-size:11px}
 .bonus-table-wrap{max-width:100%;overflow:auto;border:1px solid var(--surface-border);border-radius:5px}
 .bonus-table{width:100%;min-width:850px;border-collapse:collapse;background:var(--surface)}
 .bonus-table th,.bonus-table td{padding:10px 11px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}

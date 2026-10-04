@@ -4,6 +4,7 @@ import { normalize, callsignNumber, isLeadershipRow, LEADERSHIP_MAX, normalizeTe
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:T400';
 const GRANTS_RANGE = process.env.GOOGLE_GRANTS_RANGE || 'GRANTS!A1:F';
+const memberRowsCache = new WeakMap();
 function isLeadership(row) { return isLeadershipRow(row); }
 function authConfig() {
   if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON && !process.env.GOOGLE_APPLICATION_CREDENTIALS) throw new Error('Google Sheets service account is not configured');
@@ -32,11 +33,11 @@ async function ensureGrantsSheet(sheets) {
   }
       grantsSheetEnsured = true;
     }
-async function readValues(sheets, range) {
-  if (range === MEMBER_RANGE && sheets.__memberRows) return sheets.__memberRows;
+export async function readValues(sheets, range) {
+  if (range === MEMBER_RANGE && memberRowsCache.has(sheets)) return memberRowsCache.get(sheets);
   const result = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range });
   const values = Array.isArray(result.data.values) ? result.data.values : [];
-  if (range === MEMBER_RANGE) sheets.__memberRows = values;
+  if (range === MEMBER_RANGE) memberRowsCache.set(sheets, values);
   return values;
 }
 async function readPublicValues(range) {
