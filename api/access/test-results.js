@@ -252,16 +252,14 @@ export function createAdmissionTesterComponents({ testName, testType, testerName
   });
   const admissionType = testType === 'Reintegrare' ? 'Reintegrare' : 'Admitere';
   const title = testName === 'Test transfer' ? 'Test Transfer' : `Test ${admissionType}`;
-  const candidateDetails = `## ${title}\n**👨‍⚕️ Tester**\n${discordMention(testerDiscordId, testerName)}\n**🧑‍⚕️ Candidat**\n${candidateName || '—'}\n**🆔 ID**\n${candidateId || '—'}`;
-  const callsignDetails = `**📟 Callsign**\n${result === 'Admis' && candidateCallsign ? candidateCallsign : '—'}`;
-  const resultDetails = `**🏁 Rezultat**\n${result === 'Admis' ? '✅ Admis' : result === 'Respins' ? '❌ Respins' : result || '—'}`;
+  const resultDetails = `${result === 'Admis' && candidateCallsign ? `**📟 Callsign:** ${candidateCallsign}\n` : ''}**🏁 Rezultat**\n${result === 'Admis' ? '✅ Admis' : result === 'Respins' ? '❌ Respins' : result || '—'}`;
   const roleMentions = admissionRoleMentions(result).map(id => `<@&${id}>`).join(' ');
   return [{
     type: 17,
     accent_color: SITE_BRAND_EMBED_COLOR,
     components: [
-      section(candidateDetails, 'buletin-candidat.jpg', 'Buletin candidat'),
-      section(callsignDetails, 'fisa-medicala.jpg', 'Fișă medicală'),
+      section(`## ${title}\n**👨‍⚕️ Tester**\n${discordMention(testerDiscordId, testerName)}`, 'buletin-candidat.jpg', 'Buletin candidat'),
+      section(`**🧑‍⚕️ Candidat**\n${candidateName || '—'}\n**🆔 ID:** ${candidateId || '—'}`, 'fisa-medicala.jpg', 'Fișă medicală'),
       section(resultDetails, 'drug-test.jpg', 'Drug-test')
     ]
   }, { type: 10, content: roleMentions }];

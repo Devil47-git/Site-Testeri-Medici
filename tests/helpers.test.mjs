@@ -1022,14 +1022,14 @@ test('admission Discord message aligns each photo with its text in one container
   assert.deepEqual(admission.fields.map(field => field.name), ['Nume Tester', 'Nume Candidat', 'Rezultat']);
   const [container, roleMentions] = createAdmissionTesterComponents(details);
   assert.equal(container.type, 17);
-  assert.equal(container.components.length, 4);
-  assert.deepEqual(container.components.map(component => component.type), [9, 9, 9, 10]);
+  assert.equal(container.components.length, 3);
+  assert.deepEqual(container.components.map(component => component.type), [9, 9, 9]);
   assert.match(container.components[0].components[0].content, /Test Admitere\n\*\*[^\n]*Tester\*\*\n\*\*Tester\*\*/);
   assert.match(createAdmissionTesterComponents({ ...details, testerDiscordId: '123' })[0].components[0].components[0].content, /Tester\*\*\n<@123>/);
   assert.equal(container.components[0].accessory.media.url, 'attachment://buletin-candidat.jpg');
-  assert.match(container.components[0].components[0].content, /\*\*[^\n]*Candidat\*\*\nCandidat\n\*\*[^\n]*ID\*\*\n12345/);
+  assert.match(container.components[1].components[0].content, /\*\*[^\n]*Candidat\*\*\nCandidat\n\*\*[^\n]*ID:\*\* 12345/);
   assert.equal(container.components[1].accessory.media.url, 'attachment://fisa-medicala.jpg');
-  assert.match(container.components[1].components[0].content, /Callsign[\s\S]*—/);
+  assert.doesNotMatch(container.components[2].components[0].content, /Callsign/);
   assert.equal(container.components[2].accessory.media.url, 'attachment://drug-test.jpg');
   assert.match(container.components[2].components[0].content, /Rezultat[\s\S]*Respins/);
   assert.equal(roleMentions.type, 10);
@@ -1045,8 +1045,7 @@ test('admission Discord message aligns each photo with its text in one container
   assert.match(testResultsSource, /testName === 'Test admitere' \|\| testName === 'Test transfer'/);
   assert.match(testResultsSource, /admissionDetails = \{ testName, candidateName, candidateId, candidateCallsign, result, identityImage, medicalSheetImage, drugTestImage \}/);
   const admitted = createAdmissionTesterComponents({ ...details, candidateCallsign: 'M-302', result: 'Admis' });
-  assert.match(admitted[0].components[1].components[0].content, /Callsign\*\*\nM-302/);
-  assert.match(admitted[0].components[2].components[0].content, /Rezultat[\s\S]*Admis/);
+  assert.match(admitted[0].components[2].components[0].content, /Callsign:\*\* M-302\n\*\*[^\n]*Rezultat\*\*\n[^\n]*Admis/);
   assert.equal((admitted[1].content.match(/<@&\d+>/g) || []).length, 2);
   const transfer = createAdmissionTesterComponents({ ...details, testName: 'Test transfer', result: 'Admis' });
   assert.match(transfer[0].components[0].components[0].content, /Test Transfer/);
