@@ -1093,6 +1093,19 @@ test('admission and transfer keep the assigned callsign next to the candidate id
   assert.match(source, /const candidateDetails = isApplicationTest \? admissionCandidateDetailsHtml\(\)/);
 });
 
+test('non-leadership keeps the whole tester directory visible', () => {
+  // Regression: the Testeri page showed a single member (the viewer) until a
+  // refresh happened to re-render the previously loaded list.
+  const viewer = { discordId: 'me', callsign: '208', csNum: 208, name: 'Marko Santana', functions: 'TESTER', grantedTests: coreTests };
+  const other = { discordId: 'other', callsign: '310', csNum: 310, name: 'Altfel Tester', functions: 'TESTER | MOTO', grantedTests: [] };
+  for (const member of [viewer, other]) {
+    assert.ok(memberIsTester(member), `${member.callsign} must be listed as a tester`);
+  }
+  // The list must be built from the directory, not reduced to the viewer's grant.
+  assert.match(source, /directoryMembers\.length \? directoryMembers : \[currentUser\]/);
+  assert.doesNotMatch(source, /testers = ownGrant \? \[\{ \.\.\.currentUser, \.\.\.ownGrant/);
+});
+
 test('statistics TESTER card matches the height of the other test cards', () => {
   const stylesheet = readFileSync(join(here, '..', 'style.css'), 'utf8');
   // The visible card is the <summary> inside the <details> wrapper. Stretching
@@ -1126,17 +1139,20 @@ test('statistics TESTER card matches the height of the other test cards', () => 
   assert.match(stylesheet, /\.statistics-test-bundle\[open\]>summary\{[^}]*flex:none/);
 });
 
-test('Google Vision OCR is proxied through the server and never inlined in the client', () => {
+test('identity card OCR is proxied through the server and never inlined in the client', () => {
   // The API key must stay server-side; a key in the browser is a leaked key.
-  assert.doesNotMatch(readFileSync(join(here, '..', 'script.js'), 'utf8'), /vision\.googleapis\.com|AIza/);
+  const client = readFileSync(join(here, '..', 'script.js'), 'utf8');
+  assert.doesNotMatch(client, /api\.ocr\.space|vision\.googleapis\.com|AIza|K8865/);
   assert.match(serverSource, /\/api\/identity-ocr/);
-  assert.match(serverSource, /process\.env\.GOOGLE_VISION_API_KEY/);
-  // The endpoint demands a session and same-origin, like every other write.
+  assert.match(serverSource, /OCRSPACE_API_KEY/);
   const ocrHandler = serverSource.match(/async function handleIdentityOcr\([\s\S]*?\n\}/)?.[0] || '';
   assert.match(ocrHandler, /requireSession\(req\)/);
   assert.match(ocrHandler, /sameOrigin\(req\)/);
   assert.match(ocrHandler, /applyRateLimit/);
-  assert.match(ocrHandler, /DOCUMENT_TEXT_DETECTION/);
+  assert.match(ocrHandler, /api\.ocr\.space\/parse\/image/);
+  assert.match(ocrHandler, /base64Image/);
+  // The key must never be written into a tracked file.
+  assert.doesNotMatch(readFileSync(join(here, '..', '.env.example'), 'utf8'), /K8865\d+/);
 });
 
 test('identity card OCR never fills the fields with hologram noise', () => {

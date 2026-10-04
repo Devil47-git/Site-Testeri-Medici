@@ -173,32 +173,28 @@ async function handleIdentityOcr(req, res) {
   if (!applyRateLimit(req, res, 'identity-ocr', 20, 60 * 1000)) return;
   const auth = requireSession(req);
   if (!auth) return json(res, 401, { error: 'Autentificare necesară' });
-  const apiKey = process.env.GOOGLE_VISION_API_KEY;
-  if (!apiKey) return json(res, 503, { error: 'Google Vision nu este configurat.' });
+  const apiKey = process.env.OCRSPACE_API_KEY || 'K88652300388957';
   let payload;
   try { payload = await readJsonBody(req); } catch (e) { return json(res, e.statusCode || 400, { error: 'Date invalide' }); }
-  const image = String(payload?.image || '');
-  // Vision accepts at most ~10 MB of base64; anything larger is rejected.
-  if (!image || image.length > 14e6) return json(res, 400, { error: 'Imaginea este prea mare.' });
-  const vision = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${encodeURIComponent(apiKey)}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      requests: [{
-        image: { content: image },
-        features: [{ type: 'DOCUMENT_TEXT_DETECTION', maxResults: 30 }]
-      }]
-    })
-  });
-  const data = await vision.json().catch(() => null);
-  if (!vision.ok) {
-    const message = data?.error?.message || 'Google Vision a refuzat cererea.';
-    return json(res, vision.status === 429 ? 429 : 502, { error: message });
+  const base64 = String(payload?.image || '');
+  if (!base64 || base64.length > 10e6) return json(res, 400, { error: 'Imaginea este prea mare.' });
+  // OCR.space takes a multipart upload with the raw base64 in `base64Image`.
+  const form = new FormData();
+  form.append('base64Image', `data:image/jpeg;base64,${base64}`);
+  form.append('apikey', apiKey);
+  form.append('language', 'eng');          // Latin script covers Romanian names
+  form.append('isOverlayRequired', 'false');
+  form.append('OCREngine', '2');           // engine 2 reads dense identity cards well
+  form.append('scale', 'true');
+  const upstream = await fetch('https://api.ocr.space/parse/image', { method: 'POST', body: form });
+  const data = await upstream.json().catch(() => null);
+  if (!upstream.ok) {
+    return json(res, upstream.status === 429 ? 429 : 502, { error: data?.ErrorMessage || 'OCR.space a refuzat cererea.' });
   }
-  const annotation = data?.responses?.[0];
-  const text = annotation?.fullTextAnnotation?.text
-    || annotation?.textAnnotations?.map(item => item.description).join('\n')
-    || '';
+  if (data?.IsErroredOnProcessing) {
+    return json(res, 502, { error: data.ErrorMessage?.[0] || 'OCR.space nu a putut citi imaginea.' });
+  }
+  const text = String(data?.ParsedResults?.[0]?.ParsedText || '');
   return json(res, 200, { text });
 }
 

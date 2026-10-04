@@ -116,7 +116,23 @@ async function loadRemoteGrants() {
     currentUser.grantedTests = currentUser.grantMode === 'override'
       ? (ownGrant?.grantedTests || currentUser.grantedTests || [])
       : normalizeGrantBundle([...(currentUser.grantedTests || []), ...(ownGrant?.grantedTests || [])]);
-    testers = ownGrant ? [{ ...currentUser, ...ownGrant, grantMode: currentUser.grantMode, grantedTests: currentUser.grantedTests }] : [];
+    // Non-leadership keeps the directory populated: previously this replaced the
+    // whole list with a single entry (the viewer themselves), so the Testeri page
+    // showed one member until a refresh happened to re-render the old list.
+    testers = (directoryMembers.length ? directoryMembers : [currentUser])
+      .filter(member => String(member?.name || '').trim() && (member.isTester || memberIsTester(member)))
+      .map(member => {
+        const grant = grantsPayload.find(item => item.discordId === member.discordId);
+        const isSelf = member.discordId === currentUser.discordId;
+        const base = isSelf ? { ...member, ...currentUser } : member;
+        const granted = member.grantMode === 'override'
+          ? (grant?.grantedTests || member.grantedTests || [])
+          : normalizeGrantBundle([...(member.grantedTests || []), ...docsAssignedTests(member), ...(grant?.grantedTests || [])]);
+        return { ...base, grantMode: member.grantMode || '', grantedTests: granted };
+      });
+    if (!testers.some(member => member.discordId === currentUser.discordId) && String(currentUser.name || '').trim()) {
+      testers = [{ ...currentUser, grantedTests: currentUser.grantedTests }, ...testers];
+    }
   }
   applyGrantsState();
 }
@@ -1293,9 +1309,9 @@ function admissionCandidateSummary(result) {
   summary.push(`Rezultat: ${result}`);
   return summary.join('\n');
 }
-// Reads the card through our own server, which calls Google Cloud Vision.
+// Reads the card through our own server, which calls OCR.space.
 // The API key never reaches the browser. Falls back to local Tesseract when the
-// key is not configured or the request fails.
+// request fails, so the feature keeps working without the service.
 async function readIdentityCardWithVision(file) {
   const dataUrl = await encodeIdentityPhoto(file, 1400 * 1024);
   const image = String(dataUrl).split(',')[1] || '';
@@ -1306,11 +1322,11 @@ async function readIdentityCardWithVision(file) {
   });
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
-    throw new Error(payload.error || 'Google Vision nu a putut citi imaginea.');
+    throw new Error(payload.error || 'OCR nu a putut citi imaginea.');
   }
   const payload = await response.json().catch(() => null);
   const text = String(payload?.text || '');
-  if (!text.trim()) throw new Error('Google Vision nu a găsit text pe imagine.');
+  if (!text.trim()) throw new Error('OCR nu a găsit text pe imagine.');
   return text;
 }
 let identityOcrLibraryPromise;
@@ -1363,15 +1379,15 @@ function plausibleIdentityDetails(details) {
   return safe;
 }
 async function readIdentityCard(file) {
-  // Google Cloud Vision first: far more accurate on the low-contrast staff cards
-  // than browser OCR. Tesseract remains as the fallback so the feature keeps
-  // working when no Vision key is configured.
+  // OCR.space first: far more accurate on the low-contrast staff cards than
+  // browser OCR. Tesseract remains as the fallback so the feature keeps working
+  // when the service is unreachable.
   let visionError = null;
   try {
     const text = await readIdentityCardWithVision(file);
     const details = plausibleIdentityDetails(parseIdentityCardText(text));
     if (details.lastName || details.firstName) return { ...parseIdentityCardText(text), ...details };
-    visionError = new Error('Google Vision nu a returnat un numine lizibil.');
+    visionError = new Error('OCR nu a returnat un nume lizibil.');
   } catch (error) {
     visionError = error;
   }
