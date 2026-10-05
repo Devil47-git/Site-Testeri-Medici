@@ -35,6 +35,8 @@ Test pages save entered fields and answers per tester/test. Staged tests also re
 
 Specialty-test candidates are checked against column S in `LISTA DEPARTAMENT`. Supported entries include SMULS (including T/P), Parasutist, Moto, Pilot, ALS, BLS, Radio, and Rezidentiat aliases. A candidate can take the test starting at 00:00 on the written expiry date in `Europe/Bucharest`.
 
+When a candidate is marked `Respins` on a specialty test, the result flow automatically appends that test's cooldown expiry to column S and includes the date in its Discord result notification. ALS uses 3 calendar days; SMULS, Moto, Pilot, and Parasutism use 5 calendar days. Passing a test does not add a cooldown.
+
 The `Bonusuri` page is leadership-only. It shows the active 14-day period, anchored on 21 September 2026, plus a tester-callsign-sorted table of Pilot, Moto, combined admission/transfer, medical-certificate, ALS, and SMULS totals. Each row copies only those six tab-separated totals for pasting into the matching sheet columns.
 
 The tester statistics list also includes lifetime `Teste Procesate` badges for each assigned test function. The API creates a separate `TEST_LIFETIME` sheet, imports existing `TEST_HISTORY` entries once, and appends each new result there. Resetting current test counts clears only `TEST_HISTORY`; lifetime totals remain intact.

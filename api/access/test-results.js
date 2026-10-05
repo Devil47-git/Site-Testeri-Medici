@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { catalog, callsignNumber, candidateForCallsign, effectiveTestsForMember, functionsForMember, isLeadershipRow, normalizeTests } from '../../lib/access/shared.js';
-import { cooldownIsActive, parseCooldownS } from '../../lib/access/cooldowns.js';
+import { cooldownIsActive, failedTestCooldownExpiry, parseCooldownS } from '../../lib/access/cooldowns.js';
 import { UpstashRedis } from '../../lib/storage/upstash-redis.js';
 import { addBonusEntries, BONUS_TEST_NAMES, clearBonusEntries, importLegacyBonusEntries, listBonusEntries } from '../../lib/access/bonus-store.js';
 import { LIFETIME_HISTORY_HEADER, lifetimeRowForNewResult, lifetimeRowsToAppend, lifetimeTestCounts } from '../../lib/access/lifetime-test-history.js';
@@ -300,31 +300,35 @@ function discordMention(discordId, fallbackName) {
   return /^\d+$/.test(id) ? `<@${id}>` : `**${fallbackName || '—'}**`;
 }
 
-export function createAlsResultEmbed({ testerName, testerDiscordId, candidateName, candidateDiscordId, result }) {
+export function createAlsResultEmbed({ testerName, testerDiscordId, candidateName, candidateDiscordId, result, cooldownExpiry = '' }) {
+  const fields = [
+    { name: '👨‍⚕️ Tester', value: discordMention(testerDiscordId, testerName), inline: false },
+    { name: '🧑‍⚕️ Candidat', value: discordMention(candidateDiscordId, candidateName), inline: false },
+    { name: '🏁 Rezultat', value: result === 'Admis' ? '✅ **Admis**' : result === 'Respins' ? '❌ **Respins**' : result || '—', inline: false }
+  ];
+  if (result === 'Respins' && cooldownExpiry) fields.push({ name: '⏳ Cooldown', value: `Până pe **${cooldownExpiry}**`, inline: false });
   return {
     title: 'Test ALS',
     color: SITE_BRAND_EMBED_COLOR,
     author: { name: 'Sub-Departamentul Testerilor' },
-    fields: [
-      { name: '👨‍⚕️ Tester', value: discordMention(testerDiscordId, testerName), inline: false },
-      { name: '🧑‍⚕️ Candidat', value: discordMention(candidateDiscordId, candidateName), inline: false },
-      { name: '🏁 Rezultat', value: result === 'Admis' ? '✅ **Admis**' : result === 'Respins' ? '❌ **Respins**' : result || '—', inline: false }
-    ],
+    fields,
     footer: { text: 'Rezultat oficial · DMLS' },
     timestamp: new Date().toISOString()
   };
 }
 
-export function createSpecialtyResultEmbed({ testName, testerName, testerDiscordId, candidateName, candidateDiscordId, result }) {
+export function createSpecialtyResultEmbed({ testName, testerName, testerDiscordId, candidateName, candidateDiscordId, result, cooldownExpiry = '' }) {
+  const fields = [
+    { name: '👨‍⚕️ Tester', value: discordMention(testerDiscordId, testerName), inline: false },
+    { name: '🧑‍⚕️ Candidat', value: discordMention(candidateDiscordId, candidateName), inline: false },
+    { name: '🏁 Rezultat', value: result === 'Admis' ? '✅ **Admis**' : result === 'Respins' ? '❌ **Respins**' : result || '—', inline: false }
+  ];
+  if (result === 'Respins' && cooldownExpiry) fields.push({ name: '⏳ Cooldown', value: `Până pe **${cooldownExpiry}**`, inline: false });
   return {
     title: testName === 'Test PILOT' ? `${testName} 🚁`     : testName === 'Test parașutiști' ? 'Test Parasutism' : testName,
     color: SITE_BRAND_EMBED_COLOR,
     author: { name: 'Sub-Departamentul Testerilor' },
-    fields: [
-      { name: '👨‍⚕️ Tester', value: discordMention(testerDiscordId, testerName), inline: false },
-      { name: '🧑‍⚕️ Candidat', value: discordMention(candidateDiscordId, candidateName), inline: false },
-      { name: '🏁 Rezultat', value: result === 'Admis' ? '✅ **Admis**' : result === 'Respins' ? '❌ **Respins**' : result || '—', inline: false }
-    ],
+    fields,
     footer: { text: 'Rezultat oficial · DMLS' },
     timestamp: new Date().toISOString()
   };
@@ -449,14 +453,28 @@ export default async function handler(req, res) {
         const candidateRows = (await readValues(sheets, MEMBER_RANGE)).slice(1).filter(Array.isArray);
         const candidate = candidateForCallsign(candidateRows, candidateCallsign);
         if (!candidate) return json(res, 404, { error: 'Nu a fost găsit un candidat cu acest callsign în coloana C.' });
-        const candidateRow = candidateRows.find(row => callsignNumber(row[2]) === callsignNumber(candidateCallsign));
+        const candidateIndex = candidateRows.findIndex(row => callsignNumber(row[2]) === callsignNumber(candidateCallsign));
+        const candidateRow = candidateRows[candidateIndex];
         const cooldowns = parseCooldownS(candidateRow?.[18] || '');
         if (cooldownIsActive(cooldowns, testName)) {
           const expiry = new Date(cooldowns[testName]);
           const expiryDate = expiry.toLocaleDateString('ro-RO', { timeZone: 'Europe/Bucharest', day: '2-digit', month: '2-digit', year: 'numeric' });
           return json(res, 403, { error: `Candidatul are CD activ la ${testName} până pe ${expiryDate}. Testarea este oprită.` });
         }
-        specialtyDetails = specialtyNotificationDetails(candidate, result);
+        const cooldownExpiry = result === 'Respins' ? failedTestCooldownExpiry(testName) : '';
+        specialtyDetails = { ...specialtyNotificationDetails(candidate, result), cooldownExpiry };
+        if (cooldownExpiry) {
+          const existingCooldowns = String(candidateRow[18] || '').trim();
+          const cooldownLabel = testName.replace(/^Test\s+/i, '');
+          const cooldownValue = `${existingCooldowns ? `${existingCooldowns} / ` : ''}${cooldownLabel} ${cooldownExpiry}`;
+          const memberSheetRange = MEMBER_RANGE.slice(0, MEMBER_RANGE.lastIndexOf('!'));
+          await sheets.spreadsheets.values.update({
+            spreadsheetId: SHEET_ID,
+            range: `${memberSheetRange}!S${candidateIndex + 2}`,
+            valueInputOption: 'RAW',
+            requestBody: { values: [[cooldownValue]] }
+          });
+        }
       }
       if (testName === 'Adeverință medicală') {
         const details = {

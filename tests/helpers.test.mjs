@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path';
 import { accessFor, candidateForCallsign, catalog as accessCatalog, coreTests, effectiveTestsForMember, functionsForMember, isLeadership, normalizeTests, testsForFunctions } from '../lib/access/shared.js';
 import { canResetTestCounts, discordTesterMentionPayload, createAdmissionEmbed, createAdmissionTesterComponents, webhookComponentsUrl, createAlsResultEmbed, createSpecialtyResultEmbed, specialtyNotificationDetails, createMedicalCertificateEmbeds, medicalCertificateNumberForRow, bonusEntryFromRow } from '../api/access/test-results.js';
 import { cooldownPayersFromRows, statusFromRow } from '../api/access/directory.js';
-import { cooldownIsActive, parseCooldownS } from '../lib/access/cooldowns.js';
+import { cooldownIsActive, failedTestCooldownExpiry, parseCooldownS } from '../lib/access/cooldowns.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const scriptSource = readFileSync(join(here, '..', 'script.js'), 'utf8');
@@ -282,14 +282,37 @@ test('cooldown payment model calculates daily rates and formats a Discord mentio
   assert.equal(cooldownPaymentAmount('PILOT', 6), null);
   assert.equal(cooldownPaymentAmount('ALS', 0), null);
   assert.equal(cooldownPaymentAmount('UNKNOWN', 3), null);
+  assert.match(styleSource, /\.parachutism-photo-grid\{display:grid/);
   const directory = [member, { ...member, callsign: 'M-199' }];
   assert.equal(cooldownPaymentPayerForCallsign('M-507', directory), member);
   assert.equal(cooldownPaymentPayerForCallsign('M-199', directory), directory[1]);
   assert.equal(
     cooldownPaymentMessage(member, 'ALS', 3),
-    'CANDIDAT: @[M-507] Cartier Mohammed\nGrad: Brancardier\nCalificare: ALS\nNr. zile: 3\nSuma: 90.000$'
+    'CANDIDAT: <@123456789>\nGrad: Brancardier\nCalificare: ALS\nNr. zile: 3\nSuma: 90.000$'
   );
-  assert.equal(cooldownPaymentMessage({ ...member, callsign: 'M-007' }, 'ALS', 3), 'CANDIDAT: @[M-007] Cartier Mohammed\nGrad: Brancardier\nCalificare: ALS\nNr. zile: 3\nSuma: 90.000$');
+  assert.equal(cooldownPaymentMessage({ ...member, callsign: 'M-007' }, 'ALS', 3), 'CANDIDAT: <@123456789>\nGrad: Brancardier\nCalificare: ALS\nNr. zile: 3\nSuma: 90.000$');
+});
+
+test('parachutism photos are equal-sized thumbnails that open in the image viewer', () => {
+  assert.match(styleSource, /\.parachutism-photo-slot\{[^}]*aspect-ratio:4\/3/);
+  assert.match(styleSource, /\.parachutism-photo-slot img\{[^}]*cursor:zoom-in/);
+  assert.match(styleSource, /\.view-panel img:not\(\.test-corner-logo\)\{cursor:zoom-in\}/);
+  assert.match(source, /IMAGE_VIEWER_TRIGGER_SELECTOR = '\.view-panel img:not\(\.test-corner-logo\)'/);
+  assert.match(source, /openImageViewer\(testImage\.currentSrc \|\| testImage\.src, testImage\.alt\)/);
+  assert.match(styleSource, /\.cooldown-payment-panel \.cooldown-payment-grid select\{border:1px solid var\(--surface-border\);border-radius:6px;box-shadow:none\}/);
+});
+
+test('failed specialty tests set their cooldown expiry dates automatically', () => {
+  const now = new Date('2026-10-05T09:00:00.000Z');
+  assert.equal(failedTestCooldownExpiry('Test ALS', now), '08.10.2026');
+  for (const testName of ['Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști']) {
+    assert.equal(failedTestCooldownExpiry(testName, now), '10.10.2026');
+  }
+  assert.equal(failedTestCooldownExpiry('Test admitere', now), '');
+  assert.match(testResultsSource, /result === 'Respins' \? failedTestCooldownExpiry\(testName\) : ''/);
+  assert.match(testResultsSource, /range: `\$\{memberSheetRange\}!S\$\{candidateIndex \+ 2\}`/);
+  assert.match(testResultsSource, /cooldownLabel\} \$\{cooldownExpiry\}/);
+  assert.match(testResultsSource, /if \(result === 'Respins' && cooldownExpiry\) fields\.push\(\{ name: '⏳ Cooldown', value: `Până pe \*\*\$\{cooldownExpiry\}\*\*`/);
 });
 
 test('cooldown payer lookup supports any department callsign', () => {
@@ -1302,6 +1325,8 @@ test('ALS result embed contains tester, candidate, callsign, and verdict', () =>
   assert.deepEqual(embed.fields.slice(0, 2).map(field => field.value), ['<@111>', '<@222>']);
   assert.equal(embed.fields[2].value, '❌ **Respins**');
   assert.equal(embed.footer.text, 'Rezultat oficial · DMLS');
+  const failedEmbed = createAlsResultEmbed({ testerName: 'Tester', testerDiscordId: '111', candidateName: 'Candidat', candidateDiscordId: '222', result: 'Respins', cooldownExpiry: '08.10.2026' });
+  assert.deepEqual(failedEmbed.fields.at(-1), { name: '⏳ Cooldown', value: 'Până pe **08.10.2026**', inline: false });
 });
 
 test('specialty result embeds contain tester, candidate, callsign, and verdict', () => {
@@ -1313,6 +1338,8 @@ test('specialty result embeds contain tester, candidate, callsign, and verdict',
   assert.deepEqual(embed.fields.slice(0, 2).map(field => field.value), ['<@111>', '<@222>']);
   assert.equal(embed.fields[2].value, '✅ **Admis**');
   assert.equal(embed.footer.text, 'Rezultat oficial · DMLS');
+  const failedEmbed = createSpecialtyResultEmbed({ testName: 'Test PILOT', testerName: 'Tester', testerDiscordId: '111', candidateName: 'Candidat', candidateDiscordId: '222', result: 'Respins', cooldownExpiry: '10.10.2026' });
+  assert.deepEqual(failedEmbed.fields.at(-1), { name: '⏳ Cooldown', value: 'Până pe **10.10.2026**', inline: false });
 });
 
 test('specialty notification payload maps the candidate sheet callsign to the Discord embed field', () => {

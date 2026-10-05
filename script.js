@@ -2783,7 +2783,7 @@ if (logoutButton) {
 
 // ===== Vizualizator de imagini pentru testele cu fotografii =====
 /** @type {string} */
-var IMAGE_VIEWER_TRIGGER_SELECTOR = '.evaluation-stage-image-slot img,.parachutism-photo-slot img,.smuls-case-image-slot img,.test-image-preview img,.test-map-column img,.evaluation-stage-images img';
+var IMAGE_VIEWER_TRIGGER_SELECTOR = '.view-panel img:not(.test-corner-logo)';
 var imageViewer = document.querySelector('#image-viewer');
 var imageViewerImage = document.querySelector('#image-viewer-image');
 var imageViewerClose = document.querySelector('#image-viewer-close');
