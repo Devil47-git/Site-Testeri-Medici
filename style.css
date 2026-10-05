@@ -493,33 +493,56 @@ body.dark-mode .nav-item.active{box-shadow:inset 2px 0 var(--purple)}
 .bonus-table tbody tr:last-child td{border-bottom:0}
 .bonus-row-copy{padding:7px 10px;font-size:11px;white-space:nowrap}
 @media(max-width:620px){.bonus-panel{padding:16px}.bonus-panel>.panel-head{align-items:flex-start;gap:12px}.bonus-active-period{line-height:1.5}}
-.cooldown-payment-panel{max-width:850px;margin:0 auto;padding:24px}
-.cooldown-payment-panel>.panel-head{margin-bottom:22px}
-.cooldown-payment-panel>.panel-head h2{margin:0;font-size:20px}
-.cooldown-payment-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
-.cooldown-payment-grid label,.cooldown-payment-model-label{display:grid;gap:7px;color:var(--surface-text);font-size:11px;font-weight:700}
-.cooldown-payment-grid input,.cooldown-payment-grid select,.cooldown-payment-model-label textarea{width:100%;min-width:0;border:1px solid var(--surface-border);border-radius:6px;padding:10px 11px;background:var(--surface);color:var(--ink);font:13px 'DM Sans',sans-serif}
-.cooldown-callsign-input{display:flex;align-items:center;min-width:0;border:1px solid var(--surface-border);border-radius:6px;background:var(--surface);color:var(--ink);font:13px 'DM Sans',sans-serif}
-.cooldown-callsign-input>span{padding:10px 0 10px 11px;color:var(--muted)}
-.cooldown-callsign-input input{border:0;background:transparent}
+.cooldown-payment-panel{max-width:1120px;width:100%;margin:0 auto;padding:30px;box-shadow:0 12px 36px rgba(14,34,66,.12)}
+.cooldown-payment-panel>.panel-head{align-items:center;justify-content:flex-start;gap:18px;margin-bottom:28px}
+.cooldown-payment-heading-icon{display:grid;place-items:center;width:62px;height:62px;flex:none;border:1px solid rgba(43,140,255,.48);border-radius:16px;background:linear-gradient(145deg,rgba(43,140,255,.18),rgba(255,45,61,.12));color:#398df0;box-shadow:0 0 18px rgba(43,140,255,.2),inset 0 0 15px rgba(255,255,255,.08)}
+.cooldown-payment-heading-icon svg{width:38px;height:38px;overflow:visible;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.cooldown-payment-heading-icon .cooldown-payment-pulse{stroke:#e34a58;stroke-width:2.3}
+.cooldown-payment-heading .eyebrow{margin-bottom:6px;color:var(--purple)}
+.cooldown-payment-heading h2{margin:0;font-size:24px}
+.cooldown-payment-heading .muted{max-width:760px;margin-top:6px;line-height:1.6}
+.cooldown-payment-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}
+.cooldown-payment-grid label,.cooldown-payment-model-label{display:grid;gap:9px;color:var(--surface-text);font-size:12px;font-weight:700}
+.cooldown-field-label{display:flex;align-items:center;gap:8px;min-height:20px;color:var(--surface-text)}
+.cooldown-field-label svg{width:17px;height:17px;flex:none;fill:none;stroke:var(--purple);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.cooldown-payment-grid input,.cooldown-payment-grid select,.cooldown-payment-model-label textarea{width:100%;min-width:0;border:1px solid var(--surface-border);border-radius:8px;padding:12px 14px;background:var(--surface);color:var(--ink);font:14px 'DM Sans',sans-serif;transition:border-color .16s ease,box-shadow .16s ease}
+.cooldown-payment-grid input,.cooldown-payment-grid select{height:54px}
+.cooldown-callsign-input{display:flex;align-items:center;min-width:0;height:54px;border:1px solid var(--surface-border);border-radius:8px;background:var(--surface);color:var(--ink);font:14px 'DM Sans',sans-serif;transition:border-color .16s ease,box-shadow .16s ease}
+.cooldown-callsign-input>span{padding:10px 0 10px 14px;color:var(--muted);font-weight:700}
+.cooldown-callsign-input input{height:100%;border:0;background:transparent}
 .cooldown-callsign-input input:focus{outline:0}
-.cooldown-callsign-input:focus-within{outline:2px solid var(--purple);outline-offset:1px}
-.cooldown-payment-grid input:focus,.cooldown-payment-grid select:focus,.cooldown-payment-model-label textarea:focus{outline:2px solid var(--purple);outline-offset:1px}
+.cooldown-callsign-input:focus-within,.cooldown-payment-grid input:focus,.cooldown-payment-grid select:focus,.cooldown-payment-model-label textarea:focus{outline:0;border-color:var(--purple);box-shadow:0 0 0 3px rgba(43,140,255,.16)}
 .cooldown-payment-panel .cooldown-payment-grid select{border:1px solid var(--surface-border);border-radius:6px;box-shadow:none}
 .cooldown-callsign-input input:focus{outline:0;box-shadow:none}
-.cooldown-payer-status{min-height:18px;margin:14px 0}
-.cooldown-payer-details{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin:0 0 20px;padding:14px;border:1px solid var(--surface-border);border-radius:7px;background:var(--surface-alt)}
+.cooldown-payment-grid select:focus{border-color:var(--purple);box-shadow:0 0 0 3px rgba(43,140,255,.16)!important}
+.cooldown-payer-status{min-height:20px;margin:16px 0 12px;padding-left:2px;font-size:12px}
+.cooldown-payer-details{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:14px;margin:0 0 22px;padding:17px;border:1px solid var(--surface-border);border-radius:9px;background:var(--surface-alt)}
 .cooldown-payer-details[hidden]{display:none}
 .cooldown-payer-details div{min-width:0}
-.cooldown-payer-details dt{font-size:9px;font-weight:700;letter-spacing:.7px;color:var(--muted)}
-.cooldown-payer-details dd{margin:5px 0 0;overflow-wrap:anywhere;font-weight:700;color:var(--ink)}
-.cooldown-payment-model-label{margin-top:18px}
-.cooldown-payment-model-label textarea{min-height:142px;resize:vertical;font:12px/1.6 ui-monospace,Consolas,monospace}
-.cooldown-payment-actions{display:flex;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap}
-.cooldown-payment-actions .primary{min-height:38px}
+.cooldown-payer-details dt{font-size:10px;font-weight:700;letter-spacing:.7px;color:var(--muted)}
+.cooldown-payer-details dd{margin:6px 0 0;overflow-wrap:anywhere;font-weight:700;color:var(--ink)}
+.cooldown-payment-model-label{margin-top:20px}
+.cooldown-payment-model-label textarea{min-height:190px;resize:vertical;font:13px/1.7 ui-monospace,Consolas,monospace}
+.cooldown-payment-model-label textarea::placeholder{color:var(--muted);opacity:.8}
+.cooldown-payment-actions{display:flex;align-items:center;gap:12px;margin-top:16px;flex-wrap:wrap}
+.cooldown-payment-actions button{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 17px;border-radius:8px;font-size:12px}
+.cooldown-payment-actions .primary{background:linear-gradient(110deg,#245ab1,#387dcc);box-shadow:0 5px 16px rgba(36,90,177,.25)}
+.cooldown-payment-actions .primary:hover{background:linear-gradient(110deg,#1d4e9d,#286db9)}
 .cooldown-payment-actions .primary:disabled{opacity:.5;cursor:not-allowed}
-.cooldown-payment-note{margin:18px 0 0;color:var(--muted);font-size:11px;line-height:1.6}
-@media(max-width:620px){.cooldown-payment-panel{padding:16px}.cooldown-payment-grid{grid-template-columns:1fr}}
+.cooldown-payment-actions .outline{border-color:var(--surface-border);background:var(--surface);color:var(--surface-text)}
+.cooldown-payment-actions .outline:hover{border-color:var(--purple);color:var(--purple)}
+.cooldown-payment-actions .muted{margin:0;font-size:11px}
+.cooldown-payment-note{display:flex;align-items:flex-start;gap:9px;margin:22px 0 0;padding:13px 15px;border:1px solid rgba(43,140,255,.25);border-radius:8px;background:rgba(43,140,255,.06);color:var(--surface-text);font-size:11px;line-height:1.6}
+.cooldown-payment-note>span{flex:none;color:var(--purple);font-size:15px;font-weight:700}
+body.dark-mode .cooldown-payment-heading-icon{color:#61aaff;border-color:rgba(43,140,255,.6);box-shadow:0 0 18px rgba(43,140,255,.3),0 0 10px rgba(255,45,61,.14),inset 0 0 15px rgba(255,255,255,.06)}
+body.dark-mode .cooldown-payment-heading-icon .cooldown-payment-pulse{stroke:#ff6671}
+body.dark-mode .cooldown-payment-heading .eyebrow{color:#ff6671}
+body.dark-mode .cooldown-payment-actions .primary{background:linear-gradient(110deg,#175fc4,#287ed7);box-shadow:0 0 14px rgba(43,140,255,.3)}
+body.dark-mode .cooldown-payment-actions .primary:hover{background:linear-gradient(110deg,#2475df,#3a91f0)}
+body.dark-mode .cooldown-payment-actions .outline{background:rgba(255,255,255,.03)}
+body.dark-mode .cooldown-payment-note{border-color:rgba(43,140,255,.36);background:rgba(43,140,255,.1)}
+@media(max-width:900px){.cooldown-payment-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:620px){.cooldown-payment-panel{padding:19px}.cooldown-payment-panel>.panel-head{align-items:flex-start;gap:13px;margin-bottom:22px}.cooldown-payment-heading-icon{width:50px;height:50px;border-radius:13px}.cooldown-payment-heading-icon svg{width:32px;height:32px}.cooldown-payment-heading h2{font-size:21px}.cooldown-payment-grid{grid-template-columns:1fr;gap:15px}.cooldown-payment-model-label textarea{min-height:170px}.cooldown-payment-actions{align-items:stretch}.cooldown-payment-actions button{width:100%}.cooldown-payment-actions .muted{width:100%}}
 body.dark-mode .nav-item.active span,body.dark-mode .nav-item:hover span{color:var(--purple)}
 body.dark-mode .panel-head h2,body.dark-mode .tester-group h3,body.dark-mode .profile-card .eyebrow{color:var(--purple)}
 body.dark-mode .test-filter-option:hover,body.dark-mode .test-filter-option.active{background:#302129;color:#fff4f3}
@@ -885,7 +908,7 @@ body:not(.dark-mode) .admission-type-option.is-selected>span{color:#fff}
 body.image-viewer-open{overflow:hidden}
 
 /* Butonul de deconectare din bara de sus. */
-.topbar .profile-logout-button{display:inline-flex;align-items:center;gap:8px;min-height:36px;padding:0 12px;font-weight:700;white-space:nowrap}
+.topbar .profile-logout-button{display:inline-flex;align-items:center;gap:8px;min-height:36px;padding:0 14px;border-radius:999px;font-weight:700;white-space:nowrap}
 .profile-logout-button>span{font-size:16px;line-height:1}
 body.dark-mode .profile-logout-button{border:1px solid rgba(255,138,146,.6);background:rgba(255,45,61,.14);color:#ffb9bf;box-shadow:0 0 10px rgba(255,45,61,.25)}
 body.dark-mode .profile-logout-button:hover{border-color:#ff8a92;background:rgba(255,45,61,.24);color:#fff;box-shadow:0 0 14px rgba(255,45,61,.45)}
