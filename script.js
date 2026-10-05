@@ -1175,9 +1175,10 @@ function parseIdentityCardText(text) {
   const fieldMarker = /\b(?:Nume|Nom|Last|name|Prenume|Prenom|Pren\w*|First|CNP|SERIE?|ID|Nationality|Sex|Birth)\b/i;
   const cleanNameValue = value => {
     const words = (String(value || '').match(/[\p{L}][\p{L}'’\-]*/gu) || []).filter(word => !fieldMarker.test(word));
-    const meaningfulWords = words.filter(word => word.length > 2);
+    const cleanedWords = words.filter(word => !/^(?:sec|rc|in|f[aă]r[aă]|anna)$/i.test(word));
+    const meaningfulWords = cleanedWords.filter(word => word.length > 2);
     if (meaningfulWords.length) return meaningfulWords.join(' ');
-    return words.length === 1 ? words[0] : '';
+    return cleanedWords.length === 1 ? cleanedWords[0] : '';
   };
   const isNameValue = value => {
     if (/(?:Pren\w{3,}|Fir[1lI3]t)/i.test(String(value || ''))) return false;
@@ -1379,22 +1380,36 @@ function plausibleIdentityDetails(details) {
   return safe;
 }
 async function readIdentityCard(file) {
-  // OCR.space first: far more accurate on the low-contrast staff cards than
-  // browser OCR. Tesseract remains as the fallback so the feature keeps working
-  // when the service is unreachable.
+  // OCR.space first: far more accurate on low-contrast cards than browser OCR.
+  // If its result is incomplete, try local OCR rather than trusting a partial parse.
   let visionError = null;
+  let visionDetails = null;
   try {
     const text = await readIdentityCardWithVision(file);
-    const details = plausibleIdentityDetails(parseIdentityCardText(text));
-    if (details.lastName || details.firstName) return { ...parseIdentityCardText(text), ...details };
-    visionError = new Error('OCR nu a returnat un nume lizibil.');
+    visionDetails = plausibleIdentityDetails(parseIdentityCardText(text));
+    if (visionDetails.lastName && visionDetails.firstName && visionDetails.cnp) {
+      return { ...parseIdentityCardText(text), ...visionDetails };
+    }
+    visionError = new Error('OCR nu a returnat toate datele lizibile.');
   } catch (error) {
     visionError = error;
   }
-  const details = await readIdentityCardLocally(file);
-  const plausible = plausibleIdentityDetails(details);
-  if ((!plausible.lastName && !plausible.firstName) && visionError) throw visionError;
-  return { ...details, ...plausible };
+  try {
+    const localDetails = await readIdentityCardLocally(file);
+    const localPlausible = plausibleIdentityDetails(localDetails);
+    const merged = {
+      ...mergeIdentityCardDetails(localDetails, { ...(visionDetails || {}), cnp: visionDetails?.cnp || '' }),
+      ...localPlausible,
+      lastName: localPlausible.lastName || visionDetails?.lastName || '',
+      firstName: localPlausible.firstName || visionDetails?.firstName || '',
+      cnp: localDetails.cnp || visionDetails?.cnp || '',
+    };
+    if (merged.lastName || merged.firstName || merged.cnp) return merged;
+  } catch (localError) {
+    if (!visionDetails?.lastName && !visionDetails?.firstName && !visionDetails?.cnp) throw localError;
+  }
+  if (visionDetails && (visionDetails.lastName || visionDetails.firstName || visionDetails.cnp)) return visionDetails;
+  throw visionError || new Error('Buletinul nu a putut fi citit.');
 }
 async function readIdentityCardLocally(file) {
   const tesseract = await loadIdentityOcr();
@@ -1691,9 +1706,15 @@ function wireTestEvents(testName, definition) {
         if (persistenceError) setCandidatePhotoStatus(field.id, 'error', persistenceError);
         saveTestProgress(testName);
       };
-      pasteTarget.onclick = () => pasteTarget.focus();
+      pasteTarget.onclick = event => {
+        event.preventDefault();
+        pasteTarget.focus({ preventScroll: true });
+      };
       pasteTarget.onkeydown = event => {
-        if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); input.click(); }
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          pasteTarget.focus({ preventScroll: true });
+        }
       };
       pasteTarget.onpaste = event => {
         const item = [...(event.clipboardData?.items || [])].find(clipboardItem => clipboardItem.type.startsWith('image/'));

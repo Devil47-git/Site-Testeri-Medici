@@ -310,6 +310,10 @@ test('failed specialty tests set their cooldown expiry dates automatically', () 
   }
   assert.equal(failedTestCooldownExpiry('Test admitere', now), '');
   assert.match(testResultsSource, /result === 'Respins' \? failedTestCooldownExpiry\(testName\) : ''/);
+  const specialtyResultHandler = testResultsSource.match(/if \(Object\.hasOwn\(SPECIALTY_WEBHOOKS, testName\)\) \{[\s\S]*?\n      \}/)?.[0] || '';
+  assert.match(specialtyResultHandler, /if \(cooldownExpiry && result === 'Admis'\)/);
+  assert.doesNotMatch(specialtyResultHandler, /if \(cooldownExpiry\) \{/);
+  assert.match(source, /function parseIdentityCardText\(text\)[\s\S]*?cleanedWords = words\.filter/);
   assert.match(testResultsSource, /range: `\$\{memberSheetRange\}!S\$\{candidateIndex \+ 2\}`/);
   assert.match(testResultsSource, /cooldownLabel\} \$\{cooldownExpiry\}/);
   assert.match(testResultsSource, /if \(result === 'Respins' && cooldownExpiry\) fields\.push\(\{ name: '⏳ Cooldown', value: `Până pe \*\*\$\{cooldownExpiry\}\*\*`/);
@@ -1260,6 +1264,14 @@ test('identity card OCR keeps both candidate names on separate or inline lines',
     parseIdentityCardText('Nume/Nom/Last name." SEC RC | Tma IN\nPrenume/Prenom/First Anna = FĂ | Alexandru\nCNP 1090526259846'),
     { name: 'Tma Alexandru', lastName: 'Tma', firstName: 'Alexandru', cnp: '1090526259846' }
   );
+  assert.deepEqual(
+    parseIdentityCardText('Name/Nom/Last name\nCazan\nPrenume/Prenom/Firs anime\nSilviu Petru\nCNP 903236624'),
+    { name: 'Cazan Silviu Petru', lastName: 'Cazan', firstName: 'Silviu Petru', cnp: '903236624' }
+  );
+  assert.deepEqual(
+    parseIdentityCardText('Nume/Nom/Last name Cazan\nPrenume/Prenom/First name Silviu Petru\nCNP 903236624'),
+    { name: 'Cazan Silviu Petru', lastName: 'Cazan', firstName: 'Silviu Petru', cnp: '903236624' }
+  );
 });
 
 test('identity card OCR parser skips misread blue labels before reading the values below', () => {
@@ -1366,6 +1378,9 @@ test('candidate document, medical sheet, and drug-test uploads share the themed 
   assert.match(source, /function setCandidatePhotoPreview\(id, file\)/);
   assert.match(source, /<span class="candidate-upload-title">\$\{label\}<\/span><button type="button" class="candidate-file-select" data-photo-select="\$\{id\}" aria-label="Selectează \$\{escapeHtml\(label\)\}">Choose File<\/button><span class="candidate-file-name" id="\$\{id\}-file-name">No file chosen<\/span>/);
   assert.match(source, /fileSelect\.onclick = \(\) => input\.click\(\)/);
+  assert.match(source, /pasteTarget\.onclick = event => \{\s*event\.preventDefault\(\);\s*pasteTarget\.focus\(\{ preventScroll: true \}\);/);
+  assert.match(source, /pasteTarget\.onpaste = event => \{[\s\S]*?event\.preventDefault\(\);[\s\S]*?input\.files = transfer\.files/);
+  assert.match(source, /pasteTarget\.onkeydown = event => \{\s*if \(event\.key === 'Enter' \|\| event\.key === ' '\) \{\s*event\.preventDefault\(\);\s*pasteTarget\.focus\(\{ preventScroll: true \}\);/);
   const imageField = source.match(/function candidateImageFieldHtml\(id, label\) \{[\s\S]*?\n\}/)?.[0] || '';
   assert.ok(imageField.indexOf('image-paste-target') < imageField.indexOf('candidate-document-upload'));
   assert.doesNotMatch(source, /bulletinArtwork\.style\.setProperty\('--hole-/);

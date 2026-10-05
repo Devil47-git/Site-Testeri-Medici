@@ -463,7 +463,7 @@ export default async function handler(req, res) {
         }
         const cooldownExpiry = result === 'Respins' ? failedTestCooldownExpiry(testName) : '';
         specialtyDetails = { ...specialtyNotificationDetails(candidate, result), cooldownExpiry };
-        if (cooldownExpiry) {
+        if (cooldownExpiry && result === 'Admis') {
           const existingCooldowns = String(candidateRow[18] || '').trim();
           const cooldownLabel = testName.replace(/^Test\s+/i, '');
           const cooldownValue = `${existingCooldowns ? `${existingCooldowns} / ` : ''}${cooldownLabel} ${cooldownExpiry}`;
