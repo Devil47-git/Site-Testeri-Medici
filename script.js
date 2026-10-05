@@ -437,10 +437,10 @@ function processedTestBadgesHtml(member, counts) {
     !(callsignNumber(member?.callsign) === 1 && group.tests.includes('Test SMULS'))
   );
   return groups.length
-    ? groups.map((group, index) => {
+    ? groups.map(group => {
       const count = group.tests.reduce((total, test) => total + (Number(memberCounts[test]) || 0), 0);
-      const color = index % 3 === 1 ? ' orange' : index % 3 === 2 ? ' cyan' : '';
-      return `<span class="statistics-processed-badge${color}"><span>${escapeHtml(group.label)}</span><strong>${count}</strong></span>`;
+      const colorClass = testTagClass(group.label === 'Tester' ? group.label : group.tests[0]);
+      return `<span class="statistics-processed-badge test-tag ${colorClass}"><span>${escapeHtml(group.label)}</span><strong>${count}</strong></span>`;
     }).join('')
     : '<span class="statistics-no-processed-tests">—</span>';
 }
@@ -477,10 +477,10 @@ function testerTestCountGridHtml(member) {
   if (!tests.length) return '<p class="statistics-no-tests muted">Nu are teste alocate.</p>';
   const counts = testRunCounts[member.discordId] || {};
   const hasTesterTests = coreTests.some(test => tests.includes(test));
-  const countCard = test => `<div class="statistics-test-count" data-test-kind="${testKindClass(test)}"><i class="stat-icon" aria-hidden="true">${TEST_ICONS[testKindClass(test)] || '✚'}</i><span>${escapeHtml(displayTestName(test))}</span><strong>${Number(counts[test]) || 0}</strong></div>`;
+  const countCard = test => `<div class="statistics-test-count test-tag ${testTagClass(test)}" data-test-kind="${testKindClass(test)}"><i class="stat-icon" aria-hidden="true">${TEST_ICONS[testKindClass(test)] || '✚'}</i><span>${escapeHtml(displayTestName(test))}</span><strong>${Number(counts[test]) || 0}</strong></div>`;
   const visibleTests = tests.filter(test => !coreTests.includes(test));
   const bundleCard = hasTesterTests
-    ? `<details class="statistics-test-bundle"><summary class="statistics-test-count" data-test-kind="tester"><i class="stat-icon" aria-hidden="true">👤</i><span>TESTER</span><span class="statistics-test-bundle-toggle" aria-hidden="true">⌄</span><strong>${coreTests.reduce((total, test) => total + (Number(counts[test]) || 0), 0)}</strong></summary><div class="statistics-test-bundle-details">${coreTests.map(countCard).join('')}</div></details>`
+    ? `<details class="statistics-test-bundle"><summary class="statistics-test-count test-tag ${testTagClass('Tester')}" data-test-kind="tester"><i class="stat-icon" aria-hidden="true">👤</i><span>TESTER</span><span class="statistics-test-bundle-toggle" aria-hidden="true">⌄</span><strong>${coreTests.reduce((total, test) => total + (Number(counts[test]) || 0), 0)}</strong></summary><div class="statistics-test-bundle-details">${coreTests.map(countCard).join('')}</div></details>`
     : '';
   return bundleCard + visibleTests.map(countCard).join('');
 }
@@ -1304,9 +1304,15 @@ function setCandidatePhotoPreview(id, file) {
   preview.dataset.objectUrl = objectUrl;
   preview.hidden = false;
 }
-function admissionCandidateDetailsHtml() {
+function admissionCandidateDetailsHtml(isTransferTest = false) {
   const photoField = candidateImageFieldHtml;
-  return `<section class="admission-candidate-details site-guide-frame" aria-labelledby="admission-candidate-title"><h3 id="admission-candidate-title">Date candidat</h3><div class="admission-candidate-grid"><label>Tip admitere<select id="admission-type"><option value="Admitere">Admitere</option><option value="Reintegrare">Reintegrare</option></select></label><label>Nume<input id="candidate-last-name" type="text" autocomplete="family-name"></label><label>Prenume<input id="candidate-first-name" type="text" autocomplete="given-name"></label><label>CNP<input id="candidate-cnp" type="text" inputmode="numeric" maxlength="24" autocomplete="off"></label><label>ID candidat<input id="candidate-id" type="text" autocomplete="off"></label><label class="admission-callsign-field">Callsign atribuit<span class="cooldown-callsign-input"><span aria-hidden="true">M-</span><input id="candidate-callsign" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" aria-label="Numărul callsign-ului candidatului; prefixul M este adăugat automat"></span></label></div><div class="candidate-photo-grid">${photoField('candidate-document', 'Fotografie buletin')}${photoField('candidate-medical-sheet', 'Fotografie fișă medicală')}${photoField('candidate-drug-test', 'Fotografie drug-test')}</div></section>`;
+  const admissionTypeOptions = isTransferTest
+    ? '<option value="Admitere">Admitere</option>'
+    : '<option value="Admitere">Admitere</option><option value="Reintegrare">Reintegrare</option>';
+  const admissionTypeChoices = isTransferTest
+    ? '<button class="admission-type-option is-selected" type="button" data-admission-type-choice="Admitere" aria-pressed="true"><span aria-hidden="true">✚</span>Admitere</button>'
+    : '<button class="admission-type-option is-selected" type="button" data-admission-type-choice="Admitere" aria-pressed="true"><span aria-hidden="true">✚</span>Admitere</button><button class="admission-type-option" type="button" data-admission-type-choice="Reintegrare" aria-pressed="false"><span aria-hidden="true">↻</span>Reintegrare</button>';
+  return `<section class="admission-candidate-details site-guide-frame" aria-labelledby="admission-candidate-title"><h3 id="admission-candidate-title">Date candidat</h3><div class="admission-candidate-grid"><label class="admission-type-field">Tip admitere<select id="admission-type" hidden>${admissionTypeOptions}</select><span class="admission-type-picker${isTransferTest ? ' is-single' : ''}" role="group" aria-label="Alege tipul admiterii">${admissionTypeChoices}</span></label><label>Nume<input id="candidate-last-name" type="text" autocomplete="family-name"></label><label>Prenume<input id="candidate-first-name" type="text" autocomplete="given-name"></label><label>CNP<input id="candidate-cnp" type="text" inputmode="numeric" maxlength="24" autocomplete="off"></label><label>ID candidat<input id="candidate-id" type="text" autocomplete="off"></label><label class="admission-callsign-field">Callsign atribuit<span class="cooldown-callsign-input"><span aria-hidden="true">M-</span><input id="candidate-callsign" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="off" aria-label="Numărul callsign-ului candidatului; prefixul M este adăugat automat"></span></label></div><div class="candidate-photo-grid">${photoField('candidate-document', 'Fotografie buletin')}${photoField('candidate-medical-sheet', 'Fotografie fișă medicală')}${photoField('candidate-drug-test', 'Fotografie drug-test')}</div></section>`;
 }
 function admissionConsentHtml() {
   return '<section class="admission-consent site-guide-frame" aria-label="Declarație de acord"><p>Sunteți de acord să respectați toate reglementările și procedurile stabilite de către Departamentul Medical Los Santos și să vă asumați în totalitate responsabilitatea pentru eventualele repercusiuni care pot decurge din nerespectarea acestora?</p></section>';
@@ -1515,7 +1521,7 @@ function buildTestMarkup(testName, definition, questions) {
   const isApplicationTest = isAdmissionTest || testName === 'Test transfer';
   const isStagedTest = ['Test PILOT', 'Test MOTO', 'Test SMULS', 'Test ALS'].includes(testName);
   const maxWrong = maxWrongForTest(testName, definition.maxWrong);
-  const candidateDetails = isApplicationTest ? admissionCandidateDetailsHtml() : isMedicalCertificate ? medicalCertificateDetailsHtml() : '';
+  const candidateDetails = isApplicationTest ? admissionCandidateDetailsHtml(testName === 'Test transfer') : isMedicalCertificate ? medicalCertificateDetailsHtml() : '';
   const admissionChecks = isAdmissionTest ? admissionChecklistHtml() : '';
   const transferChecks = isTransferTest ? admissionChecklistHtml() : '';
   const admissionLayout = isAdmissionTest
@@ -1594,6 +1600,21 @@ function wireTestEvents(testName, definition) {
   const isMedicalCertificate = testName === 'Adeverință medicală';
   const isApplicationTest = isAdmissionTest || testName === 'Test transfer';
   const restoredProgress = restoreTestProgress(testName);
+  const admissionTypeSelect = document.querySelector('#admission-type');
+  const admissionTypeOptions = [...document.querySelectorAll('[data-admission-type-choice]')];
+  if (isTransferTest && admissionTypeSelect) admissionTypeSelect.value = 'Admitere';
+  const updateAdmissionTypePicker = () => admissionTypeOptions.forEach(option => {
+    const selected = option.dataset.admissionTypeChoice === admissionTypeSelect?.value;
+    option.classList.toggle('is-selected', selected);
+    option.setAttribute('aria-pressed', String(selected));
+  });
+  admissionTypeOptions.forEach(option => option.addEventListener('click', () => {
+    if (!admissionTypeSelect || admissionTypeSelect.value === option.dataset.admissionTypeChoice) return;
+    admissionTypeSelect.value = option.dataset.admissionTypeChoice;
+    updateAdmissionTypePicker();
+    admissionTypeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+  }));
+  updateAdmissionTypePicker();
   let restoreSavedTestStage = () => {};
   let restoreSavedStageUI = () => {};
   let candidateCooldowns = {};

@@ -635,18 +635,25 @@ body.dark-mode .page-wrap{position:relative;background:url("data:image/svg+xml;u
 @media(prefers-reduced-motion:reduce){.heartbeat-pulse{animation-duration:8s}}
 
 /* Mockup header: logo, department text, breadcrumb pill, ambulance banner */
-body.dark-mode .brand-logo-image{content:url("/logo-eclipse-banner.png");filter:none;width:100%;max-width:200px;height:auto;border-radius:8px;margin-left:0;object-fit:contain}
+body.dark-mode .brand-logo-image{filter:none;width:100%;max-width:200px;height:auto;border-radius:8px;margin-left:0;object-fit:contain}
 body.dark-mode button.brand-with-logo{padding-bottom:16px}
 body.dark-mode button.brand-with-logo>span{margin-top:12px}
 body.dark-mode .brand-with-logo b{display:block;color:#4aa3ff;font-size:12px;line-height:1.35;letter-spacing:.3px;text-shadow:0 0 8px rgba(74,163,255,.5)}
 body.dark-mode .brand-with-logo small{color:#6fb4ff;font-size:9.5px;letter-spacing:.4px}
-body.dark-mode .topbar{background:linear-gradient(90deg,rgba(6,12,28,.96) 0%,rgba(6,12,28,.7) 55%,rgba(6,12,28,.15) 100%),url("/topbar-ambulanta.png") right center/auto 100% no-repeat,#060c1c}
+body.dark-mode .topbar{background:linear-gradient(90deg,rgba(6,12,28,.96) 0%,rgba(6,12,28,.7) 55%,rgba(6,12,28,.15) 100%),url("/assets/topbar-ambulanta.png") right center/auto 100% no-repeat,#060c1c}
 body.dark-mode .topbar .crumb{display:inline-flex;align-items:center;gap:8px;padding:9px 16px;border:1px solid rgba(74,163,255,.35);border-radius:12px;background:rgba(10,20,40,.7);box-shadow:0 0 12px rgba(40,120,255,.25)}
 body.dark-mode .topbar .crumb b{font-weight:500;color:#dbe7ff}
 body.dark-mode .topbar .crumb span{color:#8aa3cc}
 body.dark-mode .topbar .crumb-home{font-style:normal;color:#6fb4ff;font-size:17px;line-height:1}
 .crumb-home{display:none}
-body.dark-mode .crumb-home{display:inline}body.dark-mode .topbar{background:linear-gradient(90deg,rgba(6,12,28,.97) 0%,rgba(6,12,28,.55) 30%,rgba(6,12,28,0) 60%),url("/topbar-ambulanta.png") right center/cover no-repeat,#060c1c}
+body.dark-mode .crumb-home{display:inline}body.dark-mode .topbar{background:linear-gradient(90deg,rgba(6,12,28,.97) 0%,rgba(6,12,28,.55) 30%,rgba(6,12,28,0) 60%),url("/assets/topbar-ambulanta.png") right center/cover no-repeat,#060c1c}
+.topbar .site-tester-brand-mark{display:grid;place-items:center;align-self:center;width:34px;height:34px;flex:none;box-sizing:border-box;padding:0;border:1px solid rgba(107,190,255,.65);border-radius:10px;background:linear-gradient(145deg,rgba(40,128,224,.32),rgba(19,42,82,.82));box-shadow:inset 0 0 10px rgba(74,163,255,.16),0 0 10px rgba(43,140,255,.25)}
+.site-tester-brand-mark svg{display:block;width:24px;height:24px;overflow:visible}
+.site-tester-brand-mark .brand-shield{fill:rgba(12,24,48,.62);stroke:#8fc9ff;stroke-width:1.6;stroke-linejoin:round}
+.site-tester-brand-mark .brand-pulse{fill:none;stroke:#ff6d7b;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+body:not(.dark-mode) .topbar .site-tester-brand-mark{border-color:rgba(43,140,255,.32);background:linear-gradient(145deg,#eaf4ff,#d7e9ff);box-shadow:inset 0 0 10px rgba(74,163,255,.12)}
+body:not(.dark-mode) .site-tester-brand-mark .brand-shield{fill:rgba(43,140,255,.08);stroke:#287bce}
+body:not(.dark-mode) .site-tester-brand-mark .brand-pulse{stroke:#d83d55}
 /* Sidebar menu like mockup */
 body.dark-mode .nav-item{display:flex;align-items:center;gap:12px;padding:8px 12px;min-height:46px;border-width:1px;border-radius:12px;font-weight:700;font-size:15px;background:linear-gradient(90deg,rgba(14,28,56,.85),rgba(14,22,44,.6));border-color:rgba(60,140,255,.45);box-shadow:0 0 8px rgba(43,140,255,.3)}
 body.dark-mode .nav-item .nav-ico{display:inline-grid;place-items:center;flex:none;width:32px;height:32px;border-radius:50%;font-size:15px;color:#4aa3ff;background:radial-gradient(circle,rgba(43,140,255,.35),rgba(10,24,52,.9));box-shadow:0 0 8px rgba(43,140,255,.55)}
@@ -661,7 +668,7 @@ body.dark-mode .nav-subitem:hover{background:rgba(43,140,255,.1);color:#fff}
 body.dark-mode .nav-subitem.active{background:linear-gradient(90deg,rgba(255,45,61,.45),rgba(255,45,61,.05));color:#fff;font-weight:700}
 body.dark-mode .nav-subitem.active::before{content:"";position:absolute;left:-4px;top:50%;width:6px;height:6px;margin-top:-3px;border-radius:50%;background:#ff2d3d;box-shadow:0 0 8px #ff2d3d}
 /* Page background image from mockup */
-body.dark-mode .main-content{background:linear-gradient(180deg,rgba(5,9,22,.55) 0%,rgba(5,9,22,.8) 220px,#050916 480px),linear-gradient(90deg,#050916 0%,rgba(5,9,22,.35) 60%,rgba(5,9,22,.1) 100%),url("/topbar-ambulanta.png") right top/100% 480px no-repeat,radial-gradient(ellipse 60% 45% at 10% 100%,rgba(43,140,255,.18),transparent 70%),#050916;background-attachment:scroll}
+body.dark-mode .main-content{background:linear-gradient(180deg,rgba(5,9,22,.55) 0%,rgba(5,9,22,.8) 220px,#050916 480px),linear-gradient(90deg,#050916 0%,rgba(5,9,22,.35) 60%,rgba(5,9,22,.1) 100%),url("/assets/topbar-ambulanta.png") right top/100% 480px no-repeat,radial-gradient(ellipse 60% 45% at 10% 100%,rgba(43,140,255,.18),transparent 70%),#050916;background-attachment:scroll}
 /* Neon borders everywhere */
 body.dark-mode .view-panel,body.dark-mode .stat-card,body.dark-mode .test-card,body.dark-mode .test-summary-card,body.dark-mode .profile-card,body.dark-mode .bonus-panel,body.dark-mode .sync-panel,body.dark-mode .testers-panel,body.dark-mode .member-group,body.dark-mode .als-case,body.dark-mode .smuls-case,body.dark-mode .parachutism-case,body.dark-mode .parachutism-information-card,body.dark-mode .evaluation-stage-card,body.dark-mode .als-intro-box,body.dark-mode .activity-item,body.dark-mode .profile-test-removal-item,body.dark-mode .modal,body.dark-mode .auth-card{border:2px solid transparent;border-radius:16px;background:var(--neon-fill) padding-box,conic-gradient(from var(--guide-border-angle),var(--neon-red),var(--neon-blue),var(--neon-red),var(--neon-blue),var(--neon-red)) border-box;animation:guide-border-sweep 7s linear infinite;box-shadow:0 0 14px rgba(255,45,61,.28),0 0 14px rgba(43,140,255,.28),0 0 8px rgba(255,255,255,.12)}
 body.dark-mode .view-panel.admission-background-panel,body.dark-mode .view-panel.transfer-background-panel,body.dark-mode .view-panel.als-background-panel,body.dark-mode .view-panel.smuls-background-panel,body.dark-mode .view-panel.moto-background-panel,body.dark-mode .view-panel.pilot-background-panel,body.dark-mode .view-panel.parasutism-background-panel,body.dark-mode .view-panel.adeverinta-background-panel{background:rgba(10,18,38,.62) padding-box,conic-gradient(from var(--guide-border-angle),var(--neon-red),var(--neon-blue),var(--neon-red),var(--neon-blue),var(--neon-red)) border-box}
@@ -846,6 +853,22 @@ body.dark-mode .admission-candidate-grid select{text-align:center;text-align-las
 body.dark-mode #admission-type option,body.dark-mode #certificate-medical-status option{text-align:center}
 body.dark-mode #admission-type option,body.dark-mode #certificate-medical-status option{background-color:#0a1128;color:#fff;font-weight:700}
 body.dark-mode #admission-type option:checked,body.dark-mode #certificate-medical-status option:checked,body.dark-mode #admission-type option:hover,body.dark-mode #certificate-medical-status option:hover{background-color:#2b8cff;color:#fff}
+.admission-type-field{align-content:start}
+.admission-type-picker{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;width:100%;padding:5px;border:1px solid rgba(43,140,255,.3);border-radius:12px;background:rgba(8,16,36,.42)}
+.admission-candidate-grid input:not([type="file"]),.admission-candidate-grid .cooldown-callsign-input,.admission-type-picker{height:40px;min-height:40px;box-sizing:border-box}
+.admission-type-picker{gap:6px;padding:3px}
+.admission-type-picker.is-single{grid-template-columns:minmax(0,1fr)}
+.admission-type-option{display:flex;height:100%;min-height:0;align-items:center;justify-content:center;gap:8px;padding:0 8px;border:1px solid rgba(143,195,255,.2);border-radius:9px;background:rgba(16,29,55,.72);color:#c7d9f5;font:700 12px 'DM Sans';cursor:pointer;transition:background .18s ease,border-color .18s ease,color .18s ease,box-shadow .18s ease,transform .18s ease}
+.admission-type-option>span{color:#8fc3ff;font-size:15px}
+.admission-type-option:hover{transform:translateY(-1px);border-color:rgba(74,163,255,.7);background:rgba(43,140,255,.14);color:#fff}
+.admission-type-option.is-selected{border-color:#4aa3ff;background:linear-gradient(135deg,rgba(43,140,255,.34),rgba(43,140,255,.12));color:#fff;box-shadow:0 0 12px rgba(43,140,255,.26),inset 0 0 0 1px rgba(143,195,255,.12)}
+.admission-type-option.is-selected>span{color:#8ec5ff;text-shadow:0 0 9px rgba(74,163,255,.7)}
+.admission-type-option:focus-visible{outline:2px solid #8fc3ff;outline-offset:2px}
+body:not(.dark-mode) .admission-type-picker{border-color:rgba(99,91,255,.2);background:#f4f5ff}
+body:not(.dark-mode) .admission-type-option{border-color:#dfe2f3;background:#fff;color:#59637a}
+body:not(.dark-mode) .admission-type-option.is-selected{border-color:#635bff;background:linear-gradient(135deg,#635bff,#817bff);color:#fff;box-shadow:0 5px 14px rgba(99,91,255,.25)}
+body:not(.dark-mode) .admission-type-option.is-selected>span{color:#fff}
+@media(max-width:420px){.admission-type-picker{gap:4px;padding:3px}.admission-type-option{gap:5px;padding:0 5px;font-size:11px}}
 
 /* Fotografiile de test au aceeasi dimensiune si se deschid la click. */
 .parachutism-photo-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));align-items:stretch;gap:12px}
@@ -861,11 +884,15 @@ body.dark-mode #admission-type option:checked,body.dark-mode #certificate-medica
 .image-viewer-close:hover{background:rgba(30,60,120,.95)}
 body.image-viewer-open{overflow:hidden}
 
-/* Butonul de deconectare din profil. */
-.profile-session-actions{display:flex;justify-content:flex-end;margin-top:22px;padding-top:18px;border-top:1px solid var(--line)}
-.profile-logout-button{display:inline-flex;align-items:center;gap:8px;min-height:36px;padding:0 18px;font-weight:700}
+/* Butonul de deconectare din bara de sus. */
+.topbar .profile-logout-button{display:inline-flex;align-items:center;gap:8px;min-height:36px;padding:0 12px;font-weight:700;white-space:nowrap}
 .profile-logout-button>span{font-size:16px;line-height:1}
-body.dark-mode .profile-session-actions{border-top:1px solid rgba(143,195,255,.28)}
 body.dark-mode .profile-logout-button{border:1px solid rgba(255,138,146,.6);background:rgba(255,45,61,.14);color:#ffb9bf;box-shadow:0 0 10px rgba(255,45,61,.25)}
 body.dark-mode .profile-logout-button:hover{border-color:#ff8a92;background:rgba(255,45,61,.24);color:#fff;box-shadow:0 0 14px rgba(255,45,61,.45)}
-@media(max-width:620px){.profile-session-actions{justify-content:stretch}.profile-logout-button{width:100%;justify-content:center}}
+@media(max-width:620px){.topbar .profile-logout-button{min-height:32px;padding:0 8px;gap:5px;font-size:10px}}
+.statistics-test-count.test-tag .stat-icon{background:color-mix(in srgb,var(--test-tag-color) 22%,#fff);color:var(--test-tag-color);box-shadow:0 0 10px color-mix(in srgb,var(--test-tag-color) 38%,transparent)}
+.statistics-test-count.test-tag strong{color:var(--test-tag-color);text-shadow:0 0 7px color-mix(in srgb,var(--test-tag-color) 48%,transparent)}
+body.dark-mode .statistics-test-count.test-tag .stat-icon{background:color-mix(in srgb,var(--test-tag-color) 22%,#091226);color:var(--test-tag-color);box-shadow:0 0 12px color-mix(in srgb,var(--test-tag-color) 55%,transparent),inset 0 0 8px rgba(255,255,255,.12)}
+body.dark-mode .statistics-test-count.test-tag strong{color:var(--test-tag-color);text-shadow:0 0 8px color-mix(in srgb,var(--test-tag-color) 60%,transparent)}
+.statistics-processed-badge.test-tag{border-color:var(--test-tag-color);background:color-mix(in srgb,var(--test-tag-color) 15%,transparent);color:var(--test-tag-color);box-shadow:0 0 8px color-mix(in srgb,var(--test-tag-color) 32%,transparent),inset 0 1px rgba(255,255,255,.12)}
+.statistics-processed-badge.test-tag strong{background:color-mix(in srgb,var(--test-tag-color) 22%,transparent);color:var(--test-tag-color)}

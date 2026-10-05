@@ -135,6 +135,16 @@ test('test badges use the requested semantic colors with equal intensity', () =>
   assert.match(stylesheet, /\.tag\.test-tag\{[^}]*box-shadow:0 0 8px color-mix\(in srgb,var\(--test-tag-color\) 42%,transparent\)/);
 });
 
+test('test statistics use the same semantic colors as test badges', () => {
+  assert.match(source, /statistics-test-count test-tag \$\{testTagClass\(test\)\}/);
+  assert.match(source, /statistics-test-count test-tag \$\{testTagClass\('Tester'\)\}/);
+  assert.match(source, /statistics-processed-badge test-tag \$\{colorClass\}/);
+  assert.match(source, /const colorClass = testTagClass\(group\.label === 'Tester' \? group\.label : group\.tests\[0\]\)/);
+  assert.match(styleSource, /body\.dark-mode \.statistics-test-count\.test-tag \.stat-icon\{[^}]*var\(--test-tag-color\)/);
+  assert.match(styleSource, /body\.dark-mode \.statistics-test-count\.test-tag strong\{[^}]*var\(--test-tag-color\)/);
+  assert.match(styleSource, /\.statistics-processed-badge\.test-tag\{[^}]*var\(--test-tag-color\)/);
+});
+
 test('all members can view the tester directory while only callsigns 001-020 can edit it', () => {
   const loadDirectorySource = source.match(/async function loadDirectory\(\) \{[\s\S]*?^\}/m)?.[0] || '';
   const testerViewSource = source.match(/function renderTestersView\(\) \{[\s\S]*?^\}/m)?.[0] || '';
@@ -1158,7 +1168,13 @@ test('admission and transfer keep the assigned callsign next to the candidate id
   // And it must sit after "ID candidat" in the markup, which both the admission
   // and the transfer test share through isApplicationTest().
   assert.match(source, /<label>ID candidat<input id="candidate-id"[\s\S]*?<label class="admission-callsign-field">Callsign atribuit/);
-  assert.match(source, /const candidateDetails = isApplicationTest \? admissionCandidateDetailsHtml\(\)/);
+  assert.match(source, /const candidateDetails = isApplicationTest \? admissionCandidateDetailsHtml\(testName === 'Test transfer'\)/);
+});
+
+test('transfer only offers admission, while admission retains reintegration', () => {
+  assert.match(source, /const admissionTypeOptions = isTransferTest\s*\?\s*'<option value="Admitere">Admitere<\/option>'\s*:\s*'<option value="Admitere">Admitere<\/option><option value="Reintegrare">Reintegrare<\/option>'/);
+  assert.match(source, /const admissionTypeChoices = isTransferTest\s*\?\s*'<button[\s\S]*?data-admission-type-choice="Admitere"[\s\S]*?'\s*:\s*'<button[\s\S]*?data-admission-type-choice="Admitere"[\s\S]*?data-admission-type-choice="Reintegrare"/);
+  assert.match(source, /if \(isTransferTest && admissionTypeSelect\) admissionTypeSelect\.value = 'Admitere'/);
 });
 
 test('non-leadership keeps the whole tester directory visible', () => {

@@ -10,7 +10,7 @@
     <link
         href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet" href="style.css?v=20261005a">
+    <link rel="stylesheet" href="style.css?v=20261005l">
 </head>
 
 <body class="dark-mode">
@@ -30,7 +30,7 @@
     </div>
     <div class="app-shell" id="app-shell">
         <aside class="sidebar">
-            <button class="brand brand-button brand-with-logo" id="brand-settings" type="button" title="Deschide profilul tău"><img class="brand-logo-image" src="/assets/Sigla%20spital.png" alt="Sigla Eclipse Medical Tower"><span><b>DEPARTAMENTUL MEDICAL ECLIPSE TOWER</b><small>SUB-DEPARTAMENTUL TESTERILOR</small></span></button>
+            <button class="brand brand-button brand-with-logo" id="brand-settings" type="button" title="Deschide profilul tău"><img class="brand-logo-image" src="/assets/logo-eclipse-banner.png" alt="Sigla Eclipse Medical Tower"><span><b>DEPARTAMENTUL MEDICAL ECLIPSE TOWER</b><small>SUB-DEPARTAMENTUL TESTERILOR</small></span></button>
             <div class="workspace-label">SITE TESTERI</div>
             <nav>
                 <button class="nav-item active" data-view="overview"><span class="nav-ico">👤</span> Profilul tău</button>
@@ -50,8 +50,8 @@
         </aside>
         <main class="main-content">
             <header class="topbar"><button class="mobile-menu">☰</button>
-                <div class="crumb"><i class="crumb-home">⌂</i><b id="section-label">Site Testeri</b> <span>&gt;</span> <b id="page-label">Profilul tău</b></div>
-                <div class="top-actions"><span class="top-status" aria-hidden="true"><i></i>Online</span></div>
+                <div class="crumb"><span class="site-tester-brand-mark" aria-hidden="true"><svg viewBox="0 0 40 40" focusable="false"><path class="brand-shield" d="M20 3.5 33 8v10.5c0 8.2-5.5 14.1-13 18-7.5-3.9-13-9.8-13-18V8l13-4.5Z"/><path class="brand-pulse" d="M9.5 21h6l2.5-5 4 10 3-6h5.5"/></svg></span><b id="section-label">Site Testeri</b> <span>&gt;</span> <b id="page-label">Profilul tău</b></div>
+                <div class="top-actions"><span class="top-status" aria-hidden="true"><i></i>Online</span><button class="outline profile-logout-button" id="logout-button" type="button"><span aria-hidden="true">&#9211;</span> Deconectare</button></div>
             </header>
             <section class="page-wrap" id="app">
                 <div id="overview-view">
@@ -60,7 +60,7 @@
                         <button class="profile-settings-button" id="profile-settings" type="button" aria-label="Setări" title="Setări" hidden><span aria-hidden="true">⚙</span></button>
                         <p class="eyebrow profile-datetime"><span id="today-label"></span><time id="local-time" aria-label="Ora României"></time></p>
                         <div class="profile-identity"><div id="profile-avatar"></div><div><h1 id="profile-name">Profilul tău</h1></div></div>
-<dl class="profile-details"><div><dt>CALLSIGN</dt><dd id="profile-callsign">—</dd></div><div><dt>NUME</dt><dd id="profile-member-name">—</dd></div><div><dt>GRAD</dt><dd id="profile-member-rank">—</dd></div></dl><div class="profile-session-actions"><button class="outline profile-logout-button" id="logout-button" type="button"><span aria-hidden="true">&#9211;</span> Deconectare</button></div>
+<dl class="profile-details"><div><dt>CALLSIGN</dt><dd id="profile-callsign">—</dd></div><div><dt>NUME</dt><dd id="profile-member-name">—</dd></div><div><dt>GRAD</dt><dd id="profile-member-rank">—</dd></div></dl>
                     </section>
                     <section class="panel profile-certifications">
                         <div class="panel-head"><div><h2>Funcții tester</h2><p class="muted">Certificările și testele alocate contului tău</p></div></div>
