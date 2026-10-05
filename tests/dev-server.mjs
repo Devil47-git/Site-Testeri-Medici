@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { readTestDefinitions, writeTestDefinitions } from '../lib/test-definitions-store.js';
 const ROOT = process.cwd();
-const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.gif': 'image/gif', '.png': 'image/png' };
+const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.gif': 'image/gif', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml' };
 const MOCK = [
   { discordId: '1', name: 'Ion Popescu', callsign: '001', csNum: 1, rank: 'Medic Inspector', gradeGroup: 'Conducerea departamentului', isLeadership: true, isTester: true, functions: 'MOTO', grantedTests: ['Test admitere','Test transfer','Adeverință medicală','Test MOTO'], avatar: 'https://cdn.discordapp.com/avatars/1/a.png' },
   { discordId: '2', name: 'Ana Vasilescu', callsign: '003', csNum: 3, rank: 'Medic Inspector', gradeGroup: 'Conducerea departamentului', isLeadership: true, isTester: true, grantedTests: ['Test admitere'], avatar: '' },

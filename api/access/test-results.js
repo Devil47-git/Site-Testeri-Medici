@@ -365,7 +365,7 @@ async function sendMedicalCertificateNotification(details, number, testerDiscord
       { ...details.identityImage, filename: 'buletin-candidat.jpg' },
       { ...details.medicalSheetImage, filename: 'fisa-medicala.jpg' }
     ];
-    const logo = await readFile(join(process.cwd(), 'logo medici medici.png')).catch(() => null);
+    const logo = await readFile(join(process.cwd(), 'assets', 'logo medici medici.png')).catch(() => null);
     if (logo) images.push({ buffer: logo, mimeType: 'image/png', filename: 'logo-medici.png' });
     await sendWebhookComponents(url, createMedicalCertificateComponents(details, number, testerDiscordId), images, testerDiscordId, [], webhookIdentity('Adeverință medicală'));
     return { sent: true, error: '' };

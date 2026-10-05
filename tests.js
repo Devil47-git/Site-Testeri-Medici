@@ -236,7 +236,7 @@ window.MEDICAL_TESTS = {
       "images": [
         {
           "label": "Traseu MOTO START–FINISH",
-          "url": "/Traseu_test_moto_poza_harta.png"
+          "url": "/assets/Traseu_test_moto_poza_harta.png"
         }
       ]
     }
@@ -300,15 +300,15 @@ window.MEDICAL_TESTS = {
         "images": [
           {
             "label": "Imagine 1",
-            "url": "/Proba_3_test_pilot.png"
+            "url": "/assets/Proba_3_test_pilot.png"
           },
           {
             "label": "Imagine 2",
-            "url": "/Proba_3_test_pilot_poza_2.png"
+            "url": "/assets/Proba_3_test_pilot_poza_2.png"
           },
           {
             "label": "Imagine 3",
-            "url": "/Proba_3_test_pilot_poza_3.png"
+            "url": "/assets/Proba_3_test_pilot_poza_3.png"
           }
         ]
       },
@@ -327,15 +327,15 @@ window.MEDICAL_TESTS = {
         "images": [
           {
             "label": "Imagine 1",
-            "url": "/Proba_4_test_pilot_poza_joc_1.png"
+            "url": "/assets/Proba_4_test_pilot_poza_joc_1.png"
           },
           {
             "label": "Imagine 2",
-            "url": "/Proba_4_test_pilot_poza_joc_2.png"
+            "url": "/assets/Proba_4_test_pilot_poza_joc_2.png"
           },
           {
             "label": "Imagine 3",
-            "url": "/Proba_4_test_pilot_poza_harta.png"
+            "url": "/assets/Proba_4_test_pilot_poza_harta.png"
           }
         ]
       }
@@ -348,18 +348,18 @@ window.MEDICAL_TESTS = {
     "images": [
       {
         "label": "Hartă traseu S.M.U.L.S.",
-        "url": "/image.png",
+        "url": "/assets/image.png",
         "inline": true
       }
     ],
     "descarcerationImages": [
       {
         "label": "Locația descarcerării",
-        "url": "/Poza_Locatie.png"
+        "url": "/assets/Poza_Locatie.png"
       },
       {
         "label": "Poziționarea autospecialelor",
-        "url": "/Poza_Pozitie_Masini.png"
+        "url": "/assets/Poza_Pozitie_Masini.png"
       }
     ],
     "cases": [
@@ -600,15 +600,15 @@ window.MEDICAL_TESTS = {
         "images": [
           {
             "label": "Zona de aterizare",
-            "url": "/Saritura_Usoara_Aterizare.png"
+            "url": "/assets/Saritura_Usoara_Aterizare.png"
           },
           {
             "label": "Elicopterul lângă portavion",
-            "url": "/Saritura_Usoara_Heli.png"
+            "url": "/assets/Saritura_Usoara_Heli.png"
           },
           {
             "label": "Poziția pentru aterizare",
-            "url": "/Saritura_Usoara_Pozitie.png"
+            "url": "/assets/Saritura_Usoara_Pozitie.png"
           }
         ]
       },
@@ -621,11 +621,11 @@ window.MEDICAL_TESTS = {
         "images": [
           {
             "label": "Elicopter deasupra lacului Sandy Shores",
-            "url": "/Saritura_Medie_Heli.png"
+            "url": "/assets/Saritura_Medie_Heli.png"
           },
           {
             "label": "Zona de aterizare",
-            "url": "/Saritura_Medie_Aterizare.png"
+            "url": "/assets/Saritura_Medie_Aterizare.png"
           }
         ]
       },
@@ -638,15 +638,15 @@ window.MEDICAL_TESTS = {
         "images": [
           {
             "label": "Zbor deasupra orașului",
-            "url": "/Saritura_Grea_Heli.png"
+            "url": "/assets/Saritura_Grea_Heli.png"
           },
           {
             "label": "Helipadul clădirii A / Pablo",
-            "url": "/helipad_mediu.png"
+            "url": "/assets/helipad_mediu.png"
           },
           {
             "label": "Poziționarea pentru aterizare",
-            "url": "/Saritura_Usoara_Pozitie.png"
+            "url": "/assets/Saritura_Usoara_Pozitie.png"
           }
         ]
       }

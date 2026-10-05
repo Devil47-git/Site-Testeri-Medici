@@ -858,7 +858,7 @@ function activeBonusPeriodIndex(now = new Date()) {
     if (selectedBonusPeriodIndex === null) selectedBonusPeriodIndex = activeBonusPeriodIndex();
     const period = bonusPeriodFor(selectedBonusPeriodIndex);
     const activePeriod = bonusPeriodFor(activeBonusPeriodIndex());
-    return `<section class="panel bonus-panel"><div class="panel-head"><div><p class="eyebrow">ACTIVITATE TESTERI</p><h2>Bonusuri</h2></div></div><p class="bonus-active-period"><strong>Perioada activă:</strong> ${bonusPeriodLabel(activePeriod)}</p><div class="bonus-period-controls"><button class="outline" type="button" data-bonus-shift="-1" aria-label="Perioada anterioară">←</button><strong>Perioada afișată: ${bonusPeriodLabel(period)}</strong><button class="outline" type="button" data-bonus-shift="1" aria-label="Perioada următoare" ${selectedBonusPeriodIndex >= activePeriod.index ? 'disabled' : ''}>→</button></div><p class="bonus-period-status muted" id="bonus-period-status" role="status" aria-live="polite">Se încarcă testele...</p><div class="bonus-copy-controls"><label><input id="bonus-select-all" type="checkbox" aria-label="Selectează toți testerii cu teste"> Selectează toți</label><button class="primary" id="bonus-copy-selected" type="button" disabled>Copiază selectați (0)</button><span class="muted">Bifează testerii pentru a copia bonusurile în ordine numerică.</span></div><div class="bonus-copy-groups" id="bonus-copy-groups" aria-label="Copiere pe blocuri consecutive"></div><div class="bonus-table-wrap"><table class="bonus-table"><thead><tr><th></th><th>CALLSIGN</th><th>MEDIC</th>${BONUS_CATEGORIES.map(category => `<th>${category.label}</th>`).join('')}<th></th></tr></thead><tbody id="bonus-rows"><tr><td colspan="10">Se încarcă...</td></tr></tbody></table></div><img class="test-corner-logo bonus-corner-logo" src="/bonusuri.png" alt="Sigla Bonusuri" aria-hidden="true"></section>`;
+    return `<section class="panel bonus-panel"><div class="panel-head"><div><p class="eyebrow">ACTIVITATE TESTERI</p><h2>Bonusuri</h2></div></div><p class="bonus-active-period"><strong>Perioada activă:</strong> ${bonusPeriodLabel(activePeriod)}</p><div class="bonus-period-controls"><button class="outline" type="button" data-bonus-shift="-1" aria-label="Perioada anterioară">←</button><strong>Perioada afișată: ${bonusPeriodLabel(period)}</strong><button class="outline" type="button" data-bonus-shift="1" aria-label="Perioada următoare" ${selectedBonusPeriodIndex >= activePeriod.index ? 'disabled' : ''}>→</button></div><p class="bonus-period-status muted" id="bonus-period-status" role="status" aria-live="polite">Se încarcă testele...</p><div class="bonus-copy-controls"><label><input id="bonus-select-all" type="checkbox" aria-label="Selectează toți testerii cu teste"> Selectează toți</label><button class="primary" id="bonus-copy-selected" type="button" disabled>Copiază selectați (0)</button><span class="muted">Bifează testerii pentru a copia bonusurile în ordine numerică.</span></div><div class="bonus-copy-groups" id="bonus-copy-groups" aria-label="Copiere pe blocuri consecutive"></div><div class="bonus-table-wrap"><table class="bonus-table"><thead><tr><th></th><th>CALLSIGN</th><th>MEDIC</th>${BONUS_CATEGORIES.map(category => `<th>${category.label}</th>`).join('')}<th></th></tr></thead><tbody id="bonus-rows"><tr><td colspan="10">Se încarcă...</td></tr></tbody></table></div><img class="test-corner-logo bonus-corner-logo" src="/assets/bonusuri.png" alt="Sigla Bonusuri" aria-hidden="true"></section>`;
   }
   async function loadBonusEntries(period) {
     const status = document.querySelector('#bonus-period-status');
@@ -1056,6 +1056,11 @@ function testNameFromHash(hash) {
   catch { return ''; }
 }
 function openTest(testName, { push = true, previousView: requestedPreviousView } = {}) {
+  if (!catalog.includes(testName)) return;
+  // A route change must never leave stage/view state from the previous test behind.
+  document.body.classList.remove('smuls-stage-active', 'als-stage-active', 'moto-stage-active', 'pilot-stage-active', 'parachutism-stage-active');
+  const savedScrollPosition = window.scrollY;
+  const isSameTestRoute = window.history.state?.view === 'test' && window.history.state?.testName === testName;
   document.body.classList.toggle('smuls-background-mode', testName === 'Test SMULS');
   document.body.classList.toggle('als-background-mode', testName === 'Test ALS');
   document.body.classList.toggle('admission-background-mode', testName === 'Test admitere');
@@ -1085,10 +1090,17 @@ function openTest(testName, { push = true, previousView: requestedPreviousView }
   document.querySelector('.sidebar').classList.remove('open');
   viewContent.innerHTML = buildTestMarkup(testName, definition, questions);
   const panel = viewContent.querySelector('.view-panel');
+  if (panel) {
+    panel.dataset.testRoute = testName;
+    panel.dataset.testInstance = String((Number(panel.dataset.testInstance) || 0) + 1);
+  }
+  window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   panel?.addEventListener('input', () => saveTestProgress(testName));
   panel?.addEventListener('change', () => saveTestProgress(testName));
   wireTestAccessEvents();
   wireTestEvents(testName, definition);
+  // Preserve the old position only for same-route refreshes; switching tests starts cleanly.
+  if (isSameTestRoute && !push) window.scrollTo({ top: savedScrollPosition, left: 0, behavior: 'instant' });
 }
 function admissionChecklistHtml() {
   return `<section class="admission-checklist site-guide-frame" aria-labelledby="admission-checklist-title"><h3 id="admission-checklist-title">Verificări înainte de proba teoretică</h3>${admissionRequirements.map((requirement, index) => `<label class="admission-check-row"><span>${escapeHtml(requirement)}</span><span class="admission-check-control"><input type="checkbox" data-admission-check="${index}" aria-label="${escapeHtml(requirement)}"><span class="admission-check-error" aria-hidden="true">!</span></span></label>`).join('')}</section>`;
@@ -1261,13 +1273,13 @@ function mergeIdentityCardDetails(primary, retry) {
   };
 }
 function bulletinGifArtworkHtml(id) {
-  return `<img class="bulletin-dot-art" src="/gif.gif" alt="" aria-hidden="true" draggable="false"><img class="candidate-photo-preview" data-photo-preview="${escapeHtml(id)}" alt="Previzualizare ${escapeHtml(id)}" hidden>`;
+  return `<img class="bulletin-dot-art" src="/assets/gif.gif" alt="" aria-hidden="true" draggable="false"><img class="candidate-photo-preview" data-photo-preview="${escapeHtml(id)}" alt="Previzualizare ${escapeHtml(id)}" hidden>`;
 }
 function candidateImageFieldHtml(id, label) {
   const isBulletinPhoto = id === 'candidate-document' || id === 'certificate-document';
   const hasArtwork = isBulletinPhoto || ['candidate-medical-sheet', 'candidate-drug-test', 'certificate-medical-sheet'].includes(id);
   const artwork = hasArtwork ? bulletinGifArtworkHtml(id) : '';
-  return `<section class="candidate-photo-field" data-photo-field="${id}" data-photo-state="empty"><div class="image-paste-target${hasArtwork ? ' photo-artwork-target' : ''}" data-paste-for="${id}" tabindex="0" role="button" aria-label="${label}: selectează sau lipește o fotografie">${artwork}<span class="candidate-photo-spinner" aria-hidden="true"></span></div><div class="candidate-document-upload"><span class="candidate-upload-title">${label}</span><button type="button" class="candidate-file-select" data-photo-select="${id}" aria-label="Selectează ${escapeHtml(label)}">Choose File</button><span class="candidate-file-name" id="${id}-file-name">No file chosen</span><input class="candidate-photo-file-input" id="${id}" type="file" accept="image/*" aria-hidden="true" tabindex="-1"></div><div class="candidate-photo-progress" role="status" aria-live="polite"><span id="${id}-status">Așteaptă fotografia</span></div></section>`;
+  return `<section class="candidate-photo-field" data-photo-field="${id}" data-photo-state="empty"><div class="image-paste-target${hasArtwork ? ' photo-artwork-target' : ''}" data-paste-for="${id}" tabindex="0" aria-label="${label}: selectează sau lipește o fotografie">${artwork}<span class="candidate-photo-spinner" aria-hidden="true"></span></div><div class="candidate-document-upload"><span class="candidate-upload-title">${label}</span><button type="button" class="candidate-file-select" data-photo-select="${id}" aria-label="Selectează ${escapeHtml(label)}">Choose File</button><span class="candidate-file-name" id="${id}-file-name">No file chosen</span><input class="candidate-photo-file-input" id="${id}" type="file" accept="image/*" aria-hidden="true" tabindex="-1"></div><div class="candidate-photo-progress" role="status" aria-live="polite"><span id="${id}-status">Așteaptă fotografia</span></div></section>`;
 }
 function setCandidatePhotoStatus(id, state, message) {
   const input = document.querySelector(`#${id}`);
@@ -1569,7 +1581,7 @@ function buildTestMarkup(testName, definition, questions) {
     : `${guideBody}${images ? `<div class="test-images">${images}</div>` : ''}`;
   const testAccessControl = testAccessMarkup(testName);
   const headerActions = `<div class="test-guide-header-actions">${testAccessControl}<button class="outline site-guide-frame" id="back-to-tests">← Înapoi</button></div>`;
-  return `<div class="panel view-panel${isSmulsTest ? ' smuls-background-panel' : isAlsTest ? ' als-background-panel' : isAdmissionTest ? ' admission-background-panel' : isTransferTest ? ' transfer-background-panel' : isMotoTest ? ' moto-background-panel' : isPilotTest ? ' pilot-background-panel' : isMedicalCertificate ? ' adeverinta-background-panel' : isParachutismTest ? ' parasutism-background-panel' : ''}"><div class="panel-head"><div><p class="eyebrow">GHID PENTRU TESTER</p><h2>${displayTestName(testName)}</h2></div>${headerActions}</div>${content}${isSmulsTest || isAlsTest ? evaluationStageFlow : ''}${parachutismResultStageFlow}${parachutismPracticalStage}${isAlsTest ? '<img class="test-corner-logo" src="/logo%20als%202.png" alt="Sigla ALS" aria-hidden="true">' : ''}${isSmulsTest ? '<img class="test-corner-logo" src="/logo%20smuls%202.png" alt="Sigla S.M.U.L.S." aria-hidden="true">' : isMotoTest ? '<img class="test-corner-logo" src="/moto%202.png" alt="Sigla Moto" aria-hidden="true">' : isPilotTest ? '<img class="test-corner-logo" src="/logo%20pilot.png" alt="Sigla Pilot" aria-hidden="true">' : isParachutismTest ? '<img class="test-corner-logo" src="/logo%20parasuta.png" alt="Sigla parașutism" aria-hidden="true">' : ''}</div>`;
+  return `<div class="panel view-panel${isSmulsTest ? ' smuls-background-panel' : isAlsTest ? ' als-background-panel' : isAdmissionTest ? ' admission-background-panel' : isTransferTest ? ' transfer-background-panel' : isMotoTest ? ' moto-background-panel' : isPilotTest ? ' pilot-background-panel' : isMedicalCertificate ? ' adeverinta-background-panel' : isParachutismTest ? ' parasutism-background-panel' : ''}"><div class="panel-head"><div><p class="eyebrow">GHID PENTRU TESTER</p><h2>${displayTestName(testName)}</h2></div>${headerActions}</div>${content}${isSmulsTest || isAlsTest ? evaluationStageFlow : ''}${parachutismResultStageFlow}${parachutismPracticalStage}${isAlsTest ? '<img class="test-corner-logo" src="/assets/logo%20als%202.png" alt="Sigla ALS" aria-hidden="true">' : ''}${isSmulsTest ? '<img class="test-corner-logo" src="/assets/logo%20smuls%202.png" alt="Sigla S.M.U.L.S." aria-hidden="true">' : isMotoTest ? '<img class="test-corner-logo" src="/assets/moto%202.png" alt="Sigla Moto" aria-hidden="true">' : isPilotTest ? '<img class="test-corner-logo" src="/assets/logo%20pilot.png" alt="Sigla Pilot" aria-hidden="true">' : isParachutismTest ? '<img class="test-corner-logo" src="/assets/logo%20parasuta.png" alt="Sigla parașutism" aria-hidden="true">' : ''}</div>`;
 }
 function wireTestEvents(testName, definition) {
   const isAdmissionTest = testName === 'Test admitere';
@@ -1631,6 +1643,7 @@ function wireTestEvents(testName, definition) {
     const imageFields = isMedicalCertificate
       ? [{ id: 'certificate-document', readIdentity: true }, { id: 'certificate-medical-sheet' }]
       : [{ id: 'candidate-document', readIdentity: true }, { id: 'candidate-medical-sheet' }, { id: 'candidate-drug-test' }];
+    let activePhotoPasteTarget = null;
     for (const field of imageFields) {
       const input = document.querySelector(`#${field.id}`);
       const pasteTarget = document.querySelector(`[data-paste-for="${field.id}"]`);
@@ -1643,6 +1656,10 @@ function wireTestEvents(testName, definition) {
         const file = input.files?.[0];
         fileName.textContent = file?.name || 'No file chosen';
         setCandidatePhotoPreview(field.id, file);
+        if (window.activePhotoPasteTarget === pasteTarget && file) {
+          pasteTarget.blur();
+          window.activePhotoPasteTarget = null;
+        }
         if (!file) {
           try { await saveTestProgressPhoto(testName, field.id, null); }
           catch (error) {
@@ -1725,6 +1742,14 @@ function wireTestEvents(testName, definition) {
         transfer.items.add(file);
         input.files = transfer.files;
         input.dispatchEvent(new Event('change', { bubbles: true }));
+      };
+      pasteTarget.onfocus = () => { window.activePhotoPasteTarget = pasteTarget; };
+      pasteTarget.onblur = () => {
+        if (window.activePhotoPasteTarget === pasteTarget) {
+          window.setTimeout(() => {
+            if (window.activePhotoPasteTarget === pasteTarget && document.activeElement !== pasteTarget) window.activePhotoPasteTarget = null;
+          }, 0);
+        }
       };
       const savedPhoto = restoredProgress?.media?.[field.id];
       if (savedPhoto?.dataUrl) {
@@ -2555,6 +2580,21 @@ document.addEventListener('click', event => {
   lastVerdictPressAt = Date.now();
 }, true);
 document.addEventListener('click', event => { if (testFilterMenu && !testFilterMenu.hidden && !document.querySelector('#test-filter')?.contains(event.target)) { testFilterMenu.hidden = true; testFilterBtn?.setAttribute('aria-expanded', 'false'); } });
+document.addEventListener('paste', event => {
+  const target = window.activePhotoPasteTarget;
+  if (!target?.isConnected || !target.matches('[data-paste-for]')) return;
+  const imageItem = [...(event.clipboardData?.items || [])].find(item => item.type.startsWith('image/'));
+  const file = imageItem?.getAsFile();
+  if (!file) return;
+  const fieldId = target.dataset.pasteFor;
+  const fileInput = document.querySelector(`#${CSS.escape(fieldId)}`);
+  if (!fileInput) return;
+  event.preventDefault();
+  const transfer = new DataTransfer();
+  transfer.items.add(file);
+  fileInput.files = transfer.files;
+  fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+});
 testerGroups?.addEventListener('click', event => { const button = event.target.closest('[data-member-menu]'); if (!button) return; const member = testers.find(item => normalizeCallsign(item.callsign) === button.dataset.memberMenu); if (member) { selectedMember = member; openAddModal(member); } }); rows?.addEventListener('click', event => { const button = event.target.closest('[data-member-menu]'); if (!button) return; const member = testers.find(item => normalizeCallsign(item.callsign) === button.dataset.memberMenu); if (member) { selectedMember = member; openAddModal(member); } }); document.querySelector('#brand-settings').onclick = () => navigateTo('overview'); document.querySelector('#user-menu').onclick = () => navigateTo('overview'); document.querySelector('#profile-settings').onclick = () => navigateTo('settings');
 viewContent.addEventListener('click', event => {
   const button = event.target.closest('[data-member-profile]');

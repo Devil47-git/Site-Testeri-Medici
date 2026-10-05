@@ -144,25 +144,26 @@ test('all members can view the tester directory while only callsigns 001-020 can
 });
 
 test('SMULS, Moto, Pilot, and parachutism test pages show their fixed corner logos', () => {
-  assert.match(source, /class="panel view-panel\$\{isSmulsTest \? ' smuls-background-panel' : isAlsTest \? ' als-background-panel' : isMotoTest \? ' moto-background-panel' : ''\}"/);
+  assert.match(source, /class="panel view-panel\$\{isSmulsTest \? ' smuls-background-panel' : isAlsTest \? ' als-background-panel' : isAdmissionTest/);
   assert.match(source, /document\.body\.classList\.toggle\('smuls-background-mode', testName === 'Test SMULS'\)/);
-  assert.match(source, /isSmulsTest \? '<img class="test-corner-logo" src="\/logo%20smuls%202\.png"/);
-  assert.match(source, /: isMotoTest \? '<img class="test-corner-logo" src="\/moto%202\.png"/);
-  assert.match(source, /: isPilotTest \? '<img class="test-corner-logo" src="\/logo%20pilot\.png"/);
-  assert.match(source, /: isParachutismTest \? '<img class="test-corner-logo" src="\/logo%20parasuta\.png"/);
+  assert.match(source, /isSmulsTest \? '<img class="test-corner-logo" src="\/assets\/logo%20smuls%202\.png"/);
+  assert.match(source, /: isMotoTest \? '<img class="test-corner-logo" src="\/assets\/moto%202\.png"/);
+  assert.match(source, /: isPilotTest \? '<img class="test-corner-logo" src="\/assets\/logo%20pilot\.png"/);
+  assert.match(source, /: isParachutismTest \? '<img class="test-corner-logo" src="\/assets\/logo%20parasuta\.png"/);
   const stylesheet = readFileSync(join(here, '..', 'style.css'), 'utf8');
-  assert.match(stylesheet, /body\.smuls-background-mode::before\{[^}]*position:fixed;inset:-6px;z-index:-1;[^}]*opacity:\.18;filter:blur\(3px\)/);
+  assert.match(stylesheet, /body\.smuls-background-mode::before\{[^}]*position:fixed;top:81px;left:245px;right:0;bottom:0;z-index:-1;[^}]*opacity:\.2;filter:blur\(2px\)/);
+  assert.match(stylesheet, /url\("\/assets\/smuls-background\.png"\)/);
   assert.match(stylesheet, /\.test-corner-logo\{[^}]*position:fixed;right:22px;bottom:18px;z-index:8;width:132px;height:132px;[^}]*mix-blend-mode:screen/);
 });
 
 test('ALS and Moto backgrounds stay below the topbar and right of the sidebar', () => {
   assert.match(source, /document\.body\.classList\.toggle\('als-background-mode', testName === 'Test ALS'\)/);
   assert.match(source, /document\.body\.classList\.toggle\('moto-background-mode', testName === 'Test MOTO'\)/);
-  assert.match(source, /isAlsTest \? ' als-background-panel' : isMotoTest \? ' moto-background-panel' : ''/);
+  assert.match(source, /isAlsTest \? ' als-background-panel' : isAdmissionTest/);
   const stylesheet = readFileSync(join(here, '..', 'style.css'), 'utf8');
-  assert.match(stylesheet, /body\.als-background-mode::before\{[^}]*top:81px;left:245px;right:0;bottom:0;[^}]*url\("\/alsv2\.png"\) center calc\(100% \+ 80px\)\/cover no-repeat;[^}]*opacity:\.2;filter:blur\(2px\)/);
+  assert.match(stylesheet, /body\.als-background-mode::before\{[^}]*top:81px;left:245px;right:0;bottom:0;[^}]*url\("\/assets\/alsv2\.png"\) center calc\(100% \+ 80px\)\/cover no-repeat;[^}]*opacity:\.2;filter:blur\(2px\)/);
   assert.match(stylesheet, /@media\(max-width:760px\)\{body\.als-background-mode::before\{left:0\}\}/);
-  assert.match(stylesheet, /body\.moto-background-mode::before\{[^}]*top:81px;left:245px;right:0;bottom:0;[^}]*url\("\/moto%20fundal\.png"\) center calc\(100% \+ 80px\)\/cover no-repeat;[^}]*opacity:\.2;filter:blur\(2px\)/);
+  assert.match(stylesheet, /body\.moto-background-mode::before\{[^}]*top:81px;left:245px;right:0;bottom:0;[^}]*url\("\/assets\/moto%20fundal\.png"\) center calc\(100% \+ 80px\)\/cover no-repeat;[^}]*opacity:\.2;filter:blur\(2px\)/);
   assert.match(stylesheet, /@media\(max-width:760px\)\{body\.moto-background-mode::before\{left:0\}\}/);
 });
 
@@ -220,8 +221,21 @@ test('active page routes restore test and cooldown pages after refresh', () => {
   assert.match(source, /saveActiveRoute\(routeState\)/);
 });
 
+test('switching test routes replaces the old guide, resets staged UI, and scrolls to the top', () => {
+  const openTestSource = source.match(/function openTest\(testName, \{[\s\S]*?\n\}/)?.[0] || '';
+  assert.match(openTestSource, /document\.body\.classList\.remove\('smuls-stage-active', 'als-stage-active', 'moto-stage-active', 'pilot-stage-active', 'parachutism-stage-active'\)/);
+  assert.match(openTestSource, /viewContent\.innerHTML = buildTestMarkup\(testName, definition, questions\)/);
+  assert.match(openTestSource, /window\.scrollTo\(\{ top: 0, left: 0, behavior: 'instant' \}\)/);
+  assert.match(openTestSource, /if \(isSameTestRoute && !push\) window\.scrollTo\(\{ top: savedScrollPosition/);
+});
+
 test('test progress, admission photos, and cooldown form choices persist without restoring payer callsign', () => {
   assert.match(storageSource, /function testProgressStorageKey\(user, testName\)/);
+  assert.match(storageSource, /const TEST_PROGRESS_TTL_MS = 8 \* 60 \* 1000/);
+  assert.match(storageSource, /updatedAt: Date\.now\(\)/);
+  assert.match(storageSource, /Date\.now\(\) - updatedAt > TEST_PROGRESS_TTL_MS/);
+  assert.match(storageSource, /filter\(control => control\.type !== 'checkbox' && control\.type !== 'radio'\)/);
+  assert.match(storageSource, /control\.checked = false/);
   assert.match(storageSource, /function saveTestProgress\(testName\)/);
   assert.match(storageSource, /async function saveTestProgressPhoto\(testName, fieldId, file\)/);
   assert.match(storageSource, /media: previous\.media \|\| \{\}/);
@@ -407,16 +421,16 @@ test('bonus history attributes specialty results to the tester', () => {
 
 test('saved test definitions inherit newly shipped practical stages and cases', () => {
   const defaults = {
-    'Test MOTO': { title: 'MOTO', practicalStage: { title: 'Proba 2', imageSlots: 1, images: [{ label: 'Hartă', url: '/moto-map.png' }] }, questions: [{ text: 'Q' }] },
-    'Test SMULS': { cases: [{ title: 'Descarcerare' }], images: [{ url: '/map.png' }] },
+    'Test MOTO': { title: 'MOTO', practicalStage: { title: 'Proba 2', imageSlots: 1, images: [{ label: 'Hartă', url: '/assets/moto-map.png' }] }, questions: [{ text: 'Q' }] },
+    'Test SMULS': { cases: [{ title: 'Descarcerare' }], images: [{ url: '/assets/map.png' }] },
     'Test parașutiști': { practical: [
-      { name: 'Ușoară', imageSlots: 3, images: [{ url: '/jump1.png' }, { url: '/jump2.png' }, { url: '/jump3.png' }] },
-      { name: 'Medie', imageSlots: 2, images: [{ url: '/medium-heli.png' }, { url: '/medium-landing.png' }] },
-      { name: 'Dificilă', imageSlots: 3, images: [{ url: '/hard1.png' }, { url: '/hard2.png' }, { url: '/hard3.png' }] }
+      { name: 'Ușoară', imageSlots: 3, images: [{ url: '/assets/jump1.png' }, { url: '/assets/jump2.png' }, { url: '/assets/jump3.png' }] },
+      { name: 'Medie', imageSlots: 2, images: [{ url: '/assets/medium-heli.png' }, { url: '/assets/medium-landing.png' }] },
+      { name: 'Dificilă', imageSlots: 3, images: [{ url: '/assets/hard1.png' }, { url: '/assets/hard2.png' }, { url: '/assets/hard3.png' }] }
     ] },
     'Test PILOT': { evaluationStages: [
       { title: 'PROBA 2' },
-      { title: 'PROBA 3', imageSlots: 3, images: [{ url: '/one.png' }, { url: '/two.png' }, { url: '/three.png' }] },
+      { title: 'PROBA 3', imageSlots: 3, images: [{ url: '/assets/one.png' }, { url: '/assets/two.png' }, { url: '/assets/three.png' }] },
       { title: 'PROBA 4', imageSlots: 2 }
     ] }
   };
@@ -435,16 +449,16 @@ test('saved test definitions inherit newly shipped practical stages and cases', 
   assert.equal(merged['Test parașutiști'].practical.length, 3);
   assert.equal(merged['Test parașutiști'].practical[0].name, 'Ușoară personalizată');
   assert.equal(merged['Test parașutiști'].practical[0].imageSlots, 3);
-  assert.deepEqual(merged['Test parașutiști'].practical[0].images.map(image => image.url), ['/jump1.png', '/jump2.png', '/jump3.png']);
+  assert.deepEqual(merged['Test parașutiști'].practical[0].images.map(image => image.url), ['/assets/jump1.png', '/assets/jump2.png', '/assets/jump3.png']);
   assert.equal(merged['Test parașutiști'].practical[1].imageSlots, 2);
-  assert.deepEqual(merged['Test parașutiști'].practical[1].images.map(image => image.url), ['/medium-heli.png', '/medium-landing.png']);
+  assert.deepEqual(merged['Test parașutiști'].practical[1].images.map(image => image.url), ['/assets/medium-heli.png', '/assets/medium-landing.png']);
   assert.equal(merged['Test parașutiști'].practical[2].imageSlots, 3);
   assert.equal(merged['Test parașutiști'].practical[2].name, 'Dificilă personalizată');
   assert.equal(merged['Test parașutiști'].practical[2].images.length, 3);
   assert.equal(merged['Test parașutiști'].practical[2].imageSlots, 3);
   assert.equal(merged['Test PILOT'].evaluationStages[1].title, 'Proba 3 salvată');
   assert.equal(merged['Test PILOT'].evaluationStages[1].imageSlots, 3);
-  assert.deepEqual(merged['Test PILOT'].evaluationStages[1].images.map(image => image.url), ['/one.png', '/two.png', '/three.png']);
+  assert.deepEqual(merged['Test PILOT'].evaluationStages[1].images.map(image => image.url), ['/assets/one.png', '/assets/two.png', '/assets/three.png']);
   assert.equal(merged['Test PILOT'].evaluationStages[2].imageSlots, 2);
 });
 
@@ -538,13 +552,13 @@ test('parachutism theory verdict controls the separate practical panel', () => {
 });
 
 test('parachutism requirements, information cards, and jump photo slots are configured', () => {
-  assert.match(testCatalogSource, /eligibilityCriteria: \['Minim Medic Specialist', 'Licență Pilot'\]/);
-  assert.match(testCatalogSource, /candidateInformation: \[[\s\S]*?Testarea pentru certificatul de parașutism va conține două probe\./);
-  assert.match(testCatalogSource, /testerInformation: \[[\s\S]*?Filmarea nu trebuie să lipsească\./);
-  assert.match(testCatalogSource, /name: 'Săritura ușoară'[\s\S]*?imageSlots: 3[\s\S]*?name: 'Săritura medie'[\s\S]*?imageSlots: 2[\s\S]*?name: 'Săritura dificilă'[\s\S]*?imageSlots: 3/);
-  assert.match(testCatalogSource, /url: '\/Saritura_Usoara_Aterizare\.png'[\s\S]*?url: '\/Saritura_Usoara_Heli\.png'[\s\S]*?url: '\/Saritura_Usoara_Pozitie\.png'/);
-  assert.match(testCatalogSource, /name: 'Săritura medie'[\s\S]*?url: '\/Saritura_Medie_Heli\.png'[\s\S]*?url: '\/Saritura_Medie_Aterizare\.png'/);
-  assert.match(testCatalogSource, /name: 'Săritura dificilă'[\s\S]*?url: '\/Saritura_Grea_Heli\.png'[\s\S]*?url: '\/helipad_mediu\.png'[\s\S]*?url: '\/Saritura_Usoara_Pozitie\.png'/);
+  assert.match(testCatalogSource, /"eligibilityCriteria": \[[\s\S]*?Minim Medic Specialist[\s\S]*?Licență Pilot[\s\S]*?"candidateInformation":/);
+  assert.match(testCatalogSource, /"candidateInformation": \[[\s\S]*?Testarea pentru certificatul de parașutism va conține două probe\./);
+  assert.match(testCatalogSource, /"testerInformation": \[[\s\S]*?Filmarea nu trebuie să lipsească\./);
+  assert.match(testCatalogSource, /"name": "Săritura ușoară"[\s\S]*?"imageSlots": 3[\s\S]*?"name": "Săritura medie"[\s\S]*?"imageSlots": 2[\s\S]*?"name": "Săritura dificilă"[\s\S]*?"imageSlots": 3/);
+  assert.match(testCatalogSource, /"url": "\/assets\/Saritura_Usoara_Aterizare\.png"[\s\S]*?"url": "\/assets\/Saritura_Usoara_Heli\.png"[\s\S]*?"url": "\/assets\/Saritura_Usoara_Pozitie\.png"/);
+  assert.match(testCatalogSource, /"name": "Săritura medie"[\s\S]*?"url": "\/assets\/Saritura_Medie_Heli\.png"[\s\S]*?"url": "\/assets\/Saritura_Medie_Aterizare\.png"/);
+  assert.match(testCatalogSource, /"name": "Săritura dificilă"[\s\S]*?"url": "\/assets\/Saritura_Grea_Heli\.png"[\s\S]*?"url": "\/assets\/helipad_mediu\.png"[\s\S]*?"url": "\/assets\/Saritura_Usoara_Pozitie\.png"/);
   assert.match(source, /data-parachutism-check/);
   assert.match(source, /parachutism-test-content/);
   assert.doesNotMatch(source, /data-parachutism-photo/);
@@ -649,7 +663,7 @@ test('processed test badges show only assigned tests and aggregate the Tester bu
   assert.equal(processedTestBadgesHtml({ discordId: '1', callsign: '001', grantMode: 'override', grantedTests: ['Test SMULS'] }, {}), '<span class="statistics-no-processed-tests">—</span>');
   assert.match(processedTestBadgesHtml({ discordId: '2', callsign: '002', grantMode: 'override', grantedTests: ['Test SMULS'] }, {}), /Test SMULS/);
   assert.match(processedTestBadgesHtml({ discordId: '3', callsign: '003', grantMode: 'override', grantedTests: ['Test SMULS'] }, {}), /Test SMULS/);
-  assert.match(source, /class="statistics-processed-column"><dt>TESTE PROCESATE/);
+  assert.match(source, /<th>TESTE PROCESATE<\/th>/);
   assert.match(source, /class="outline site-guide-frame statistics-tests-toggle"/);
 });
 
@@ -724,7 +738,7 @@ test('ALS test requires BLS, Radio, three days, and category B checks', () => {
 
 test('ALS case accordions include all four requested scenarios and interaction counts', () => {
   const markup = alsCaseListHtml([{ title: 'Cazul 1', description: 'Fractură', minimumMe: 13, steps: ['/me stabilizează pacientul'] }]);
-  const alsDefinition = testCatalogSource.split("'Test ALS':")[1].split("'Test parașutiști':")[0];
+  const alsDefinition = testCatalogSource.split('"Test ALS":')[1].split('"Test parașutiști":')[0];
   assert.match(markup, /<details class="als-case" open>/);
   assert.match(markup, /Fractură/);
   assert.match(markup, /13 \/me-uri/);
@@ -732,7 +746,7 @@ test('ALS case accordions include all four requested scenarios and interaction c
   assert.match(markup, /Admis ALS/);
   assert.match(markup, /Respins ALS/);
   for (const expectedCase of ['accident de motociclet', 'șoc anafilactic', 'benzinărie', 'barcă']) assert.ok(alsDefinition.toLowerCase().includes(expectedCase.toLowerCase()));
-  assert.match(alsDefinition, /minimumMe: 13[\s\S]*?minimumMe: 13[\s\S]*?minimumMe: 14[\s\S]*?minimumMe: 18/);
+  assert.match(alsDefinition, /"minimumMe": 13[\s\S]*?"minimumMe": 13[\s\S]*?"minimumMe": 14[\s\S]*?"minimumMe": 18/);
   assert.doesNotMatch(alsDefinition, /questions:/);
 });
 
@@ -761,32 +775,32 @@ test('S.M.U.L.S. case list expands each descarceration and reserves two images',
     assert.match(server, /'\.png': 'image\/png'/);
   }
   const imageMarkup = smulsCaseListHtml([{ title: 'Descarcerare demo', steps: [] }], [
-    { label: 'Locație', url: '/Poza_Locatie.png' },
-    { label: 'Autospeciale', url: '/Poza_Pozitie_Masini.png' }
+    { label: 'Locație', url: '/assets/Poza_Locatie.png' },
+    { label: 'Autospeciale', url: '/assets/Poza_Pozitie_Masini.png' }
   ]);
-  assert.deepEqual([...imageMarkup.matchAll(/<img src="([^"]+)"/g)].map(match => match[1]), ['/Poza_Locatie.png', '/Poza_Pozitie_Masini.png']);
-  assert.match(testCatalogSource, /descarcerationImages: \[[\s\S]*?url: '\/Poza_Locatie\.png'[\s\S]*?url: '\/Poza_Pozitie_Masini\.png'/);
+  assert.deepEqual([...imageMarkup.matchAll(/<img src="([^"]+)"/g)].map(match => match[1]), ['/assets/Poza_Locatie.png', '/assets/Poza_Pozitie_Masini.png']);
+  assert.match(testCatalogSource, /"descarcerationImages": \[[\s\S]*?"url": "\/assets\/Poza_Locatie\.png"[\s\S]*?"url": "\/assets\/Poza_Pozitie_Masini\.png"/);
   assert.match(source, /smuls-stage-active/);
 });
 
 test('Moto and Pilot staged practical content is present in test definitions', () => {
-  const alsDefinition = testCatalogSource.split("'Test ALS':")[1].split("'Test parașutiști':")[0];
-  assert.match(alsDefinition, /minimumMe: 13[\s\S]*?minimumMe: 13[\s\S]*?minimumMe: 14[\s\S]*?minimumMe: 18/);
+  const alsDefinition = testCatalogSource.split('"Test ALS":')[1].split('"Test parașutiști":')[0];
+  assert.match(alsDefinition, /"minimumMe": 13[\s\S]*?"minimumMe": 13[\s\S]*?"minimumMe": 14[\s\S]*?"minimumMe": 18/);
   for (const scenario of ['accident de motocicletă', 'șoc anafilactic', 'explozii la o benzinărie', 'căzut din barcă']) assert.ok(alsDefinition.includes(scenario));
   assert.doesNotMatch(alsDefinition, /questions:/);
-  assert.match(testCatalogSource, /practicalStage:[\s\S]*?5:40 minute \(MOTO/);
-  assert.match(testCatalogSource, /'Test SMULS':[\s\S]*?maxWrong: 2/);
+  assert.match(testCatalogSource, /"practicalStage":[\s\S]*?5:40 minute \(MOTO/);
+  assert.match(testCatalogSource, /"Test SMULS":[\s\S]*?"maxWrong": 2/);
   assert.match(testCatalogSource, /5:45 min/);
   assert.match(testCatalogSource, /06:00 min/);
   assert.match(testCatalogSource, /Candidatul nu va depăși limita de 60 km\/h/);
-  assert.match(testCatalogSource, /candidateBriefing:[\s\S]*?Testul conține 2 probe[\s\S]*?contra timp[\s\S]*?fără a-l pierde din vizor/);
-  assert.match(testCatalogSource, /title: 'Proba 2: Proba Practică'[\s\S]*?5:40 minute \(MOTO\) \(fără zăpadă\)[\s\S]*?7:00 minute \(ATV\) \(cu zăpadă\)[\s\S]*?imageSlots: 1/);
-  assert.match(testCatalogSource, /practicalStage:[\s\S]*?imageSlots: 1[\s\S]*?url: '\/Traseu_test_moto_poza_harta\.png'/);
+  assert.match(testCatalogSource, /"candidateBriefing":[\s\S]*?Testul conține 2 probe[\s\S]*?contra timp[\s\S]*?fără a-l pierde din vizor/);
+  assert.match(testCatalogSource, /"title": "Proba 2: Proba Practică"[\s\S]*?5:40 minute \(MOTO\) \(fără zăpadă\)[\s\S]*?7:00 minute \(ATV\) \(cu zăpadă\)[\s\S]*?"imageSlots": 1/);
+  assert.match(testCatalogSource, /"title": "Proba 2: Proba Practică"[\s\S]*?"url": "\/assets\/Traseu_test_moto_poza_harta\.png"/);
   assert.match(testCatalogSource, /PROBA 2: Locațiile Pacific/);
   assert.match(testCatalogSource, /Buckingham Swift[\s\S]*?3, 2, 1, START[\s\S]*?30 de secunde/);
-  assert.match(testCatalogSource, /PROBA 3: Proba de îndemânare și pick-up[\s\S]*?Paleto[\s\S]*?imageSlots: 3/);
-  assert.match(testCatalogSource, /url: '\/Proba_3_test_pilot\.png'[\s\S]*?url: '\/Proba_3_test_pilot_poza_2\.png'[\s\S]*?url: '\/Proba_3_test_pilot_poza_3\.png'/);
-  assert.match(testCatalogSource, /PROBA 4: Pick-Up de pe Chilliad[\s\S]*?imageSlots: 3[\s\S]*?url: '\/Proba_4_test_pilot_poza_joc_1\.png'[\s\S]*?url: '\/Proba_4_test_pilot_poza_joc_2\.png'[\s\S]*?url: '\/Proba_4_test_pilot_poza_harta\.png'/);
+  assert.match(testCatalogSource, /"title": "PROBA 3: Proba de îndemânare și pick-up"[\s\S]*?Paleto[\s\S]*?"imageSlots": 3/);
+  assert.match(testCatalogSource, /"url": "\/assets\/Proba_3_test_pilot\.png"[\s\S]*?"url": "\/assets\/Proba_3_test_pilot_poza_2\.png"[\s\S]*?"url": "\/assets\/Proba_3_test_pilot_poza_3\.png"/);
+  assert.match(testCatalogSource, /PROBA 4: Pick-Up de pe Chilliad[\s\S]*?"imageSlots": 3[\s\S]*?"url": "\/assets\/Proba_4_test_pilot_poza_joc_1\.png"[\s\S]*?"url": "\/assets\/Proba_4_test_pilot_poza_joc_2\.png"[\s\S]*?"url": "\/assets\/Proba_4_test_pilot_poza_harta\.png"/);
 });
 
 test('Pilot certification description and instructions share one intro box', () => {
@@ -872,15 +886,15 @@ test('Pilot verdict buttons isolate the current stage and use distinct verdict s
 
 test('evaluation stage cards render three right-side image placeholders when requested', () => {
   const markup = evaluationStageHtml({ title: 'PROBA 3', imageSlots: 3, images: [
-    { label: 'Imagine 1', url: '/first.png' },
-    { label: 'Imagine 2', url: '/second.png' },
-    { label: 'Imagine 3', url: '/third.png' }
+    { label: 'Imagine 1', url: '/assets/first.png' },
+    { label: 'Imagine 2', url: '/assets/second.png' },
+    { label: 'Imagine 3', url: '/assets/third.png' }
   ] }, []);
   assert.match(markup, /evaluation-stage-card has-image-slots/);
   assert.match(markup, /aria-label="Imagine 1"/);
   assert.match(markup, /aria-label="Imagine 2"/);
   assert.match(markup, /aria-label="Imagine 3"/);
-  assert.deepEqual([...markup.matchAll(/<img src="([^"]+)"/g)].map(match => match[1]), ['/first.png', '/second.png', '/third.png']);
+  assert.deepEqual([...markup.matchAll(/<img src="([^"]+)"/g)].map(match => match[1]), ['/assets/first.png', '/assets/second.png', '/assets/third.png']);
   const motoMarkup = evaluationStageHtml({ title: 'Proba 2', imageSlots: 1 }, []);
   assert.match(motoMarkup, /style="--image-slot-count:1"/);
   assert.match(motoMarkup, /Imagine 1/);
@@ -935,7 +949,7 @@ test('admission allows three marked mistakes and blocks mistakes beyond each tes
 });
 
 test('bonus page shows its fixed corner logo', () => {
-  assert.match(source, /class="test-corner-logo bonus-corner-logo" src="\/bonusuri\.png" alt="Sigla Bonusuri"/);
+  assert.match(source, /class="test-corner-logo bonus-corner-logo" src="\/assets\/bonusuri\.png" alt="Sigla Bonusuri"/);
 });
 
 test('bonus selections copy multiple six-column rows and keep numeric display order', () => {
@@ -1082,7 +1096,7 @@ test('a configured test title overrides its default display title', () => {
 
 test('SMULS guide includes the supplied route image as an inline preview', () => {
   const testDefinitions = readFileSync(join(here, '..', 'tests.js'), 'utf8');
-  assert.match(testDefinitions, /'Test SMULS'[\s\S]*?images: \[\{ label: 'Hartă traseu S\.M\.U\.L\.S\.', url: '\/image\.png', inline: true \}\]/);
+  assert.match(testDefinitions, /"Test SMULS"[\s\S]*?"label": "Hartă traseu S\.M\.U\.L\.S\.",\s*"url": "\/assets\/image\.png",\s*"inline": true/);
 });
 
 test('identity card OCR parser handles inline labels and preserves OCR-confused CNP letters', () => {
@@ -1373,16 +1387,22 @@ test('candidate document, medical sheet, and drug-test uploads share the themed 
   assert.match(source, /const isBulletinPhoto = id === 'candidate-document' \|\| id === 'certificate-document'/);
   assert.match(source, /const hasArtwork = isBulletinPhoto \|\| \['candidate-medical-sheet', 'candidate-drug-test', 'certificate-medical-sheet'\]\.includes\(id\)/);
   assert.match(source, /class="image-paste-target\$\{hasArtwork \? ' photo-artwork-target' : ''\}"/);
-  assert.match(source, /class="bulletin-dot-art" src="\/gif\.gif"/);
+  assert.match(source, /class="bulletin-dot-art" src="\/assets\/gif\.gif"/);
   assert.match(source, /class="candidate-photo-preview" data-photo-preview="\$\{escapeHtml\(id\)\}"/);
   assert.match(source, /function setCandidatePhotoPreview\(id, file\)/);
   assert.match(source, /<span class="candidate-upload-title">\$\{label\}<\/span><button type="button" class="candidate-file-select" data-photo-select="\$\{id\}" aria-label="Selectează \$\{escapeHtml\(label\)\}">Choose File<\/button><span class="candidate-file-name" id="\$\{id\}-file-name">No file chosen<\/span>/);
   assert.match(source, /fileSelect\.onclick = \(\) => input\.click\(\)/);
-  assert.match(source, /pasteTarget\.onclick = event => \{\s*event\.preventDefault\(\);\s*pasteTarget\.focus\(\{ preventScroll: true \}\);/);
+  assert.match(source, /pasteTarget\.onclick = event => \{\s*event\.preventDefault\(\);\s*pasteTarget\.focus\(\{ preventScroll: true \}\);\s*\};/);
+  assert.doesNotMatch(source, /pasteTarget\.onclick[\s\S]{0,200}input\.click\(\)/);
   assert.match(source, /pasteTarget\.onpaste = event => \{[\s\S]*?event\.preventDefault\(\);[\s\S]*?input\.files = transfer\.files/);
+  assert.match(source, /document\.addEventListener\('paste',[\s\S]*?\[data-paste-for\]/);
+  assert.match(source, /pasteTarget\.focus\(\{ preventScroll: true \}\)/);
+  assert.match(source, /window\.activePhotoPasteTarget = pasteTarget/);
+  assert.match(source, /if \(window\.activePhotoPasteTarget === pasteTarget && file\)/);
   assert.match(source, /pasteTarget\.onkeydown = event => \{\s*if \(event\.key === 'Enter' \|\| event\.key === ' '\) \{\s*event\.preventDefault\(\);\s*pasteTarget\.focus\(\{ preventScroll: true \}\);/);
   const imageField = source.match(/function candidateImageFieldHtml\(id, label\) \{[\s\S]*?\n\}/)?.[0] || '';
   assert.ok(imageField.indexOf('image-paste-target') < imageField.indexOf('candidate-document-upload'));
+  assert.doesNotMatch(imageField, /role="button"/);
   assert.doesNotMatch(source, /bulletinArtwork\.style\.setProperty\('--hole-/);
   assert.match(source, /class="candidate-photo-spinner"/);
   assert.match(source, /data-photo-state="empty"/);
@@ -1402,12 +1422,12 @@ test('candidate document, medical sheet, and drug-test uploads share the themed 
 
 test('medical certificates start at 7024 and stop at 30000', () => {
   assert.equal(medicalCertificateNumberForRow(1), null);
-  assert.equal(medicalCertificateNumberForRow(2), 7024);
-  assert.equal(medicalCertificateNumberForRow(22978), 30000);
-  assert.equal(medicalCertificateNumberForRow(22979), null);
+  assert.equal(medicalCertificateNumberForRow(2), 7030);
+  assert.equal(medicalCertificateNumberForRow(22972), 30000);
+  assert.equal(medicalCertificateNumberForRow(22973), null);
   const existingCertificates = [['number'], ...Array.from({ length: 9 }, (_, index) => [7015 + index])];
-  assert.equal(medicalCertificateNumberForRow(11, existingCertificates), 7024);
-  assert.equal(medicalCertificateNumberForRow(12, [...existingCertificates, ['']]), 7025);
+  assert.equal(medicalCertificateNumberForRow(11, existingCertificates), 7030);
+  assert.equal(medicalCertificateNumberForRow(12, [...existingCertificates, ['']]), 7031);
 });
 
 test('medical certificate embed includes the requested fields and medical verdict', () => {
@@ -1420,9 +1440,9 @@ test('medical certificate embed includes the requested fields and medical verdic
   assert.match(certificate.description, /NUME: Cartier\nPRENUME: Mohammed/);
   assert.match(certificate.description, /REZULTAT: ADMIS/);
   assert.match(certificate.description, /ORE\(LUNI\): 2001\.25 \(cont\) 2001\.25 \(character\)/);
-  assert.equal(embeds.length, 1);
+  assert.equal(embeds.length, 2);
   assert.equal(certificate.url, undefined);
-  assert.equal(certificate.thumbnail.url, 'attachment://fisa-medicala.jpg');
+  assert.equal(certificate.thumbnail.url, 'attachment://logo-medici.png');
   assert.equal(certificate.image.url, 'attachment://buletin-candidat.jpg');
   assert.equal(certificate.footer.icon_url, 'attachment://logo-medici.png');
   const [rejected] = createMedicalCertificateEmbeds({

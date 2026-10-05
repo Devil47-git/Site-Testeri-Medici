@@ -8,6 +8,7 @@
  */
 const ACTIVE_ROUTE_STORAGE_PREFIX = 'medici-active-route:';
 const TEST_PROGRESS_STORAGE_PREFIX = 'medici-test-progress:';
+const TEST_PROGRESS_TTL_MS = 8 * 60 * 1000;
 const COOLDOWN_DRAFT_STORAGE_PREFIX = 'medici-cooldown-draft:';
 const TEST_CATALOG_KEY = 'medici-test-catalog-v4';
 const coreTests = ['Test admitere','Test transfer','Adeverință medicală'];
@@ -51,21 +52,20 @@ function saveTestProgress(testName) {
   if (!panel) return;
   const key = testProgressStorageKey(currentUser, testName);
   const previous = readStored(key, {}) || {};
-  const controls = [...panel.querySelectorAll('input:not([type="file"]),select,textarea')].map((control, index) => {
-    const key = control.id || control.dataset.progressKey || `control-${index}`;
-    control.dataset.progressKey = key;
-    return {
-      key,
-      value: control.value,
-      checked: control.type === 'checkbox' || control.type === 'radio' ? control.checked : undefined
-    };
-  });
+  const controls = [...panel.querySelectorAll('input:not([type="file"]),select,textarea')]
+    .filter(control => control.type !== 'checkbox' && control.type !== 'radio')
+    .map((control, index) => {
+      const key = control.id || control.dataset.progressKey || `control-${index}`;
+      control.dataset.progressKey = key;
+      return { key, value: control.value };
+    });
   try {
     localStorage.setItem(key, JSON.stringify({
       ...previous,
       controls,
       stage: panel.dataset.progressStage || '',
       stageIndex: Number(panel.dataset.progressIndex) || 0,
+      updatedAt: Date.now(),
       media: previous.media || {}
     }));
   } catch (error) {
@@ -81,15 +81,22 @@ async function saveTestProgressPhoto(testName, fieldId, file) {
   if (savedPhoto) media[fieldId] = savedPhoto;
   else delete media[fieldId];
   try {
-    localStorage.setItem(key, JSON.stringify({ ...progress, media }));
+    localStorage.setItem(key, JSON.stringify({ ...progress, media, updatedAt: Date.now() }));
   } catch (error) {
     throw new Error('Fotografia nu a putut fi păstrată când schimbi testul.', { cause: error });
   }
 }
 function restoreTestProgress(testName) {
   if (!currentUser?.discordId) return null;
-  const progress = readStored(testProgressStorageKey(currentUser, testName), null);
-  if (!progress || !Array.isArray(progress.controls)) return null;
+  const key = testProgressStorageKey(currentUser, testName);
+  const progress = readStored(key, null);
+  if (!progress) return null;
+  const updatedAt = Number(progress.updatedAt) || 0;
+  if (!updatedAt || Date.now() - updatedAt > TEST_PROGRESS_TTL_MS) {
+    clearTestProgress(testName);
+    return null;
+  }
+  if (!Array.isArray(progress.controls)) return null;
   const panel = viewContent.querySelector('.view-panel');
   if (!panel) return null;
   const controls = [...panel.querySelectorAll('input:not([type="file"]),select,textarea')];
@@ -104,8 +111,11 @@ function restoreTestProgress(testName) {
       else if (key === 'candidate-first-name') control.value = legacyFirstNames.join(' ');
       return;
     }
-    if (control.type === 'checkbox' || control.type === 'radio') control.checked = Boolean(saved.checked);
-    else if (!control.readOnly) control.value = String(saved.value ?? '');
+    if (control.type === 'checkbox' || control.type === 'radio') {
+      control.checked = false;
+      return;
+    }
+    if (!control.readOnly) control.value = String(saved.value ?? '');
   });
   panel.dataset.progressStage = String(progress.stage || '');
   panel.dataset.progressIndex = String(Number(progress.stageIndex) || 0);

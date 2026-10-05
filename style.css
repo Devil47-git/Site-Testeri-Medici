@@ -541,37 +541,37 @@ body:not(.dark-mode) .nav-item.active,body:not(.dark-mode) .nav-item:hover{color
 #profile-tests .tag.test-tag,.profile-test-tags .tag.test-tag{border-color:var(--test-tag-color);background:rgba(255,255,255,.05);background:color-mix(in srgb,var(--test-tag-color) 15%,transparent);color:var(--test-tag-color);box-shadow:0 0 8px color-mix(in srgb,var(--test-tag-color) 42%,transparent),inset 0 1px rgba(255,255,255,.18)}
 body.dark-mode .tester-access-table td:nth-child(4) .tag.test-tag,body.dark-mode #profile-tests .tag.test-tag,body.dark-mode .profile-test-tags .tag.test-tag{border-color:var(--test-tag-color);background:rgba(255,255,255,.05);background:color-mix(in srgb,var(--test-tag-color) 15%,transparent);color:var(--test-tag-color);box-shadow:0 0 8px color-mix(in srgb,var(--test-tag-color) 42%,transparent),inset 0 1px rgba(255,255,255,.18)}
 body.smuls-background-mode{isolation:isolate}
-body.smuls-background-mode::before{content:"";position:fixed;top:81px;left:245px;right:0;bottom:0;z-index:-1;background:url("/smuls-background.png") center calc(100% + 80px)/cover no-repeat;opacity:.2;filter:blur(2px);pointer-events:none}
+body.smuls-background-mode::before{content:"";position:fixed;top:81px;left:245px;right:0;bottom:0;z-index:-1;background:url("/assets/smuls-background.png") center calc(100% + 80px)/cover no-repeat;opacity:.2;filter:blur(2px);pointer-events:none}
 body.smuls-background-mode .view-panel.smuls-background-panel{background:rgba(17,29,45,.5)}
 @media(max-width:760px){body.smuls-background-mode::before{left:0}}
 body.als-background-mode{isolation:isolate}
-body.als-background-mode::before{content:"";position:fixed;top:81px;left:245px;right:0;bottom:0;z-index:-1;background:url("/alsv2.png") center calc(100% + 80px)/cover no-repeat;opacity:.2;filter:blur(2px);pointer-events:none}
+body.als-background-mode::before{content:"";position:fixed;top:81px;left:245px;right:0;bottom:0;z-index:-1;background:url("/assets/alsv2.png") center calc(100% + 80px)/cover no-repeat;opacity:.2;filter:blur(2px);pointer-events:none}
 body.als-background-mode .view-panel.als-background-panel{background:rgba(17,29,45,.5)}
 @media(max-width:760px){body.als-background-mode::before{left:0}}
 body.moto-background-mode{isolation:isolate}
-body.moto-background-mode::before{content:"";position:fixed;top:81px;left:245px;right:0;bottom:0;z-index:-1;background:url("/moto%20fundal.png") center calc(100% + 80px)/cover no-repeat;opacity:.2;filter:blur(2px);pointer-events:none}
+body.moto-background-mode::before{content:"";position:fixed;top:81px;left:245px;right:0;bottom:0;z-index:-1;background:url("/assets/moto%20fundal.png") center calc(100% + 80px)/cover no-repeat;opacity:.2;filter:blur(2px);pointer-events:none}
 body.moto-background-mode .view-panel.moto-background-panel{background:rgba(17,29,45,.5)}
 @media(max-width:760px){body.moto-background-mode::before{left:0}}
 body.pilot-background-mode{isolation:isolate}
-body.pilot-background-mode::before{content:"";position:fixed;top:81px;left:245px;right:0;bottom:0;z-index:-1;background:url("/pilot%20fundal.png") center calc(100% + 80px)/cover no-repeat;opacity:.2;filter:blur(2px);pointer-events:none}
+body.pilot-background-mode::before{content:"";position:fixed;top:81px;left:245px;right:0;bottom:0;z-index:-1;background:url("/assets/pilot%20fundal.png") center calc(100% + 80px)/cover no-repeat;opacity:.2;filter:blur(2px);pointer-events:none}
 body.pilot-background-mode .view-panel.pilot-background-panel{background:rgba(17,29,45,.5)}
 @media(max-width:760px){body.pilot-background-mode::before{left:0}}
 body.adeverinta-background-mode{isolation:isolate}
-body.adeverinta-background-mode::before{content:"";position:fixed;top:81px;left:245px;right:0;bottom:0;z-index:-1;background:url("/adeverinta.png") center calc(100% + 80px)/cover no-repeat;opacity:.2;filter:blur(2px);pointer-events:none}
+body.adeverinta-background-mode::before{content:"";position:fixed;top:81px;left:245px;right:0;bottom:0;z-index:-1;background:url("/assets/adeverinta.png") center calc(100% + 80px)/cover no-repeat;opacity:.2;filter:blur(2px);pointer-events:none}
 body.adeverinta-background-mode .view-panel.adeverinta-background-panel{background:rgba(17,29,45,.5)}
 @media(max-width:760px){body.adeverinta-background-mode::before{left:0}}
 body.parasutism-background-mode{isolation:isolate}
-body.parasutism-background-mode::before{content:"";position:fixed;top:81px;left:245px;right:0;bottom:0;z-index:-1;background:url("/PARASUTAFUNDAL.png") center calc(100% + 80px)/cover no-repeat;opacity:.2;filter:blur(2px);pointer-events:none}
+body.parasutism-background-mode::before{content:"";position:fixed;top:81px;left:245px;right:0;bottom:0;z-index:-1;background:url("/assets/PARASUTAFUNDAL.png") center calc(100% + 80px)/cover no-repeat;opacity:.2;filter:blur(2px);pointer-events:none}
 body.parasutism-background-mode .view-panel.parasutism-background-panel{background:rgba(17,29,45,.5)}
 @media(max-width:760px){body.parasutism-background-mode::before{left:0}}
 .test-corner-logo{position:fixed;right:22px;bottom:18px;z-index:8;width:132px;height:132px;object-fit:contain;opacity:.94;mix-blend-mode:screen;pointer-events:none;user-select:none}
 @media(max-width:760px){.test-corner-logo{right:12px;bottom:14px;width:86px;height:86px}}
 body.admission-background-mode{isolation:isolate}
-body.admission-background-mode::before{content:"";position:fixed;top:81px;left:245px;right:0;bottom:0;z-index:-1;background:url("/test%20admitere%20background.png") center calc(100% + 80px)/cover no-repeat;opacity:.2;filter:blur(2px);pointer-events:none}
+body.admission-background-mode::before{content:"";position:fixed;top:81px;left:245px;right:0;bottom:0;z-index:-1;background:url("/assets/test%20admitere%20background.png") center calc(100% + 80px)/cover no-repeat;opacity:.2;filter:blur(2px);pointer-events:none}
 body.admission-background-mode .view-panel.admission-background-panel{background:rgba(17,29,45,.5)}
 @media(max-width:760px){body.admission-background-mode::before{left:0}}
 body.transfer-background-mode{isolation:isolate}
-body.transfer-background-mode::before{content:"";position:fixed;top:81px;left:245px;right:0;bottom:0;z-index:-1;background:url("/test%20transfer%20background.png") center calc(100% + 80px)/cover no-repeat;opacity:.2;filter:blur(2px);pointer-events:none}
+body.transfer-background-mode::before{content:"";position:fixed;top:81px;left:245px;right:0;bottom:0;z-index:-1;background:url("/assets/test%20transfer%20background.png") center calc(100% + 80px)/cover no-repeat;opacity:.2;filter:blur(2px);pointer-events:none}
 body.transfer-background-mode .view-panel.transfer-background-panel{background:rgba(17,29,45,.5)}
 @media(max-width:760px){body.transfer-background-mode::before{left:0}}
 .verdict-cooldown-note{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);z-index:1000;padding:10px 16px;border-radius:7px;background:#cd363c;color:#fff;font-weight:700;box-shadow:0 6px 20px rgba(0,0,0,.4)}
