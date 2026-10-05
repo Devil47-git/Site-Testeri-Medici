@@ -1300,7 +1300,7 @@ test('ALS result embed contains tester, candidate, callsign, and verdict', () =>
   assert.deepEqual(embed.fields.map(field => field.name), ['👨‍⚕️ Tester', '🧑‍⚕️ Candidat', '🏁 Rezultat']);
   assert.deepEqual(embed.fields.map(field => field.inline), [false, false, false]);
   assert.deepEqual(embed.fields.slice(0, 2).map(field => field.value), ['<@111>', '<@222>']);
-  assert.equal(embed.fields[2].value, '❌ **Respins**');
+  assert.match(embed.fields[2].value, /^❌ \*\*Respins\*\*\n⏳ Cooldown până pe \*\*\d+ \w+\*\* \(3 zile\)$/u);
   assert.equal(embed.footer.text, 'Rezultat oficial · DMLS');
 });
 

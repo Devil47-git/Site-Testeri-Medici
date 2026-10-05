@@ -959,6 +959,56 @@ function renderCooldownPaymentsView() {
   return `<section class="panel cooldown-payment-panel"><div class="panel-head"><div><p class="eyebrow">MODEL DE COPIAT</p><h2>Cooldown-uri</h2><p class="muted">Completează callsign-ul persoanei care plătește. Datele se preiau din director, iar testerul aplică manual cooldown-ul.</p></div></div><div class="cooldown-payment-grid"><label>Callsign plătitor<span class="cooldown-callsign-input"><span aria-hidden="true">M-</span><input id="cooldown-payer-callsign" type="text" value="" placeholder="507" inputmode="numeric" pattern="[0-9]*" autocomplete="off" aria-label="Numărul callsign-ului plătitor, prefixul M este adăugat automat"></span></label><label>Calificare<select id="cooldown-payment-test"><option value="">Alege testul</option>${testOptions}</select></label><label>Număr zile<input id="cooldown-payment-days" type="number" min="1" max="5" step="1" inputmode="numeric" value="${escapeHtml(draft.days || '')}" placeholder="3"></label></div><p class="cooldown-payer-status muted" id="cooldown-payer-status" role="status" aria-live="polite">Introdu numărul callsign-ului. Prefixul M- este adăugat automat.</p><dl class="cooldown-payer-details" id="cooldown-payer-details" hidden><div><dt>NUME</dt><dd id="cooldown-payer-name">—</dd></div><div><dt>GRAD</dt><dd id="cooldown-payer-rank">—</dd></div><div><dt>DISCORD ID</dt><dd id="cooldown-payer-discord">—</dd></div><div><dt>PREȚ / ZI</dt><dd id="cooldown-payment-rate">—</dd></div><div><dt>TOTAL</dt><dd id="cooldown-payment-total">—</dd></div></dl><label class="cooldown-payment-model-label">Model pentru Discord<textarea id="cooldown-payment-model" rows="6" readonly placeholder="Modelul complet va apărea aici după ce alegi callsign-ul, testul și numărul de zile."></textarea></label><div class="cooldown-payment-actions"><button class="primary" id="cooldown-payment-copy" type="button" disabled>Copiază modelul</button><button class="outline site-guide-frame cooldown-reset-button" id="cooldown-payment-reset" type="button">Resetează formularul</button><span class="muted" id="cooldown-payment-copy-status" role="status" aria-live="polite"></span></div><p class="cooldown-payment-note">Acest formular doar calculează și generează textul. Nu modifică evidența cooldownurilor și nu trimite mesaje.</p></section>`;
 }
 
+// Înlocuiește lista nativă a unui select cu o listă în stilul site-ului; select-ul rămâne sursa valorii.
+function enhanceSelectDropdown(select) {
+  if (!select || select.dataset.customDropdown) return;
+  select.dataset.customDropdown = 'true';
+  const wrapper = document.createElement('div');
+  wrapper.className = 'custom-select';
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'custom-select-button';
+  button.setAttribute('aria-haspopup', 'listbox');
+  button.setAttribute('aria-expanded', 'false');
+  const list = document.createElement('ul');
+  list.className = 'custom-select-list';
+  list.setAttribute('role', 'listbox');
+  list.hidden = true;
+  select.before(wrapper);
+  wrapper.append(select, button, list);
+  select.classList.add('custom-select-native');
+  select.tabIndex = -1;
+  const sync = () => {
+    const selected = select.selectedOptions[0];
+    button.textContent = selected?.textContent || '';
+    button.classList.toggle('is-placeholder', !select.value);
+    list.querySelectorAll('li').forEach(item => item.setAttribute('aria-selected', String(item.dataset.value === select.value)));
+  };
+  const close = () => { list.hidden = true; button.setAttribute('aria-expanded', 'false'); };
+  Array.from(select.options).forEach(option => {
+    const item = document.createElement('li');
+    item.setAttribute('role', 'option');
+    item.dataset.value = option.value;
+    item.textContent = option.textContent;
+    item.addEventListener('click', () => {
+      select.value = option.value;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+      sync();
+      close();
+      button.focus();
+    });
+    list.append(item);
+  });
+  button.addEventListener('click', () => {
+    list.hidden = !list.hidden;
+    button.setAttribute('aria-expanded', String(!list.hidden));
+  });
+  document.addEventListener('click', event => { if (!wrapper.contains(event.target)) close(); });
+  wrapper.addEventListener('keydown', event => { if (event.key === 'Escape') { close(); button.focus(); } });
+  select.syncCustomDropdown = sync;
+  sync();
+}
+
 function wireCooldownPaymentsEvents() {
   const callsignInput = document.querySelector('#cooldown-payer-callsign');
   const testSelect = document.querySelector('#cooldown-payment-test');
@@ -969,12 +1019,14 @@ function wireCooldownPaymentsEvents() {
   const copyButton = document.querySelector('#cooldown-payment-copy');
   const resetButton = document.querySelector('#cooldown-payment-reset');
   if (!callsignInput || !testSelect || !daysInput || !payerStatus || !copyStatus || !model || !copyButton || !resetButton) return;
+  enhanceSelectDropdown(testSelect);
 
   const update = () => {
     callsignInput.value = callsignInput.value.replace(/\D/g, '');
     const enteredCallsign = callsignInput.value.trim();
     const payer = cooldownPaymentPayerForCallsign(enteredCallsign, directoryMembers);
     const indexedPayer = cooldownPaymentPayerForCallsign(enteredCallsign, cooldownPayerMembers);
+    testSelect.syncCustomDropdown?.();
     const test = testSelect.value;
     const days = daysInput.value;
     saveCooldownDraft(test, days);
@@ -2798,6 +2850,8 @@ function closeImageViewer() {
   if (!imageViewer) return;
   imageViewer.hidden = true;
   imageViewerImage.removeAttribute('src');
+  imageViewer.classList.remove('is-zoomed');
+  imageViewer.style.removeProperty('--viewer-zoom');
   document.body.classList.remove('image-viewer-open');
 }
 if (imageViewer) {
@@ -2816,6 +2870,14 @@ if (imageViewer) {
     openImageViewer(testImage.currentSrc || testImage.src, testImage.alt);
   }, true);
   imageViewer.addEventListener('click', event => { if (event.target === imageViewer) closeImageViewer(); });
+  const setViewerZoom = zoom => {
+    const level = Math.min(5, Math.max(1, zoom));
+    imageViewer.classList.toggle('is-zoomed', level > 1);
+    imageViewer.style.setProperty('--viewer-zoom', String(level));
+  };
+  const currentViewerZoom = () => (imageViewer.classList.contains('is-zoomed') ? Number(imageViewer.style.getPropertyValue('--viewer-zoom')) || 2 : 1);
+  imageViewerImage.addEventListener('click', event => { event.stopPropagation(); setViewerZoom(currentViewerZoom() > 1 ? 1 : 2.5); });
+  imageViewer.addEventListener('wheel', event => { event.preventDefault(); setViewerZoom(currentViewerZoom() + (event.deltaY < 0 ? 0.5 : -0.5)); }, { passive: false });
   if (imageViewerClose) imageViewerClose.onclick = closeImageViewer;
   document.addEventListener('keydown', event => { if (event.key === 'Escape' && !imageViewer.hidden) closeImageViewer(); });
 }

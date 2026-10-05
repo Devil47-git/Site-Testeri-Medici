@@ -300,6 +300,18 @@ function discordMention(discordId, fallbackName) {
   return /^\d+$/.test(id) ? `<@${id}>` : `**${fallbackName || '—'}**`;
 }
 
+function failureCooldownDays(testName) {
+  return testName === 'Test ALS' ? 3 : 5;
+}
+
+function resultFieldValue(result, cooldownDays, now = new Date()) {
+  if (result === 'Admis') return '✅ **Admis**';
+  if (result !== 'Respins') return result || '—';
+  const until = new Date(now.getTime() + cooldownDays * 86400000);
+  const date = new Intl.DateTimeFormat('ro-RO', { day: 'numeric', month: 'long', timeZone: 'Europe/Bucharest' }).format(until);
+  return `❌ **Respins**\n⏳ Cooldown până pe **${date}** (${cooldownDays} zile)`;
+}
+
 export function createAlsResultEmbed({ testerName, testerDiscordId, candidateName, candidateDiscordId, result }) {
   return {
     title: 'Test ALS',
@@ -308,7 +320,7 @@ export function createAlsResultEmbed({ testerName, testerDiscordId, candidateNam
     fields: [
       { name: '👨‍⚕️ Tester', value: discordMention(testerDiscordId, testerName), inline: false },
       { name: '🧑‍⚕️ Candidat', value: discordMention(candidateDiscordId, candidateName), inline: false },
-      { name: '🏁 Rezultat', value: result === 'Admis' ? '✅ **Admis**' : result === 'Respins' ? '❌ **Respins**' : result || '—', inline: false }
+      { name: '🏁 Rezultat', value: resultFieldValue(result, failureCooldownDays('Test ALS')) , inline: false }
     ],
     footer: { text: 'Rezultat oficial · DMLS' },
     timestamp: new Date().toISOString()
@@ -323,7 +335,7 @@ export function createSpecialtyResultEmbed({ testName, testerName, testerDiscord
     fields: [
       { name: '👨‍⚕️ Tester', value: discordMention(testerDiscordId, testerName), inline: false },
       { name: '🧑‍⚕️ Candidat', value: discordMention(candidateDiscordId, candidateName), inline: false },
-      { name: '🏁 Rezultat', value: result === 'Admis' ? '✅ **Admis**' : result === 'Respins' ? '❌ **Respins**' : result || '—', inline: false }
+      { name: '🏁 Rezultat', value: resultFieldValue(result, failureCooldownDays(testName)) , inline: false }
     ],
     footer: { text: 'Rezultat oficial · DMLS' },
     timestamp: new Date().toISOString()
