@@ -313,6 +313,7 @@ test('parachutism photos are equal-sized thumbnails that open in the image viewe
   assert.match(styleSource, /\.view-panel img:not\(\.test-corner-logo\)\{cursor:zoom-in\}/);
   assert.match(source, /IMAGE_VIEWER_TRIGGER_SELECTOR = '\.view-panel img:not\(\.test-corner-logo\)'/);
   assert.match(source, /openImageViewer\(testImage\.currentSrc \|\| testImage\.src, testImage\.alt\)/);
+  assert.match(source, /if \(!testImage \|\| testImage\.closest\('\[data-paste-for\]'\)\) return/);
   assert.match(styleSource, /\.cooldown-payment-panel \.cooldown-payment-grid select\{border:1px solid var\(--surface-border\);border-radius:6px;box-shadow:none\}/);
 });
 

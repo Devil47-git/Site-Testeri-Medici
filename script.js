@@ -2872,7 +2872,7 @@ if (imageViewer) {
       return;
     }
     const testImage = event.target.closest(IMAGE_VIEWER_TRIGGER_SELECTOR);
-    if (!testImage) return;
+    if (!testImage || testImage.closest('[data-paste-for]')) return;
     event.preventDefault();
     openImageViewer(testImage.currentSrc || testImage.src, testImage.alt);
   }, true);
