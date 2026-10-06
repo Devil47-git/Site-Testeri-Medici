@@ -48,6 +48,7 @@ let activeTesterFilter = 'all';
 const GRANTS_KEY = 'medici-grants';
 /** @type {Member|null} */
 let currentUser = null;
+let navigationRevision = 0;
 /** @type {Member[]} */
 let testers = readStored(GRANTS_KEY, []).filter(member => String(member?.name || '').trim()).map(member => ({ ...member, grantedTests: normalizeGrantBundle(member.grantedTests || []) }));
 /** @type {Record<string, Record<string, number>>} */
@@ -601,6 +602,7 @@ function renderTesterProfileView(member) {
 }
 function openTesterProfile(member, { push = true, previousView: requestedPreviousView } = {}) {
   if (!hasLeadershipCallsign(currentUser)) return;
+  navigationRevision += 1;
   document.body.classList.remove('smuls-background-mode');
   document.body.classList.remove('als-background-mode');
   document.body.classList.remove('admission-background-mode');
@@ -1057,6 +1059,7 @@ function testNameFromHash(hash) {
 }
 function openTest(testName, { push = true, previousView: requestedPreviousView } = {}) {
   if (!catalog.includes(testName)) return;
+  navigationRevision += 1;
   // A route change must never leave stage/view state from the previous test behind.
   document.body.classList.remove('smuls-stage-active', 'als-stage-active', 'moto-stage-active', 'pilot-stage-active', 'parachutism-stage-active');
   const savedScrollPosition = window.scrollY;
@@ -1318,7 +1321,7 @@ function admissionConsentHtml() {
   return '<section class="admission-consent site-guide-frame" aria-label="Declarație de acord"><p>Sunteți de acord să respectați toate reglementările și procedurile stabilite de către Departamentul Medical Los Santos și să vă asumați în totalitate responsabilitatea pentru eventualele repercusiuni care pot decurge din nerespectarea acestora?</p></section>';
 }
 function medicalCertificateDetailsHtml() {
-  return `<section class="admission-candidate-details site-guide-frame" aria-labelledby="medical-certificate-title"><h3 id="medical-certificate-title">Date adeverință</h3><div class="admission-candidate-grid"><label>Nume<input id="certificate-last-name" type="text" autocomplete="family-name"></label><label>Prenume<input id="certificate-first-name" type="text" autocomplete="given-name"></label><label>CNP<input id="certificate-cnp" type="text" inputmode="numeric" maxlength="24" autocomplete="off"></label><label>ID (CNP)<input id="certificate-id" type="text" inputmode="numeric" autocomplete="off"></label><label>Număr de telefon<input id="certificate-phone" type="tel" autocomplete="tel"></label><label>Ore cont<input id="certificate-hours-account" type="number" min="0" step="0.01"></label><label>Ore character<input id="certificate-hours-character" type="number" min="0" step="0.01"></label><label>Rezultat<select id="certificate-medical-status"><option value="Admis">Admis</option><option value="Respins">Respins</option></select></label></div><div class="candidate-photo-grid certificate-photo-grid">${candidateImageFieldHtml('certificate-document', 'Fotografie buletin')}${candidateImageFieldHtml('certificate-medical-sheet', 'Fotografie fișă medicală')}</div></section>`;
+  return `<section class="admission-candidate-details site-guide-frame" aria-labelledby="medical-certificate-title"><h3 id="medical-certificate-title">Date adeverință</h3><div class="admission-candidate-grid"><label>Nume<input id="certificate-last-name" type="text" autocomplete="family-name"></label><label>Prenume<input id="certificate-first-name" type="text" autocomplete="given-name"></label><label>CNP<input id="certificate-cnp" type="text" inputmode="numeric" maxlength="24" autocomplete="off"></label><label>ID (CNP)<input id="certificate-id" type="text" inputmode="numeric" autocomplete="off"></label><label>Număr de telefon<input id="certificate-phone" type="tel" autocomplete="tel"></label><label>Ore cont<input id="certificate-hours-account" type="number" min="0" step="0.01"></label><label>Ore character<input id="certificate-hours-character" type="number" min="0" step="0.01"></label><label class="admission-type-field">Rezultat<select id="certificate-medical-status" hidden><option value="Admis">Admis</option><option value="Respins">Respins</option></select><span class="admission-type-picker" role="group" aria-label="Alege rezultatul"><button class="admission-type-option certificate-result-option is-selected" type="button" data-certificate-result-choice="Admis" aria-pressed="true">Admis</button><button class="admission-type-option certificate-result-option" type="button" data-certificate-result-choice="Respins" aria-pressed="false">Respins</button></span></label></div><div class="candidate-photo-grid certificate-photo-grid">${candidateImageFieldHtml('certificate-document', 'Fotografie buletin')}${candidateImageFieldHtml('certificate-medical-sheet', 'Fotografie fișă medicală')}</div></section>`;
 }
 function admissionCandidateSummary(result) {
   const value = selector => document.querySelector(selector)?.value?.trim() || '—';
@@ -1615,6 +1618,20 @@ function wireTestEvents(testName, definition) {
     admissionTypeSelect.dispatchEvent(new Event('change', { bubbles: true }));
   }));
   updateAdmissionTypePicker();
+  const certificateStatusSelect = document.querySelector('#certificate-medical-status');
+  const certificateResultOptions = [...document.querySelectorAll('[data-certificate-result-choice]')];
+  const updateCertificateResultPicker = () => certificateResultOptions.forEach(option => {
+    const selected = option.dataset.certificateResultChoice === certificateStatusSelect?.value;
+    option.classList.toggle('is-selected', selected);
+    option.setAttribute('aria-pressed', String(selected));
+  });
+  certificateResultOptions.forEach(option => option.addEventListener('click', () => {
+    if (!certificateStatusSelect) return;
+    certificateStatusSelect.value = option.dataset.certificateResultChoice;
+    updateCertificateResultPicker();
+    certificateStatusSelect.dispatchEvent(new Event('change', { bubbles: true }));
+  }));
+  updateCertificateResultPicker();
   let restoreSavedTestStage = () => {};
   let restoreSavedStageUI = () => {};
   let candidateCooldowns = {};
@@ -2633,6 +2650,7 @@ function navigateTo(view, { push = true } = {}) {
   if (view === 'bonuses' && !isLeadershipUser(currentUser)) view = 'overview';
   if (view === 'testers' && !canViewTestersRoom(currentUser)) view = 'overview';
   if (!labels[view]) return;
+  navigationRevision += 1;
   document.body.classList.remove('smuls-background-mode');
   document.body.classList.remove('als-background-mode');
   document.body.classList.remove('admission-background-mode');
@@ -2774,10 +2792,12 @@ async function enterApp(user) {
   } else {
     navigateTo(requestedView || 'overview', { push: false });
   }
+  const initialNavigationRevision = navigationRevision;
   try {
     await fetchGlobalTestDefinitions();
     await loadDirectory();
     await loadRemoteGrants();
+    if (navigationRevision !== initialNavigationRevision) return;
     if (requestedProfileCallsign) {
       const member = testers.find(item => normalizeCallsign(item.callsign) === requestedProfileCallsign) || directoryMembers.find(item => normalizeCallsign(item.callsign) === requestedProfileCallsign);
       if (member) openTesterProfile(member, { push: false, previousView: requestedRoute.previousView || 'testers' });

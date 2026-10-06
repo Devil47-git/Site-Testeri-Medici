@@ -33,13 +33,27 @@ const child = spawn(process.execPath, ['server.js'], {
 });
 child.stdout.on('data', d => process.stdout.write(`[server] ${d}`));
 child.stderr.on('data', d => process.stderr.write(`[server:err] ${d}`));
-await new Promise(r => setTimeout(r, 1500));
-
 const base = `http://localhost:${PORT}`;
 const results = [];
 const check = (name, cond, extra = '') => results.push({ name, ok: !!cond, extra });
 
 try {
+  const startupDeadline = Date.now() + 10000;
+  let serverReady = false;
+  while (Date.now() < startupDeadline) {
+    if (child.exitCode !== null) throw new Error(`Server exited before becoming ready (code ${child.exitCode})`);
+    try {
+      const response = await fetch(`${base}/`, { signal: AbortSignal.timeout(1000) });
+      if (response.ok) {
+        serverReady = true;
+        break;
+      }
+    } catch {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  }
+  if (!serverReady) throw new Error('Server did not become ready within 10 seconds');
+
   // 1. security headers on the HTML document
   const page = await fetch(`${base}/`);
   check('page serves 200', page.status === 200);

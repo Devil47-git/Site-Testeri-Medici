@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { accessFor, candidateForCallsign, catalog as accessCatalog, coreTests, effectiveTestsForMember, functionsForMember, isLeadership, normalizeTests, testsForFunctions } from '../lib/access/shared.js';
-import { canResetTestCounts, discordTesterMentionPayload, createAdmissionEmbed, createAdmissionTesterComponents, webhookComponentsUrl, createAlsResultEmbed, createSpecialtyResultEmbed, specialtyNotificationDetails, createMedicalCertificateEmbeds, medicalCertificateNumberForRow, bonusEntryFromRow } from '../api/access/test-results.js';
+import { canResetTestCounts, discordTesterMentionPayload, createAdmissionEmbed, createAdmissionTesterComponents, webhookComponentsUrl, webhookIdentity, createAlsResultEmbed, createSpecialtyResultEmbed, specialtyNotificationDetails, createMedicalCertificateComponents, createMedicalCertificateEmbeds, medicalCertificateNumberForRow, bonusEntryFromRow } from '../api/access/test-results.js';
 import { cooldownPayersFromRows, statusFromRow } from '../api/access/directory.js';
 import { cooldownIsActive, failedTestCooldownExpiry, parseCooldownS } from '../lib/access/cooldowns.js';
 
@@ -231,6 +231,17 @@ test('active page routes restore test and cooldown pages after refresh', () => {
   assert.match(source, /saveActiveRoute\(routeState\)/);
 });
 
+test('delayed startup route restoration does not override user navigation', () => {
+  const enterAppSource = source.match(/async function enterApp\(user\) \{[\s\S]*?\n\}/)?.[0] || '';
+  assert.match(source, /let navigationRevision = 0;/);
+  for (const functionName of ['openTesterProfile', 'openTest', 'navigateTo']) {
+    const routeFunction = source.match(new RegExp(`function ${functionName}\\([\\s\\S]*?\\n\\}`))?.[0] || '';
+    assert.match(routeFunction, /navigationRevision \+= 1;/);
+  }
+  assert.match(enterAppSource, /const initialNavigationRevision = navigationRevision;/);
+  assert.ok(enterAppSource.indexOf('if (navigationRevision !== initialNavigationRevision) return;') > enterAppSource.indexOf('await loadRemoteGrants();'));
+});
+
 test('switching test routes replaces the old guide, resets staged UI, and scrolls to the top', () => {
   const openTestSource = source.match(/function openTest\(testName, \{[\s\S]*?\n\}/)?.[0] || '';
   assert.match(openTestSource, /document\.body\.classList\.remove\('smuls-stage-active', 'als-stage-active', 'moto-stage-active', 'pilot-stage-active', 'parachutism-stage-active'\)/);
@@ -398,7 +409,7 @@ test('separate medical screening panel and its gates are removed', () => {
   assert.doesNotMatch(source, /medicalScreeningHtml|medicalConditionsInText|data-medical-sheet-reviewed|data-medical-condition|data-stethoscope-check|data-medical-rejection/);
   assert.doesNotMatch(source, /certificate-hours-account[^>]+value=/);
   assert.match(source, /admissionChecksComplete\(checks\.map\(check => check\.checked\)\)/);
-  assert.match(source, /<label>Rezultat<select id="certificate-medical-status"><option value="Admis">Admis<\/option><option value="Respins">Respins<\/option><\/select><\/label>/);
+  assert.match(source, /Rezultat<select id="certificate-medical-status" hidden><option value="Admis">Admis<\/option><option value="Respins">Respins<\/option><\/select>.*data-certificate-result-choice="Admis".*data-certificate-result-choice="Respins"/);
 });
 
 test('admission and medical result dropdowns keep blue styling and centered text', () => {
@@ -1322,13 +1333,33 @@ test('OCR retry preserves split surname and given name for medical certificates'
   );
 });
 
+test('Discord webhook messages use the HR Team avatar and retain their message name', () => {
+  const originalOrigin = process.env.APP_ORIGIN;
+  process.env.APP_ORIGIN = 'https://example.test/';
+  try {
+    assert.deepEqual(webhookIdentity('Test PILOT'), {
+      username: 'Test PILOT',
+      avatar_url: 'https://example.test/assets/hr-team.png'
+    });
+  } finally {
+    if (originalOrigin === undefined) delete process.env.APP_ORIGIN;
+    else process.env.APP_ORIGIN = originalOrigin;
+  }
+  assert.equal((testResultsSource.match(/\.\.\.webhookRequestIdentity\(identity\)/g) || []).length, 3);
+  assert.match(testResultsSource, /webhookIdentity\(admissionWebhookName\(details\)\)/);
+  assert.match(testResultsSource, /webhookIdentity\(testName\)/);
+  assert.match(testResultsSource, /webhookIdentity\('Adeverință medicală'\)/);
+});
+
 test('admission Discord message aligns each photo with its text in one container', () => {
   const details = { testName: 'Test admitere', testerName: 'Tester', candidateName: 'Candidat', candidateId: '12345', candidateCallsign: '', result: 'Respins' };
   const admission = createAdmissionEmbed(details);
   assert.equal(admission.title, 'Admitere');
+  assert.equal(admission.color, 0xED4245);
   assert.deepEqual(admission.fields.map(field => field.name), ['Nume Tester', 'Nume Candidat', 'Rezultat']);
   const [container, roleMentions] = createAdmissionTesterComponents(details);
   assert.equal(container.type, 17);
+  assert.equal(container.accent_color, 0xED4245);
   assert.equal(container.components.length, 3);
   assert.deepEqual(container.components.map(component => component.type), [9, 9, 9]);
   assert.match(container.components[0].components[0].content, /Test Admitere\n\*\*[^\n]*Tester\*\*\n\*\*Tester\*\*/);
@@ -1352,6 +1383,8 @@ test('admission Discord message aligns each photo with its text in one container
   assert.match(testResultsSource, /testName === 'Test admitere' \|\| testName === 'Test transfer'/);
   assert.match(testResultsSource, /admissionDetails = \{ testName, candidateName, candidateId, candidateCallsign, result, identityImage, medicalSheetImage, drugTestImage \}/);
   const admitted = createAdmissionTesterComponents({ ...details, candidateCallsign: 'M-302', result: 'Admis' });
+  assert.equal(createAdmissionEmbed({ ...details, result: 'Admis' }).color, 0x57F287);
+  assert.equal(admitted[0].accent_color, 0x57F287);
   assert.match(admitted[0].components[2].components[0].content, /Callsign:\*\* M-302\n\*\*[^\n]*Rezultat\*\*\n[^\n]*Admis/);
   assert.equal((admitted[1].content.match(/<@&\d+>/g) || []).length, 2);
   const transfer = createAdmissionTesterComponents({ ...details, testName: 'Test transfer', result: 'Admis' });
@@ -1362,26 +1395,28 @@ test('admission Discord message aligns each photo with its text in one container
 test('ALS result embed contains tester, candidate, callsign, and verdict', () => {
   const embed = createAlsResultEmbed({ testerName: 'Tester', testerDiscordId: '111', candidateName: 'Candidat', candidateDiscordId: '222', result: 'Respins' });
   assert.equal(embed.title, 'Test ALS');
-  assert.equal(embed.color, 0xCD363C);
+  assert.equal(embed.color, 0xED4245);
   assert.deepEqual(embed.fields.map(field => field.name), ['👨‍⚕️ Tester', '🧑‍⚕️ Candidat', '🏁 Rezultat']);
   assert.deepEqual(embed.fields.map(field => field.inline), [false, false, false]);
   assert.deepEqual(embed.fields.slice(0, 2).map(field => field.value), ['<@111>', '<@222>']);
   assert.equal(embed.fields[2].value, '❌ **Respins**');
   assert.equal(embed.footer.text, 'Rezultat oficial · DMLS');
   const failedEmbed = createAlsResultEmbed({ testerName: 'Tester', testerDiscordId: '111', candidateName: 'Candidat', candidateDiscordId: '222', result: 'Respins', cooldownExpiry: '08.10.2026' });
+  assert.equal(createAlsResultEmbed({ testerName: 'Tester', testerDiscordId: '111', candidateName: 'Candidat', candidateDiscordId: '222', result: 'Admis' }).color, 0x57F287);
   assert.deepEqual(failedEmbed.fields.at(-1), { name: '⏳ Cooldown', value: 'Până pe **08.10.2026**', inline: false });
 });
 
 test('specialty result embeds contain tester, candidate, callsign, and verdict', () => {
   const embed = createSpecialtyResultEmbed({ testName: 'Test PILOT', testerName: 'Tester', testerDiscordId: '111', candidateName: 'Candidat', candidateDiscordId: '222', result: 'Admis' });
   assert.equal(embed.title, 'Test PILOT 🚁');
-  assert.equal(embed.color, 0xCD363C);
+  assert.equal(embed.color, 0x57F287);
   assert.deepEqual(embed.fields.map(field => field.name), ['👨‍⚕️ Tester', '🧑‍⚕️ Candidat', '🏁 Rezultat']);
   assert.deepEqual(embed.fields.map(field => field.inline), [false, false, false]);
   assert.deepEqual(embed.fields.slice(0, 2).map(field => field.value), ['<@111>', '<@222>']);
   assert.equal(embed.fields[2].value, '✅ **Admis**');
   assert.equal(embed.footer.text, 'Rezultat oficial · DMLS');
   const failedEmbed = createSpecialtyResultEmbed({ testName: 'Test PILOT', testerName: 'Tester', testerDiscordId: '111', candidateName: 'Candidat', candidateDiscordId: '222', result: 'Respins', cooldownExpiry: '10.10.2026' });
+  assert.equal(failedEmbed.color, 0xED4245);
   assert.deepEqual(failedEmbed.fields.at(-1), { name: '⏳ Cooldown', value: 'Până pe **10.10.2026**', inline: false });
 });
 
@@ -1454,6 +1489,7 @@ test('medical certificate embed includes the requested fields and medical verdic
   }, 7024);
   const [certificate] = embeds;
   assert.equal(certificate.title, 'D.M.L.S. - EVIDENTA MEDICALA NR. 7024');
+  assert.equal(certificate.color, 0x57F287);
   assert.match(certificate.description, /NUME: Cartier\nPRENUME: Mohammed/);
   assert.match(certificate.description, /REZULTAT: ADMIS/);
   assert.match(certificate.description, /ORE\(LUNI\): 2001\.25 \(cont\) 2001\.25 \(character\)/);
@@ -1462,9 +1498,18 @@ test('medical certificate embed includes the requested fields and medical verdic
   assert.equal(certificate.thumbnail.url, 'attachment://logo-medici.png');
   assert.equal(certificate.image.url, 'attachment://buletin-candidat.jpg');
   assert.equal(certificate.footer.icon_url, 'attachment://logo-medici.png');
+  assert.equal(createMedicalCertificateComponents({
+    lastName: 'Cartier', firstName: 'Mohammed', phone: '735-0616', candidateId: '56937',
+    hoursAccount: '2001.25', hoursCharacter: '2001.25', medicalStatus: 'Admis'
+  }, 7024)[0].accent_color, 0x57F287);
   const [rejected] = createMedicalCertificateEmbeds({
     lastName: 'Cartier', firstName: 'Mohammed', phone: '735-0616', candidateId: '56937',
     hoursAccount: '2001.25', hoursCharacter: '2001.25', medicalStatus: 'Respins'
   }, 7016);
+  assert.equal(rejected.color, 0xED4245);
+  assert.equal(createMedicalCertificateComponents({
+    lastName: 'Cartier', firstName: 'Mohammed', phone: '735-0616', candidateId: '56937',
+    hoursAccount: '2001.25', hoursCharacter: '2001.25', medicalStatus: 'Respins'
+  }, 7016)[0].accent_color, 0xED4245);
   assert.match(rejected.description, /REZULTAT: RESPINS/);
 });

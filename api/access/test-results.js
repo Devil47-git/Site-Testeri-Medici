@@ -20,6 +20,7 @@ const MEDICAL_CERTIFICATE_START_NUMBER = 7030;
 const MEDICAL_CERTIFICATE_MAX_NUMBER = 30000;
 const MAX_IDENTITY_IMAGE_BYTES = 2 * 1024 * 1024;
 const SITE_BRAND_EMBED_COLOR = 0xCD363C;
+const RESULT_EMBED_COLORS = { Admis: 0x57F287, Respins: 0xED4245 };
 const bonusRedis = new UpstashRedis();
 const SPECIALTY_WEBHOOKS = {
   'Test ALS': 'DISCORD_ALS_WEBHOOK',
@@ -32,6 +33,7 @@ const SPECIALTY_WEBHOOKS = {
 export const config = { api: { bodyParser: { sizeLimit: '4mb' } } };
 
 function json(res, status, body) { return res.status(status).json(body); }
+function resultEmbedColor(result) { return RESULT_EMBED_COLORS[result] || SITE_BRAND_EMBED_COLOR; }
 export function discordTesterMentionPayload(discordId) {
   const id = String(discordId || '').trim();
   return /^\d+$/.test(id)
@@ -176,7 +178,11 @@ function parseIdentityImage(value) {
 
 export function webhookIdentity(username) {
   const origin = String(process.env.APP_ORIGIN || 'https://site-wheat-zeta-76.vercel.app').trim().replace(/\/+$/, '');
-  return { username, avatar_url: `${origin}/hr-team.png` };
+  return { username, avatar_url: `${origin}/assets/hr-team.png` };
+}
+
+function webhookRequestIdentity(identity = {}) {
+  return { ...identity, ...webhookIdentity(identity.username || 'HR TEAM') };
 }
 
 function admissionWebhookName({ testName, testType }) {
@@ -187,14 +193,14 @@ async function sendWebhookMessage(url, embed, testerDiscordId, identity = {}) {
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...identity, ...discordTesterMentionPayload(testerDiscordId), embeds: [embed] })
+    body: JSON.stringify({ ...webhookRequestIdentity(identity), ...discordTesterMentionPayload(testerDiscordId), embeds: [embed] })
   });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
 }
 
-async function sendWebhookImages(url, embeds, images, testerDiscordId) {
+async function sendWebhookImages(url, embeds, images, testerDiscordId, identity = {}) {
   const form = new FormData();
-  form.set('payload_json', JSON.stringify({ ...discordTesterMentionPayload(testerDiscordId), embeds, attachments: images.map((image, id) => ({ id, filename: image.filename })) }));
+  form.set('payload_json', JSON.stringify({ ...webhookRequestIdentity(identity), ...discordTesterMentionPayload(testerDiscordId), embeds, attachments: images.map((image, id) => ({ id, filename: image.filename })) }));
   images.forEach((image, id) => form.set(`files[${id}]`, new Blob([image.buffer], { type: image.mimeType }), image.filename));
   const response = await fetch(url, { method: 'POST', body: form });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -211,7 +217,7 @@ async function sendWebhookComponents(url, components, images, testerDiscordId, r
   const form = new FormData();
   const mentionPayload = discordTesterMentionPayload(testerDiscordId);
   form.set('payload_json', JSON.stringify({
-    ...identity,
+    ...webhookRequestIdentity(identity),
     allowed_mentions: roleIds.length ? { ...mentionPayload.allowed_mentions, roles: roleIds } : mentionPayload.allowed_mentions,
     flags: 1 << 15,
     components,
@@ -231,7 +237,7 @@ export function createAdmissionEmbed({ testName, testType, testerName, testerDis
   const admissionType = testType === 'Reintegrare' ? 'Reintegrare' : 'Admitere';
   return {
     title: isTransfer ? 'Transfer' : admissionType,
-    color: SITE_BRAND_EMBED_COLOR,
+    color: resultEmbedColor(result),
     fields: [
       { name: 'Nume Tester', value: discordMention(testerDiscordId, testerName), inline: false },
       { name: 'Nume Candidat', value: candidateName || '—', inline: false },
@@ -256,7 +262,7 @@ export function createAdmissionTesterComponents({ testName, testType, testerName
   const roleMentions = admissionRoleMentions(result).map(id => `<@&${id}>`).join(' ');
   return [{
     type: 17,
-    accent_color: SITE_BRAND_EMBED_COLOR,
+    accent_color: resultEmbedColor(result),
     components: [
       section(`## ${title}\n**👨‍⚕️ Tester**\n${discordMention(testerDiscordId, testerName)}`, 'buletin-candidat.jpg', 'Buletin candidat'),
       section(`**🧑‍⚕️ Candidat**\n${candidateName || '—'}\n**🆔 ID:** ${candidateId || '—'}`, 'fisa-medicala.jpg', 'Fișă medicală'),
@@ -309,7 +315,7 @@ export function createAlsResultEmbed({ testerName, testerDiscordId, candidateNam
   if (result === 'Respins' && cooldownExpiry) fields.push({ name: '⏳ Cooldown', value: `Până pe **${cooldownExpiry}**`, inline: false });
   return {
     title: 'Test ALS',
-    color: SITE_BRAND_EMBED_COLOR,
+    color: resultEmbedColor(result),
     author: { name: 'Sub-Departamentul Testerilor' },
     fields,
     footer: { text: 'Rezultat oficial · DMLS' },
@@ -326,7 +332,7 @@ export function createSpecialtyResultEmbed({ testName, testerName, testerDiscord
   if (result === 'Respins' && cooldownExpiry) fields.push({ name: '⏳ Cooldown', value: `Până pe **${cooldownExpiry}**`, inline: false });
   return {
     title: testName === 'Test PILOT' ? `${testName} 🚁`     : testName === 'Test parașutiști' ? 'Test Parasutism' : testName,
-    color: SITE_BRAND_EMBED_COLOR,
+    color: resultEmbedColor(result),
     author: { name: 'Sub-Departamentul Testerilor' },
     fields,
     footer: { text: 'Rezultat oficial · DMLS' },
@@ -601,7 +607,7 @@ export function createMedicalCertificateComponents(details, number, testerDiscor
     ...(/^\d+$/.test(mention) ? [{ type: 10, content: `<@${mention}>` }] : []),
     {
       type: 17,
-      accent_color: SITE_BRAND_EMBED_COLOR,
+      accent_color: resultEmbedColor(details.medicalStatus),
       components: [
         { type: 9, components: [{ type: 10, content: embed.description.replace('```text\n', `\`\`\`text\n${embed.title}\n\n`) }], accessory: { type: 11, media: { url: 'attachment://logo-medici.png' }, description: 'DMLS' } },
         { type: 12, items: [
@@ -629,12 +635,12 @@ export function createMedicalCertificateEmbeds(details, number) {
   return [{
     title: `D.M.L.S. - EVIDENTA MEDICALA NR. ${number}`,
     description: `\`\`\`text\n${description}\n\`\`\``,
-    color: SITE_BRAND_EMBED_COLOR,
+    color: resultEmbedColor(details.medicalStatus),
     thumbnail: { url: 'attachment://logo-medici.png' },
     image: { url: 'attachment://buletin-candidat.jpg' },
     footer: { text: 'DMLS', icon_url: 'attachment://logo-medici.png' }
   }, {
-    color: SITE_BRAND_EMBED_COLOR,
+    color: resultEmbedColor(details.medicalStatus),
     image: { url: 'attachment://fisa-medicala.jpg' }
   }];
 }
