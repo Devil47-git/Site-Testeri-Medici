@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="240" viewBox="0 0 640 240" fill="none">
+  <defs>
+    <linearGradient id="night" x1="42" y1="12" x2="594" y2="229" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#101F3A"/>
+      <stop offset=".56" stop-color="#091426"/>
+      <stop offset="1" stop-color="#160F1C"/>
+    </linearGradient>
+    <linearGradient id="title" x1="253" y1="78" x2="559" y2="78" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F5FAFF"/>
+      <stop offset=".72" stop-color="#CBE4FF"/>
+      <stop offset="1" stop-color="#FFA0AA"/>
+    </linearGradient>
+    <linearGradient id="medical-blue" x1="88" y1="49" x2="181" y2="151" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8AD0FF"/>
+      <stop offset="1" stop-color="#2878CF"/>
+    </linearGradient>
+    <linearGradient id="silver-feathers" x1="75" y1="53" x2="198" y2="96" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#77BDEB"/>
+      <stop offset=".48" stop-color="#F2FAFF"/>
+      <stop offset="1" stop-color="#78B9E9"/>
+    </linearGradient>
+    <linearGradient id="serpent-metal" x1="121" y1="74" x2="155" y2="147" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#C7F0FF"/>
+      <stop offset=".48" stop-color="#68B8EE"/>
+      <stop offset="1" stop-color="#DFF5FF"/>
+    </linearGradient>
+    <radialGradient id="eclipse" cx="0" cy="0" r="1" gradientTransform="matrix(0 135 -138 0 138 93)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2877C7" stop-opacity=".31"/>
+      <stop offset=".68" stop-color="#14539A" stop-opacity=".12"/>
+      <stop offset="1" stop-color="#091426" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="lit-windows" width="13" height="13" patternUnits="userSpaceOnUse">
+      <path d="M3 3h2v3H3zm7 4h2v3h-2z" fill="#8BCBFF" fill-opacity=".56"/>
+    </pattern>
+    <clipPath id="frame">
+      <rect x="1" y="1" width="638" height="238" rx="22"/>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#frame)">
+    <path fill="url(#night)" d="M0 0h640v240H0z"/>
+    <path fill="url(#eclipse)" d="M0 0h282v225H0z"/>
+    <path d="M0 178h640v62H0z" fill="#070D18" fill-opacity=".76"/>
+    <path d="m0 180 29-9 16 7 16-20 19 19 13-10 19 12 17-21 17 19 16-9 18 11 17-25 19 24 20-14 19 13 18-9 17 12 18-28 17 26 20-11 18 14 18-9 18 13 16-20 16 19 18-11 20 15 18-12 18 13 17-9 18 12 21-13 18 12 23-8 20 14v34H0z" fill="#101C30"/>
+    <path d="m0 193 27-9 16 8 19-18 17 18 14-11 18 12 17-20 17 19 17-10 18 12 17-21 18 21 19-13 19 13 18-10 17 12 18-23 18 22 18-10 20 15 18-10 18 13 18-17 17 17 18-10 20 15 18-11 18 13 17-9 19 13 21-12 19 12 23-8v25H0z" fill="#0A1425"/>
+    <path d="M47 180v-28h13v19h10v-39h15v30h12v-49h14v52h11v-31h14v45" fill="#172945" stroke="#4C91D0" stroke-opacity=".38"/>
+    <path d="M48 180v-25h8v21h10v-38h9v29h12v-47h8v51h10v-30h8v39" fill="url(#lit-windows)" opacity=".62"/>
+    <path d="M153 180v-38h12v22h11v-48h14v38h12v-59h12v43h11v-32h14v50h12v-30h13v54" fill="#142743" stroke="#4C91D0" stroke-opacity=".34"/>
+    <path d="M155 179v-34h7v22h10v-47h9v39h10v-55h8v47h9v-33h9v43h10v-26h8v44" fill="url(#lit-windows)" opacity=".65"/>
+    <path d="M286 180v-25h10v-42h14v31h12v-56h16v44h10v-32h14v80" fill="#15243A" stroke="#718EAF" stroke-opacity=".3"/>
+    <path d="M289 179v-22h5v-40h8v34h10v-55h10v45h8v-28h9v66" fill="url(#lit-windows)" opacity=".5"/>
+    <path d="M459 180v-36h13v22h10v-47h15v37h11v-62h14v43h13v-26h13v69" fill="#15243A" stroke="#718EAF" stroke-opacity=".3"/>
+    <path d="M462 179v-33h8v25h8v-47h9v39h9v-58h9v48h9v-26h8v52" fill="url(#lit-windows)" opacity=".5"/>
+    <circle cx="137" cy="96" r="47" fill="#0A172B" fill-opacity=".68" stroke="#55A9F5" stroke-opacity=".55" stroke-width="1.5"/>
+    <circle cx="137" cy="96" r="38" stroke="#FF6574" stroke-opacity=".22" stroke-width="1"/>
+    <path d="M137 66v60m-25-30h50" stroke="#328BE0" stroke-opacity=".58" stroke-width="8" stroke-linecap="round"/>
+    <path d="M137 66v60m-25-30h50" stroke="#E4F4FF" stroke-width="3.5" stroke-linecap="round"/>
+    <path d="M94 98h17l7-10 9 21 10-31 9 24 7-10h26" stroke="#071426" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M94 98h17l7-10 9 21 10-31 9 24 7-10h26" stroke="#72C7F3" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+    <text x="245" y="88" fill="url(#title)" font-family="Arial, sans-serif" font-size="45" font-weight="700" letter-spacing="2.5">ECLIPSE</text>
+    <path d="M248 101h305" stroke="#4AA3FF" stroke-opacity=".76" stroke-width="2"/>
+    <path d="M419 105h134" stroke="#FF5668" stroke-opacity=".76" stroke-width="2"/>
+    <text x="250" y="131" fill="#E8F3FF" font-family="Arial, sans-serif" font-size="17" font-weight="600" letter-spacing="6.7">MEDICAL TOWER</text>
+    <text x="251" y="160" fill="#91BEE7" font-family="Arial, sans-serif" font-size="10" font-weight="600" letter-spacing="2.7">DEPARTAMENTUL MEDICAL</text>
+    <path d="M0 211h72l10-5 8 9 12-16 10 12h67l11-4 9 4h37" stroke="#348DEB" stroke-opacity=".72" stroke-width="2"/>
+    <path d="M403 211h67l10-5 8 9 12-16 10 12h47l11-4 9 4h63" stroke="#F25267" stroke-opacity=".76" stroke-width="2"/>
+    <circle cx="239" cy="49" r="2" fill="#71BDFF"/>
+    <circle cx="224" cy="161" r="1.5" fill="#FF6877"/>
+    <circle cx="573" cy="61" r="1.5" fill="#71BDFF"/>
+    <rect x="1" y="1" width="638" height="238" rx="22" stroke="#67B8FF" stroke-opacity=".38" stroke-width="2"/>
+    <rect x="8" y="8" width="624" height="224" rx="17" stroke="#FFFFFF" stroke-opacity=".06"/>
+  </g>
+</svg>

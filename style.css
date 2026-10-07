@@ -922,3 +922,14 @@ body.dark-mode .statistics-test-count.test-tag strong{color:var(--test-tag-color
 
 .topbar{position:relative}.topbar-title{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-family:'Space Grotesk','DM Sans',sans-serif;font-size:26px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;white-space:nowrap;pointer-events:none;background:linear-gradient(90deg,#ff4d5a,#fff 50%,#4aa3ff);-webkit-background-clip:text;background-clip:text;color:transparent;filter:drop-shadow(0 0 8px rgba(255,45,61,.45)) drop-shadow(0 0 8px rgba(43,140,255,.4))}@media(max-width:1100px){.topbar-title{font-size:20px;letter-spacing:.12em}}@media(max-width:900px){.topbar-title{display:none}}
 .certificate-result-option.is-selected[data-certificate-result-choice="Admis"]{border-color:#39a563;background:linear-gradient(135deg,rgba(37,134,77,.6),rgba(37,134,77,.25));box-shadow:0 0 12px rgba(57,165,99,.35)}.certificate-result-option.is-selected[data-certificate-result-choice="Respins"]{border-color:#ed4245;background:linear-gradient(135deg,rgba(237,66,69,.6),rgba(237,66,69,.25));box-shadow:0 0 12px rgba(237,66,69,.35)}
+
+.topbar-title{background-size:200% 100%;animation:topbar-title-color-sweep 3s linear infinite alternate}
+@keyframes topbar-title-color-sweep{from{background-position:100% 50%}to{background-position:0% 50%}}
+@media(prefers-reduced-motion:reduce){.topbar-title{animation:none;background-position:50% 50%}}
+
+body.dark-mode button.brand-with-logo{gap:11px;margin:0 0 16px;padding:8px 8px 17px;border-bottom:1px solid rgba(102,174,255,.2);border-radius:0;background:linear-gradient(145deg,rgba(14,29,54,.64),rgba(8,15,29,.28))}
+body.dark-mode .brand-logo-image{max-width:100%;border:1px solid rgba(92,166,240,.24);box-shadow:0 8px 22px rgba(0,0,0,.28),0 0 18px rgba(43,140,255,.12)}
+body.dark-mode button.brand-with-logo>span{margin:0;padding:0 3px}
+body.dark-mode .brand-with-logo b{color:#e9f3ff;font-size:11px;font-weight:700;letter-spacing:.12em;text-shadow:0 0 12px rgba(74,163,255,.27)}
+body.dark-mode .brand-with-logo small{display:flex;align-items:center;gap:7px;margin-top:6px;color:#87bde9;font-size:9px;font-weight:600;letter-spacing:.12em}
+body.dark-mode .brand-with-logo small::before{width:15px;height:1px;background:linear-gradient(90deg,#4aa3ff,#ff5365);content:""}
