@@ -2726,8 +2726,8 @@ const authError=document.querySelector('#auth-error');
 const AUTH_API_ENDPOINT='/api/auth/discord';
 const LOGIN_ENDPOINT='/api/auth/login';
 const AUTH_STORAGE_KEY='medici-auth';
-const AUTH_SCHEMA_VERSION=4;
-const AUTH_TTL=24*60*60*1000;
+const AUTH_SCHEMA_VERSION=5;
+const AUTH_TTL=30*24*60*60*1000;
 // ===== BANDAL TEMPORAR PENTRU TESTARE =====
 // Set to true only for a local preview; production uses Discord authentication.
 const DEV_LOGIN_ENABLED=['localhost','127.0.0.1','[::1]'].includes(window.location.hostname);

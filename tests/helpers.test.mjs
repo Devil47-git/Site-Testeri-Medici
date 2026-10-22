@@ -52,7 +52,7 @@ const srcs = names.map(extract).join('\n');
 const pattern = source.match(/^const RESIDENT_TESTER_PATTERN = .*$/m)?.[0] || 'const RESIDENT_TESTER_PATTERN = /TESTER/;';
 const normalizeTextSrc = extract('normalizeText');
 const escapeHtmlSrc = extract('escapeHtml');
-const fullSrc = `${pattern}\nconst AUTH_SCHEMA_VERSION = 4;\nconst coreTests = ['Test admitere', 'Test transfer', 'Adeverință medicală'];\nconst labels = { overview: 'Profilul tău', testers: 'Testeri', statistics: 'Statistica Teste', cooldowns: 'Cooldownuri preluate', bonuses: 'Bonusuri', settings: 'Setări' };\nconst COOLDOWN_PAYMENT_RATES = { RADIO: 25000, BLS: 30000, ALS: 30000, SMULS: 30000, PILOT: 30000, MOTO: 25000, REZIDENTIAT: 35000, PARASUTIST: 30000 };\nconst COOLDOWN_PAYMENT_LABELS = { RADIO: 'RADIO', BLS: 'BLS', ALS: 'ALS', SMULS: 'SMULS', PILOT: 'PILOT', MOTO: 'MOTO', REZIDENTIAT: 'REZIDENTIAT', PARASUTIST: 'PARAȘUTIST' };\nconst admissionRequirements = ['Verificarea ținutei', 'Verificarea tatuajelor faciale', 'Verificarea cazierului', 'Minimum 50 de ore jucate', 'Controlul cu stetoscopul (amănunțit, în salon)', 'Drug-testul'];\nconst BONUS_ANCHOR_UTC = Date.UTC(2026, 8, 21);\nconst BONUS_PERIOD_MS = 14 * 24 * 60 * 60 * 1000;\nconst motoRequirements = ['Grad Medic-Rezident', 'Certificat S.M.U.L.S.', 'Permis Categoria A'];\nconst alsRequirements = ['Verificare BLS', 'Verificare Radio', 'Au trecut minimum 3 zile de la promovarea ultimului test Radio sau BLS', 'Permis categoria B'];\n${normalizeTextSrc}\n${escapeHtmlSrc}\n${srcs}`;
+const fullSrc = `${pattern}\nconst AUTH_SCHEMA_VERSION = 5;\nconst coreTests = ['Test admitere', 'Test transfer', 'Adeverință medicală'];\nconst labels = { overview: 'Profilul tău', testers: 'Testeri', statistics: 'Statistica Teste', cooldowns: 'Cooldownuri preluate', bonuses: 'Bonusuri', settings: 'Setări' };\nconst COOLDOWN_PAYMENT_RATES = { RADIO: 25000, BLS: 30000, ALS: 30000, SMULS: 30000, PILOT: 30000, MOTO: 25000, REZIDENTIAT: 35000, PARASUTIST: 30000 };\nconst COOLDOWN_PAYMENT_LABELS = { RADIO: 'RADIO', BLS: 'BLS', ALS: 'ALS', SMULS: 'SMULS', PILOT: 'PILOT', MOTO: 'MOTO', REZIDENTIAT: 'REZIDENTIAT', PARASUTIST: 'PARAȘUTIST' };\nconst admissionRequirements = ['Verificarea ținutei', 'Verificarea tatuajelor faciale', 'Verificarea cazierului', 'Minimum 50 de ore jucate', 'Controlul cu stetoscopul (amănunțit, în salon)', 'Drug-testul'];\nconst BONUS_ANCHOR_UTC = Date.UTC(2026, 8, 21);\nconst BONUS_PERIOD_MS = 14 * 24 * 60 * 60 * 1000;\nconst motoRequirements = ['Grad Medic-Rezident', 'Certificat S.M.U.L.S.', 'Permis Categoria A'];\nconst alsRequirements = ['Verificare BLS', 'Verificare Radio', 'Au trecut minimum 3 zile de la promovarea ultimului test Radio sau BLS', 'Permis categoria B'];\n${normalizeTextSrc}\n${escapeHtmlSrc}\n${srcs}`;
 const testSummaryDefinitions = [['Test SMULS'], ['Test MOTO'], ['Test PILOT'], ['Test ALS'], ['Test parașutiști']];
 const load = new Function(
   'catalog',
@@ -1026,9 +1026,9 @@ test('admitted verdicts enforce the mistake limit and verdict buttons cool down 
   assert.equal(rejectedButton.disabled, false);
 });
 
-test('Discord session and browser auth cache both last 24 hours', () => {
-  assert.match(source, /const AUTH_TTL=24\*60\*60\*1000/);
-  assert.match(serverSource, /const SESSION_TTL = 24 \* 60 \* 60 \* 1000/);
+test('Discord session and browser auth cache both last 30 days', () => {
+  assert.match(source, /const AUTH_TTL=30\*24\*60\*60\*1000/);
+  assert.match(serverSource, /const SESSION_TTL = 30 \* 24 \* 60 \* 60 \* 1000/);
   assert.match(serverSource, /Math\.floor\(SESSION_TTL \/ 1000\)/);
   // The session cookie must stay HttpOnly and SameSite=Strict, with Secure added
   // whenever the app runs over HTTPS.
@@ -1043,9 +1043,9 @@ test('auth screen no longer renders the preview card', () => {
 
 test('an unexpired cached Discord user can reopen the app without a session API roundtrip', () => {
   const user = { discordId: '123', name: 'Tester' };
-  assert.deepEqual(cachedUserWithinSession({ version: 4, user, expiresAt: 86400001 }, 86400000), user);
-  assert.equal(cachedUserWithinSession({ version: 3, user, expiresAt: 86400001 }, 86400000), null);
-  assert.equal(cachedUserWithinSession({ version: 4, user, expiresAt: 86400000 }, 86400000), null);
+  assert.deepEqual(cachedUserWithinSession({ version: 5, user, expiresAt: 86400001 }, 86400000), user);
+  assert.equal(cachedUserWithinSession({ version: 4, user, expiresAt: 86400001 }, 86400000), null);
+  assert.equal(cachedUserWithinSession({ version: 5, user, expiresAt: 86400000 }, 86400000), null);
 });
 
 test('app startup preserves the current hash route across reloads', () => {

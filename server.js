@@ -10,7 +10,7 @@ import { isLeadership, gradeGroupFor, catalog } from './lib/access/shared.js';
 import { readTestDefinitions, writeTestDefinitions } from './lib/test-definitions-store.js';
 
 const PORT = Number(process.env.PORT || 3000);
-const SESSION_TTL = 24 * 60 * 60 * 1000;
+const SESSION_TTL = 30 * 24 * 60 * 60 * 1000;
 const ROOT = process.cwd();
 const SHEET_ID = process.env.GOOGLE_SHEET_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const SHEET_RANGE = process.env.GOOGLE_SHEET_RANGE || 'LISTA DEPARTAMENT!A:T';
