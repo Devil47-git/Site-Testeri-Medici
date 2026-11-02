@@ -55,6 +55,44 @@ let testers = readStored(GRANTS_KEY, []).filter(member => String(member?.name ||
 let testRunCounts = {};
 let processedTestCounts = {};
 let selectedBonusPeriodIndex = null;
+let selectedGuideSection = 'introducere';
+const GUIDE_SECTIONS = [
+  ['introducere', 'Introducere'],
+  ['regulament', 'Regulament Intern'],
+  ['info-utile', 'Info utile'],
+  ['uniforme', 'Uniforme'],
+  ['ghid-jaf', 'Ghid Jaf'],
+  ['rp-spital', 'Rp spital.'],
+  ['coduri-radio', 'Coduri Radio'],
+  ['rp-teren', 'Rp teren / Cert. BLS'],
+  ['medicamente', 'Medicamente'],
+  ['repartizare-zone', 'Repartizare Zone'],
+  ['smuls', 'Rp S.M.U.L.S. / Cert. S.M.U.L.S.'],
+  ['operatii', 'Rp Operatii.'],
+  ['animatii-utile', 'Animații Utile'],
+  ['rezidentiat', 'Rezidentiat'],
+  ['ghid-parasutism', 'Ghid Parașutism'],
+  ['certificat-moto', 'Rp Certificat Moto'],
+  ['certificat-pilot', 'Certificat Pilot'],
+  ['isuls', 'I.S.U.L.S.']
+];
+const GUIDE_CONTENT = {
+  introducere: {
+    intro: 'Spitalul Județean Eclipse Medical Tower',
+    sections: [
+      ['Informații esențiale pentru cadrele medicale', ['Medicii au obligația să trateze pe toată lumea.', 'Seriozitate și respect în orice situație.', 'Fii pregătit mereu cu bandaje, trusă de prim-ajutor, combustibil și truse de reparații.', 'Păstrează un ton calm și profesional, atât IC cât și OOC.', 'Ajută-ți colegii și cere ajutor când ai nevoie.', 'Dacă ești atacat, anunță poliția și nu interveni singur.', 'Respectă regulamentul; comportamentul toxic sau abuzul se sancționează.']],
+      ['Uniforme & roluri', ['Uniforma de Asistent este destinată asistenților medicali de gardă.', 'Uniforma S.M.U.L.S. este folosită de Medicii Stagiari la autospeciale și descarcerare.', 'Halatul este destinat gradelor MR / MS / MP la operații sau ghișeu.', 'Personalul MR+ folosește halatul la operații.']],
+      ['Extra', ['Verifică DUTY-ul din MDT, tasta DEL.', 'Este interzisă fentarea pontajului.', 'ON-DUTY se folosește doar când ești în spital.']]
+    ]
+  },
+  regulament: {
+    intro: 'Regulamentul intern al Spitalului Județean de Urgență Eclipse Medical Tower.',
+    sections: [
+      ['Regulament general', ['Comportamentul trebuie să fie adecvat meseriei.', 'Respectă indicațiile conducerii și ale cadrelor medicale superioare.', 'Nu modifica vizual autospecialele în afara modelului aprobat.', 'Între 21:00 și 04:00 sunt necesare minimum 3 cadre medicale cu Asistent Medical+ și certificate RADIO, BLS și ALS.', 'Nu folosi dispecerul OFF-DUTY.', 'Nu conduce autospeciale fără gradul aferent.', 'Nu vorbi peste gradele superioare pe stație.', 'Tatuajele și machiajele faciale nu sunt permise.']],
+      ['Pontaj și sancțiuni', ['Pontajul minim este de 30 de minute.', 'Pontajele se deschid și se închid cu maximum +/- 10 minute.', 'Închide pontajul când iei pauză și treci pe camera de spital AFK.', 'Nu șterge pontajele anulate.', 'Două săptămâni consecutive cu pontaj pe roșu pot duce la DEMIS / DOWN.']]
+    ]
+  }
+};
 function saveTesters() { localStorage.setItem(GRANTS_KEY, JSON.stringify(testers)); }
 /** Single post-refresh render pipeline shared by every loader. */
 function renderAll() {
@@ -559,6 +597,9 @@ function renderAvailableTestsSubmenu() {
   if (attendanceNav) attendanceNav.hidden = !hasLeadershipCallsign(currentUser);
   const activityNav = document.querySelector('#activity-nav');
   if (activityNav) activityNav.hidden = !hasLeadershipCallsign(currentUser);
+  const guideNav = document.querySelector('#guide-nav');
+  if (guideNav) guideNav.hidden = !hasLeadershipCallsign(currentUser);
+  renderGuideSubmenu();
   const testersNav = document.querySelector('.nav-item[data-view="testers"]');
   if (testersNav) testersNav.hidden = !canViewTestersRoom(currentUser);
   if (!submenu || !currentUser) return;
@@ -567,6 +608,23 @@ function renderAvailableTestsSubmenu() {
   submenu.innerHTML = tests.length
           ? tests.map(test => `<button type="button" class="nav-subitem ${selectedTest === test ? 'active' : ''}" data-available-test="${escapeHtml(test)}">${escapeHtml(displayTestName(test))}</button>`).join('')
     : '<span class="nav-submenu-empty">Nu ai teste disponibile.</span>';
+}
+function renderGuideSubmenu() {
+  const submenu = document.querySelector('#guide-submenu');
+  if (!submenu) return;
+  submenu.hidden = !hasLeadershipCallsign(currentUser) || window.history.state?.view !== 'guide';
+  submenu.innerHTML = GUIDE_SECTIONS.map(([key, label]) => `<button type="button" class="nav-subitem ${selectedGuideSection === key ? 'active' : ''}" data-guide-section="${key}">${escapeHtml(label)}</button>`).join('');
+}
+function renderGuideView() {
+  const section = GUIDE_SECTIONS.find(([key]) => key === selectedGuideSection)?.[0] || 'introducere';
+  const guideUrl = `https://ghidul-departamentului-medical-eight.vercel.app/#${section}`;
+  const title = GUIDE_SECTIONS.find(([key]) => key === section)?.[1] || 'Introducere';
+  const content = GUIDE_CONTENT[section] || {
+    intro: `Instrucțiuni și informații pentru secțiunea ${title}.`,
+    sections: [['Ghidul secțiunii', ['Consultă informațiile oficiale și aplică procedurile departamentului.', 'Pentru varianta completă și actualizată, deschide ghidul oficial.']]]
+  };
+  const cards = content.sections.map(([heading, items]) => `<article class="guide-content-card"><h3>${escapeHtml(heading)}</h3><ul>${items.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul></article>`).join('');
+  return `<section class="panel guide-panel"><div class="panel-head"><div><p class="eyebrow">GHID SPITAL · SECȚIUNE INTERNĂ</p><h2>${escapeHtml(title)}</h2><p class="muted">${escapeHtml(content.intro)}</p></div><a class="outline guide-external-link" href="${guideUrl}" target="_blank" rel="noopener noreferrer">Ghid oficial ↗</a></div><div class="guide-content-grid">${cards}</div><div class="guide-note"><strong>Notă</strong><span>Camera folosește tema Site Testeri. Conținutul complet și eventualele actualizări pot fi consultate în ghidul oficial.</span></div></section>`;
 }
 function testAccessMarkup(testName) {
   if (!isLeadershipUser(currentUser)) return '';
@@ -953,6 +1011,7 @@ function renderView(view) {
   else if (view === 'bonuses') { viewContent.innerHTML = renderBonusesView(); wireBonusesEvents(); }
   else if (view === 'attendance') { viewContent.innerHTML = renderAttendanceView(); wireAttendanceEvents(); }
   else if (view === 'activity') { viewContent.innerHTML = renderActivityView(); loadActivityEntries().then(() => { if (window.history.state?.view === 'activity') { viewContent.innerHTML = renderActivityView(); } }); }
+  else if (view === 'guide') { viewContent.innerHTML = renderGuideView(); renderGuideSubmenu(); }
   else if (view === 'cooldowns') { viewContent.innerHTML = renderCooldownPaymentsView(); wireCooldownPaymentsEvents(); }
   else { viewContent.innerHTML = renderSettingsView(title); wireSettingsEvents(); }
 }
@@ -2818,11 +2877,12 @@ document.querySelector('#admin-remove-tester').addEventListener('click', () => o
 document.querySelector('#admin-reset-tests').addEventListener('click', resetAllTestCounts);
 document.querySelector('#admin-settings').addEventListener('click', () => navigateTo('settings'));
 document.querySelector('#brand-settings').onclick = () => navigateTo('overview'); document.querySelector('#user-menu').onclick = () => navigateTo('overview'); document.querySelector('#profile-settings').onclick = () => navigateTo('settings');
-const labels = { overview: 'Profilul tău', testers: 'Testerii departamentului', statistics: 'Statistica Teste', cooldowns: 'Cooldown-uri', bonuses: 'Bonusuri', attendance: 'Pontaje', activity: 'Evidență activitate', settings: 'Setări' };
+const labels = { overview: 'Profilul tău', testers: 'Testerii departamentului', statistics: 'Statistica Teste', cooldowns: 'Cooldown-uri', bonuses: 'Bonusuri', attendance: 'Pontaje', activity: 'Evidență activitate', guide: 'Ghid Spital', settings: 'Setări' };
 function navigateTo(view, { push = true } = {}) {
   if (view === 'bonuses' && !isLeadershipUser(currentUser)) view = 'overview';
   if (view === 'attendance' && !hasLeadershipCallsign(currentUser)) view = 'overview';
   if (view === 'activity' && !hasLeadershipCallsign(currentUser)) view = 'overview';
+  if (view === 'guide' && !hasLeadershipCallsign(currentUser)) view = 'overview';
   if (view === 'testers' && !canViewTestersRoom(currentUser)) view = 'overview';
   if (!labels[view]) return;
   navigationRevision += 1;
@@ -2845,6 +2905,16 @@ function navigateTo(view, { push = true } = {}) {
   renderView(view);
 }
 document.querySelectorAll('[data-view]').forEach(btn => btn.addEventListener('click', () => navigateTo(btn.dataset.view)));
+document.querySelector('#guide-submenu')?.addEventListener('click', event => {
+  const button = event.target.closest('[data-guide-section]');
+  if (!button || !hasLeadershipCallsign(currentUser)) return;
+  selectedGuideSection = GUIDE_SECTIONS.some(([key]) => key === button.dataset.guideSection) ? button.dataset.guideSection : 'introducere';
+  if (window.history.state?.view !== 'guide') navigateTo('guide');
+  else {
+    viewContent.innerHTML = renderGuideView();
+    renderGuideSubmenu();
+  }
+});
 const availableTestsToggle = document.querySelector('#available-tests-toggle');
 const availableTestsSubmenu = document.querySelector('#available-tests-submenu');
 availableTestsToggle.addEventListener('click', () => {
