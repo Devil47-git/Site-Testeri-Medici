@@ -56,6 +56,8 @@ let testRunCounts = {};
 let processedTestCounts = {};
 let selectedBonusPeriodIndex = null;
 let selectedGuideSection = 'introducere';
+let guideContent = {};
+let guideContentPromise = null;
 const GUIDE_SECTIONS = [
   ['introducere', 'Introducere'],
   ['regulament', 'Regulament Intern'],
@@ -67,12 +69,12 @@ const GUIDE_SECTIONS = [
   ['rp-teren', 'Rp teren / Cert. BLS'],
   ['medicamente', 'Medicamente'],
   ['repartizare-zone', 'Repartizare Zone'],
-  ['smuls', 'Rp S.M.U.L.S. / Cert. S.M.U.L.S.'],
-  ['operatii', 'Rp Operatii.'],
+  ['rp-smuls', 'Rp S.M.U.L.S. / Cert. S.M.U.L.S.'],
+  ['rp-operatii', 'Rp Operatii.'],
   ['animatii-utile', 'Animații Utile'],
   ['rezidentiat', 'Rezidentiat'],
-  ['ghid-parasutism', 'Ghid Parașutism'],
-  ['certificat-moto', 'Rp Certificat Moto'],
+  ['cert-parasutism', 'Ghid Parașutism'],
+  ['rp-cert-moto', 'Rp Certificat Moto'],
   ['certificat-pilot', 'Certificat Pilot'],
   ['isuls', 'I.S.U.L.S.']
 ];
@@ -619,12 +621,37 @@ function renderGuideView() {
   const section = GUIDE_SECTIONS.find(([key]) => key === selectedGuideSection)?.[0] || 'introducere';
   const guideUrl = `https://ghidul-departamentului-medical-eight.vercel.app/#${section}`;
   const title = GUIDE_SECTIONS.find(([key]) => key === section)?.[1] || 'Introducere';
+  if (guideContent[section]) {
+    return `<section class="panel guide-panel"><div class="panel-head"><div><p class="eyebrow">GHID SPITAL · SECȚIUNE INTERNĂ</p><h2>${escapeHtml(title)}</h2><p class="muted">Conținutul oficial al ghidului, prezentat în tema Site Testeri.</p></div><a class="outline guide-external-link" href="${guideUrl}" target="_blank" rel="noopener noreferrer">Ghid oficial ↗</a></div><article class="guide-official-content">${guideContent[section]}</article></section>`;
+  }
+  loadGuideContent();
   const content = GUIDE_CONTENT[section] || {
     intro: `Instrucțiuni și informații pentru secțiunea ${title}.`,
     sections: [['Ghidul secțiunii', ['Consultă informațiile oficiale și aplică procedurile departamentului.', 'Pentru varianta completă și actualizată, deschide ghidul oficial.']]]
   };
   const cards = content.sections.map(([heading, items]) => `<article class="guide-content-card"><h3>${escapeHtml(heading)}</h3><ul>${items.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul></article>`).join('');
-  return `<section class="panel guide-panel"><div class="panel-head"><div><p class="eyebrow">GHID SPITAL · SECȚIUNE INTERNĂ</p><h2>${escapeHtml(title)}</h2><p class="muted">${escapeHtml(content.intro)}</p></div><a class="outline guide-external-link" href="${guideUrl}" target="_blank" rel="noopener noreferrer">Ghid oficial ↗</a></div><div class="guide-content-grid">${cards}</div><div class="guide-note"><strong>Notă</strong><span>Camera folosește tema Site Testeri. Conținutul complet și eventualele actualizări pot fi consultate în ghidul oficial.</span></div></section>`;
+  return `<section class="panel guide-panel"><div class="panel-head"><div><p class="eyebrow">GHID SPITAL · SECȚIUNE INTERNĂ</p><h2>${escapeHtml(title)}</h2><p class="muted">${escapeHtml(content.intro)}</p></div><a class="outline guide-external-link" href="${guideUrl}" target="_blank" rel="noopener noreferrer">Ghid oficial ↗</a></div><div class="guide-content-grid">${cards}</div><p class="guide-loading muted">Se încarcă informațiile complete din ghidul oficial…</p></section>`;
+}
+async function loadGuideContent() {
+  if (guideContentPromise) return guideContentPromise;
+  guideContentPromise = fetch('/api/guide').then(async response => {
+    const source = await response.text();
+    if (!response.ok) throw new Error(source || 'Ghidul nu a putut fi încărcat.');
+    const document = new DOMParser().parseFromString(source, 'text/html');
+    const sections = [...document.querySelectorAll('.section[id]')];
+    guideContent = Object.fromEntries(sections.map(section => [section.id, section.innerHTML]));
+    return guideContent;
+  }).catch(error => {
+    console.error('Guide content load failed:', error);
+    guideContentPromise = null;
+    return {};
+  });
+  const loaded = await guideContentPromise;
+  if (Object.keys(loaded).length && window.history.state?.view === 'guide') {
+    viewContent.innerHTML = renderGuideView();
+    renderGuideSubmenu();
+  }
+  return loaded;
 }
 function testAccessMarkup(testName) {
   if (!isLeadershipUser(currentUser)) return '';

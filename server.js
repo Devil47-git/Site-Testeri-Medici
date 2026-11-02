@@ -17,6 +17,7 @@ const SHEET_RANGE = process.env.GOOGLE_SHEET_RANGE || 'LISTA DEPARTAMENT!A:T';
 const sessions = new Map();
 const oauthState = new Map();
 const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.gif': 'image/gif', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml' };
+const GUIDE_SOURCE_URL = 'https://ghidul-departamentului-medical-eight.vercel.app/';
 
 function cookie(req, key) {
   const raw = req.headers.cookie || '';
@@ -45,7 +46,7 @@ function applySecurityHeaders(res) {
     "script-src 'self'",
     "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'",
     "font-src 'self' https://fonts.gstatic.com",
-    "img-src 'self' data: blob:",
+    "img-src 'self' https://ghidul-departamentului-medical-eight.vercel.app data: blob:",
     "connect-src 'self'",
     "frame-ancestors 'none'",
     "base-uri 'self'",
@@ -221,6 +222,26 @@ async function handleTestDefinitions(req, res) {
   }
 }
 
+async function handleGuide(req, res) {
+  if (req.method !== 'GET') return json(res, 405, { error: 'Method not allowed' });
+  try {
+    const response = await fetch(GUIDE_SOURCE_URL);
+    if (!response.ok) return json(res, 502, { error: 'Ghidul oficial nu a putut fi încărcat.' });
+    let html = await response.text();
+    html = html
+      .replace(/<script\b[\s\S]*?<\/script>/gi, '')
+      .replace(/<style\b[\s\S]*?<\/style>/gi, '')
+      .replace(/\son[a-z]+\s*=\s*(?:"[^"]*"|'[^']*')/gi, '')
+      .replace(/\s(href|src)\s*=\s*(['"])javascript:[\s\S]*?\2/gi, '')
+      .replace(/(\s(?:href|src)\s*=\s*["'])(?!https?:|#|data:|\/)([^"']+)/gi, `$1${GUIDE_SOURCE_URL}$2`);
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(html);
+  } catch (error) {
+    console.error('Official guide fetch failed:', error);
+    return json(res, 502, { error: 'Ghidul oficial nu a putut fi încărcat.' });
+  }
+}
+
 async function handleAccess(req, res, url) {
   const accessRoute = url.pathname.match(/^\/api\/access\/([a-z-]+)$/);
   if (accessRoute) {
@@ -266,6 +287,7 @@ async function route(req, res) {
   if (url.pathname === '/api/auth/login' || url.pathname === '/api/auth/discord' || url.pathname === '/api/auth/callback') return handleAuth(req, res, url);
   if (url.pathname === '/api/session') return handleSession(req, res);
   if (url.pathname === '/api/test-definitions') return handleTestDefinitions(req, res);
+  if (url.pathname === '/api/guide') return handleGuide(req, res);
   if (url.pathname === '/api/identity-ocr') return handleIdentityOcr(req, res);
   if (url.pathname.startsWith('/api/access/')) return handleAccess(req, res, url);
   if (url.pathname.startsWith('/api/')) return json(res, 404, { error: 'Not found' });

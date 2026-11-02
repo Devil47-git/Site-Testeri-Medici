@@ -545,8 +545,12 @@ body.dark-mode .nav-item.active{box-shadow:inset 2px 0 var(--purple)}
 .activity-table .activity-history-value{background:rgba(84,198,151,.1);font-weight:700}
 @media(max-width:760px){.activity-panel{padding:16px}.activity-panel>.panel-head{align-items:flex-start}}
 @media(max-width:760px){.activity-table{min-width:900px;table-layout:auto}.activity-table th,.activity-table td{white-space:nowrap}.activity-table th:first-child{width:auto}}
-.guide-panel{max-width:none;width:100%;margin:0 auto;padding:24px}
+.guide-panel{max-width:none;width:100%;margin:0 auto;padding:24px;background:linear-gradient(145deg,#07152f,#0c1e3d 58%,#10152d);border-color:#284a7b;box-shadow:0 12px 30px rgba(4,13,35,.28)}
 .guide-panel>.panel-head{align-items:center;margin-bottom:16px}
+.guide-panel>.panel-head h2{color:#f4f7ff}
+.guide-panel>.panel-head .muted{color:#aabbd8}
+.guide-panel>.panel-head .eyebrow{color:#81b8ff}
+.guide-panel .guide-external-link{border-color:#385981;background:rgba(255,255,255,.06);color:#dbeaff}
 .guide-panel>.panel-head h2{font-size:20px}
 .guide-external-link{white-space:nowrap;text-decoration:none}
 .guide-content-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
@@ -557,6 +561,26 @@ body.dark-mode .nav-item.active{box-shadow:inset 2px 0 var(--purple)}
 .guide-content-card li::before{content:'›';position:absolute;left:0;color:#3d91ed;font-size:18px;font-weight:700;line-height:1}
 .guide-note{display:flex;gap:10px;margin-top:18px;padding:13px 15px;border-left:3px solid var(--purple);border-radius:5px;background:rgba(205,54,60,.08);color:var(--surface-text);font-size:11px;line-height:1.5}
 .guide-note strong{color:var(--ink)}
+.guide-loading{margin:18px 0 0;text-align:center}
+.guide-official-content{max-width:1120px;margin:0 auto;padding:28px 32px;border:1px solid #315987;border-radius:28px;background:linear-gradient(145deg,#081936 0%,#0d2448 52%,#101b3b 100%);color:#eaf2ff;box-shadow:0 12px 34px rgba(2,10,28,.48)}
+.guide-official-content .section-header,.guide-official-content .section-title{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;margin:0 0 24px;color:#8ec5ff;text-align:center}
+.guide-official-content h1,.guide-official-content h2,.guide-official-content h3,.guide-official-content h4{color:#8ec5ff!important;font-family:'Space Grotesk',sans-serif}
+.guide-official-content h1{font-size:32px;letter-spacing:1px;text-transform:uppercase}
+.guide-official-content h2{font-size:23px;margin:22px 0 14px;text-align:center}
+.guide-official-content h3{font-size:16px;margin:22px 0 10px}
+.guide-official-content p,.guide-official-content li,.guide-official-content span{font-size:12px;line-height:1.65;color:#e5efff;opacity:1}
+.guide-official-content ul,.guide-official-content ol{padding-left:22px}
+.guide-official-content li::marker{color:#398df0}
+.guide-official-content strong,.guide-official-content b{color:#9bcaff}
+.guide-official-content .card,.guide-official-content .info-card,.guide-official-content .content-card,.guide-official-content table{border:1px solid #376b9d;border-radius:22px;background:rgba(16,43,82,.9);box-shadow:0 8px 20px rgba(1,9,25,.32)}
+.guide-official-content .card,.guide-official-content .info-card,.guide-official-content .content-card{padding:22px;margin:18px 0}
+.guide-official-content table{width:100%;border-collapse:collapse;overflow:hidden;background:#102b52}
+.guide-official-content th,.guide-official-content td{padding:9px;border:1px solid #37628f;font-size:11px;text-align:left;color:#e5efff}
+.guide-official-content th{color:#fff;background:#24558b}
+.guide-official-content img{max-width:100%;height:auto;border-radius:18px;box-shadow:0 5px 16px rgba(24,70,126,.18)}
+.guide-official-content p,.guide-official-content li,.guide-official-content span,.guide-official-content small,.guide-official-content div{opacity:1}
+.guide-official-content [style*="color"]{color:#e5efff!important}
+.guide-official-content [style*="opacity"]{opacity:1!important}
 @media(max-width:760px){.guide-panel{padding:16px}.guide-panel>.panel-head{align-items:flex-start;gap:12px;flex-wrap:wrap}.guide-content-grid{grid-template-columns:1fr}}
 .cooldown-payment-panel{max-width:1120px;width:100%;margin:0 auto;padding:30px;box-shadow:0 12px 36px rgba(14,34,66,.12)}
 .cooldown-payment-panel>.panel-head{align-items:center;justify-content:flex-start;gap:18px;margin-bottom:28px}
