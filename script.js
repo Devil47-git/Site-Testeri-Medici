@@ -108,7 +108,7 @@ async function loadRemoteGrants() {
           const grantedTests = grantMode === 'override'
             ? (grant?.grantedTests || member.grantedTests || [])
             : [...(member.grantedTests || []), ...docsAssignedTests(member), ...(grant?.grantedTests || [])];
-          return { ...member, ...grant, grantMode, grantedTests: normalizeGrantBundle(grantedTests) };
+          return { ...member, ...grant, callsign: member.callsign, csNum: member.csNum, name: member.name, rank: member.rank, isLeadership: member.isLeadership, isConducere: member.isConducere, grantMode, grantedTests: normalizeGrantBundle(grantedTests) };
         })
       : grants.map(grant => ({ ...grant, grantedTests: normalizeGrantBundle(grant.grantedTests || []) }));
   } else {
@@ -410,8 +410,10 @@ function renderDashboardData() {
     const orphan = sortMembers(testers.filter(member => !DASHBOARD_GROUPS.some(group => group.members(member))));
     if (orphan.length) groups.push({ label: 'Alți membri', members: orphan });
     const rowHtml = member => {
-      const key = String(member.discordId || normalizeCallsign(member.callsign));
-      return `<tr><td>${escapeHtml(normalizeCallsign(member.callsign))}</td><td><div class="tester">${avatarFor(member)}<span>${escapeHtml(memberNameFor(member))}</span></div></td><td>${escapeHtml(rankFor(member))}</td><td><div class="tags statistics-processed-cell">${processedTestBadgesHtml(member, processedTestCounts)}</div></td><td><button type="button" class="outline site-guide-frame statistics-tests-toggle" data-statistics-member="${escapeHtml(key)}">Teste</button></td></tr>`;
+      const directoryMember = directoryMembers.find(item => item.discordId === member.discordId);
+      const displayMember = directoryMember ? { ...member, ...directoryMember, grantedTests: member.grantedTests } : member;
+      const key = String(displayMember.discordId || normalizeCallsign(displayMember.callsign));
+      return `<tr><td>${escapeHtml(normalizeCallsign(displayMember.callsign))}</td><td><div class="tester">${avatarFor(displayMember)}<span>${escapeHtml(memberNameFor(displayMember))}</span></div></td><td>${escapeHtml(rankFor(displayMember))}</td><td><div class="tags statistics-processed-cell">${processedTestBadgesHtml(displayMember, processedTestCounts)}</div></td><td><button type="button" class="outline site-guide-frame statistics-tests-toggle" data-statistics-member="${escapeHtml(key)}">Teste</button></td></tr>`;
     };
     testerList.innerHTML = groups.length ? groups.map(group => `<section class="tester-group"><h3>${escapeHtml(group.label)}</h3><div class="table-wrap"><table class="tester-access-table statistics-access-table"><colgroup><col class="tester-callsign-column"><col class="tester-name-column"><col class="tester-rank-column"><col class="statistics-processed-col"><col class="tester-action-column"></colgroup><thead><tr><th>CALLSIGN</th><th>TESTER</th><th>RANK</th><th>TESTE PROCESATE</th><th></th></tr></thead><tbody>${group.members.map(rowHtml).join('')}</tbody></table></div></section>`).join('') : '<div class="empty-state">Nu există testeri.</div>';
   }
@@ -432,6 +434,7 @@ function processedTestGroups(member) {
   ];
 }
 function processedTestBadgesHtml(member, counts) {
+  if (isLeadershipUser(member)) return '<span class="statistics-no-processed-tests">—</span>';
   const memberId = String(member?.discordId || normalizeCallsign(member?.callsign));
   const memberCounts = counts[memberId] || {};
   const groups = processedTestGroups(member).filter(group =>
@@ -552,6 +555,10 @@ function renderAvailableTestsSubmenu() {
   const submenu = document.querySelector('#available-tests-submenu');
   const bonusNav = document.querySelector('#bonuses-nav');
   if (bonusNav) bonusNav.hidden = !isLeadershipUser(currentUser);
+  const attendanceNav = document.querySelector('#attendance-nav');
+  if (attendanceNav) attendanceNav.hidden = !hasLeadershipCallsign(currentUser);
+  const activityNav = document.querySelector('#activity-nav');
+  if (activityNav) activityNav.hidden = !hasLeadershipCallsign(currentUser);
   const testersNav = document.querySelector('.nav-item[data-view="testers"]');
   if (testersNav) testersNav.hidden = !canViewTestersRoom(currentUser);
   if (!submenu || !currentUser) return;
@@ -694,6 +701,170 @@ function renderMembersView() {
 function renderSettingsView(title) {
   return `<div class="panel view-panel"><h2>${title}</h2><p class="muted">Gestionează preferințele și sesiunea contului tău.</p><div class="settings-list"><p><b>Identitate:</b> ${currentUser?.name || '—'}</p><p><b>Callsign:</b> ${normalizeCallsign(currentUser?.callsign || currentUser?.callSign)}</p><p><b>Nivel acces:</b> ${isLeadershipUser(currentUser) ? 'Conducere' : 'Tester'}</p>${isLeadershipUser(currentUser) ? `<hr><section class="test-editor"><h3>Configurare teste</h3><div class="test-editor-controls"><label>Test<select id="test-editor-select">${catalog.map(test => `<option value="${test}">${displayTestName(test)}</option>`).join('')}</select></label><label>Titlu afișat<input id="test-editor-title" type="text"></label><label>Conținut card<textarea id="test-editor-description" rows="3"></textarea></label><label>Instrucțiuni<textarea id="test-editor-instructions" rows="3"></textarea></label><label>Greșeli permise<input id="test-editor-max-wrong" type="number" min="0" step="1"></label></div><div class="test-editor-question-header"><h4>Întrebări și răspunsuri</h4><button class="outline" id="add-test-question" type="button">＋ Adaugă întrebare</button></div><div id="test-editor-questions" class="test-editor-questions"></div><button class="primary" id="save-test-definition">Salvează testul</button><span id="test-editor-status" class="muted" role="status"></span></section>` : ''}</div></div>`;
 }
+const ATTENDANCE_DAYS = ['Luni', 'Marți', 'Miercuri', 'Joi', 'Vineri', 'Sâmbătă', 'Duminică'];
+let attendanceTimer = null;
+let activityEntriesByDiscordId = {};
+function attendanceStorageKey() { return `medici-attendance-${currentUser?.discordId || normalizeCallsign(currentUser?.callsign) || 'guest'}`; }
+function attendanceEntries() {
+  const entries = readStored(attendanceStorageKey(), []);
+  return Array.isArray(entries) ? entries.filter(entry => Number.isFinite(Number(entry.start))) : [];
+}
+function saveAttendanceEntries(entries) { localStorage.setItem(attendanceStorageKey(), JSON.stringify(entries)); }
+function bucharestParts(value = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Bucharest', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }).formatToParts(value);
+  return Object.fromEntries(parts.map(part => [part.type, part.value]));
+}
+function attendanceDateKey(value) {
+  const parts = bucharestParts(value);
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+function attendanceDayIndex(dateKey) {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  return (weekday + 6) % 7;
+}
+function attendanceWeekStart(dateKey) {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() + 6) % 7));
+  return date.toISOString().slice(0, 10);
+}
+function attendanceAddDays(dateKey, days) {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+function attendanceMinutes(entry, now = Date.now()) {
+  const end = Number(entry.end) || now;
+  return Math.max(0, Math.floor((end - Number(entry.start)) / 60000));
+}
+function attendanceTime(value) {
+  return new Intl.DateTimeFormat('ro-RO', { timeZone: 'Europe/Bucharest', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
+}
+function attendanceWeekData(dateKey, entries = attendanceEntries()) {
+  const start = attendanceWeekStart(dateKey);
+  const minutes = Array(7).fill(0);
+  entries.forEach(entry => {
+    const entryDate = attendanceDateKey(Number(entry.start));
+    const offset = Math.round((Date.parse(`${entryDate}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) / 86400000);
+    if (offset >= 0 && offset < 7) minutes[offset] += attendanceMinutes(entry);
+  });
+  return { start, minutes, average: minutes.reduce((sum, value) => sum + value, 0) / 7 };
+}
+function attendanceFormatMinutes(value) {
+  const minutes = Math.max(0, Math.round(value));
+  return `${minutes} min`;
+}
+function attendanceClosedWeeks(dateKey, entries) {
+  const currentStart = attendanceWeekStart(dateKey);
+  return [1, 2, 3, 4].map(weeksAgo => {
+    const start = attendanceAddDays(currentStart, -weeksAgo * 7);
+    const data = attendanceWeekData(start, entries);
+    return { ...data, end: attendanceAddDays(start, 6), weeksAgo };
+  });
+}
+function attendanceWeekLabel(start, end) {
+  const format = value => new Date(`${value}T12:00:00Z`).toLocaleDateString('ro-RO', { timeZone: 'Europe/Bucharest', day: '2-digit', month: '2-digit', year: 'numeric' });
+  return `${format(start)} – ${format(end)}`;
+}
+function renderAttendanceView() {
+  if (!hasLeadershipCallsign(currentUser)) return '<section class="panel view-panel"><p class="empty-state">Camera este disponibilă doar conducerii.</p></section>';
+  const now = Date.now();
+  const today = attendanceDateKey(now);
+  const entries = attendanceEntries();
+  const open = entries.find(entry => !entry.end);
+  const displayedEntry = open || [...entries].reverse().find(entry => entry.end && attendanceDateKey(Number(entry.start)) === today);
+  const week = attendanceWeekData(today, entries);
+  const closedWeeks = attendanceClosedWeeks(today, entries);
+  const days = week.minutes.map((minutes, index) => `<div class="attendance-day"><strong>${ATTENDANCE_DAYS[index]}</strong><span>${attendanceFormatMinutes(minutes)}</span></div>`).join('');
+  const history = closedWeeks.map(item => `<div class="attendance-history-row"><span>Săptămâna închisă<br><small>${attendanceWeekLabel(item.start, item.end)}</small></span><strong>${attendanceFormatMinutes(item.average)} / zi</strong></div>`).join('');
+  return `<section class="panel attendance-panel"><div class="panel-head"><div><p class="eyebrow">EVIDENȚA CONDUCERII</p><h2>Pontaje</h2><p class="muted">Orele sunt calculate în fusul orar România (Europe/Bucharest).</p></div></div><div class="attendance-clock-box"><div class="attendance-model">Clock-in: <b>${displayedEntry ? attendanceTime(displayedEntry.start) : 'xx:xx'}</b> / Clock-out: <b>${displayedEntry?.end ? attendanceTime(displayedEntry.end) : 'yy:yy'}</b></div><div class="attendance-actions"><button class="primary" id="attendance-start" type="button" ${open ? 'disabled' : ''}>Start pontaj</button><button class="outline attendance-stop" id="attendance-stop" type="button" ${open ? '' : 'disabled'}>Stop pontaj</button></div><p class="attendance-status muted" id="attendance-status" role="status" aria-live="polite">${open ? `Pontaj început la ${attendanceTime(open.start)}.` : 'Niciun pontaj activ.'}</p></div><div class="attendance-week-box"><div class="panel-head"><div><h3>Săptămâna curentă</h3><p class="muted">${attendanceWeekLabel(week.start, attendanceAddDays(week.start, 6))}</p></div><div class="attendance-average"><span>Media aritmetică</span><strong>${attendanceFormatMinutes(week.average)} / zi</strong></div></div><div class="attendance-days">${days}<div class="attendance-day attendance-average-day"><strong>Media</strong><span>${attendanceFormatMinutes(week.average)}</span></div></div></div><div class="attendance-history"><div class="panel-head"><div><h3>Ultimele 4 săptămâni închise</h3><p class="muted">Media aritmetică pentru fiecare săptămână finalizată.</p></div></div>${history}</div></section>`;
+}
+function wireAttendanceEvents() {
+  if (attendanceTimer) clearInterval(attendanceTimer);
+  const refresh = () => {
+    const status = document.querySelector('#attendance-status');
+    const open = attendanceEntries().find(entry => !entry.end);
+    if (status && open) status.textContent = `Pontaj activ de ${attendanceFormatMinutes(attendanceMinutes(open))}, început la ${attendanceTime(open.start)}.`;
+  };
+  document.querySelector('#attendance-start')?.addEventListener('click', () => {
+    const entries = attendanceEntries();
+    if (entries.some(entry => !entry.end)) return;
+    entries.push({ start: Date.now(), end: null });
+    saveAttendanceEntries(entries);
+    syncAttendanceRemote('start');
+    renderView('attendance');
+  });
+  document.querySelector('#attendance-stop')?.addEventListener('click', () => {
+    const entries = attendanceEntries();
+    const open = [...entries].reverse().find(entry => !entry.end);
+    if (!open) return;
+    open.end = Date.now();
+    saveAttendanceEntries(entries);
+    syncAttendanceRemote('stop');
+    renderView('attendance');
+  });
+  attendanceTimer = setInterval(refresh, 30000);
+}
+async function syncAttendanceRemote(action) {
+  if (!currentUser?.discordId) return;
+  try {
+    const response = await fetch('/api/access/attendance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requesterId: currentUser.discordId, action }) });
+    const payload = await parseApiResponse(response);
+    if (!response.ok) throw new Error(payload.error || 'Pontajul nu a putut fi sincronizat.');
+    if (Array.isArray(payload.entries)) saveAttendanceEntries(payload.entries);
+  } catch (error) {
+    console.error('Attendance sync failed:', error);
+    const status = document.querySelector('#attendance-status');
+    if (status) status.textContent = `Pontaj salvat local, dar sincronizarea a eșuat: ${error.message}`;
+  }
+}
+async function loadActivityEntries() {
+  if (!currentUser?.discordId) return;
+  const status = document.querySelector('#activity-status');
+  const requester = encodeURIComponent(currentUser.discordId);
+  try {
+    const response = await fetch(`/api/access/attendance?requesterId=${requester}`);
+    const payload = await parseApiResponse(response);
+    if (!response.ok) throw new Error(payload.error || 'Pontajele nu au putut fi încărcate.');
+    if (payload.configured !== false && payload.entries && typeof payload.entries === 'object') activityEntriesByDiscordId = payload.entries;
+  } catch (error) {
+    console.error('Activity records load failed:', error);
+    if (status) status.textContent = `Pontajele nu au putut fi sincronizate: ${error.message}`;
+  }
+  try {
+    const response = await fetch(`/api/access/directory?requesterId=${requester}&view=activity`);
+    const payload = await parseApiResponse(response);
+    if (!response.ok) throw new Error(payload.error || 'Lista departamentului nu a putut fi încărcată.');
+    if (Array.isArray(payload.members)) directoryMembers = payload.members;
+  } catch (error) {
+    console.error('Activity directory load failed:', error);
+    if (status) status.textContent = `Lista departamentului nu a putut fi sincronizată: ${error.message}`;
+  }
+}
+function activityEntriesFor(member) {
+  return activityEntriesByDiscordId[member?.discordId] || (member?.discordId === currentUser?.discordId ? attendanceEntries() : []);
+}
+function renderActivityView() {
+  if (!hasLeadershipCallsign(currentUser)) return '<section class="panel view-panel"><p class="empty-state">Camera este disponibilă doar conducerii.</p></section>';
+  const today = attendanceDateKey(Date.now());
+  const members = sortMembers(directoryMembers.filter(member => String(member?.name || '').trim() && String(member?.discordId || '').trim()));
+  const weekStart = attendanceWeekStart(today);
+  const headers = ATTENDANCE_DAYS.map(day => `<th>${day}</th>`).join('');
+  const historyHeaders = [1, 2, 3, 4].map(weeksAgo => {
+    const start = attendanceAddDays(weekStart, -weeksAgo * 7);
+    return `<th>TOTAL/ZI<br><small>CW ${String(44 - weeksAgo).padStart(2, '0')}<br>(${attendanceWeekLabel(start, attendanceAddDays(start, 6))})</small></th>`;
+  }).join('');
+  const rows = members.map(member => {
+    const entries = activityEntriesFor(member);
+    const week = attendanceWeekData(today, entries);
+    const history = attendanceClosedWeeks(today, entries);
+    const daily = week.minutes.map(value => `<td>${value || '-'}</td>`).join('');
+    return `<tr><td class="activity-member">${avatarFor(member)}<span><strong>${escapeHtml(normalizeCallsign(member.callsign))}</strong><small>${escapeHtml(member.name)}<br>${escapeHtml(member.rank || '—')}</small></span></td>${daily}<td class="activity-total">${week.minutes.reduce((sum, value) => sum + value, 0)}</td><td class="activity-average">${attendanceFormatMinutes(week.average)}</td>${history.map(item => `<td class="activity-history-value">${attendanceFormatMinutes(item.average)}</td>`).join('')}</tr>`;
+  }).join('');
+  return `<section class="panel activity-panel"><div class="panel-head"><div><p class="eyebrow">LISTA DEPARTAMENT</p><h2>Evidență activitate</h2><p class="muted">Pontajele membrilor din documentul departamentului, în fusul orar România.</p></div></div><p class="activity-status muted" id="activity-status" role="status" aria-live="polite">${members.length ? `${members.length} membri afișați.` : 'Lista departamentului se încarcă...'}</p><div class="activity-table-wrap"><table class="activity-table"><thead><tr><th>MEMBRU</th>${headers}<th>TOTAL<br>(MINUTE)</th><th>TOTAL/ZI<br>(SĂPT. CURENTĂ)</th>${historyHeaders}</tr></thead><tbody>${rows || '<tr><td colspan="14">Nu există membri disponibili.</td></tr>'}</tbody></table></div></section>`;
+}
 function testQuestionEditorHtml(question, index) {
   return `<fieldset class="test-editor-question"><legend>Întrebarea ${index + 1}</legend><label>Întrebare<textarea data-question-text rows="2">${escapeHtml(question?.text || '')}</textarea></label><label>Răspuns<textarea data-question-answer rows="2">${escapeHtml(question?.answer || '')}</textarea></label><button type="button" class="outline danger-button" data-remove-question="${index}">Șterge întrebarea</button></fieldset>`;
 }
@@ -780,6 +951,8 @@ function renderView(view) {
   if (view === 'testers') { viewContent.innerHTML = renderTestersView(); wireTestersEvents(); }
   else if (view === 'statistics') { viewContent.innerHTML = renderStatisticsView(); renderDashboardData(); }
   else if (view === 'bonuses') { viewContent.innerHTML = renderBonusesView(); wireBonusesEvents(); }
+  else if (view === 'attendance') { viewContent.innerHTML = renderAttendanceView(); wireAttendanceEvents(); }
+  else if (view === 'activity') { viewContent.innerHTML = renderActivityView(); loadActivityEntries().then(() => { if (window.history.state?.view === 'activity') { viewContent.innerHTML = renderActivityView(); } }); }
   else if (view === 'cooldowns') { viewContent.innerHTML = renderCooldownPaymentsView(); wireCooldownPaymentsEvents(); }
   else { viewContent.innerHTML = renderSettingsView(title); wireSettingsEvents(); }
 }
@@ -2645,9 +2818,11 @@ document.querySelector('#admin-remove-tester').addEventListener('click', () => o
 document.querySelector('#admin-reset-tests').addEventListener('click', resetAllTestCounts);
 document.querySelector('#admin-settings').addEventListener('click', () => navigateTo('settings'));
 document.querySelector('#brand-settings').onclick = () => navigateTo('overview'); document.querySelector('#user-menu').onclick = () => navigateTo('overview'); document.querySelector('#profile-settings').onclick = () => navigateTo('settings');
-const labels = { overview: 'Profilul tău', testers: 'Testerii departamentului', statistics: 'Statistica Teste', cooldowns: 'Cooldown-uri', bonuses: 'Bonusuri', settings: 'Setări' };
+const labels = { overview: 'Profilul tău', testers: 'Testerii departamentului', statistics: 'Statistica Teste', cooldowns: 'Cooldown-uri', bonuses: 'Bonusuri', attendance: 'Pontaje', activity: 'Evidență activitate', settings: 'Setări' };
 function navigateTo(view, { push = true } = {}) {
   if (view === 'bonuses' && !isLeadershipUser(currentUser)) view = 'overview';
+  if (view === 'attendance' && !hasLeadershipCallsign(currentUser)) view = 'overview';
+  if (view === 'activity' && !hasLeadershipCallsign(currentUser)) view = 'overview';
   if (view === 'testers' && !canViewTestersRoom(currentUser)) view = 'overview';
   if (!labels[view]) return;
   navigationRevision += 1;

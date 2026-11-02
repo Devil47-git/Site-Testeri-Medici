@@ -78,6 +78,8 @@ export default async function handler(req, res) {
     const members = (await readPublic(MEMBER_RANGE)).slice(1).filter(Array.isArray);
     const requester = members.find(row => String(row[19] || '').trim() === requesterId);
     if (!requester) return json(res, 403, { error: 'Requester is not a department member' });
+    const activityView = req.query?.view === 'activity';
+    if (activityView && !isLeadership(requester)) return json(res, 403, { error: 'Only callsigns 001-020 can view the activity directory' });
     if (req.method === 'GET' && req.query?.view === 'cooldown-payers') {
       return json(res, 200, { members: cooldownPayersFromRows(members) });
     }
@@ -96,7 +98,7 @@ export default async function handler(req, res) {
       console.error('Discord avatar Redis read failed:', error);
       return new Map();
     });
-    const result = members.filter(row => String(row[3] || '').trim() && (relevantMember(row) || isLeadership(row))).map(row => {
+    const result = members.filter(row => String(row[3] || '').trim() && (activityView || relevantMember(row) || isLeadership(row))).map(row => {
       const discordId = String(row[19] || '').trim();
       const storedGrant = grantsByDiscord.get(discordId);
       const functions = functionsForMember(callsignNumber(row[2]), row[10]);
