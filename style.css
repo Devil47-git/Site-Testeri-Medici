@@ -509,7 +509,6 @@ body.dark-mode .nav-item.active{box-shadow:inset 2px 0 var(--purple)}
 .attendance-actions{display:flex;justify-content:flex-start;flex-wrap:wrap;gap:8px;margin-top:18px}
 .attendance-actions button{min-width:145px}
 .attendance-stop{border-color:#d75b65;color:#c23d49}
-.attendance-copy-button{background:#f47a1b!important;border-color:#f47a1b!important;color:#1b130b!important;font-weight:800}
 .attendance-status{text-align:center;min-height:18px;margin-bottom:0}
 .attendance-week-box .panel-head,.attendance-history .panel-head{align-items:center}
 .attendance-week-box h3,.attendance-history h3{margin:0;font:700 16px 'Space Grotesk'}
@@ -595,6 +594,16 @@ body.dark-mode .nav-item.active{box-shadow:inset 2px 0 var(--purple)}
 .activity-table .activity-total{background:rgba(84,198,151,.14);color:var(--ink);font-weight:800}
 .activity-table .activity-average{color:var(--ink);font-weight:800}
 .activity-table .activity-history-value{background:rgba(84,198,151,.1);font-weight:700}
+.activity-table .activity-day-value{min-width:76px}
+.activity-table .activity-day-value strong,.activity-table .activity-day-value small{display:block}
+.activity-table .activity-day-value strong{color:var(--surface-text);font-size:11px}
+.activity-table .activity-day-value small{margin-top:4px;color:var(--muted);font-size:9px}
+.activity-table .activity-day-value.meets-minimum{background:rgba(84,198,151,.14)}
+.activity-table .activity-day-value.meets-minimum strong{color:#39a578}
+.activity-table .activity-day-value.below-minimum{background:rgba(227,86,98,.1)}
+.activity-table .activity-day-value.below-minimum strong{color:#e35662}
+.activity-table .activity-minimum{font-weight:800;white-space:nowrap}
+.attendance-cancel-button{min-width:88px;border-color:#d75b65;color:#c23d49}
 .activity-member-link{display:flex;align-items:center;gap:8px;width:100%;padding:0;border:0;background:transparent;color:inherit;text-align:left;cursor:pointer}
 .activity-member-link:hover strong,.activity-member-link:focus-visible strong{text-decoration:underline}
 .activity-member-link:focus-visible{outline:2px solid #5c9dff;outline-offset:3px;border-radius:4px}

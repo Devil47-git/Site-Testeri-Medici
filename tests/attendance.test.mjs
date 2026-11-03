@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 process.env.GOOGLE_API_KEY = 'test-key';
 process.env.UPSTASH_REDIS_REST_URL = 'https://attendance-redis.example';
 process.env.UPSTASH_REDIS_REST_TOKEN = 'test-token';
+process.env.CRON_SECRET = 'test-cron-secret';
 
 const row = (callsign, name, discordId, rank = '') => {
   const member = Array(21).fill('');
@@ -47,7 +48,13 @@ globalThis.fetch = async (url, options = {}) => {
   if (String(url).startsWith('https://attendance-redis.example')) {
     const commands = JSON.parse(options.body || '[]');
     if (String(url).endsWith('/pipeline')) {
-      return { ok: true, json: async () => commands.map(([command, key]) => ({ result: command === 'GET' ? redisValues.get(key) || null : null })) };
+      return { ok: true, json: async () => commands.map(([command, key, value]) => {
+        if (command === 'SET') {
+          redisValues.set(key, value);
+          return { result: 'OK' };
+        }
+        return { result: command === 'GET' ? redisValues.get(key) || null : null };
+      }) };
     }
     if (commands[0] === 'GET') return { ok: true, json: async () => ({ result: redisValues.get(commands[1]) || null }) };
     if (commands[0] === 'HMGET') return { ok: true, json: async () => ({ result: commands.slice(2).map(() => null) }) };
@@ -65,7 +72,8 @@ globalThis.fetch = async (url, options = {}) => {
 };
 
 const { default: directoryHandler, attendanceWeeksFromRows, attendanceWeeksByCallsign } = await import('../api/access/directory.js');
-const { default: attendanceHandler } = await import('../api/access/attendance.js');
+const { default: attendanceHandler, attendanceStartAllowed, closeExpiredAttendanceEntries } = await import('../api/access/attendance.js');
+const { attendanceMinimumMinutes } = await import('../lib/access/shared.js');
 
 async function callDirectory(requesterId, view) {
   let statusCode = 200;
@@ -78,7 +86,7 @@ async function callDirectory(requesterId, view) {
   await directoryHandler({ method: 'GET', query: { requesterId, view } }, response);
   return { statusCode, payload };
 }
-async function callAttendance(method, requesterId, body = {}, extraQuery = {}) {
+async function callAttendance(method, requesterId, body = {}, extraQuery = {}, headers = {}) {
   let statusCode = 200;
   let payload;
   const response = {
@@ -89,7 +97,8 @@ async function callAttendance(method, requesterId, body = {}, extraQuery = {}) {
   await attendanceHandler({
     method,
     query: { requesterId, ...extraQuery },
-    body: { requesterId, ...body }
+    body: { requesterId, ...body },
+    headers
   }, response);
   return { statusCode, payload };
 }
@@ -107,6 +116,33 @@ test('weekly attendance columns keep document labels and text values unchanged',
   assert.deepEqual(attendanceWeeksByCallsign(attendanceSheetRows).get('101'), attendanceWeeksFromRows(headers, attendanceSheetRows[5]));
 });
 
+test('daily attendance minimums follow callsign leadership and member grade', () => {
+  assert.equal(attendanceMinimumMinutes('020', 'Medic Chirurg'), 60);
+  assert.equal(attendanceMinimumMinutes('003', 'Director General'), null);
+  assert.equal(attendanceMinimumMinutes('101', 'Brancardier'), 120);
+  assert.equal(attendanceMinimumMinutes('201', 'Asistent-Medical'), 120);
+  assert.equal(attendanceMinimumMinutes('301', 'Medic-Stagiar'), 120);
+  assert.equal(attendanceMinimumMinutes('302', 'Medic-Rezident'), 100);
+  assert.equal(attendanceMinimumMinutes('303', 'Medic-Specialist'), 80);
+  assert.equal(attendanceMinimumMinutes('304', 'Medic-Primar'), 80);
+});
+
+test('attendance cutoff uses Bucharest time and blocks starts from 23:35', () => {
+  assert.equal(attendanceStartAllowed(Date.parse('2026-01-01T21:34:00Z')), true);
+  assert.equal(attendanceStartAllowed(Date.parse('2026-01-01T21:35:00Z')), false);
+  assert.equal(attendanceStartAllowed(Date.parse('2026-07-01T20:34:00Z')), true);
+  assert.equal(attendanceStartAllowed(Date.parse('2026-07-01T20:35:00Z')), false);
+});
+
+test('stale active entries close at Bucharest midnight and no longer count as open', () => {
+  const start = Date.parse('2026-01-01T21:30:00Z');
+  const now = Date.parse('2026-01-02T00:15:00Z');
+  assert.deepEqual(closeExpiredAttendanceEntries([{ start, end: null }], now), {
+    entries: [{ start, end: Date.parse('2026-01-01T22:00:00Z'), autoClosed: true }],
+    closed: 1
+  });
+});
+
 test('only leadership can read weekly attendance values from Sheets', async () => {
   const memberRequest = await callDirectory('member-id', 'attendance');
   assert.equal(memberRequest.statusCode, 403);
@@ -116,6 +152,7 @@ test('only leadership can read weekly attendance values from Sheets', async () =
   assert.equal(first.payload.members.length, 1);
   assert.equal(first.payload.members[0].discordId, 'leadership-id');
   assert.equal(first.payload.members[0].attendanceWeeks[0].value, '50');
+  assert.equal(first.payload.members[0].attendanceMinimumMinutes, null);
 
   attendanceSheetRows[4][14] = 'updated in document';
   const refreshed = await callDirectory('leadership-id', 'attendance');
@@ -148,10 +185,14 @@ test('the separate live timer still supports start and stop without manual weekl
   assert.equal(manual.statusCode, 400);
 });
 
-test('only leadership can read live attendance records', async () => {
+test('members can read only their own live attendance while leadership can read all records', async () => {
   redisValues.set('site-testeri-medici:attendance:member-id', JSON.stringify([{ start: 1000, end: 2000 }]));
   const member = await callAttendance('GET', 'member-id', {}, { view: 'own' });
-  assert.equal(member.statusCode, 403);
+  assert.equal(member.statusCode, 200);
+  assert.deepEqual(member.payload.entries, [{ start: 1000, end: 2000 }]);
+
+  const memberDepartment = await callAttendance('GET', 'member-id');
+  assert.equal(memberDepartment.statusCode, 403);
 
   const leadership = await callAttendance('GET', 'leadership-id', {}, { view: 'own' });
   assert.equal(leadership.statusCode, 200);
@@ -171,4 +212,38 @@ test('leadership can load its own attendance separately from the department reco
   assert.equal(department.statusCode, 200);
   assert.deepEqual(department.payload.entries['member-id'], [{ start: 1000, end: 2000 }]);
   assert.deepEqual(department.payload.entries['leadership-id'], [{ start: 3000, end: 4000 }]);
+});
+
+test('department attendance includes active member details and leadership can cancel any active entry', async () => {
+  const memberKey = 'site-testeri-medici:attendance:member-id';
+  redisValues.set(memberKey, JSON.stringify([{ start: Date.now() - 60000, end: null }]));
+
+  const department = await callAttendance('GET', 'leadership-id');
+  assert.equal(department.statusCode, 200);
+  assert.equal(department.payload.activeEntries[0].discordId, 'member-id');
+  assert.equal(department.payload.activeEntries[0].name, 'Membru');
+
+  const canceled = await callAttendance('POST', 'leadership-id', { action: 'cancel', targetDiscordId: 'member-id' });
+  assert.equal(canceled.statusCode, 200);
+  const canceledEntry = JSON.parse(redisValues.get(memberKey))[0];
+  assert.equal(canceledEntry.canceled, true);
+  assert.equal(canceledEntry.canceledBy, 'leadership-id');
+  assert.equal(Number.isFinite(canceledEntry.end), true);
+
+  redisValues.set(memberKey, JSON.stringify([{ start: Date.now(), end: null }]));
+  const member = await callAttendance('POST', 'member-id', { action: 'cancel', targetDiscordId: 'member-id' });
+  assert.equal(member.statusCode, 403);
+});
+
+test('authenticated midnight cron closes department entries', async () => {
+  const memberKey = 'site-testeri-medici:attendance:member-id';
+  redisValues.set(memberKey, JSON.stringify([{ start: Date.now() - 86400000, end: null }]));
+
+  const unauthorized = await callAttendance('GET', '', {}, { task: 'close-expired' });
+  assert.equal(unauthorized.statusCode, 401);
+
+  const result = await callAttendance('GET', '', {}, { task: 'close-expired' }, { authorization: 'Bearer test-cron-secret' });
+  assert.equal(result.statusCode, 200);
+  assert.equal(result.payload.closed, 1);
+  assert.equal(JSON.parse(redisValues.get(memberKey))[0].autoClosed, true);
 });

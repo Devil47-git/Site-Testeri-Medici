@@ -1,5 +1,9 @@
 {
   "functions": { "api/**/*.js": { "maxDuration": 30 } },
+  "crons": [
+    { "path": "/api/access/attendance?task=close-expired", "schedule": "0 21 * * *" },
+    { "path": "/api/access/attendance?task=close-expired", "schedule": "0 22 * * *" }
+  ],
   "headers": [
     {
       "source": "/(.*)\\.(js|css|html)",
