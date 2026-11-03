@@ -394,7 +394,8 @@ export default async function handler(req, res) {
     if (!member) return json(res, 403, { error: 'Requester is not a department member' });
 
     if (req.method === 'GET' && req.query?.view === 'bonuses') {
-      if (!isLeadershipRow(member)) return json(res, 403, { error: 'Pagina Bonusuri este rezervată conducerii.' });
+      const requesterCallsign = callsignNumber(member[2]);
+      if (requesterCallsign < 1 || requesterCallsign > 20) return json(res, 403, { error: 'Pagina Bonusuri este rezervată conducerii cu callsign între 001 și 020.' });
       const from = String(req.query?.from || '');
       const to = String(req.query?.to || '');
       if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || from > to) {

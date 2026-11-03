@@ -604,7 +604,7 @@ async function recordTestRun(testName, result = '', details = {}) {
 function renderAvailableTestsSubmenu() {
   const submenu = document.querySelector('#available-tests-submenu');
   const bonusNav = document.querySelector('#bonuses-nav');
-  if (bonusNav) bonusNav.hidden = !isLeadershipUser(currentUser);
+  if (bonusNav) bonusNav.hidden = !hasLeadershipCallsign(currentUser);
   const attendanceNav = document.querySelector('#attendance-nav');
   if (attendanceNav) attendanceNav.hidden = !hasLeadershipCallsign(currentUser);
   const activityNav = document.querySelector('#activity-nav');
@@ -3131,7 +3131,7 @@ document.querySelector('#admin-settings').addEventListener('click', () => naviga
 document.querySelector('#brand-settings').onclick = () => navigateTo('overview'); document.querySelector('#user-menu').onclick = () => navigateTo('overview'); document.querySelector('#profile-settings').onclick = () => navigateTo('settings');
 const labels = { overview: 'Profilul tău', testers: 'Testerii departamentului', statistics: 'Statistica Teste', cooldowns: 'Cooldown-uri', bonuses: 'Bonusuri', attendance: 'Pontaje', activity: 'Evidență activitate', guide: 'Ghid Spital', settings: 'Setări' };
 function navigateTo(view, { push = true } = {}) {
-  if (view === 'bonuses' && !isLeadershipUser(currentUser)) view = 'overview';
+  if (view === 'bonuses' && !hasLeadershipCallsign(currentUser)) view = 'overview';
   if (view === 'attendance' && !hasLeadershipCallsign(currentUser)) view = 'overview';
   if (view === 'activity' && !hasLeadershipCallsign(currentUser)) view = 'overview';
   if (view === 'guide' && !hasLeadershipCallsign(currentUser)) view = 'overview';

@@ -242,6 +242,17 @@ test('only callsigns 001 through 020 can reset test counts', () => {
   assert.equal(canResetTestCounts(['', '', '100', '', 'Director']), false);
 });
 
+test('leadership-only navigation rooms require a leadership callsign', () => {
+  const permissionsSource = source.match(/function renderAvailableTestsSubmenu\(\) \{[\s\S]*?^\}/m)?.[0] || '';
+  const navigationSource = source.match(/function navigateTo\(view, \{ push = true \} = \{\}\) \{[\s\S]*?^\}/m)?.[0] || '';
+  assert.match(permissionsSource, /bonusNav\.hidden = !hasLeadershipCallsign\(currentUser\)/);
+  assert.match(permissionsSource, /attendanceNav\.hidden = !hasLeadershipCallsign\(currentUser\)/);
+  assert.match(permissionsSource, /activityNav\.hidden = !hasLeadershipCallsign\(currentUser\)/);
+  assert.match(navigationSource, /view === 'bonuses' && !hasLeadershipCallsign\(currentUser\)/);
+  const testResultsSource = readFileSync(join(here, '..', 'api', 'access', 'test-results.js'), 'utf8');
+  assert.match(testResultsSource, /requesterCallsign < 1 \|\| requesterCallsign > 20/);
+});
+
 test('normalizeCallsign pads to three digits', () => {
   assert.equal(normalizeCallsign('7'), 'M-007');
   assert.equal(normalizeCallsign('M-7'), 'M-007');
