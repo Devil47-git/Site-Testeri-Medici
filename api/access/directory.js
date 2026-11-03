@@ -8,6 +8,7 @@ const RESIDENT_TESTER_PATTERN = /S\.?\s*M\.?\s*U\.?\s*L\.?\s*S\.?|MOTO|A\.?\s*L\
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:U400';
+const ATTENDANCE_RANGE = process.env.GOOGLE_ATTENDANCE_RANGE || "'EVIDENTA ACTIVITATE'!A1:U400";
 const GRANTS_RANGE = process.env.GOOGLE_GRANTS_RANGE || 'GRANTS!A1:F';
 const avatarRedis = new UpstashRedis();
 function isLeadership(row) { return isLeadershipRow(row); }
@@ -72,6 +73,18 @@ export function attendanceWeeksFromRows(headers, row) {
       : [];
   });
 }
+export function attendanceWeeksByCallsign(rows) {
+  if (!Array.isArray(rows)) throw new Error('Attendance sheet rows are invalid');
+  const normalizeHeader = value => normalize(value).replace(/[^A-Z0-9]/g, '');
+  const headerIndex = rows.findIndex(row => Array.isArray(row) && row.some(value => normalizeHeader(value) === 'NRINSIGNA'));
+  if (headerIndex < 0) throw new Error('Attendance sheet is missing the NR. INSIGNA header');
+  const headers = rows[headerIndex];
+  const callsignIndex = headers.findIndex(value => normalizeHeader(value) === 'NRINSIGNA');
+  return new Map(rows.slice(headerIndex + 1).filter(Array.isArray).flatMap(row => {
+    const callsign = callsignNumber(row[callsignIndex]);
+    return callsign ? [[String(callsign), attendanceWeeksFromRows(headers, row)]] : [];
+  }));
+}
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   const isAvatarSync = req.method === 'POST';
@@ -92,6 +105,9 @@ export default async function handler(req, res) {
     const activityView = req.query?.view === 'activity';
     const attendanceView = req.query?.view === 'attendance';
     if (activityView && !(callsignNumber(requester[2]) >= 1 && callsignNumber(requester[2]) <= LEADERSHIP_MAX)) return json(res, 403, { error: 'Only callsigns 001-020 can view the activity directory' });
+    const attendanceByCallsign = activityView || attendanceView
+      ? attendanceWeeksByCallsign(await readPublic(ATTENDANCE_RANGE))
+      : new Map();
     if (req.method === 'GET' && req.query?.view === 'cooldown-payers') {
       return json(res, 200, { members: cooldownPayersFromRows(members) });
     }
@@ -112,7 +128,7 @@ export default async function handler(req, res) {
           name: String(attendanceMember[3] || '').trim(),
           callsign: String(attendanceMember[2] || '').trim(),
           rank: String(attendanceMember[4] || '').trim(),
-          attendanceWeeks: attendanceWeeksFromRows(headers, attendanceMember)
+          attendanceWeeks: attendanceByCallsign.get(String(callsignNumber(attendanceMember[2]))) || []
         }] : [],
         syncedAt: new Date().toISOString()
       });
@@ -135,7 +151,7 @@ export default async function handler(req, res) {
         isLeadership: isConducere, leadershipTitle: isConducere ? leadershipTitle(row) : '', avatar: avatarUrlForDiscordMember(discordId, row[20], avatarHashes),
         grantedTests, grantMode: storedGrant?.grantMode || '', updatedAt: storedGrant?.updatedAt || '', lastSeen: storedGrant?.lastSeen || '',
         isTester: ['leadership', 'primar', 'specialist'].includes(gradeGroupFor(callsignNumber(row[2]))) || (callsignNumber(row[2]) >= 301 && callsignNumber(row[2]) <= 340 && RESIDENT_TESTER_PATTERN.test(normalize(functions))) || /TESTER/.test(normalize(functions)) || grantsByDiscord.has(discordId),
-        attendanceWeeks: activityView ? attendanceWeeksFromRows(headers, row) : undefined
+        attendanceWeeks: activityView ? attendanceByCallsign.get(String(callsignNumber(row[2]))) || [] : undefined
       };
     });
     return json(res, 200, { members: result, syncedAt: new Date().toISOString() });

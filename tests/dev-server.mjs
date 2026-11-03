@@ -35,6 +35,9 @@ const BONUS_TESTS = [
 const testResults = [];
 const lifetimeTestResults = [];
 const attendanceEntriesByMember = Object.fromEntries(MOCK.map(member => [member.discordId, []]));
+attendanceEntriesByMember['1'] = [
+  { start: Date.parse('2026-11-02T10:15:00+02:00'), end: Date.parse('2026-11-02T12:10:00+02:00') }
+];
 for (const [index, member] of MOCK.entries()) {
   member.attendanceWeeks = [
     { label: 'TOTAL/ZI\nCW 40', value: String(120 + index) },
@@ -81,8 +84,12 @@ http.createServer(async (req, res) => {
       res.end(JSON.stringify({ success: true, entries }));
       return;
     }
+    const requesterId = url.searchParams.get('requesterId');
+    const entries = url.searchParams.get('view') === 'own'
+      ? attendanceEntriesByMember[requesterId] || (attendanceEntriesByMember[requesterId] = [...attendanceEntriesByMember['1']])
+      : attendanceEntriesByMember;
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ entries: attendanceEntriesByMember, configured: true }));
+    res.end(JSON.stringify({ entries, configured: true }));
     return;
   }
   if (url.pathname.startsWith('/api/access/directory')) {
@@ -93,7 +100,7 @@ http.createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ candidate: candidate ? { callsign: candidate.callsign, name: candidate.name, cooldowns: candidate.cooldowns || {} } : null })); return;
     }
     const members = url.searchParams.get('view') === 'attendance'
-      ? MOCK.filter(member => member.discordId === url.searchParams.get('requesterId'))
+      ? [{ ...(MOCK.find(member => member.discordId === url.searchParams.get('requesterId')) || MOCK[0]), discordId: url.searchParams.get('requesterId') }]
       : MOCK;
     res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ members, syncedAt: new Date().toISOString() })); return;
   }

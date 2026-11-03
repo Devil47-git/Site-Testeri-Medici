@@ -175,8 +175,14 @@ test('member profiles and activity table show weekly values from the department 
   assert.doesNotMatch(source, /data-attendance-manual-form|manual-add|manual-update|manual-delete/);
   const directorySource = readFileSync(join(here, '..', 'api', 'access', 'directory.js'), 'utf8');
   assert.match(directorySource, /attendanceWeeksFromRows/);
-  assert.match(directorySource, /attendanceWeeks: activityView \? attendanceWeeksFromRows/);
+  assert.match(directorySource, /const ATTENDANCE_RANGE = process\.env\.GOOGLE_ATTENDANCE_RANGE/);
+  assert.match(directorySource, /attendanceWeeks: activityView \? attendanceByCallsign\.get/);
   assert.match(directorySource, /attendanceMember = members\.find\(row => String\(row\[19\] \|\| ''\)\.trim\(\) === requesterId\)/);
+  assert.match(source, /function attendanceChartHtml\(week, title = 'Pontaj săptămânal'\)/);
+  assert.match(source, /ULTIMELE 30 DE PONTAJE/);
+  assert.match(source, /attendance-chart-total/);
+  const attendanceApi = readFileSync(join(here, '..', 'api', 'access', 'attendance.js'), 'utf8');
+  assert.match(attendanceApi, /req\.query\?\.view === 'own'/);
 });
 
 test('SMULS, Moto, Pilot, and parachutism test pages show their fixed corner logos', () => {

@@ -48,7 +48,7 @@ export default async function handler(req, res) {
     const requesterCallsign = callsignNumber(requester[2]);
     const isLeadership = requesterCallsign >= 1 && requesterCallsign <= 20;
     if (!attendanceRedis.isConfigured) {
-      if (req.method === 'GET') return json(res, 200, { entries: isLeadership ? {} : [], configured: false });
+      if (req.method === 'GET') return json(res, 200, { entries: isLeadership && req.query?.view !== 'own' ? {} : [], configured: false });
       return json(res, 503, { error: 'Pontajele online nu sunt configurate.' });
     }
     if (req.method === 'POST') {
@@ -65,7 +65,7 @@ export default async function handler(req, res) {
       const saved = await writeAttendanceData(requesterId, ownData);
       return json(res, 200, { success: true, entries: saved });
     }
-    if (!isLeadership) {
+    if (!isLeadership || req.query?.view === 'own') {
       const ownData = await readAttendanceData(requesterId);
       return json(res, 200, { entries: ownData, configured: true });
     }
