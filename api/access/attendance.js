@@ -1,5 +1,5 @@
 import '../../lib/config.js';
-import { callsignNumber, isLeadershipRow } from '../../lib/access/shared.js';
+import { callsignNumber } from '../../lib/access/shared.js';
 import { UpstashRedis } from '../../lib/storage/upstash-redis.js';
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
@@ -22,12 +22,18 @@ function cleanEntries(entries) {
     .map(entry => ({ start: Number(entry.start), end: entry.end ? Number(entry.end) : null }))
     .slice(-2000);
 }
-async function readEntries(discordId) {
+async function readAttendanceData(discordId) {
   if (!attendanceRedis.isConfigured) return [];
-  return cleanEntries(await attendanceRedis.getJson(redisKey(discordId)).catch(error => {
+  const stored = await attendanceRedis.getJson(redisKey(discordId)).catch(error => {
     console.error('Attendance Redis read failed:', error);
     throw error;
-  }));
+  });
+  return cleanEntries(Array.isArray(stored) ? stored : stored?.entries);
+}
+async function writeAttendanceData(discordId, data) {
+  const cleaned = cleanEntries(data);
+  await attendanceRedis.setJson(redisKey(discordId), cleaned);
+  return cleaned;
 }
 
 export default async function handler(req, res) {
@@ -39,26 +45,36 @@ export default async function handler(req, res) {
     const members = await readMembers();
     const requester = members.find(row => String(row[19] || '').trim() === requesterId);
     if (!requester) return json(res, 403, { error: 'Requester is not a department member' });
-    if (!isLeadershipRow(requester)) return json(res, 403, { error: 'Only callsigns 001-020 can access activity records' });
-    if (!attendanceRedis.isConfigured) return json(res, 200, { entries: [], configured: false });
+    const requesterCallsign = callsignNumber(requester[2]);
+    const isLeadership = requesterCallsign >= 1 && requesterCallsign <= 20;
+    if (!attendanceRedis.isConfigured) {
+      if (req.method === 'GET') return json(res, 200, { entries: isLeadership ? {} : [], configured: false });
+      return json(res, 503, { error: 'Pontajele online nu sunt configurate.' });
+    }
     if (req.method === 'POST') {
       const action = req.body?.action;
-      const ownEntries = await readEntries(requesterId);
+      const ownData = await readAttendanceData(requesterId);
       if (action === 'start') {
-        if (ownEntries.some(entry => !entry.end)) return json(res, 409, { error: 'Există deja un pontaj activ.' });
-        ownEntries.push({ start: Date.now(), end: null });
+        if (ownData.some(entry => !entry.end)) return json(res, 409, { error: 'Există deja un pontaj activ.' });
+        ownData.push({ start: Date.now(), end: null });
       } else if (action === 'stop') {
-        const open = [...ownEntries].reverse().find(entry => !entry.end);
+        const open = [...ownData].reverse().find(entry => !entry.end);
         if (!open) return json(res, 409, { error: 'Nu există un pontaj activ.' });
         open.end = Date.now();
       } else return json(res, 400, { error: 'Acțiune invalidă' });
-      await attendanceRedis.setJson(redisKey(requesterId), cleanEntries(ownEntries));
-      return json(res, 200, { success: true, entries: cleanEntries(ownEntries) });
+      const saved = await writeAttendanceData(requesterId, ownData);
+      return json(res, 200, { success: true, entries: saved });
+    }
+    if (!isLeadership) {
+      const ownData = await readAttendanceData(requesterId);
+      return json(res, 200, { entries: ownData, configured: true });
     }
     const ids = members.map(row => String(row[19] || '').trim());
     const values = await attendanceRedis.pipeline(ids.map(id => ['GET', redisKey(id)]));
     const entries = {};
-    values.forEach((value, index) => { entries[ids[index]] = cleanEntries(value ? JSON.parse(value) : []); });
+    values.forEach((value, index) => {
+      entries[ids[index]] = cleanEntries(value ? JSON.parse(value) : []);
+    });
     return json(res, 200, { entries, configured: true });
   } catch (error) {
     console.error('Attendance records failed:', error);

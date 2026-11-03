@@ -1,0 +1,130 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+
+process.env.GOOGLE_API_KEY = 'test-key';
+process.env.UPSTASH_REDIS_REST_URL = 'https://attendance-redis.example';
+process.env.UPSTASH_REDIS_REST_TOKEN = 'test-token';
+
+const row = (callsign, name, discordId, rank = '') => {
+  const member = Array(21).fill('');
+  member[2] = callsign;
+  member[3] = name;
+  member[4] = rank;
+  member[14] = '134/2CO';
+  member[15] = '138/5CCV';
+  member[16] = '—';
+  member[19] = discordId;
+  return member;
+};
+const headers = Array(21).fill('');
+headers[14] = 'TOTAL/ZI\nCW 40';
+headers[15] = 'TOTAL/ZI\nCW 41';
+headers[16] = 'TOTAL/ZI\nCW 42';
+let sheetRows = [
+  headers,
+  row('001', 'Conducere', 'leadership-id'),
+  row('101', 'Membru', 'member-id'),
+  row('021', 'Grad fără callsign de conducere', 'rank-only-id', 'Director General')
+];
+const redisValues = new Map();
+
+globalThis.fetch = async (url, options = {}) => {
+  if (String(url).startsWith('https://attendance-redis.example')) {
+    const commands = JSON.parse(options.body || '[]');
+    if (String(url).endsWith('/pipeline')) {
+      return { ok: true, json: async () => commands.map(([command, key]) => ({ result: command === 'GET' ? redisValues.get(key) || null : null })) };
+    }
+    if (commands[0] === 'GET') return { ok: true, json: async () => ({ result: redisValues.get(commands[1]) || null }) };
+    if (commands[0] === 'HMGET') return { ok: true, json: async () => ({ result: commands.slice(2).map(() => null) }) };
+    if (commands[0] === 'SET') {
+      redisValues.set(commands[1], commands[2]);
+      return { ok: true, json: async () => ({ result: 'OK' }) };
+    }
+    throw new Error(`Unexpected Redis command: ${commands[0]}`);
+  }
+  const range = decodeURIComponent(new URL(url).pathname.split('/').pop());
+  return {
+    ok: true,
+    json: async () => ({ values: range.startsWith('LISTA') ? sheetRows : [Array(6).fill('')] })
+  };
+};
+
+const { default: directoryHandler, attendanceWeeksFromRows } = await import('../api/access/directory.js');
+const { default: attendanceHandler } = await import('../api/access/attendance.js');
+
+async function callDirectory(requesterId, view) {
+  let statusCode = 200;
+  let payload;
+  const response = {
+    setHeader() {},
+    status(code) { statusCode = code; return this; },
+    json(value) { payload = value; return this; }
+  };
+  await directoryHandler({ method: 'GET', query: { requesterId, view } }, response);
+  return { statusCode, payload };
+}
+async function callAttendance(method, requesterId, body = {}) {
+  let statusCode = 200;
+  let payload;
+  const response = {
+    setHeader() {},
+    status(code) { statusCode = code; return this; },
+    json(value) { payload = value; return this; }
+  };
+  await attendanceHandler({
+    method,
+    query: { requesterId },
+    body: { requesterId, ...body }
+  }, response);
+  return { statusCode, payload };
+}
+
+test('weekly attendance columns keep document labels and text values unchanged', () => {
+  assert.deepEqual(attendanceWeeksFromRows(headers, sheetRows[1]), [
+    { label: 'TOTAL/ZI\nCW 40', value: '134/2CO' },
+    { label: 'TOTAL/ZI\nCW 41', value: '138/5CCV' },
+    { label: 'TOTAL/ZI\nCW 42', value: '—' }
+  ]);
+  const zeroRow = [...sheetRows[1]];
+  zeroRow[14] = 0;
+  assert.equal(attendanceWeeksFromRows(headers, zeroRow)[0].value, '0');
+  assert.deepEqual(attendanceWeeksFromRows([], sheetRows[1]), []);
+});
+
+test('a member can read only their own live weekly attendance from Sheets', async () => {
+  const first = await callDirectory('member-id', 'attendance');
+  assert.equal(first.statusCode, 200);
+  assert.equal(first.payload.members.length, 1);
+  assert.equal(first.payload.members[0].discordId, 'member-id');
+  assert.equal(first.payload.members[0].attendanceWeeks[0].value, '134/2CO');
+
+  sheetRows[2][14] = 'updated in document';
+  const refreshed = await callDirectory('member-id', 'attendance');
+  assert.equal(refreshed.payload.members[0].attendanceWeeks[0].value, 'updated in document');
+});
+
+test('only callsigns 001-020 can read department-wide weekly attendance', async () => {
+  const leadership = await callDirectory('leadership-id', 'activity');
+  assert.equal(leadership.statusCode, 200);
+  assert.equal(leadership.payload.members.length, 3);
+  assert.deepEqual(leadership.payload.members[1].attendanceWeeks.map(week => week.value), ['updated in document', '138/5CCV', '—']);
+
+  const rankOnly = await callDirectory('rank-only-id', 'activity');
+  assert.equal(rankOnly.statusCode, 403);
+});
+
+test('the separate live timer still supports start and stop without manual weekly edits', async () => {
+  const key = 'site-testeri-medici:attendance:member-id';
+  redisValues.set(key, JSON.stringify({ entries: [], manualEntries: [{ id: 'legacy', minutes: 90 }] }));
+  const started = await callAttendance('POST', 'member-id', { action: 'start' });
+  assert.equal(started.statusCode, 200);
+  assert.equal(started.payload.entries.length, 1);
+  assert.equal(started.payload.entries[0].end, null);
+
+  const stopped = await callAttendance('POST', 'member-id', { action: 'stop' });
+  assert.equal(stopped.statusCode, 200);
+  assert.equal(Number.isFinite(stopped.payload.entries[0].end), true);
+
+  const manual = await callAttendance('POST', 'member-id', { action: 'manual-add' });
+  assert.equal(manual.statusCode, 400);
+});

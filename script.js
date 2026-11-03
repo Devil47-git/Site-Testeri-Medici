@@ -110,6 +110,12 @@ function applyGrantsState() {
 function refreshCurrentView() {
   renderAvailableTestsSubmenu();
   if (window.history.state?.view === 'test') return;
+  if (window.history.state?.view === 'activity-member') {
+    const callsign = window.history.state.callsign;
+    const member = directoryMembers.find(item => normalizeCallsign(item.callsign) === callsign);
+    if (member) viewContent.innerHTML = renderActivityMemberView(member);
+    return;
+  }
   if (window.history.state?.view === 'tester-profile') {
     const callsign = window.history.state.callsign;
     const member = testers.find(item => normalizeCallsign(item.callsign) === callsign) || directoryMembers.find(item => normalizeCallsign(item.callsign) === callsign);
@@ -511,6 +517,10 @@ function renderProfileData() {
   if (profileTests) profileTests.innerHTML = profileTestTagsHtml(profile);
   const profileHistory = document.querySelector('#profile-test-history');
   if (profileHistory) profileHistory.innerHTML = testerTestCountGridHtml(profile);
+  const profileAttendance = document.querySelector('#profile-attendance');
+  if (profileAttendance) profileAttendance.innerHTML = renderAttendanceProfilePanel(profile, {
+    loaded: activityDataLoaded
+  });
 }
 const TEST_ICONS = { admission: '🎓', transfer: '⇄', certificate: '🩺', als: '✚', smuls: '✳', moto: '🏍', pilot: '🚁', parachutism: '🪂' };
 function testKindClass(test) {
@@ -690,7 +700,24 @@ function renderTesterProfileView(member) {
   const removalControls = hasLeadershipCallsign(currentUser) && !hasLeadershipCallsign(member)
     ? `<button class="profile-settings-button" id="profile-test-settings" type="button" aria-label="Gestionează testele" title="Gestionează testele" aria-expanded="false">⚙</button>`
     : '';
-  return `<div class="tester-profile-view"><div class="panel-head"><div><p class="eyebrow">PROFIL TESTER</p><h2>${escapeHtml(name)}</h2></div><button class="outline" id="back-to-testers" type="button">← Înapoi</button></div><div class="profile-layout"><section class="panel profile-card">${removalControls}<div class="profile-identity"><div>${avatarFor(member)}</div><div><h1>${escapeHtml(name)}</h1></div></div><dl class="profile-details"><div><dt>CALLSIGN</dt><dd>${escapeHtml(callsign || '—')}</dd></div><div><dt>NUME</dt><dd>${escapeHtml(member.name || '—')}</dd></div><div><dt>GRAD</dt><dd>${escapeHtml(member.rank || '—')}</dd></div></dl></section><section class="panel profile-certifications"><div class="panel-head"><div><h2>Funcții tester</h2><p class="muted">Certificările și testele alocate contului tău</p></div></div><div class="tags profile-test-tags">${profileTestTagsHtml(member, Boolean(removalControls))}</div><p class="profile-test-removal-status muted" role="status" aria-live="polite"></p></section></div><section class="panel profile-test-history"><div class="panel-head"><div><h2>Statistica Teste</h2></div></div><div class="statistics-test-grid">${testCountGrid}</div></section></div>`;
+  return `<div class="tester-profile-view"><div class="panel-head"><div><p class="eyebrow">PROFIL TESTER</p><h2>${escapeHtml(name)}</h2></div><button class="outline" id="back-to-testers" type="button">← Înapoi</button></div><div class="profile-layout"><section class="panel profile-card">${removalControls}<div class="profile-identity"><div>${avatarFor(member)}</div><div><h1>${escapeHtml(name)}</h1></div></div><dl class="profile-details"><div><dt>CALLSIGN</dt><dd>${escapeHtml(callsign || '—')}</dd></div><div><dt>NUME</dt><dd>${escapeHtml(member.name || '—')}</dd></div><div><dt>GRAD</dt><dd>${escapeHtml(member.rank || '—')}</dd></div></dl></section><section class="panel profile-certifications"><div class="panel-head"><div><h2>Funcții tester</h2><p class="muted">Certificările și testele alocate contului tău</p></div></div><div class="tags profile-test-tags">${profileTestTagsHtml(member, Boolean(removalControls))}</div><p class="profile-test-removal-status muted" role="status" aria-live="polite"></p></section></div><section class="panel profile-test-history"><div class="panel-head"><div><h2>Statistica Teste</h2></div></div><div class="statistics-test-grid">${testCountGrid}</div></section>${renderAttendanceProfilePanel(member, { loaded: activityDataLoaded })}</div>`;
+}
+function wireTesterProfilePage(member) {
+  const previousView = window.history.state?.previousView || 'testers';
+  document.querySelector('#back-to-testers')?.addEventListener('click', () => {
+    if (window.history.state?.canReturnHistory) window.history.back();
+    else {
+      const destination = labels[previousView] ? previousView : 'overview';
+      window.history.replaceState({ view: destination }, '', `#${destination}`);
+      navigateTo(destination, { push: false });
+    }
+  });
+  wireProfileTestRemoval(member);
+}
+function refreshTesterProfileAttendance(member) {
+  const profile = { ...member, grantedTests: normalizeGrantBundle([...(member.grantedTests || []), ...docsAssignedTests(member)]) };
+  viewContent.innerHTML = renderTesterProfileView(profile);
+  wireTesterProfilePage(profile);
 }
 function openTesterProfile(member, { push = true, previousView: requestedPreviousView } = {}) {
   if (!hasLeadershipCallsign(currentUser)) return;
@@ -721,15 +748,8 @@ function openTesterProfile(member, { push = true, previousView: requestedPreviou
   viewContent.innerHTML = renderTesterProfileView(profile);
   document.querySelector('#section-label').textContent = 'SITE TESTERI';
   document.querySelector('#page-label').textContent = `Profil: ${memberNameFor(profile)}`;
-  document.querySelector('#back-to-testers').onclick = () => {
-    if (window.history.state?.canReturnHistory) window.history.back();
-    else {
-      const destination = labels[previousView] ? previousView : 'overview';
-      window.history.replaceState({ view: destination }, '', `#${destination}`);
-      navigateTo(destination, { push: false });
-    }
-  };
-  wireProfileTestRemoval(profile);
+  wireTesterProfilePage(profile);
+  loadActivityEntries();
 }
 function wireProfileTestRemoval(member) {
   const settings = document.querySelector('#profile-test-settings');
@@ -788,7 +808,9 @@ function renderSettingsView(title) {
 }
 const ATTENDANCE_DAYS = ['Luni', 'Marți', 'Miercuri', 'Joi', 'Vineri', 'Sâmbătă', 'Duminică'];
 let attendanceTimer = null;
-let activityEntriesByDiscordId = {};
+let activityWeeksByDiscordId = {};
+let activityLoadError = '';
+let activityDataLoaded = false;
 function attendanceStorageKey() { return `medici-attendance-${currentUser?.discordId || normalizeCallsign(currentUser?.callsign) || 'guest'}`; }
 function attendanceEntries() {
   const entries = readStored(attendanceStorageKey(), []);
@@ -853,6 +875,21 @@ function attendanceWeekLabel(start, end) {
   const format = value => new Date(`${value}T12:00:00Z`).toLocaleDateString('ro-RO', { timeZone: 'Europe/Bucharest', day: '2-digit', month: '2-digit', year: 'numeric' });
   return `${format(start)} – ${format(end)}`;
 }
+function activityWeeksFor(member) {
+  return activityWeeksByDiscordId[member?.discordId] || member?.attendanceWeeks || [];
+}
+function renderAttendanceProfilePanel(member, { loaded = false } = {}) {
+  if (!member?.discordId) return '';
+  const weeks = activityWeeksFor(member);
+  const memberLoaded = Object.hasOwn(activityWeeksByDiscordId, member.discordId) || Array.isArray(member.attendanceWeeks);
+  const weekCards = weeks.map(week => `<article class="attendance-week-card"><strong>${escapeHtml(week.label)}</strong><span>${escapeHtml(week.value)}</span></article>`).join('');
+  const stateMessage = activityLoadError
+    ? `Pontajele nu au putut fi încărcate: ${activityLoadError}`
+    : !loaded || !memberLoaded
+        ? 'Se încarcă pontajele...'
+        : weeks.length ? '' : 'Nu au fost găsite pontaje săptămânale în documentul departamentului.';
+  return `<section class="panel attendance-profile-panel"><div class="panel-head"><div><p class="eyebrow">EVIDENȚA ACTIVITĂȚII · DIN DOCUMENTUL DEPARTAMENTULUI</p><h2>Pontaje săptămânale</h2><p class="muted">Valorile sunt preluate direct din foaia departamentului.</p></div></div>${stateMessage ? `<p class="attendance-profile-status muted" role="status" aria-live="polite">${escapeHtml(stateMessage)}</p>` : ''}<div class="attendance-week-grid">${weekCards}</div></section>`;
+}
 function renderAttendanceView() {
   if (!hasLeadershipCallsign(currentUser)) return '<section class="panel view-panel"><p class="empty-state">Camera este disponibilă doar conducerii.</p></section>';
   const now = Date.now();
@@ -907,48 +944,84 @@ async function syncAttendanceRemote(action) {
 }
 async function loadActivityEntries() {
   if (!currentUser?.discordId) return;
+  activityLoadError = '';
   const status = document.querySelector('#activity-status');
   const requester = encodeURIComponent(currentUser.discordId);
   try {
-    const response = await fetch(`/api/access/attendance?requesterId=${requester}`);
-    const payload = await parseApiResponse(response);
-    if (!response.ok) throw new Error(payload.error || 'Pontajele nu au putut fi încărcate.');
-    if (payload.configured !== false && payload.entries && typeof payload.entries === 'object') activityEntriesByDiscordId = payload.entries;
-  } catch (error) {
-    console.error('Activity records load failed:', error);
-    if (status) status.textContent = `Pontajele nu au putut fi sincronizate: ${error.message}`;
-  }
-  try {
     const response = await fetch(`/api/access/directory?requesterId=${requester}&view=activity`);
     const payload = await parseApiResponse(response);
-    if (!response.ok) throw new Error(payload.error || 'Lista departamentului nu a putut fi încărcată.');
-    if (Array.isArray(payload.members)) directoryMembers = payload.members;
+    if (!response.ok) throw new Error(payload.error || 'Pontajele din document nu au putut fi încărcate.');
+    if (!Array.isArray(payload.members)) throw new Error('Răspunsul documentului departamentului este invalid.');
+    directoryMembers = payload.members;
+    activityWeeksByDiscordId = Object.fromEntries(payload.members.map(member => [member.discordId, member.attendanceWeeks || []]));
   } catch (error) {
-    console.error('Activity directory load failed:', error);
-    if (status) status.textContent = `Lista departamentului nu a putut fi sincronizată: ${error.message}`;
+    console.error('Activity records load failed:', error);
+    activityLoadError = error.message || 'Pontajele nu au putut fi încărcate.';
+    if (status) status.textContent = `Pontajele nu au putut fi sincronizate: ${error.message}`;
   }
+  activityDataLoaded = true;
+  if (window.history.state?.view === 'activity') viewContent.innerHTML = renderActivityView();
+  else if (window.history.state?.view === 'activity-member') {
+    const member = directoryMembers.find(item => normalizeCallsign(item.callsign) === window.history.state.callsign);
+    if (member) viewContent.innerHTML = renderActivityMemberView(member);
+  } else if (window.history.state?.view === 'tester-profile') {
+    const member = testers.find(item => normalizeCallsign(item.callsign) === window.history.state.callsign) || directoryMembers.find(item => normalizeCallsign(item.callsign) === window.history.state.callsign);
+    if (member) refreshTesterProfileAttendance(member);
+  }
+  renderProfileData();
 }
-function activityEntriesFor(member) {
-  return activityEntriesByDiscordId[member?.discordId] || (member?.discordId === currentUser?.discordId ? attendanceEntries() : []);
+async function loadOwnActivityEntries() {
+  if (!currentUser?.discordId) return;
+  activityLoadError = '';
+  try {
+    const response = await fetch(`/api/access/directory?requesterId=${encodeURIComponent(currentUser.discordId)}&view=attendance`);
+    const payload = await parseApiResponse(response);
+    if (!response.ok) throw new Error(payload.error || 'Pontajele din document nu au putut fi încărcate.');
+    const member = Array.isArray(payload.members) ? payload.members.find(item => item.discordId === currentUser.discordId) : null;
+    if (!member) throw new Error('Rândul tău nu a fost găsit în documentul departamentului.');
+    activityWeeksByDiscordId[currentUser.discordId] = member.attendanceWeeks || [];
+  } catch (error) {
+    console.error('Own attendance load failed:', error);
+    activityLoadError = error.message || 'Pontajele nu au putut fi încărcate.';
+  }
+  activityDataLoaded = true;
+  renderProfileData();
 }
 function renderActivityView() {
   if (!hasLeadershipCallsign(currentUser)) return '<section class="panel view-panel"><p class="empty-state">Camera este disponibilă doar conducerii.</p></section>';
-  const today = attendanceDateKey(Date.now());
   const members = sortMembers(directoryMembers.filter(member => String(member?.name || '').trim() && String(member?.discordId || '').trim()));
-  const weekStart = attendanceWeekStart(today);
-  const headers = ATTENDANCE_DAYS.map(day => `<th>${day}</th>`).join('');
-  const historyHeaders = [1, 2, 3, 4].map(weeksAgo => {
-    const start = attendanceAddDays(weekStart, -weeksAgo * 7);
-    return `<th>TOTAL/ZI<br><small>CW ${String(44 - weeksAgo).padStart(2, '0')}<br>(${attendanceWeekLabel(start, attendanceAddDays(start, 6))})</small></th>`;
-  }).join('');
+  const weeks = members.find(member => member.attendanceWeeks?.length)?.attendanceWeeks || [];
+  const headers = weeks.map(week => `<th>${escapeHtml(week.label)}</th>`).join('');
   const rows = members.map(member => {
-    const entries = activityEntriesFor(member);
-    const week = attendanceWeekData(today, entries);
-    const history = attendanceClosedWeeks(today, entries);
-    const daily = week.minutes.map(value => `<td>${value || '-'}</td>`).join('');
-    return `<tr><td class="activity-member">${avatarFor(member)}<span><strong>${escapeHtml(normalizeCallsign(member.callsign))}</strong><small>${escapeHtml(member.name)}<br>${escapeHtml(member.rank || '—')}</small></span></td>${daily}<td class="activity-total">${week.minutes.reduce((sum, value) => sum + value, 0)}</td><td class="activity-average">${attendanceFormatMinutes(week.average)}</td>${history.map(item => `<td class="activity-history-value">${attendanceFormatMinutes(item.average)}</td>`).join('')}</tr>`;
+    const values = activityWeeksFor(member);
+    return `<tr><td class="activity-member"><button class="activity-member-link" type="button" data-activity-member="${escapeHtml(normalizeCallsign(member.callsign))}" aria-label="Vezi pontajele pentru ${escapeHtml(member.name)}">${avatarFor(member)}<span><strong>${escapeHtml(normalizeCallsign(member.callsign))}</strong><small>${escapeHtml(member.name)}<br>${escapeHtml(member.rank || '—')}</small></span></button></td>${weeks.map((week, index) => `<td class="activity-history-value">${escapeHtml(values[index]?.value || '—')}</td>`).join('')}</tr>`;
   }).join('');
-  return `<section class="panel activity-panel"><div class="panel-head"><div><p class="eyebrow">LISTA DEPARTAMENT</p><h2>Evidență activitate</h2><p class="muted">Pontajele membrilor din documentul departamentului, în fusul orar România.</p></div></div><p class="activity-status muted" id="activity-status" role="status" aria-live="polite">${members.length ? `${members.length} membri afișați.` : 'Lista departamentului se încarcă...'}</p><div class="activity-table-wrap"><table class="activity-table"><thead><tr><th>MEMBRU</th>${headers}<th>TOTAL<br>(MINUTE)</th><th>TOTAL/ZI<br>(SĂPT. CURENTĂ)</th>${historyHeaders}</tr></thead><tbody>${rows || '<tr><td colspan="14">Nu există membri disponibili.</td></tr>'}</tbody></table></div></section>`;
+  const statusText = activityLoadError ? `Nu s-au putut încărca datele: ${activityLoadError}` : members.length ? `${members.length} membri afișați.` : 'Lista departamentului se încarcă...';
+  return `<section class="panel activity-panel"><div class="panel-head"><div><p class="eyebrow">LISTA DEPARTAMENT</p><h2>Evidență activitate</h2><p class="muted">Pontajele săptămânale sunt preluate direct din documentul departamentului.</p></div></div><p class="activity-status muted" id="activity-status" role="status" aria-live="polite">${escapeHtml(statusText)}</p><div class="activity-table-wrap"><table class="activity-table"><thead><tr><th>MEMBRU</th>${headers}</tr></thead><tbody>${rows || `<tr><td colspan="${weeks.length + 1}">Nu există membri disponibili.</td></tr>`}</tbody></table></div></section>`;
+}
+function renderActivityMemberView(member) {
+  return `<section class="panel activity-member-panel"><div class="panel-head"><div><p class="eyebrow">PONTAJE MEMBRU</p><h2>${escapeHtml(member.name || 'Membru')}</h2><p class="muted">${escapeHtml(normalizeCallsign(member.callsign))} · ${escapeHtml(member.rank || '—')}</p></div><button class="outline" type="button" data-back-to-activity>← Înapoi la evidență</button></div>${renderAttendanceProfilePanel(member, { loaded: activityDataLoaded })}</section>`;
+}
+function openActivityMember(member, { push = true, previousView: requestedPreviousView } = {}) {
+  if (!hasLeadershipCallsign(currentUser)) return;
+  const callsign = normalizeCallsign(member.callsign);
+  const currentState = window.history.state || {};
+  const previousView = requestedPreviousView || (currentState.view === 'activity-member' ? currentState.previousView : document.querySelector('.nav-item.active')?.dataset.view || 'activity');
+  const canReturnHistory = push && previousView === 'activity';
+  const routeState = { view: 'activity-member', callsign, previousView, canReturnHistory };
+  const route = `#activity-member-${encodeURIComponent(callsign)}`;
+  if (push) window.history.pushState(routeState, '', route);
+  else window.history.replaceState(routeState, '', route);
+  saveActiveRoute(routeState);
+  document.querySelector('#overview-view').hidden = true;
+  document.querySelector('#overview-view').style.display = 'none';
+  viewContent.hidden = false;
+  viewContent.style.display = 'block';
+  viewContent.innerHTML = renderActivityMemberView(member);
+  document.querySelector('#section-label').textContent = 'SITE TESTERI';
+  document.querySelector('#page-label').textContent = `Pontaje: ${member.name || normalizeCallsign(member.callsign)}`;
+  document.querySelectorAll('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.view === 'activity'));
+  loadActivityEntries();
 }
 function testQuestionEditorHtml(question, index) {
   return `<fieldset class="test-editor-question"><legend>Întrebarea ${index + 1}</legend><label>Întrebare<textarea data-question-text rows="2">${escapeHtml(question?.text || '')}</textarea></label><label>Răspuns<textarea data-question-answer rows="2">${escapeHtml(question?.answer || '')}</textarea></label><button type="button" class="outline danger-button" data-remove-question="${index}">Șterge întrebarea</button></fieldset>`;
@@ -1037,7 +1110,7 @@ function renderView(view) {
   else if (view === 'statistics') { viewContent.innerHTML = renderStatisticsView(); renderDashboardData(); }
   else if (view === 'bonuses') { viewContent.innerHTML = renderBonusesView(); wireBonusesEvents(); }
   else if (view === 'attendance') { viewContent.innerHTML = renderAttendanceView(); wireAttendanceEvents(); }
-  else if (view === 'activity') { viewContent.innerHTML = renderActivityView(); loadActivityEntries().then(() => { if (window.history.state?.view === 'activity') { viewContent.innerHTML = renderActivityView(); } }); }
+  else if (view === 'activity') { viewContent.innerHTML = renderActivityView(); loadActivityEntries(); }
   else if (view === 'guide') { viewContent.innerHTML = renderGuideView(); renderGuideSubmenu(); }
   else if (view === 'cooldowns') { viewContent.innerHTML = renderCooldownPaymentsView(); wireCooldownPaymentsEvents(); }
   else { viewContent.innerHTML = renderSettingsView(title); wireSettingsEvents(); }
@@ -2842,6 +2915,19 @@ document.querySelector('#invite-btn').onclick = async () => {
   finally { button.disabled = false; button.innerHTML = 'Salvează accesul →'; }
 };
 viewContent.addEventListener('click', event => {
+  const memberButton = event.target.closest('[data-activity-member]');
+  if (memberButton && hasLeadershipCallsign(currentUser)) {
+    const callsign = normalizeCallsign(memberButton.dataset.activityMember);
+    const member = directoryMembers.find(item => normalizeCallsign(item.callsign) === callsign);
+    if (member) openActivityMember(member);
+    return;
+  }
+  if (event.target.closest('[data-back-to-activity]')) {
+    const state = window.history.state || {};
+    if (state.canReturnHistory) window.history.back();
+    else navigateTo('activity', { push: false });
+    return;
+  }
   const button = event.target.closest('[data-statistics-member]');
   if (!button) return;
   if (!hasLeadershipCallsign(currentUser) && normalizeCallsign(currentUser?.callsign || currentUser?.callSign) !== normalizeCallsign(button.dataset.statisticsMember)) return;
@@ -2930,6 +3016,7 @@ function navigateTo(view, { push = true } = {}) {
   document.querySelector('#section-label').textContent = 'Site Testeri';
   document.querySelector('.sidebar').classList.remove('open');
   renderView(view);
+  if (view === 'overview') loadOwnActivityEntries();
 }
 document.querySelectorAll('[data-view]').forEach(btn => btn.addEventListener('click', () => navigateTo(btn.dataset.view)));
 document.querySelector('#guide-submenu')?.addEventListener('click', event => {
@@ -2956,6 +3043,10 @@ availableTestsSubmenu.addEventListener('click', event => {
 window.addEventListener('popstate', event => {
   if (!currentUser) return;
   if (event.state?.view === 'test' && event.state.testName) return openTest(event.state.testName, { push: false, previousView: event.state.previousView });
+  if (event.state?.view === 'activity-member') {
+    const member = directoryMembers.find(item => normalizeCallsign(item.callsign) === event.state.callsign);
+    return member ? openActivityMember(member, { push: false, previousView: event.state.previousView }) : navigateTo('activity', { push: false });
+  }
   if (event.state?.view === 'tester-profile') {
     const member = testers.find(item => normalizeCallsign(item.callsign) === event.state.callsign) || directoryMembers.find(item => normalizeCallsign(item.callsign) === event.state.callsign);
     return member ? openTesterProfile(member, { push: false }) : navigateTo('testers', { push: false });
@@ -2964,6 +3055,16 @@ window.addEventListener('popstate', event => {
 });
 window.addEventListener('hashchange', () => {
   if (!currentUser || window.location.hash.startsWith('#test-')) return;
+  const activityMemberMatch = window.location.hash.match(/^#activity-member-(.+)$/);
+  if (activityMemberMatch) {
+    let callsign;
+    try { callsign = normalizeCallsign(decodeURIComponent(activityMemberMatch[1])); }
+    catch { return navigateTo('activity', { push: false }); }
+    const member = directoryMembers.find(item => normalizeCallsign(item.callsign) === callsign);
+    if (member) openActivityMember(member, { push: false, previousView: 'activity' });
+    else navigateTo('activity', { push: false });
+    return;
+  }
   const memberProfileMatch = window.location.hash.match(/^#tester-profile-(.+)$/);
   if (memberProfileMatch) {
     const callsign = decodeURIComponent(memberProfileMatch[1]);
@@ -3049,10 +3150,11 @@ function applyUser(user){
 function showAuthError(message){authError.textContent=message;authError.classList.add('show')}
 async function enterApp(user) {
   const requestedRoute = routeFromLocation(window.location.hash) || validSavedRoute(readStored(activeRouteStorageKey(user), null));
+  const requestedActivityCallsign = requestedRoute?.view === 'activity-member' ? requestedRoute.callsign : '';
   const requestedProfileCallsign = requestedRoute?.view === 'tester-profile' ? requestedRoute.callsign : '';
   const requestedTestName = requestedRoute?.view === 'test' ? requestedRoute.testName : '';
   const requestedView = labels[requestedRoute?.view] ? requestedRoute.view : '';
-  const hasRequestedRoute = Boolean(requestedProfileCallsign || requestedTestName || requestedView);
+  const hasRequestedRoute = Boolean(requestedActivityCallsign || requestedProfileCallsign || requestedTestName || requestedView);
   if (!hasRequestedRoute) window.history.replaceState({ view: 'overview' }, '', `${window.location.pathname}#overview`);
   applyUser(user);
   markPresence();
@@ -3069,8 +3171,14 @@ async function enterApp(user) {
     await fetchGlobalTestDefinitions();
     await loadDirectory();
     await loadRemoteGrants();
+    if (requestedActivityCallsign && hasLeadershipCallsign(currentUser)) await loadActivityEntries();
+    else await loadOwnActivityEntries();
     if (navigationRevision !== initialNavigationRevision) return;
-    if (requestedProfileCallsign) {
+    if (requestedActivityCallsign && hasLeadershipCallsign(currentUser)) {
+      const member = directoryMembers.find(item => normalizeCallsign(item.callsign) === requestedActivityCallsign);
+      if (member) openActivityMember(member, { push: false, previousView: requestedRoute.previousView || 'activity' });
+      else navigateTo('activity', { push: false });
+    } else if (requestedProfileCallsign) {
       const member = testers.find(item => normalizeCallsign(item.callsign) === requestedProfileCallsign) || directoryMembers.find(item => normalizeCallsign(item.callsign) === requestedProfileCallsign);
       if (member) openTesterProfile(member, { push: false, previousView: requestedRoute.previousView || 'testers' });
       else navigateTo('testers', { push: false });

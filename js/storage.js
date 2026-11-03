@@ -28,6 +28,11 @@ function saveActiveRoute(route) {
   }
 }
 function routeFromLocation(hash) {
+  const activityMemberMatch = String(hash || '').match(/^#activity-member-(.+)$/);
+  if (activityMemberMatch) {
+    try { return { view: 'activity-member', callsign: decodeURIComponent(activityMemberMatch[1]), previousView: 'activity' }; }
+    catch { return null; }
+  }
   const profileMatch = String(hash || '').match(/^#tester-profile-(.+)$/);
   if (profileMatch) {
     try { return { view: 'tester-profile', callsign: decodeURIComponent(profileMatch[1]), previousView: 'testers' }; }
@@ -40,6 +45,7 @@ function routeFromLocation(hash) {
 }
 function validSavedRoute(route) {
   if (route?.view === 'test' && typeof route.testName === 'string' && route.testName) return route;
+  if (route?.view === 'activity-member' && typeof route.callsign === 'string' && route.callsign) return route;
   if (route?.view === 'tester-profile' && typeof route.callsign === 'string' && route.callsign) return route;
   return labels[route?.view] ? route : null;
 }

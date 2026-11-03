@@ -1,5 +1,11 @@
 # Site-Testeri-Medici
 
+## Attendance records
+
+Weekly attendance on member profiles and the leadership activity page is read directly from the `TOTAL/ZI` columns in `LISTA DEPARTAMENT`. The site detects the weekly columns from the sheet headers, preserves each cell as text, and fetches fresh values whenever the profile or activity page is opened; the sheet remains the sole source for these weekly values. Members can view their own weekly values, while callsigns 001–020 can view the department-wide table. Weekly values are not edited on the site.
+
+The separate live start/stop timer on the `Pontaje` page continues to use Upstash Redis. Configure both `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` for online persistence of those timer entries.
+
 ## Discord admission notifications
 
 Configure the server using one server-side deployment variable: `APP_CONFIG_JSON`. Its value is a JSON object containing the settings below; `.env.example` has a copyable template. Keep it in Vercel or the ignored local `.env` file, never in browser code or Git.

@@ -34,6 +34,14 @@ const BONUS_TESTS = [
 ];
 const testResults = [];
 const lifetimeTestResults = [];
+const attendanceEntriesByMember = Object.fromEntries(MOCK.map(member => [member.discordId, []]));
+for (const [index, member] of MOCK.entries()) {
+  member.attendanceWeeks = [
+    { label: 'TOTAL/ZI\nCW 40', value: String(120 + index) },
+    { label: 'TOTAL/ZI\nCW 41', value: index % 2 ? '138/5CCV' : '134/2CO' },
+    { label: 'TOTAL/ZI\nCW 42', value: '—' }
+  ];
+}
 http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host}`);
   if (url.pathname === '/api/test-definitions') {
@@ -58,6 +66,25 @@ http.createServer(async (req, res) => {
       return;
     }
   }
+  if (url.pathname === '/api/access/attendance') {
+    if (req.method === 'POST') {
+      let body = '';
+      for await (const chunk of req) body += chunk;
+      const payload = JSON.parse(body || '{}');
+      const entries = attendanceEntriesByMember[payload.requesterId] || (attendanceEntriesByMember[payload.requesterId] = []);
+      if (payload.action === 'start') entries.push({ start: Date.now(), end: null });
+      else if (payload.action === 'stop') {
+        const active = [...entries].reverse().find(item => !item.end);
+        if (active) active.end = Date.now();
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: true, entries }));
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ entries: attendanceEntriesByMember, configured: true }));
+    return;
+  }
   if (url.pathname.startsWith('/api/access/directory')) {
     const callsign = url.searchParams.get('callsign');
     if (callsign !== null) {
@@ -65,7 +92,10 @@ http.createServer(async (req, res) => {
       const candidate = CANDIDATES.find(member => (Number(String(member.callsign).replace(/\D/g, '')) || 0) === number);
       res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ candidate: candidate ? { callsign: candidate.callsign, name: candidate.name, cooldowns: candidate.cooldowns || {} } : null })); return;
     }
-    res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ members: MOCK })); return;
+    const members = url.searchParams.get('view') === 'attendance'
+      ? MOCK.filter(member => member.discordId === url.searchParams.get('requesterId'))
+      : MOCK;
+    res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ members, syncedAt: new Date().toISOString() })); return;
   }
   if (url.pathname.startsWith('/api/access/test-results')) {
     if (url.searchParams.get('view') === 'bonuses') {

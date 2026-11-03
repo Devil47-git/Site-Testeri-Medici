@@ -153,6 +153,32 @@ test('all members can view the tester directory while only callsigns 001-020 can
   assert.match(grantsSource, /requesterCallsign < 1 \|\| requesterCallsign > LEADERSHIP_MAX/);
 });
 
+test('activity directory members open a leadership-only attendance detail page', () => {
+  assert.match(source, /data-activity-member="\$\{escapeHtml\(normalizeCallsign\(member\.callsign\)\)\}"/);
+  assert.match(source, /function renderActivityMemberView\(member\)/);
+  assert.match(source, /activityWeeksFor\(member\)/);
+  assert.match(source, /if \(memberButton && hasLeadershipCallsign\(currentUser\)\)/);
+  assert.match(source, /function openActivityMember\(member, \{ push = true, previousView: requestedPreviousView \} = \{\}\)/);
+  assert.match(source, /view: 'activity-member', callsign/);
+  assert.match(storageSource, /view: 'activity-member', callsign: decodeURIComponent/);
+});
+
+test('member profiles and activity table show weekly values from the department sheet', () => {
+  assert.match(indexSource, /<section id="profile-attendance"><\/section>/);
+  assert.match(source, /function renderAttendanceProfilePanel\(member, \{ loaded = false \} = \{\}\)/);
+  assert.match(source, /renderAttendanceProfilePanel\(profile, \{\s*loaded: activityDataLoaded/);
+  assert.match(source, /renderAttendanceProfilePanel\(member, \{ loaded: activityDataLoaded \}\)/);
+  assert.match(source, /async function loadOwnActivityEntries\(\)[\s\S]*?view=attendance/);
+  assert.match(source, /async function loadActivityEntries\(\)[\s\S]*?view=activity/);
+  assert.match(source, /if \(view === 'overview'\) loadOwnActivityEntries\(\)/);
+  assert.match(source, /weeks\.map\(week => `<th>\$\{escapeHtml\(week\.label\)\}<\/th>`\)/);
+  assert.doesNotMatch(source, /data-attendance-manual-form|manual-add|manual-update|manual-delete/);
+  const directorySource = readFileSync(join(here, '..', 'api', 'access', 'directory.js'), 'utf8');
+  assert.match(directorySource, /attendanceWeeksFromRows/);
+  assert.match(directorySource, /attendanceWeeks: activityView \? attendanceWeeksFromRows/);
+  assert.match(directorySource, /attendanceMember = members\.find\(row => String\(row\[19\] \|\| ''\)\.trim\(\) === requesterId\)/);
+});
+
 test('SMULS, Moto, Pilot, and parachutism test pages show their fixed corner logos', () => {
   assert.match(source, /class="panel view-panel\$\{isSmulsTest \? ' smuls-background-panel' : isAlsTest \? ' als-background-panel' : isAdmissionTest/);
   assert.match(source, /document\.body\.classList\.toggle\('smuls-background-mode', testName === 'Test SMULS'\)/);
