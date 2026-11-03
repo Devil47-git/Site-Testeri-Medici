@@ -107,15 +107,18 @@ test('weekly attendance columns keep document labels and text values unchanged',
   assert.deepEqual(attendanceWeeksByCallsign(attendanceSheetRows).get('101'), attendanceWeeksFromRows(headers, attendanceSheetRows[5]));
 });
 
-test('a member can read only their own live weekly attendance from Sheets', async () => {
-  const first = await callDirectory('member-id', 'attendance');
+test('only leadership can read weekly attendance values from Sheets', async () => {
+  const memberRequest = await callDirectory('member-id', 'attendance');
+  assert.equal(memberRequest.statusCode, 403);
+
+  const first = await callDirectory('leadership-id', 'attendance');
   assert.equal(first.statusCode, 200);
   assert.equal(first.payload.members.length, 1);
-  assert.equal(first.payload.members[0].discordId, 'member-id');
-  assert.equal(first.payload.members[0].attendanceWeeks[0].value, '134/2CO');
+  assert.equal(first.payload.members[0].discordId, 'leadership-id');
+  assert.equal(first.payload.members[0].attendanceWeeks[0].value, '50');
 
-  attendanceSheetRows[5][14] = 'updated in document';
-  const refreshed = await callDirectory('member-id', 'attendance');
+  attendanceSheetRows[4][14] = 'updated in document';
+  const refreshed = await callDirectory('leadership-id', 'attendance');
   assert.equal(refreshed.payload.members[0].attendanceWeeks[0].value, 'updated in document');
 });
 
@@ -123,7 +126,7 @@ test('only callsigns 001-020 can read department-wide weekly attendance', async 
   const leadership = await callDirectory('leadership-id', 'activity');
   assert.equal(leadership.statusCode, 200);
   assert.equal(leadership.payload.members.length, 3);
-  assert.deepEqual(leadership.payload.members[1].attendanceWeeks.map(week => week.value), ['updated in document', '138/5CCV', '—']);
+  assert.deepEqual(leadership.payload.members[1].attendanceWeeks.map(week => week.value), ['134/2CO', '138/5CCV', '—']);
 
   const rankOnly = await callDirectory('rank-only-id', 'activity');
   assert.equal(rankOnly.statusCode, 403);
@@ -143,6 +146,15 @@ test('the separate live timer still supports start and stop without manual weekl
 
   const manual = await callAttendance('POST', 'member-id', { action: 'manual-add' });
   assert.equal(manual.statusCode, 400);
+});
+
+test('only leadership can read live attendance records', async () => {
+  redisValues.set('site-testeri-medici:attendance:member-id', JSON.stringify([{ start: 1000, end: 2000 }]));
+  const member = await callAttendance('GET', 'member-id', {}, { view: 'own' });
+  assert.equal(member.statusCode, 403);
+
+  const leadership = await callAttendance('GET', 'leadership-id', {}, { view: 'own' });
+  assert.equal(leadership.statusCode, 200);
 });
 
 test('leadership can load its own attendance separately from the department records', async () => {

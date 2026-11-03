@@ -104,7 +104,9 @@ export default async function handler(req, res) {
     if (!requester) return json(res, 403, { error: 'Requester is not a department member' });
     const activityView = req.query?.view === 'activity';
     const attendanceView = req.query?.view === 'attendance';
-    if (activityView && !(callsignNumber(requester[2]) >= 1 && callsignNumber(requester[2]) <= LEADERSHIP_MAX)) return json(res, 403, { error: 'Only callsigns 001-020 can view the activity directory' });
+    const leadershipRequester = callsignNumber(requester[2]) >= 1 && callsignNumber(requester[2]) <= LEADERSHIP_MAX;
+    if (activityView && !leadershipRequester) return json(res, 403, { error: 'Only callsigns 001-020 can view the activity directory' });
+    if (attendanceView && !leadershipRequester) return json(res, 403, { error: 'Only callsigns 001-020 can view attendance records' });
     const attendanceByCallsign = activityView || attendanceView
       ? attendanceWeeksByCallsign(await readPublic(ATTENDANCE_RANGE))
       : new Map();

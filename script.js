@@ -945,7 +945,7 @@ function activityWeeksFor(member) {
   return activityWeeksByDiscordId[member?.discordId] || member?.attendanceWeeks || [];
 }
 function renderAttendanceProfilePanel(member, { loaded = false } = {}) {
-  if (!member?.discordId) return '';
+  if (!hasLeadershipCallsign(currentUser) || !member?.discordId) return '';
   const weeks = activityWeeksFor(member);
   const memberLoaded = Object.hasOwn(activityWeeksByDiscordId, member.discordId) || Array.isArray(member.attendanceWeeks);
   const today = attendanceDateKey(Date.now());
@@ -1109,7 +1109,7 @@ async function loadActivityEntries() {
   renderProfileData();
 }
 async function loadOwnActivityEntries() {
-  if (!currentUser?.discordId) return;
+  if (!hasLeadershipCallsign(currentUser) || !currentUser?.discordId) return;
   activityLoadError = '';
   try {
     const response = await fetch(`/api/access/directory?requesterId=${encodeURIComponent(currentUser.discordId)}&view=attendance`);
@@ -3155,7 +3155,7 @@ function navigateTo(view, { push = true } = {}) {
   document.querySelector('#section-label').textContent = 'Site Testeri';
   document.querySelector('.sidebar').classList.remove('open');
   renderView(view);
-  if (view === 'overview') loadOwnActivityEntries();
+  if (view === 'overview' && hasLeadershipCallsign(currentUser)) loadOwnActivityEntries();
 }
 document.querySelectorAll('[data-view]').forEach(btn => btn.addEventListener('click', () => navigateTo(btn.dataset.view)));
 document.querySelector('#guide-submenu')?.addEventListener('click', event => {
@@ -3310,8 +3310,10 @@ async function enterApp(user) {
     await fetchGlobalTestDefinitions();
     await loadDirectory();
     await loadRemoteGrants();
-    if (requestedActivityCallsign && hasLeadershipCallsign(currentUser)) await loadActivityEntries();
-    else await loadOwnActivityEntries();
+    if (hasLeadershipCallsign(currentUser)) {
+      if (requestedActivityCallsign) await loadActivityEntries();
+      else await loadOwnActivityEntries();
+    }
     if (navigationRevision !== initialNavigationRevision) return;
     if (requestedActivityCallsign && hasLeadershipCallsign(currentUser)) {
       const member = directoryMembers.find(item => normalizeCallsign(item.callsign) === requestedActivityCallsign);

@@ -166,17 +166,19 @@ test('activity directory members open a leadership-only attendance detail page',
 test('member profiles and activity table show weekly values from the department sheet', () => {
   assert.match(indexSource, /<section id="profile-attendance"><\/section>/);
   assert.match(source, /function renderAttendanceProfilePanel\(member, \{ loaded = false \} = \{\}\)/);
+  assert.match(source, /if \(!hasLeadershipCallsign\(currentUser\) \|\| !member\?\.discordId\) return ''/);
   assert.match(source, /renderAttendanceProfilePanel\(profile, \{\s*loaded: activityDataLoaded/);
   assert.match(source, /renderAttendanceProfilePanel\(member, \{ loaded: activityDataLoaded \}\)/);
   assert.match(source, /async function loadOwnActivityEntries\(\)[\s\S]*?view=attendance/);
   assert.match(source, /async function loadActivityEntries\(\)[\s\S]*?view=activity/);
-  assert.match(source, /if \(view === 'overview'\) loadOwnActivityEntries\(\)/);
+  assert.match(source, /if \(view === 'overview' && hasLeadershipCallsign\(currentUser\)\) loadOwnActivityEntries\(\)/);
   assert.match(source, /weeks\.map\(week => `<th>\$\{escapeHtml\(week\.label\)\}<\/th>`\)/);
   assert.doesNotMatch(source, /data-attendance-manual-form|manual-add|manual-update|manual-delete/);
   const directorySource = readFileSync(join(here, '..', 'api', 'access', 'directory.js'), 'utf8');
   assert.match(directorySource, /attendanceWeeksFromRows/);
   assert.match(directorySource, /const ATTENDANCE_RANGE = process\.env\.GOOGLE_ATTENDANCE_RANGE/);
   assert.match(directorySource, /attendanceWeeks: activityView \? attendanceByCallsign\.get/);
+  assert.match(directorySource, /if \(attendanceView && !leadershipRequester\) return json\(res, 403/);
   assert.match(directorySource, /attendanceMember = members\.find\(row => String\(row\[19\] \|\| ''\)\.trim\(\) === requesterId\)/);
   assert.match(source, /function attendanceChartHtml\(week, title = 'Pontaj săptămânal'\)/);
   assert.match(source, /ULTIMELE 30 DE PONTAJE/);

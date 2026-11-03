@@ -2,7 +2,7 @@
 
 ## Attendance records
 
-Weekly attendance on member profiles and the leadership activity page is read directly from the `TOTAL/ZI` columns in the `EVIDENTA ACTIVITATE` sheet. The site matches rows by callsign, detects weekly columns from the sheet headers, preserves each cell as text, and fetches fresh values whenever the profile or activity page is opened; the sheet remains the source of truth for these weekly values. Members can view their own weekly values, while callsigns 001–020 can view the department-wide table. Weekly values are not edited on the site. `GOOGLE_ATTENDANCE_RANGE` can override the default `'EVIDENTA ACTIVITATE'!A1:U400` range.
+Weekly attendance on member profiles and the leadership activity page is read directly from the `TOTAL/ZI` columns in the `EVIDENTA ACTIVITATE` sheet. The site matches rows by callsign, detects weekly columns from the sheet headers, preserves each cell as text, and fetches fresh values whenever the profile or activity page is opened; the sheet remains the source of truth for these weekly values. Only callsigns 001–020 can view weekly attendance, including the profile panel and live attendance history. Weekly values are not edited on the site. `GOOGLE_ATTENDANCE_RANGE` can override the default `'EVIDENTA ACTIVITATE'!A1:U400` range.
 
 The profile's day-by-day chart and the separate live start/stop timer on the `Pontaje` page use Upstash Redis. The timer page loads the signed-in member's saved entries from the server on open, shows the current week and five previous weeks, and lists the latest 30 entries below the clock controls. Configure both `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` for online persistence and shared updates across devices.
 

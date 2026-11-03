@@ -47,6 +47,7 @@ export default async function handler(req, res) {
     if (!requester) return json(res, 403, { error: 'Requester is not a department member' });
     const requesterCallsign = callsignNumber(requester[2]);
     const isLeadership = requesterCallsign >= 1 && requesterCallsign <= 20;
+    if (req.method === 'GET' && !isLeadership) return json(res, 403, { error: 'Only callsigns 001-020 can view attendance records' });
     if (!attendanceRedis.isConfigured) {
       if (req.method === 'GET') return json(res, 200, { entries: isLeadership && req.query?.view !== 'own' ? {} : [], configured: false });
       return json(res, 503, { error: 'Pontajele online nu sunt configurate.' });
