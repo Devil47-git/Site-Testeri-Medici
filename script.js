@@ -68,14 +68,13 @@ const GUIDE_SECTIONS = [
   ['coduri-radio', 'Coduri Radio'],
   ['rp-teren', 'Rp teren / Cert. BLS'],
   ['medicamente', 'Medicamente'],
-  ['repartizare-zone', 'Repartizare Zone'],
-  ['rp-smuls', 'Rp S.M.U.L.S. / Cert. S.M.U.L.S.'],
+  ['rp-smuls', 'Rp S.M.U.L.S. / Cert. S.M.U.L.S.']
   ['rp-operatii', 'Rp Operatii.'],
   ['animatii-utile', 'Animații Utile'],
   ['rezidentiat', 'Rezidentiat'],
   ['cert-parasutism', 'Ghid Parașutism'],
   ['rp-cert-moto', 'Rp Certificat Moto'],
-  ['certificat-pilot', 'Certificat Pilot'],
+  ['cert-pilot', 'Certificat Pilot'],
   ['isuls', 'I.S.U.L.S.']
 ];
 const GUIDE_CONTENT = {
@@ -649,7 +648,42 @@ async function loadGuideContent() {
     if (!response.ok) throw new Error(source || 'Ghidul nu a putut fi încărcat.');
     const document = new DOMParser().parseFromString(source, 'text/html');
     const sections = [...document.querySelectorAll('.section[id]')];
-    guideContent = Object.fromEntries(sections.map(section => [section.id, section.innerHTML]));
+    const sectionIds = new Set(sections.map(section => section.id));
+    const originalSections = Object.fromEntries(sections.map(section => [section.id, section.innerHTML]));
+    document.querySelectorAll('link[rel="stylesheet"]').forEach(link => {
+      const href = link.getAttribute('href') || '';
+      if (!/^(?:https?:|\/|#)/i.test(href)) link.remove();
+    });
+    document.querySelectorAll('style').forEach(style => {
+      style.textContent = style.textContent.replace(/url\(\s*(['"]?)(?!https?:|data:|blob:|#|\/)([^)'"]+)\1\s*\)/gi, (_, quote, url) => `url("/assets/guide/${url.split('/').map(encodeURIComponent).join('/')}")`);
+    });
+    document.querySelectorAll('script').forEach(script => script.remove());
+    document.querySelectorAll('[onclick], [onerror], [onload], [onchange], [oninput], [onmouseover]').forEach(element => {
+      ['onclick', 'onerror', 'onload', 'onchange', 'oninput', 'onmouseover'].forEach(attribute => element.removeAttribute(attribute));
+    });
+    document.querySelectorAll('img[src], source[src], video[src], audio[src], a[href]').forEach(element => {
+      const attribute = element.hasAttribute('src') ? 'src' : 'href';
+      const originalUrl = element.getAttribute(attribute);
+      if (!originalUrl || /^(?:https?:|data:|blob:|#|\/)/i.test(originalUrl)) return;
+      element.setAttribute(attribute, `/assets/guide/${originalUrl.split('/').map(encodeURIComponent).join('/')}`);
+    });
+    document.querySelectorAll('button[onclick*="showSection("]').forEach(button => {
+      const target = button.getAttribute('onclick').match(/showSection\(['"]([^'"]+)/)?.[1];
+      if (target && sectionIds.has(target)) button.dataset.guideTarget = target;
+    });
+    document.querySelectorAll('button[data-guide-target]').forEach(button => {
+      button.addEventListener('click', () => {
+        const targetSection = sections.find(section => section.id === button.dataset.guideTarget);
+        if (!targetSection) return;
+        const sectionHost = button.closest('.guide-official-content');
+        sectionHost?.querySelectorAll('.section').forEach(section => section.classList.toggle('active', section === targetSection));
+        targetSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
+    GUIDE_SECTIONS.forEach(([key]) => {
+      if (sectionIds.has(key)) guideContent[key] = originalSections[key];
+    });
+    sections.forEach(section => { section.innerHTML = originalSections[section.id]; });
     return guideContent;
   }).catch(error => {
     console.error('Guide content load failed:', error);

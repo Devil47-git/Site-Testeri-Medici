@@ -225,20 +225,13 @@ async function handleTestDefinitions(req, res) {
 async function handleGuide(req, res) {
   if (req.method !== 'GET') return json(res, 405, { error: 'Method not allowed' });
   try {
-    const response = await fetch(GUIDE_SOURCE_URL);
-    if (!response.ok) return json(res, 502, { error: 'Ghidul oficial nu a putut fi încărcat.' });
-    let html = await response.text();
-    html = html
-      .replace(/<script\b[\s\S]*?<\/script>/gi, '')
-      .replace(/<style\b[\s\S]*?<\/style>/gi, '')
-      .replace(/\son[a-z]+\s*=\s*(?:"[^"]*"|'[^']*')/gi, '')
-      .replace(/\s(href|src)\s*=\s*(['"])javascript:[\s\S]*?\2/gi, '')
-      .replace(/(\s(?:href|src)\s*=\s*["'])(?!https?:|#|data:|\/)([^"']+)/gi, `$1${GUIDE_SOURCE_URL}$2`);
+    const html = await fs.readFile(path.join(ROOT, 'guide-original-source.html'), 'utf8');
+    const bundledGuide = html.replace(/(href|src)=(['"])(?!https?:|data:|#|\/)([^'"]+)\2/gi, (_, attribute, quote, resource) => `${attribute}=${quote}/assets/guide/${resource.split('/').map(encodeURIComponent).join('/').replace(/%2F/gi, '/').replace(/%20/gi, '%20')}${quote}`);
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
-    res.end(html);
+    res.end(bundledGuide);
   } catch (error) {
-    console.error('Official guide fetch failed:', error);
-    return json(res, 502, { error: 'Ghidul oficial nu a putut fi încărcat.' });
+    console.error('Bundled guide could not be loaded:', error);
+    return json(res, 500, { error: 'Ghidul oficial nu a putut fi încărcat.' });
   }
 }
 
