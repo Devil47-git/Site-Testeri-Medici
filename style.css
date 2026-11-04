@@ -673,7 +673,9 @@ body.dark-mode .nav-item.active{box-shadow:inset 2px 0 var(--purple)}
 .guide-official-content th,.guide-official-content td{padding:9px;border:1px solid #37628f;font-size:11px;text-align:left;color:#e5efff}
 .guide-official-content th{color:#fff;background:#24558b}
 .guide-official-content img{max-width:100%;height:auto;border-radius:18px;box-shadow:0 5px 16px rgba(24,70,126,.18)}
-.guide-official-content .section{display:block!important;visibility:visible!important}
+.guide-official-content .section{display:none!important;visibility:visible!important}
+.guide-official-content .section.active{display:block!important}
+.guide-official-content .section>div[id]{display:block!important;visibility:visible!important}
 .guide-official-content button{color:inherit}
 .guide-official-content p,.guide-official-content li,.guide-official-content span,.guide-official-content small,.guide-official-content div{opacity:1}
 .guide-official-content [style*="color"]{color:#e5efff!important}

@@ -58,6 +58,7 @@ let selectedBonusPeriodIndex = null;
 let selectedGuideSection = 'introducere';
 let guideContent = {};
 let guideContentPromise = null;
+let guideSections = [];
 const GUIDE_SECTIONS = [
   ['introducere', 'Introducere'],
   ['regulament', 'Regulament Intern'],
@@ -626,22 +627,56 @@ function renderGuideSubmenu() {
   const submenu = document.querySelector('#guide-submenu');
   if (!submenu) return;
   submenu.hidden = !hasLeadershipCallsign(currentUser) || window.history.state?.view !== 'guide';
-  submenu.innerHTML = GUIDE_SECTIONS.map(([key, label]) => `<button type="button" class="nav-subitem ${selectedGuideSection === key ? 'active' : ''}" data-guide-section="${key}">${escapeHtml(label)}</button>`).join('');
+  const sections = guideSections.length ? guideSections : GUIDE_SECTIONS;
+  submenu.innerHTML = sections.map(([key, label]) => `<button type="button" class="nav-subitem ${selectedGuideSection === key ? 'active' : ''}" data-guide-section="${key}">${escapeHtml(label)}</button>`).join('');
 }
 function renderGuideView() {
-  const section = GUIDE_SECTIONS.find(([key]) => key === selectedGuideSection)?.[0] || 'introducere';
-  const guideUrl = `https://ghidul-departamentului-medical-eight.vercel.app/#${section}`;
-  const title = GUIDE_SECTIONS.find(([key]) => key === section)?.[1] || 'Introducere';
-  if (guideContent[section]) {
-    return `<section class="panel guide-panel"><div class="panel-head"><div><p class="eyebrow">GHID SPITAL · SECȚIUNE INTERNĂ</p><h2>${escapeHtml(title)}</h2><p class="muted">Conținutul oficial al ghidului, prezentat în tema Site Testeri.</p></div><a class="outline guide-external-link" href="${guideUrl}" target="_blank" rel="noopener noreferrer">Ghid oficial ↗</a></div><article class="guide-official-content">${guideContent[section]}</article></section>`;
+  if (!guideContentPromise) loadGuideContent();
+  const sections = guideSections.length ? guideSections : GUIDE_SECTIONS;
+  const section = sections.find(([key]) => key === selectedGuideSection)?.[0] || 'introducere';
+  const title = sections.find(([key]) => key === section)?.[1] || 'Introducere';
+  const content = guideContent[section];
+  if (!content) return `<section class="panel guide-panel"><p class="muted">Ghidul spitalului se încarcă…</p></section>`;
+  return `<section class="panel guide-panel"><div class="panel-head"><div><p class="eyebrow">GHID SPITAL · SECȚIUNE INTERNĂ</p><h2>${escapeHtml(title)}</h2><p class="muted">Informațiile și imaginile ghidului spitalului sunt integrate aici în Site Testeri.</p></div></div><article class="guide-official-content" data-guide-section-content="${section}">${content}</article></section>`;
+}
+function openGuideSectionFromContent(sectionId) {
+  const sections = guideSections.length ? guideSections : GUIDE_SECTIONS;
+  if (!sections.some(([key]) => key === sectionId)) return;
+  selectedGuideSection = sectionId;
+  if (window.history.state?.view === 'guide') {
+    viewContent.innerHTML = renderGuideView();
+    wireGuideContentEvents();
+    renderGuideSubmenu();
   }
-  loadGuideContent();
-  const content = GUIDE_CONTENT[section] || {
-    intro: `Instrucțiuni și informații pentru secțiunea ${title}.`,
-    sections: [['Ghidul secțiunii', ['Consultă informațiile oficiale și aplică procedurile departamentului.', 'Pentru varianta completă și actualizată, deschide ghidul oficial.']]]
-  };
-  const cards = content.sections.map(([heading, items]) => `<article class="guide-content-card"><h3>${escapeHtml(heading)}</h3><ul>${items.map(item => `<li>${escapeHtml(item)}</li>`).join('')}</ul></article>`).join('');
-  return `<section class="panel guide-panel"><div class="panel-head"><div><p class="eyebrow">GHID SPITAL · SECȚIUNE INTERNĂ</p><h2>${escapeHtml(title)}</h2><p class="muted">${escapeHtml(content.intro)}</p></div><a class="outline guide-external-link" href="${guideUrl}" target="_blank" rel="noopener noreferrer">Ghid oficial ↗</a></div><div class="guide-content-grid">${cards}</div><p class="guide-loading muted">Se încarcă informațiile complete din ghidul oficial…</p></section>`;
+}
+function wireGuideContentEvents() {
+  const host = viewContent.querySelector('.guide-official-content');
+  if (!host || host.dataset.guideEventsWired) return;
+  host.dataset.guideEventsWired = 'true';
+  host.addEventListener('click', event => {
+    const guideTarget = event.target.closest('[data-guide-target]');
+    if (guideTarget && host.contains(guideTarget)) {
+      event.preventDefault();
+      openGuideSectionFromContent(guideTarget.dataset.guideTarget);
+      return;
+    }
+    const jafTab = event.target.closest('[data-guide-jaf-tab]');
+    if (jafTab && host.contains(jafTab)) {
+      const section = jafTab.closest('.section');
+      const targetId = jafTab.dataset.guideJafTab;
+      const targetPanel = section?.querySelector(`.jaf-content.${CSS.escape(targetId)}`);
+      if (!targetPanel) return;
+      section.querySelectorAll('.jaf-btn').forEach(button => button.classList.toggle('active', button === jafTab));
+      section.querySelectorAll('.jaf-content').forEach(panel => { panel.style.display = panel === targetPanel ? 'block' : 'none'; });
+      return;
+    }
+    const jafOpen = event.target.closest('[data-guide-jaf-open]');
+    if (jafOpen && host.contains(jafOpen)) {
+      host.querySelectorAll('.section').forEach(section => section.classList.toggle('active', section.id === 'ghid-jaf'));
+      const tab = host.querySelector(`#ghid-jaf [data-guide-jaf-tab="${CSS.escape(jafOpen.dataset.guideJafOpen)}"]`);
+      tab?.click();
+    }
+  });
 }
 async function loadGuideContent() {
   if (guideContentPromise) return guideContentPromise;
@@ -652,6 +687,14 @@ async function loadGuideContent() {
     const sections = [...document.querySelectorAll('.section[id]')];
     const sectionIds = new Set(sections.map(section => section.id));
     const originalSections = Object.fromEntries(sections.map(section => [section.id, section.innerHTML]));
+    const sectionLabels = [...document.querySelectorAll('.sidebar-links [onclick*="showSection("]')].map(button => {
+      const key = button.getAttribute('onclick').match(/showSection\(['"]([^'"]+)/)?.[1];
+      return key && sectionIds.has(key) ? [key, button.textContent.trim().split(/\s+/).join(' ')] : null;
+    }).filter(Boolean);
+    document.querySelectorAll('link[rel="stylesheet"]').forEach(link => {
+      const href = link.getAttribute('href') || '';
+      if (/^https?:/i.test(href)) link.remove();
+    });
     document.querySelectorAll('link[rel="stylesheet"]').forEach(link => {
       const href = link.getAttribute('href') || '';
       if (!/^(?:https?:|\/|#)/i.test(href)) link.remove();
@@ -672,20 +715,21 @@ async function loadGuideContent() {
     document.querySelectorAll('button[onclick*="showSection("]').forEach(button => {
       const target = button.getAttribute('onclick').match(/showSection\(['"]([^'"]+)/)?.[1];
       if (target && sectionIds.has(target)) button.dataset.guideTarget = target;
+      button.removeAttribute('onclick');
     });
-    document.querySelectorAll('button[data-guide-target]').forEach(button => {
-      button.addEventListener('click', () => {
-        const targetSection = sections.find(section => section.id === button.dataset.guideTarget);
-        if (!targetSection) return;
-        const sectionHost = button.closest('.guide-official-content');
-        sectionHost?.querySelectorAll('.section').forEach(section => section.classList.toggle('active', section === targetSection));
-        targetSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      });
+    document.querySelectorAll('button[onclick*="setJafTab("]').forEach(button => {
+      const target = button.getAttribute('onclick').match(/setJafTab\(['"]([^'"]+)/)?.[1];
+      if (target) button.dataset.guideJafTab = target;
+      button.removeAttribute('onclick');
     });
-    GUIDE_SECTIONS.forEach(([key]) => {
-      if (sectionIds.has(key)) guideContent[key] = originalSections[key];
+    document.querySelectorAll('.jaf-btn[data-jaf]').forEach(button => { button.dataset.guideJafTab = button.dataset.jaf; });
+    document.querySelectorAll('[onclick*="openJafTab("]').forEach(button => {
+      const target = button.getAttribute('onclick').match(/openJafTab\(['"]([^'"]+)/)?.[1];
+      if (target) button.dataset.guideJafOpen = target;
+      button.removeAttribute('onclick');
     });
-    sections.forEach(section => { section.innerHTML = originalSections[section.id]; });
+    sections.forEach(section => { guideContent[section.id] = originalSections[section.id]; });
+    guideSections = sectionLabels.length ? sectionLabels : GUIDE_SECTIONS.filter(([key]) => sectionIds.has(key));
     return guideContent;
   }).catch(error => {
     console.error('Guide content load failed:', error);
@@ -695,6 +739,7 @@ async function loadGuideContent() {
   const loaded = await guideContentPromise;
   if (Object.keys(loaded).length && window.history.state?.view === 'guide') {
     viewContent.innerHTML = renderGuideView();
+    wireGuideContentEvents();
     renderGuideSubmenu();
   }
   return loaded;
@@ -1466,7 +1511,7 @@ function renderView(view) {
   else if (view === 'attendance') { viewContent.innerHTML = renderAttendanceView(); wireAttendanceEvents(); loadAttendanceRecords(hasLeadershipCallsign(currentUser)); }
   else if (view === 'active-attendance') { activeAttendanceMessage = ''; viewContent.innerHTML = renderActiveAttendanceView(); wireActiveAttendanceEvents(); loadAttendanceRecords(true, { view: 'active', dateKey: activeAttendanceDate }); }
   else if (view === 'activity') { viewContent.innerHTML = renderActivityView(); loadActivityEntries(); }
-  else if (view === 'guide') { viewContent.innerHTML = renderGuideView(); renderGuideSubmenu(); }
+  else if (view === 'guide') { viewContent.innerHTML = renderGuideView(); wireGuideContentEvents(); renderGuideSubmenu(); }
   else if (view === 'cooldowns') { viewContent.innerHTML = renderCooldownPaymentsView(); wireCooldownPaymentsEvents(); }
   else { viewContent.innerHTML = renderSettingsView(title); wireSettingsEvents(); }
 }
@@ -3378,7 +3423,9 @@ document.querySelectorAll('[data-view]').forEach(btn => btn.addEventListener('cl
 document.querySelector('#guide-submenu')?.addEventListener('click', event => {
   const button = event.target.closest('[data-guide-section]');
   if (!button || !hasLeadershipCallsign(currentUser)) return;
-  selectedGuideSection = GUIDE_SECTIONS.some(([key]) => key === button.dataset.guideSection) ? button.dataset.guideSection : 'introducere';
+  const sections = guideSections.length ? guideSections : GUIDE_SECTIONS;
+  if (!guideContentPromise) loadGuideContent();
+  selectedGuideSection = sections.some(([key]) => key === button.dataset.guideSection) ? button.dataset.guideSection : 'introducere';
   if (window.history.state?.view !== 'guide') navigateTo('guide');
   else {
     viewContent.innerHTML = renderGuideView();

@@ -17,7 +17,6 @@ const SHEET_RANGE = process.env.GOOGLE_SHEET_RANGE || 'LISTA DEPARTAMENT!A:T';
 const sessions = new Map();
 const oauthState = new Map();
 const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.gif': 'image/gif', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml' };
-const GUIDE_SOURCE_URL = 'https://ghidul-departamentului-medical-eight.vercel.app/';
 
 function cookie(req, key) {
   const raw = req.headers.cookie || '';
@@ -225,8 +224,11 @@ async function handleTestDefinitions(req, res) {
 async function handleGuide(req, res) {
   if (req.method !== 'GET') return json(res, 405, { error: 'Method not allowed' });
   try {
-    const html = await fs.readFile(path.join(ROOT, 'guide-original-source.html'), 'utf8');
-    const bundledGuide = html.replace(/(href|src)=(['"])(?!https?:|data:|#|\/)([^'"]+)\2/gi, (_, attribute, quote, resource) => `${attribute}=${quote}/assets/guide/${resource.split('/').map(encodeURIComponent).join('/').replace(/%2F/gi, '/').replace(/%20/gi, '%20')}${quote}`);
+    const html = await fs.readFile(path.join(ROOT, 'assets', 'guide', 'index.html'), 'utf8');
+    const bundledGuide = html
+      .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, '')
+      .replace(/\s+on(?:click|error|load|change|input|mouseover)=(['"])[\s\S]*?\1/gi, '')
+      .replace(/(href|src)=(['"])(?!https?:|data:|#|\/)([^'"]+)\2/gi, (_, attribute, quote, resource) => `${attribute}=${quote}/assets/guide/${resource.split('/').map(encodeURIComponent).join('/').replace(/%2F/gi, '/').replace(/%20/gi, '%20')}${quote}`);
     res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
     res.end(bundledGuide);
   } catch (error) {
