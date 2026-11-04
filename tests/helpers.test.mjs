@@ -256,8 +256,9 @@ test('leadership-only navigation rooms require a leadership callsign', () => {
   const attendanceViewSource = source.match(/function renderAttendanceView\(\) \{[\s\S]*?^\}/m)?.[0] || '';
   const activeAttendanceViewSource = source.match(/function renderActiveAttendanceView\(\) \{[\s\S]*?^\}/m)?.[0] || '';
   assert.doesNotMatch(attendanceViewSource, /Pontaje active în acest moment/);
-  assert.match(activeAttendanceViewSource, /Pontaje active în acest moment/);
-  assert.match(activeAttendanceViewSource, /<th>CALLSIGN<\/th><th>NUME<\/th><th>GRAD<\/th><th>START<\/th><th>DURATĂ<\/th><th>ACȚIUNE<\/th>/);
+  assert.match(activeAttendanceViewSource, /Pontaje active/);
+  assert.match(activeAttendanceViewSource, /<th>CALLSIGN<\/th><th>NUME<\/th><th>TOTAL ZI<\/th><th>STARE<\/th><th>VALIDARE<\/th>/);
+  assert.doesNotMatch(activeAttendanceViewSource, /Pontaje active în acest moment|START|DURATĂ|Anulează/);
   assert.match(source, /function renderActiveAttendanceView\(\)/);
   assert.match(source, /function attendanceMinutesForDateClient\(/);
   assert.match(source, /Adăugare pontaje docs/);
