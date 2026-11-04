@@ -224,13 +224,19 @@ async function handleTestDefinitions(req, res) {
 async function handleGuide(req, res) {
   if (req.method !== 'GET') return json(res, 405, { error: 'Method not allowed' });
   try {
-    const html = await fs.readFile(path.join(ROOT, 'assets', 'guide', 'index.html'), 'utf8');
-    const bundledGuide = html
-      .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, '')
-      .replace(/\s+on(?:click|error|load|change|input|mouseover)=(['"])[\s\S]*?\1/gi, '')
-      .replace(/(href|src)=(['"])(?!https?:|data:|#|\/)([^'"]+)\2/gi, (_, attribute, quote, resource) => `${attribute}=${quote}/assets/guide/${resource.split('/').map(encodeURIComponent).join('/').replace(/%2F/gi, '/').replace(/%20/gi, '%20')}${quote}`);
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
-    res.end(bundledGuide);
+    return await (await import('./api/guide.js')).default(req, {
+      setHeader: (name, value) => res.setHeader(name, value),
+      status: code => {
+        res.statusCode = code;
+        return {
+          send: content => res.end(content),
+          json: content => {
+            if (!res.headersSent) res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify(content));
+          }
+        };
+      }
+    });
   } catch (error) {
     console.error('Bundled guide could not be loaded:', error);
     return json(res, 500, { error: 'Ghidul oficial nu a putut fi încărcat.' });

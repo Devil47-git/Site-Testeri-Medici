@@ -135,6 +135,22 @@ http.createServer(async (req, res) => {
     const processedCounts = lifetimeTestResults.map(result => ({ discordId: result.requesterId, callsign: '001', testName: result.testName, count: lifetimeTestResults.filter(item => item.requesterId === result.requesterId && item.testName === result.testName).length }));
     res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ counts, processedCounts, ...(req.method === 'POST' ? { success: true, ...(cleared === null ? { discordNotificationsSent: false, discordNotificationError: 'Serverul demo local nu trimite notificari Discord.' } : { cleared }) } : {}) })); return;
   }
+  if (url.pathname === '/api/guide') {
+    const apiGuide = (await import('../api/guide.js')).default;
+    res.setHeader('Cache-Control', 'no-store');
+    res.status = code => {
+      res.statusCode = code;
+      return {
+        send: content => res.end(content),
+        json: content => {
+          res.setHeader('Content-Type', 'application/json; charset=utf-8');
+          res.end(JSON.stringify(content));
+        }
+      };
+    };
+    await apiGuide(req, res);
+    return;
+  }
   if (url.pathname.startsWith('/api/')) { res.writeHead(200, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ grants: [] })); return; }
   let pathname;
   try { pathname = decodeURIComponent(url.pathname); }

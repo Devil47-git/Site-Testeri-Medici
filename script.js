@@ -59,6 +59,7 @@ let selectedGuideSection = 'introducere';
 let guideContent = {};
 let guideContentPromise = null;
 let guideSections = [];
+let guideLoadError = '';
 const GUIDE_SECTIONS = [
   ['introducere', 'Introducere'],
   ['regulament', 'Regulament Intern'],
@@ -626,7 +627,7 @@ function renderAvailableTestsSubmenu() {
 function renderGuideSubmenu() {
   const submenu = document.querySelector('#guide-submenu');
   if (!submenu) return;
-  submenu.hidden = !hasLeadershipCallsign(currentUser) || window.history.state?.view !== 'guide';
+  submenu.hidden = window.history.state?.view !== 'guide';
   const sections = guideSections.length ? guideSections : GUIDE_SECTIONS;
   submenu.innerHTML = sections.map(([key, label]) => `<button type="button" class="nav-subitem ${selectedGuideSection === key ? 'active' : ''}" data-guide-section="${key}">${escapeHtml(label)}</button>`).join('');
 }
@@ -636,7 +637,11 @@ function renderGuideView() {
   const section = sections.find(([key]) => key === selectedGuideSection)?.[0] || 'introducere';
   const title = sections.find(([key]) => key === section)?.[1] || 'Introducere';
   const content = guideContent[section];
-  if (!content) return `<section class="panel guide-panel"><p class="muted">Ghidul spitalului se încarcă…</p></section>`;
+  if (!content) {
+    if (!guideContentPromise) loadGuideContent();
+    const message = guideLoadError ? 'Ghidul nu s-a putut încărca. Reîncarcă pagina pentru a încerca din nou.' : 'Se încarcă ghidul spitalului…';
+    return `<section class="panel guide-panel"><p class="muted">${message}</p></section>`;
+  }
   return `<section class="panel guide-panel"><div class="panel-head"><div><p class="eyebrow">GHID SPITAL · SECȚIUNE INTERNĂ</p><h2>${escapeHtml(title)}</h2><p class="muted">Informațiile și imaginile ghidului spitalului sunt integrate aici în Site Testeri.</p></div></div><article class="guide-official-content" data-guide-section-content="${section}">${content}</article></section>`;
 }
 function openGuideSectionFromContent(sectionId) {
@@ -680,27 +685,41 @@ function wireGuideContentEvents() {
 }
 async function loadGuideContent() {
   if (guideContentPromise) return guideContentPromise;
+  guideLoadError = '';
   guideContentPromise = fetch('/api/guide').then(async response => {
+    if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
     const source = await response.text();
-    if (!response.ok) throw new Error(source || 'Ghidul nu a putut fi încărcat.');
     const document = new DOMParser().parseFromString(source, 'text/html');
     const sections = [...document.querySelectorAll('.section[id]')];
     const sectionIds = new Set(sections.map(section => section.id));
     const originalSections = Object.fromEntries(sections.map(section => [section.id, section.innerHTML]));
+    const guideDocumentUrl = new URL('/assets/guide/index.html', window.location.origin);
+    const localGuideAsset = value => {
+      const resolved = new URL(value, guideDocumentUrl);
+      if (resolved.origin !== window.location.origin || !resolved.pathname.startsWith('/assets/guide/')) return value;
+      return `${resolved.pathname}${resolved.search}${resolved.hash}`;
+    };
     const sectionLabels = [...document.querySelectorAll('.sidebar-links [onclick*="showSection("]')].map(button => {
       const key = button.getAttribute('onclick').match(/showSection\(['"]([^'"]+)/)?.[1];
       return key && sectionIds.has(key) ? [key, button.textContent.trim().split(/\s+/).join(' ')] : null;
     }).filter(Boolean);
     document.querySelectorAll('link[rel="stylesheet"]').forEach(link => {
       const href = link.getAttribute('href') || '';
-      if (/^https?:/i.test(href)) link.remove();
+      const localUrl = localGuideAsset(href);
+      if (localUrl === href && /^(?:https?:)?\/\//i.test(href)) link.remove();
+      else if (localUrl !== href) link.setAttribute('href', localUrl);
     });
+    const guideStyle = document.createElement('style');
+    guideStyle.textContent = '/* Font Awesome loaded externally by the source guide is intentionally omitted in the integrated page. */';
+    document.head.append(guideStyle);
     document.querySelectorAll('link[rel="stylesheet"]').forEach(link => {
-      const href = link.getAttribute('href') || '';
-      if (!/^(?:https?:|\/|#)/i.test(href)) link.remove();
+      if (/^https?:/i.test(link.getAttribute('href') || '')) link.remove();
     });
     document.querySelectorAll('style').forEach(style => {
-      style.textContent = style.textContent.replace(/url\(\s*(['"]?)(?!https?:|data:|blob:|#|\/)([^)'"]+)\1\s*\)/gi, (_, quote, url) => `url("/assets/guide/${url.split('/').map(encodeURIComponent).join('/')}")`);
+      style.textContent = style.textContent.replace(/url\(\s*(['"]?)(?!#)([^)'"]+)\1\s*\)/gi, (match, quote, url) => {
+        const localUrl = localGuideAsset(url.trim());
+        return localUrl === url.trim() ? match : `url("${localUrl}")`;
+      });
     });
     document.querySelectorAll('script').forEach(script => script.remove());
     document.querySelectorAll('[onclick], [onerror], [onload], [onchange], [oninput], [onmouseover]').forEach(element => {
@@ -709,8 +728,9 @@ async function loadGuideContent() {
     document.querySelectorAll('img[src], source[src], video[src], audio[src], a[href]').forEach(element => {
       const attribute = element.hasAttribute('src') ? 'src' : 'href';
       const originalUrl = element.getAttribute(attribute);
-      if (!originalUrl || /^(?:https?:|data:|blob:|#|\/)/i.test(originalUrl)) return;
-      element.setAttribute(attribute, `/assets/guide/${originalUrl.split('/').map(encodeURIComponent).join('/')}`);
+      if (!originalUrl) return;
+      const localUrl = localGuideAsset(originalUrl);
+      if (localUrl !== originalUrl) element.setAttribute(attribute, localUrl);
     });
     document.querySelectorAll('button[onclick*="showSection("]').forEach(button => {
       const target = button.getAttribute('onclick').match(/showSection\(['"]([^'"]+)/)?.[1];
@@ -728,11 +748,13 @@ async function loadGuideContent() {
       if (target) button.dataset.guideJafOpen = target;
       button.removeAttribute('onclick');
     });
+    if (!sections.length || !sectionIds.has('introducere')) throw new Error('Ghidul nu conține secțiunile așteptate.');
     sections.forEach(section => { guideContent[section.id] = originalSections[section.id]; });
     guideSections = sectionLabels.length ? sectionLabels : GUIDE_SECTIONS.filter(([key]) => sectionIds.has(key));
     return guideContent;
   }).catch(error => {
     console.error('Guide content load failed:', error);
+    guideLoadError = error.message || 'Ghidul nu a putut fi încărcat.';
     guideContentPromise = null;
     return {};
   });
@@ -3422,7 +3444,7 @@ function navigateTo(view, { push = true } = {}) {
 document.querySelectorAll('[data-view]').forEach(btn => btn.addEventListener('click', () => navigateTo(btn.dataset.view)));
 document.querySelector('#guide-submenu')?.addEventListener('click', event => {
   const button = event.target.closest('[data-guide-section]');
-  if (!button || !hasLeadershipCallsign(currentUser)) return;
+  if (!button) return;
   const sections = guideSections.length ? guideSections : GUIDE_SECTIONS;
   if (!guideContentPromise) loadGuideContent();
   selectedGuideSection = sections.some(([key]) => key === button.dataset.guideSection) ? button.dataset.guideSection : 'introducere';
