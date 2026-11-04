@@ -245,11 +245,17 @@ test('leadership-only navigation rooms require a leadership callsign', () => {
   const permissionsSource = source.match(/function renderAvailableTestsSubmenu\(\) \{[\s\S]*?^\}/m)?.[0] || '';
   const navigationSource = source.match(/function navigateTo\(view, \{ push = true \} = \{\}\) \{[\s\S]*?^\}/m)?.[0] || '';
   assert.match(permissionsSource, /bonusNav\.hidden = !hasLeadershipCallsign\(currentUser\)/);
-  assert.match(permissionsSource, /attendanceNav\.hidden = !hasLeadershipCallsign\(currentUser\)/);
+  assert.match(permissionsSource, /attendanceNav\.hidden = !currentUser\?\.discordId/);
+  assert.match(permissionsSource, /activeAttendanceNav\.hidden = !hasLeadershipCallsign\(currentUser\)/);
   assert.match(permissionsSource, /activityNav\.hidden = !hasLeadershipCallsign\(currentUser\)/);
   assert.match(navigationSource, /view === 'bonuses' && !hasLeadershipCallsign\(currentUser\)/);
+  assert.match(navigationSource, /view === 'active-attendance' && !hasLeadershipCallsign\(currentUser\)/);
   const testResultsSource = readFileSync(join(here, '..', 'api', 'access', 'test-results.js'), 'utf8');
   assert.match(testResultsSource, /requesterCallsign < 1 \|\| requesterCallsign > 20/);
+  assert.match(indexSource, /data-view="attendance"[\s\S]*data-view="active-attendance"[\s\S]*data-view="activity"/);
+  assert.match(source, /function renderActiveAttendanceView\(\)/);
+  assert.match(source, /function attendanceMinutesForDateClient\(/);
+  assert.match(source, /Adăugare pontaje docs/);
 });
 
 test('normalizeCallsign pads to three digits', () => {

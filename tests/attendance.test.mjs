@@ -72,7 +72,7 @@ globalThis.fetch = async (url, options = {}) => {
 };
 
 const { default: directoryHandler, attendanceWeeksFromRows, attendanceWeeksByCallsign } = await import('../api/access/directory.js');
-const { default: attendanceHandler, attendanceStartAllowed, closeExpiredAttendanceEntries } = await import('../api/access/attendance.js');
+const { default: attendanceHandler, attendanceMinutesForDate, attendanceSheetDayColumn, attendanceStartAllowed, closeExpiredAttendanceEntries, writeAttendanceToSheet } = await import('../api/access/attendance.js');
 const { attendanceMinimumMinutes } = await import('../lib/access/shared.js');
 
 async function callDirectory(requesterId, view) {
@@ -141,6 +141,43 @@ test('stale active entries close at Bucharest midnight and no longer count as op
     entries: [{ start, end: Date.parse('2026-01-01T22:00:00Z'), autoClosed: true }],
     closed: 1
   });
+});
+
+test('daily attendance sums only non-canceled minutes within the Bucharest day', () => {
+  const entries = [
+    { start: Date.parse('2026-01-02T22:30:00Z'), end: Date.parse('2026-01-02T23:30:00Z') },
+    { start: Date.parse('2026-01-03T10:00:00Z'), end: Date.parse('2026-01-03T11:30:00Z') },
+    { start: Date.parse('2026-01-03T21:30:00Z'), end: Date.parse('2026-01-04T00:30:00Z') },
+    { start: Date.parse('2026-01-03T12:00:00Z'), end: Date.parse('2026-01-03T13:00:00Z'), canceled: true }
+  ];
+  assert.equal(attendanceMinutesForDate(entries, '2026-01-03'), 180);
+  assert.throws(() => attendanceMinutesForDate(entries, '2026-02-31'), /Data pontajului este invalidă/);
+});
+
+test('weekday columns map Monday through Sunday to columns F through L', () => {
+  const dates = ['2026-11-02', '2026-11-03', '2026-11-04', '2026-11-05', '2026-11-06', '2026-11-07', '2026-11-08'];
+  assert.deepEqual(dates.map(attendanceSheetDayColumn), ['F', 'G', 'H', 'I', 'J', 'K', 'L']);
+});
+
+test('individual attendance sync matches TEST PONTAJE names and writes daily minutes to the weekday cell', async () => {
+  const updates = [];
+  const reads = [];
+  const sheets = {
+    spreadsheets: {
+      values: {
+        get: async ({ range }) => {
+          reads.push(range);
+          return { data: { values: [['Ana Vasilescu']] } };
+        },
+        update: async request => updates.push(request)
+      }
+    }
+  };
+  await writeAttendanceToSheet(sheets, 'Ana Vasilescu', '2026-11-02', 135);
+  assert.deepEqual(reads, ["'TEST PONTAJE'!D1:D400", "'EVIDENTA ACTIVITATE'!D1:D400"]);
+  assert.equal(updates.length, 1);
+  assert.equal(updates[0].range, "'EVIDENTA ACTIVITATE'!F1");
+  assert.deepEqual(updates[0].requestBody.values, [[135]]);
 });
 
 test('only leadership can read weekly attendance values from Sheets', async () => {
@@ -233,6 +270,27 @@ test('department attendance includes active member details and leadership can ca
   redisValues.set(memberKey, JSON.stringify([{ start: Date.now(), end: null }]));
   const member = await callAttendance('POST', 'member-id', { action: 'cancel', targetDiscordId: 'member-id' });
   assert.equal(member.statusCode, 403);
+});
+
+test('active attendance view returns member names and validation state for a selected weekday', async () => {
+  const dateKey = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Bucharest', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  const review = { status: 'validated', minutes: 45 };
+  redisValues.set(`site-testeri-medici:attendance-review:${dateKey}:member-id`, JSON.stringify(review));
+  const result = await callAttendance('GET', 'leadership-id', {}, { view: 'active', date: dateKey });
+  assert.equal(result.statusCode, 200);
+  assert.ok(result.payload.members.some(member => member.discordId === 'member-id' && member.name === 'Membru'));
+  assert.deepEqual(result.payload.reviewStates[dateKey]['member-id'], review);
+});
+
+test('only leadership can request attendance document updates', async () => {
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Bucharest', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  const result = await callAttendance('POST', 'member-id', {
+    action: 'sync-docs',
+    targetDiscordId: 'member-id',
+    dateKey: today,
+    status: 'validated'
+  });
+  assert.equal(result.statusCode, 403);
 });
 
 test('authenticated midnight cron closes department entries', async () => {
