@@ -58,6 +58,7 @@ try {
   const page = await fetch(`${base}/`);
   check('page serves 200', page.status === 200);
   check('CSP present', !!page.headers.get('content-security-policy'));
+  check('CSP allows Discord avatars', page.headers.get('content-security-policy')?.includes('https://cdn.discordapp.com'));
   check('X-Frame-Options DENY', page.headers.get('x-frame-options') === 'DENY');
   check('nosniff', page.headers.get('x-content-type-options') === 'nosniff');
 

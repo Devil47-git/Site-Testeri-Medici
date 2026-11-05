@@ -33,6 +33,8 @@ Medical certificates use a separate `MEDICAL_CERTIFICATES` sheet and `DISCORD_ME
 
 The leadership reset clears both current test counts and processed-test totals for all testers.
 
+The `Membri` room lists every named member from `LISTA DEPARTAMENT`, including the entry date from column A and the Discord avatar. Callsigns 001–020 can assign the predefined roles; assignments are stored in the `MEMBER_FUNCTIONS` Google Sheets tab, created automatically on the first save. The configured service account needs edit access to the spreadsheet, and the sheet must be publicly readable through the configured Google API key, like the department list.
+
 ## Cooldowns and bonuses
 
 Admission and transfer retain their prerequisite checklist. Medical certificates use the Apt/Inapt selector; their hours start blank and their questions do not have a mistake counter.

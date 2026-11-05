@@ -42,6 +42,7 @@ const attendanceSheetRows = [
   attendanceRow('101', '134/2CO', '138/5CCV', '—'),
   attendanceRow('021', '30', '40', '50')
 ];
+let memberFunctionRows = [['discordId', 'callsign', 'functionIds', 'updatedAt']];
 const redisValues = new Map();
 
 globalThis.fetch = async (url, options = {}) => {
@@ -67,12 +68,12 @@ globalThis.fetch = async (url, options = {}) => {
   const range = decodeURIComponent(new URL(url).pathname.split('/').pop());
   return {
     ok: true,
-    json: async () => ({ values: range.includes('EVIDENTA ACTIVITATE') ? attendanceSheetRows : range.startsWith('LISTA') ? sheetRows : [Array(6).fill('')] })
+    json: async () => ({ values: range.includes('EVIDENTA ACTIVITATE') ? attendanceSheetRows : range.startsWith('LISTA') ? sheetRows : range.includes('MEMBER_FUNCTIONS') ? memberFunctionRows : [Array(6).fill('')] })
   };
 };
 
 const { default: directoryHandler, attendanceWeeksFromRows, attendanceWeeksByCallsign } = await import('../api/access/directory.js');
-const { default: attendanceHandler, attendanceMinutesForDate, attendanceSheetDayColumn, attendanceStartAllowed, closeExpiredAttendanceEntries, writeAttendanceToSheet } = await import('../api/access/attendance.js');
+const { default: attendanceHandler, attendanceMinutesForDate, attendanceSheetDayColumn, attendanceStartAllowed, attendanceTypesForFunctionIds, closeExpiredAttendanceEntries, writeAttendanceToSheet } = await import('../api/access/attendance.js');
 const { attendanceMinimumMinutes } = await import('../lib/access/shared.js');
 
 async function callDirectory(requesterId, view) {
@@ -132,6 +133,13 @@ test('attendance cutoff uses Bucharest time and blocks starts from 23:35', () =>
   assert.equal(attendanceStartAllowed(Date.parse('2026-01-01T21:35:00Z')), false);
   assert.equal(attendanceStartAllowed(Date.parse('2026-07-01T20:34:00Z')), true);
   assert.equal(attendanceStartAllowed(Date.parse('2026-07-01T20:35:00Z')), false);
+});
+
+test('HR and PR attendance permissions follow assigned member functions', () => {
+  assert.deepEqual(attendanceTypesForFunctionIds(['resurse-umane']), ['regular', 'hr']);
+  assert.deepEqual(attendanceTypesForFunctionIds(['manager-hr']), ['regular', 'hr']);
+  assert.deepEqual(attendanceTypesForFunctionIds(['relatii-publice', 'adjunct-pr']), ['regular', 'pr']);
+  assert.deepEqual(attendanceTypesForFunctionIds([]), ['regular']);
 });
 
 test('stale active entries close at Bucharest midnight and no longer count as open', () => {
@@ -234,6 +242,45 @@ test('the separate live timer still supports start and stop without manual weekl
 
   const manual = await callAttendance('POST', 'member-id', { action: 'manual-add' });
   assert.equal(manual.statusCode, 400);
+});
+
+test('HR and PR timers require assigned functions and keep their entry types', async () => {
+  const memberKey = 'site-testeri-medici:attendance:member-id';
+  memberFunctionRows = [
+    ['discordId', 'callsign', 'functionIds', 'updatedAt'],
+    ['member-id', '101', 'resurse-umane', '']
+  ];
+  try {
+    const ownAttendance = await callAttendance('GET', 'member-id', {}, { view: 'own' });
+    assert.equal(ownAttendance.statusCode, 200);
+    const deniedPr = await callAttendance('POST', 'member-id', { action: 'start', attendanceType: 'pr' });
+    assert.equal(deniedPr.statusCode, 403);
+
+    const startedHr = await callAttendance('POST', 'member-id', { action: 'start', attendanceType: 'hr' });
+    assert.equal(startedHr.statusCode, 200);
+    assert.equal(startedHr.payload.entries.at(-1).type, 'hr');
+    const overlappingRegular = await callAttendance('POST', 'member-id', { action: 'start', attendanceType: 'regular' });
+    assert.equal(overlappingRegular.statusCode, 409);
+    const stoppedHr = await callAttendance('POST', 'member-id', { action: 'stop', attendanceType: 'hr' });
+    assert.equal(stoppedHr.statusCode, 200);
+    assert.equal(stoppedHr.payload.entries.at(-1).type, 'hr');
+    assert.equal(Number.isFinite(stoppedHr.payload.entries.at(-1).end), true);
+
+    memberFunctionRows = [
+      ['discordId', 'callsign', 'functionIds', 'updatedAt'],
+      ['member-id', '101', 'relatii-publice', '']
+    ];
+    const deniedHr = await callAttendance('POST', 'member-id', { action: 'start', attendanceType: 'hr' });
+    assert.equal(deniedHr.statusCode, 403);
+    const startedPr = await callAttendance('POST', 'member-id', { action: 'start', attendanceType: 'pr' });
+    assert.equal(startedPr.statusCode, 200);
+    assert.equal(startedPr.payload.entries.at(-1).type, 'pr');
+    const stoppedPr = await callAttendance('POST', 'member-id', { action: 'stop', attendanceType: 'pr' });
+    assert.equal(stoppedPr.statusCode, 200);
+  } finally {
+    memberFunctionRows = [['discordId', 'callsign', 'functionIds', 'updatedAt']];
+    redisValues.delete(memberKey);
+  }
 });
 
 test('members can read only their own live attendance while leadership can read all records', async () => {

@@ -45,7 +45,7 @@ function applySecurityHeaders(res) {
     "script-src 'self'",
     "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'",
     "font-src 'self' https://fonts.gstatic.com",
-    "img-src 'self' https://ghidul-departamentului-medical-eight.vercel.app data: blob:",
+    "img-src 'self' https://cdn.discordapp.com https://ghidul-departamentului-medical-eight.vercel.app data: blob:",
     "connect-src 'self'",
     "frame-ancestors 'none'",
     "base-uri 'self'",

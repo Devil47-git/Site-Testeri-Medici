@@ -6,10 +6,34 @@ const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4
 const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:U400';
 const ATTENDANCE_SHEET_RANGE = process.env.GOOGLE_ATTENDANCE_RANGE || "'EVIDENTA ACTIVITATE'!A1:U400";
 const TEST_PONTAJE_RANGE = process.env.GOOGLE_TEST_PONTAJE_RANGE || "'TEST PONTAJE'!D1:D400";
+const MEMBER_FUNCTIONS_RANGE = 'MEMBER_FUNCTIONS!A1:D';
 const ATTENDANCE_TIME_ZONE = 'Europe/Bucharest';
 const attendanceRedis = new UpstashRedis();
+const HR_ATTENDANCE_FUNCTIONS = new Set(['resurse-umane', 'manager-hr']);
+const PR_ATTENDANCE_FUNCTIONS = new Set(['relatii-publice', 'manager-pr', 'adjunct-pr']);
 
 function json(res, status, body) { return res.status(status).json(body); }
+export function attendanceTypesForFunctionIds(functionIds) {
+  const ids = new Set(Array.isArray(functionIds) ? functionIds : []);
+  return [
+    'regular',
+    ...(Array.from(HR_ATTENDANCE_FUNCTIONS).some(id => ids.has(id)) ? ['hr'] : []),
+    ...(Array.from(PR_ATTENDANCE_FUNCTIONS).some(id => ids.has(id)) ? ['pr'] : [])
+  ];
+}
+function attendanceTypeForEntry(entry) {
+  return entry?.type === 'hr' || entry?.type === 'pr' ? entry.type : 'regular';
+}
+async function allowedAttendanceTypesForMember(discordId) {
+  const key = process.env.GOOGLE_API_KEY;
+  if (!key) throw new Error('GOOGLE_API_KEY is not configured');
+  const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(MEMBER_FUNCTIONS_RANGE)}?key=${encodeURIComponent(key)}`);
+  const data = await response.json();
+  if (response.status === 400 && String(data?.error?.message || '').includes('Unable to parse range')) return ['regular'];
+  if (!response.ok || !Array.isArray(data.values)) throw new Error('Google Sheets member function read failed');
+  const assignment = data.values.slice(1).find(row => String(row?.[0] || '').trim() === discordId);
+  return attendanceTypesForFunctionIds(String(assignment?.[2] || '').split('|'));
+}
 function attendanceReviewKey(dateKey, discordId) { return `site-testeri-medici:attendance-review:${dateKey}:${discordId}`; }
 function reviewTime(value) {
   const rounded = Math.round(Number(value) / 300000) * 300000;
@@ -112,7 +136,8 @@ function cleanEntries(entries) {
       ...(entry.edited === true ? { edited: true } : {}),
       ...(entry.editedAt != null && Number.isFinite(Number(entry.editedAt)) ? { editedAt: Number(entry.editedAt) } : {}),
       ...(typeof entry.editedBy === 'string' ? { editedBy: entry.editedBy } : {}),
-      ...(typeof entry.editReason === 'string' ? { editReason: entry.editReason.slice(0, 500) } : {})
+      ...(typeof entry.editReason === 'string' ? { editReason: entry.editReason.slice(0, 500) } : {}),
+      ...(entry.type === 'hr' || entry.type === 'pr' ? { type: entry.type } : {})
     }))
     .slice(-2000);
 }
@@ -333,6 +358,11 @@ export default async function handler(req, res) {
       if (req.method === 'GET')       return json(res, 200, { entries: isLeadership && req.query?.view !== 'own' ? {} : [], activeEntries: [], members: [], reviewStates: {}, configured: false });
       return json(res, 503, { error: 'Pontajele online nu sunt configurate.' });
     }
+    if (req.method === 'GET' && req.query?.view === 'own') {
+      const entries = closeExpiredAttendanceEntries(await readAttendanceData(requesterId), Date.now());
+      if (entries.closed) await writeAttendanceData(requesterId, entries.entries);
+      return json(res, 200, { entries: entries.entries, configured: true });
+    }
     if (req.method === 'POST') {
       const action = req.body?.action;
       const now = Date.now();
@@ -497,11 +527,19 @@ export default async function handler(req, res) {
       const normalized = closeExpiredAttendanceEntries(data, now);
       if (normalized.closed) await writeAttendanceData(requesterId, normalized.entries);
       if (action === 'start') {
+        const attendanceType = req.body?.attendanceType || 'regular';
+        if (!['regular', 'hr', 'pr'].includes(attendanceType)) return json(res, 400, { error: 'Tipul de pontaj este invalid.' });
+        const allowedTypes = attendanceType === 'regular' ? ['regular'] : await allowedAttendanceTypesForMember(requesterId);
+        if (!allowedTypes.includes(attendanceType)) return json(res, 403, { error: 'Nu ai funcția necesară pentru acest tip de pontaj.' });
         if (!attendanceStartAllowed(now)) return json(res, 409, { error: 'Pontajul nu mai poate fi deschis după ora 23:35.' });
         if (normalized.entries.some(entry => entry.end == null)) return json(res, 409, { error: 'Există deja un pontaj activ.' });
-        normalized.entries.push({ start: now, end: null });
+        normalized.entries.push({ start: now, end: null, ...(attendanceType !== 'regular' ? { type: attendanceType } : {}) });
       } else if (action === 'stop') {
-        const open = [...normalized.entries].reverse().find(entry => entry.end == null);
+        const attendanceType = req.body?.attendanceType || 'regular';
+        if (!['regular', 'hr', 'pr'].includes(attendanceType)) return json(res, 400, { error: 'Tipul de pontaj este invalid.' });
+        const allowedTypes = attendanceType === 'regular' ? ['regular'] : await allowedAttendanceTypesForMember(requesterId);
+        if (!allowedTypes.includes(attendanceType)) return json(res, 403, { error: 'Nu ai funcția necesară pentru acest tip de pontaj.' });
+        const open = [...normalized.entries].reverse().find(entry => entry.end == null && attendanceTypeForEntry(entry) === attendanceType);
         if (!open) return json(res, 409, { error: 'Nu există un pontaj activ.' });
         open.end = now;
       } else return json(res, 400, { error: 'Acțiune invalidă' });
@@ -509,7 +547,7 @@ export default async function handler(req, res) {
       return json(res, 200, { success: true, entries: saved });
     }
 
-    if (!isLeadership || req.query?.view === 'own') {
+    if (!isLeadership) {
       const ownData = await readAttendanceData(requesterId);
       const normalized = closeExpiredAttendanceEntries(ownData, Date.now());
       if (normalized.closed) await writeAttendanceData(requesterId, normalized.entries);

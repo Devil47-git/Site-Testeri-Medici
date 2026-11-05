@@ -112,6 +112,7 @@ export default async function handler(req, res) {
     if (!requester) return json(res, 403, { error: 'Requester is not a department member' });
     const activityView = req.query?.view === 'activity';
     const attendanceView = req.query?.view === 'attendance';
+    const allMembersView = req.query?.view === 'members';
     const leadershipRequester = callsignNumber(requester[2]) >= 1 && callsignNumber(requester[2]) <= LEADERSHIP_MAX;
     if (activityView && !leadershipRequester) return json(res, 403, { error: 'Only callsigns 001-020 can view the activity directory' });
     if (attendanceView && !leadershipRequester) return json(res, 403, { error: 'Only callsigns 001-020 can view attendance records' });
@@ -151,7 +152,7 @@ export default async function handler(req, res) {
       console.error('Discord avatar Redis read failed:', error);
       return new Map();
     });
-    const result = members.filter(row => String(row[3] || '').trim() && (relevantMember(row) || isLeadership(row) || (activityView && callsignNumber(row[2]) >= 1 && callsignNumber(row[2]) <= 650))).map(row => {
+    const result = members.filter(row => String(row[3] || '').trim() && (allMembersView || relevantMember(row) || isLeadership(row) || (activityView && callsignNumber(row[2]) >= 1 && callsignNumber(row[2]) <= 650))).map(row => {
       const discordId = String(row[19] || '').trim();
       const storedGrant = grantsByDiscord.get(discordId);
       const functions = functionsForMember(callsignNumber(row[2]), row[10]);
@@ -159,7 +160,7 @@ export default async function handler(req, res) {
       const status = statusFromRow(row);
       const grantedTests = effectiveTestsForMember(functions, storedGrant, callsignNumber(row[2]), String(row[4] || '').trim(), String(row[5] || '').trim());
       return {
-        discordId, name: String(row[3] || '').trim(), callsign: String(row[2] || '').trim(), csNum: callsignNumber(row[2]), rank: String(row[4] || '').trim(), dept: String(row[5] || '').trim(), functions, status, gradeGroup: groupLabel(row),
+        discordId, name: String(row[3] || '').trim(), callsign: String(row[2] || '').trim(), csNum: callsignNumber(row[2]), joinedAt: String(row[0] || '').trim(), rank: String(row[4] || '').trim(), dept: String(row[5] || '').trim(), functions, status, gradeGroup: groupLabel(row),
         isLeadership: isConducere, leadershipTitle: isConducere ? leadershipTitle(row) : '', avatar: avatarUrlForDiscordMember(discordId, row[20], avatarHashes),
         grantedTests, grantMode: storedGrant?.grantMode || '', updatedAt: storedGrant?.updatedAt || '', lastSeen: storedGrant?.lastSeen || '',
         attendanceMinimumMinutes: attendanceMinimumMinutes(row[2], row[4]),

@@ -10,7 +10,7 @@
     <link
         href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet"         href="style.css?v=20261104b">
+    <link rel="stylesheet"         href="style.css?v=20261105a">
 </head>
 
 <body class="dark-mode">
@@ -35,6 +35,7 @@
             <nav>
                 <button class="nav-item active" data-view="overview"><span class="nav-ico">👤</span> Profilul tău</button>
                 <button class="nav-item" data-view="testers"><span class="nav-ico">📋</span><span class="nav-label">Testeri</span><em id="tester-count">0</em></button>
+                <button class="nav-item" data-view="members"><span class="nav-ico">👥</span> Membri</button>
                 <button class="nav-item" data-view="statistics"><span class="nav-ico">📊</span> Statistica Teste</button>
                 <button class="nav-item" id="available-tests-toggle" type="button" aria-expanded="false" aria-controls="available-tests-submenu"><span class="nav-ico">📝</span> Teste <span class="nav-chevron" aria-hidden="true">⌄</span></button>
                 <div class="nav-submenu" id="available-tests-submenu" hidden></div>
@@ -117,13 +118,24 @@
             <button class="primary full" id="confirm-remove-btn">Revocă accesul selectat</button>
         </div>
     </div>
+    <div class="modal-backdrop" id="member-functions-modal">
+        <div class="modal member-functions-modal" role="dialog" aria-modal="true" aria-labelledby="member-functions-title">
+            <button class="close" id="close-member-functions-modal" type="button" aria-label="Închide">×</button>
+            <p class="eyebrow">GESTIONARE FUNCȚII</p>
+            <h2 id="member-functions-title">Atribuie funcții</h2>
+            <p class="muted" id="member-functions-member"></p>
+            <div class="member-function-options" id="member-function-options"></div>
+            <p class="member-functions-status muted" id="member-functions-status" role="status" aria-live="polite"></p>
+            <button class="primary full" id="save-member-functions" type="button">Salvează funcțiile</button>
+        </div>
+    </div>
     <div class="image-viewer" id="image-viewer" hidden>
         <button class="image-viewer-close" id="image-viewer-close" type="button" aria-label="Închide imaginea mărită">&times;</button>
         <img class="image-viewer-image" id="image-viewer-image" alt="Imagine mărită">
     </div>
     <script src="tests.js"></script>
     <script src="js/storage.js?v=20261005a"></script>
-    <script src="script.js?v=20261104b"></script>
+    <script src="script.js?v=20261105a"></script>
 </body>
 
 </html>
