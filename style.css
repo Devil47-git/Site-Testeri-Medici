@@ -1171,3 +1171,12 @@ body.dark-mode .brand-with-logo small::before{width:15px;height:1px;background:l
 
 .activity-panel .activity-table .activity-group-row th{position:static;text-align:left;padding:14px 12px 6px;background:transparent;border:0;border-bottom:2px solid rgba(43,140,255,.45);color:#8fc1ff;font:700 13px 'Space Grotesk';letter-spacing:.8px;text-transform:uppercase}
 .activity-panel .activity-group-row th span{margin-left:8px;padding:2px 9px;border-radius:99px;background:rgba(43,140,255,.2);color:#fff;font-size:10px}
+
+.activity-panel .activity-tools{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+
+.activity-panel .activity-member-link{gap:12px}
+.activity-panel .activity-member-link strong{font:700 13px 'Space Grotesk';color:#fff;letter-spacing:.2px}
+.activity-panel .activity-member-link small{display:flex;align-items:center;gap:8px;margin-top:5px}
+.activity-panel .activity-callsign{padding:2px 8px;border-radius:6px;background:rgba(43,140,255,.18);color:#7db8ff;font:700 10px 'Space Grotesk';letter-spacing:.6px}
+.activity-panel .activity-rank{font-style:normal;color:var(--muted);font-size:10px;font-weight:500;letter-spacing:.8px;text-transform:uppercase}
+.activity-panel .activity-member .avatar{width:38px;height:38px;box-shadow:0 0 0 2px rgba(43,140,255,.35)}

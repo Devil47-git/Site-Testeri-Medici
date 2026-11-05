@@ -11,6 +11,46 @@ const attendanceRedis = new UpstashRedis();
 
 function json(res, status, body) { return res.status(status).json(body); }
 function attendanceReviewKey(dateKey, discordId) { return `site-testeri-medici:attendance-review:${dateKey}:${discordId}`; }
+function reviewTime(value) {
+  const rounded = Math.round(Number(value) / 300000) * 300000;
+  return new Intl.DateTimeFormat('ro-RO', { timeZone: 'Europe/Bucharest', hour: '2-digit', minute: '2-digit' }).format(new Date(rounded));
+}
+function reviewWebhookUrl() {
+  try {
+    const url = new URL(String(process.env.DISCORD_ATTENDANCE_REVIEW_WEBHOOK || '').trim());
+    return url.protocol === 'https:' && url.hostname === 'discord.com' && url.pathname.startsWith('/api/webhooks/') ? url.toString() : '';
+  } catch {
+    return '';
+  }
+}
+export async function sendAttendanceReviewWebhook({ status, reviewerId, reviewer, targetId, target, entry, dateKey, minutes }) {
+  const url = reviewWebhookUrl();
+  if (!url) return;
+  const origin = String(process.env.APP_ORIGIN || 'https://site-wheat-zeta-76.vercel.app').trim().replace(/\/+$/, '');
+  const validated = status === 'validated';
+  const [year, month, day] = String(dateKey).split('-');
+  const person = (id, row) => `<@${id}> (${String(row?.[2] || '').trim() || '—'} · ${String(row?.[3] || '').trim() || '—'})`;
+  const embed = {
+    title: validated ? '✅ Pontaj validat' : '❌ Pontaj anulat',
+    color: validated ? 0x39a578 : 0xe35662,
+    thumbnail: { url: `${origin}/assets/hr-team.png` },
+    fields: [
+      { name: validated ? 'Validat de' : 'Anulat de', value: person(reviewerId, reviewer), inline: true },
+      { name: 'Pontajul lui', value: person(targetId, target), inline: true },
+      { name: 'Data', value: `${day}.${month}.${year}`, inline: true },
+      { name: 'Clock-IN', value: reviewTime(entry.start), inline: true },
+      { name: 'Clock-OUT', value: entry.end == null ? 'În desfășurare' : reviewTime(entry.end), inline: true },
+      { name: 'Total zi', value: `${minutes} min`, inline: true }
+    ],
+    timestamp: new Date().toISOString()
+  };
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: 'HR TEAM', avatar_url: `${origin}/assets/hr-team.png`, content: `<@${reviewerId}> <@${targetId}>`, allowed_mentions: { users: [reviewerId, targetId] }, embeds: [embed] })
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+}
 async function readMembers() {
   const key = process.env.GOOGLE_API_KEY;
   if (!key) throw new Error('GOOGLE_API_KEY is not configured');
@@ -334,6 +374,11 @@ export default async function handler(req, res) {
         }
         const saved = await writeAttendanceData(targetId, normalized.entries);
         const minutes = attendanceMinutesForDate(saved, dateKey, now);
+        if (status !== 'unreviewed') {
+          const reviewer = members.find(row => String(row[19] || '').trim() === requesterId);
+          await sendAttendanceReviewWebhook({ status, reviewerId: requesterId, reviewer, targetId, target, entry: saved.find(item => item.start === entryStart) || entry, dateKey, minutes })
+            .catch(error => console.error('Attendance review webhook failed:', error));
+        }
         let warning = '';
         if (isCurrentWeekDate(dateKey, now)) {
           if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON && !process.env.GOOGLE_APPLICATION_CREDENTIALS) {
