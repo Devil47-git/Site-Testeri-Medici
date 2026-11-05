@@ -1159,7 +1159,7 @@ function renderActiveAttendanceView() {
       const clockOut = entry.canceled ? 'Anulat' : entry.end == null ? 'În desfășurare' : attendanceTime(entry.end);
       const duration = entry.canceled ? '0 min' : attendanceFormatMinutes(attendanceEntryMinutesForDate(entry, activeAttendanceDate, now));
       const attributes = `data-attendance-member="${escapeHtml(member.discordId)}" data-attendance-start="${Number(entry.start)}" ${activeAttendanceBusy || attendanceLoadPending ? 'disabled' : ''}`;
-      return `<tr class="${entry.canceled ? 'is-canceled' : ''}"><td>${escapeHtml(normalizeCallsign(member.callsign))}</td><td>${escapeHtml(member.name || '—')}</td><td>${attendanceTime(entry.start)}</td><td>${clockOut}${entry.autoClosed ? ' · Închis automat' : ''}</td><td>${duration}</td><td><span class="active-attendance-state${entry.canceled ? ' is-canceled' : validated ? ' is-validated' : ''}">${status}</span></td><td><div class="active-attendance-review"><label class="active-attendance-check active-attendance-validate"><input type="checkbox" data-attendance-review="validated" ${attributes} ${validated ? 'checked' : ''}><span>Validat</span></label><label class="active-attendance-check active-attendance-cancel"><input type="checkbox" data-attendance-review="canceled" ${attributes} ${entry.canceled ? 'checked' : ''}><span>Anulat</span></label></div></td></tr>`;
+      return `<tr class="${entry.canceled ? 'is-canceled' : ''}"><td>${escapeHtml(normalizeCallsign(member.callsign))}</td><td>${escapeHtml(member.name || '—')}</td><td>${attendanceTime(entry.start)}</td><td>${clockOut}${entry.autoClosed ? ' · Închis automat' : ''}</td><td>${duration}</td><td><span class="active-attendance-state${entry.canceled ? ' is-canceled' : validated ? ' is-validated' : ''}">${status}</span></td><td class="active-attendance-review-cell"><div class="active-attendance-review"><label class="active-attendance-check active-attendance-validate"><input type="checkbox" data-attendance-review="validated" ${attributes} ${validated ? 'checked' : ''}><span>Validat</span></label><label class="active-attendance-check active-attendance-cancel"><input type="checkbox" data-attendance-review="canceled" ${attributes} ${entry.canceled ? 'checked' : ''}><span>Anulat</span></label></div></td><td class="active-attendance-edit-cell"><button type="button" class="outline active-attendance-edit" data-attendance-edit data-attendance-member="${escapeHtml(member.discordId)}" data-attendance-start="${Number(entry.start)}" ${activeAttendanceBusy || attendanceLoadPending ? 'disabled' : ''}>✏️ Editează</button></td></tr>`;
     })).join('');
   const emptyMessage = attendanceLoadPending ? 'Se încarcă pontajele...' : attendanceSyncError ? escapeHtml(attendanceSyncError) : 'Nu există pontaje în ziua selectată.';
   const disabled = !attendanceRecordsLoaded || attendanceLoadPending || activeAttendanceBusy || Boolean(attendanceSyncError) || !rows;
@@ -1167,7 +1167,7 @@ function renderActiveAttendanceView() {
   const weekLabel = attendanceWeekLabel(selectedWeekStart, attendanceAddDays(selectedWeekStart, 6));
   const dayTotal = members.reduce((total, member) => total + attendanceMinutesForDateClient(attendanceEntriesFor(member), activeAttendanceDate, now), 0);
   const sheetSyncAllowed = selectedWeekStart === currentWeekStart;
-  return `<section class="panel active-attendance-panel"><div class="panel-head"><div><p class="eyebrow">PONTAJE PE ZILE</p><h2>Pontaje</h2><p class="muted">Fiecare pontaj deschis în ziua selectată este afișat separat, inclusiv sesiunile închise și anulate.</p></div><button class="primary" id="attendance-docs-sync" type="button" ${disabled || !sheetSyncAllowed ? 'disabled' : ''}>Sincronizează documentul</button></div><div class="active-attendance-week-nav"><button type="button" class="outline" data-attendance-week="-1" ${activeAttendanceBusy || attendanceLoadPending ? 'disabled' : ''}>← Săptămâna anterioară</button><strong>${weekLabel}</strong><button type="button" class="outline" data-attendance-week="1" ${!canGoForward || activeAttendanceBusy || attendanceLoadPending ? 'disabled' : ''}>Săptămâna următoare →</button></div><div class="active-attendance-days" role="group" aria-label="Selectează ziua săptămânii">${dayTabs}</div><div class="active-attendance-day-summary"><strong>${escapeHtml(dateLabel)}</strong><span>Total neanulat: ${dayTotal} min</span></div><p class="active-attendance-message muted" id="active-attendance-message" role="status" aria-live="polite">${escapeHtml(activeAttendanceMessage || (attendanceLoadPending ? 'Se sincronizează pontajele...' : !sheetSyncAllowed ? 'Pontajele istorice pot fi consultate; sincronizarea documentului este disponibilă pentru săptămâna curentă.' : ''))}</p><div class="attendance-recent-table-wrap"><table class="attendance-recent-table active-attendance-table"><thead><tr><th>CALLSIGN</th><th>NUME</th><th>CLOCK-IN</th><th>CLOCK-OUT</th><th>DURATĂ</th><th>STARE</th><th>VALIDARE / ANULARE</th></tr></thead><tbody>${rows || `<tr><td colspan="7" class="attendance-recent-empty">${emptyMessage}</td></tr>`}</tbody></table></div></section>`;
+  return `<section class="panel active-attendance-panel"><div class="panel-head"><div><p class="eyebrow">PONTAJE PE ZILE</p><h2>Pontaje</h2><p class="muted">Fiecare pontaj deschis în ziua selectată este afișat separat, inclusiv sesiunile închise și anulate.</p></div><button class="primary" id="attendance-docs-sync" type="button" ${disabled || !sheetSyncAllowed ? 'disabled' : ''}>Sincronizează documentul</button></div><div class="active-attendance-week-nav"><button type="button" class="outline" data-attendance-week="-1" ${activeAttendanceBusy || attendanceLoadPending ? 'disabled' : ''}>← Săptămâna anterioară</button><strong>${weekLabel}</strong><button type="button" class="outline" data-attendance-week="1" ${!canGoForward || activeAttendanceBusy || attendanceLoadPending ? 'disabled' : ''}>Săptămâna următoare →</button></div><div class="active-attendance-days" role="group" aria-label="Selectează ziua săptămânii">${dayTabs}</div><div class="active-attendance-day-summary"><strong>${escapeHtml(dateLabel)}</strong><span>Total neanulat: ${dayTotal} min</span></div><p class="active-attendance-message muted" id="active-attendance-message" role="status" aria-live="polite">${escapeHtml(activeAttendanceMessage || (attendanceLoadPending ? 'Se sincronizează pontajele...' : !sheetSyncAllowed ? 'Pontajele istorice pot fi consultate; sincronizarea documentului este disponibilă pentru săptămâna curentă.' : ''))}</p><div class="attendance-recent-table-wrap"><table class="attendance-recent-table active-attendance-table"><thead><tr><th>CALLSIGN</th><th>NUME</th><th>CLOCK-IN</th><th>CLOCK-OUT</th><th>DURATĂ</th><th>STARE</th><th>VALIDARE / ANULARE</th><th>EDITARE</th></tr></thead><tbody>${rows || `<tr><td colspan="8" class="attendance-recent-empty">${emptyMessage}</td></tr>`}</tbody></table></div></section>`;
 }
 function refreshActiveAttendanceView() {
   if (window.history.state?.view !== 'active-attendance') return;
@@ -1195,6 +1195,7 @@ function wireActiveAttendanceEvents() {
     const status = target.checked ? target.dataset.attendanceReview : 'unreviewed';
     updateAttendanceReview(target.dataset.attendanceMember, Number(target.dataset.attendanceStart), status);
   }));
+  viewContent.querySelectorAll('[data-attendance-edit]').forEach(button => button.addEventListener('click', event => openAttendanceEditDialog(event.currentTarget.dataset.attendanceMember, Number(event.currentTarget.dataset.attendanceStart))));
   viewContent.querySelector('#attendance-docs-sync')?.addEventListener('click', syncSelectedAttendanceDay);
   attendanceTimer = setInterval(async () => {
     if (window.history.state?.view !== 'active-attendance') {
@@ -1243,6 +1244,42 @@ async function updateAttendanceReview(targetDiscordId, entryStart, status) {
     activeAttendanceBusy = false;
     refreshActiveAttendanceView();
   }
+}
+function attendanceInputTime(value) {
+  return attendanceTime(value);
+}
+function openAttendanceEditDialog(targetDiscordId, entryStart) {
+  const member = attendanceDepartmentMembers.find(item => item.discordId === targetDiscordId);
+  const entry = attendanceEntriesByDiscordId[targetDiscordId]?.find(item => Number(item.start) === entryStart);
+  if (!member || !entry) return;
+  document.querySelector('#attendance-edit-dialog')?.remove();
+  const dialog = document.createElement('dialog');
+  dialog.id = 'attendance-edit-dialog';
+  dialog.className = 'attendance-edit-dialog';
+  dialog.innerHTML = `<form method="dialog" class="attendance-edit-form"><p class="eyebrow">EDITARE PONTAJ</p><h3>${escapeHtml(member.name || '—')} · ${escapeHtml(normalizeCallsign(member.callsign))}</h3><label>Clock-IN<input type="time" name="clockIn" required value="${attendanceInputTime(entry.start)}"></label><label>Clock-OUT<input type="time" name="clockOut" ${entry.end == null ? '' : 'required'} value="${entry.end == null ? '' : attendanceInputTime(entry.end)}"></label><label>Motiv (obligatoriu)<textarea name="reason" required minlength="3" maxlength="500" rows="3" placeholder="Scrie motivul editării"></textarea></label><p class="attendance-edit-error" role="alert"></p><div class="attendance-edit-actions"><button type="button" class="outline" data-edit-cancel>Renunță</button><button type="submit" class="primary">Salvează</button></div></form>`;
+  document.body.append(dialog);
+  const form = dialog.querySelector('form');
+  dialog.querySelector('[data-edit-cancel]').addEventListener('click', () => dialog.close());
+  dialog.addEventListener('close', () => dialog.remove());
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    const data = new FormData(form);
+    const reason = String(data.get('reason') || '').trim();
+    const errorBox = form.querySelector('.attendance-edit-error');
+    if (reason.length < 3) { errorBox.textContent = 'Motivul editării este obligatoriu.'; return; }
+    form.querySelector('[type="submit"]').disabled = true;
+    try {
+      const payload = await submitAttendanceDocs('edit-entry', { targetDiscordId, entryStart, clockIn: String(data.get('clockIn') || ''), clockOut: String(data.get('clockOut') || ''), reason });
+      dialog.close();
+      activeAttendanceMessage = payload.warning || `Pontajul a fost editat; totalul zilei a fost recalculat (${payload.minutes} min).`;
+      await loadAttendanceRecords(true, { render: false, view: 'active', dateKey: activeAttendanceDate });
+      refreshActiveAttendanceView();
+    } catch (error) {
+      errorBox.textContent = error.message || 'Pontajul nu a putut fi editat.';
+      form.querySelector('[type="submit"]').disabled = false;
+    }
+  });
+  dialog.showModal();
 }
 async function syncSelectedAttendanceDay() {
   if (activeAttendanceBusy) return;

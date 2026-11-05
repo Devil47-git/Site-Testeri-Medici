@@ -51,6 +51,35 @@ export async function sendAttendanceReviewWebhook({ status, reviewerId, reviewer
   });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
 }
+export async function sendAttendanceEditWebhook({ editorId, editor, targetId, target, before, entry, dateKey, minutes, reason }) {
+  const url = reviewWebhookUrl();
+  if (!url) return;
+  const origin = String(process.env.APP_ORIGIN || 'https://site-wheat-zeta-76.vercel.app').trim().replace(/\/+$/, '');
+  const [year, month, day] = String(dateKey).split('-');
+  const person = (id, row) => `<@${id}> (${String(row?.[2] || '').trim() || '—'} · ${String(row?.[3] || '').trim() || '—'})`;
+  const out = value => value == null ? 'În desfășurare' : reviewTime(value);
+  const embed = {
+    title: '✏️ Pontaj editat',
+    color: 0x2b8cff,
+    thumbnail: { url: `${origin}/assets/hr-team.png` },
+    fields: [
+      { name: 'Editat de', value: person(editorId, editor), inline: true },
+      { name: 'Pontajul lui', value: person(targetId, target), inline: true },
+      { name: 'Data', value: `${day}.${month}.${year}`, inline: true },
+      { name: 'Clock-IN', value: `${reviewTime(before.start)} → **${reviewTime(entry.start)}**`, inline: true },
+      { name: 'Clock-OUT', value: `${out(before.end)} → **${out(entry.end)}**`, inline: true },
+      { name: 'Total zi', value: `${minutes} min`, inline: true },
+      { name: 'Motiv', value: String(reason).slice(0, 1000) }
+    ],
+    timestamp: new Date().toISOString()
+  };
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: 'HR TEAM', avatar_url: `${origin}/assets/hr-team.png`, content: `<@${editorId}> <@${targetId}>`, allowed_mentions: { users: [editorId, targetId] }, embeds: [embed] })
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+}
 async function readMembers() {
   const key = process.env.GOOGLE_API_KEY;
   if (!key) throw new Error('GOOGLE_API_KEY is not configured');
@@ -79,7 +108,11 @@ function cleanEntries(entries) {
       ...(entry.validated === true ? { validated: true } : {}),
       ...(entry.validatedAt != null && Number.isFinite(Date.parse(entry.validatedAt)) ? { validatedAt: entry.validatedAt } : {}),
       ...(typeof entry.validatedBy === 'string' ? { validatedBy: entry.validatedBy } : {}),
-      ...(entry.autoClosed === true ? { autoClosed: true } : {})
+      ...(entry.autoClosed === true ? { autoClosed: true } : {}),
+      ...(entry.edited === true ? { edited: true } : {}),
+      ...(entry.editedAt != null && Number.isFinite(Number(entry.editedAt)) ? { editedAt: Number(entry.editedAt) } : {}),
+      ...(typeof entry.editedBy === 'string' ? { editedBy: entry.editedBy } : {}),
+      ...(typeof entry.editReason === 'string' ? { editReason: entry.editReason.slice(0, 500) } : {})
     }))
     .slice(-2000);
 }
@@ -125,6 +158,19 @@ function bucharestDayStart(dateKey) {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const parts = bucharestParts(timestamp);
     const represented = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), Number(parts.hour), Number(parts.minute), Number(parts.second));
+    timestamp += target - represented;
+  }
+  return timestamp;
+}
+export function attendanceTimestampFor(dateKey, timeValue) {
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(String(timeValue || '').trim());
+  if (!match || !validDateKey(dateKey)) return null;
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const target = Date.UTC(year, month - 1, day, Number(match[1]), Number(match[2]));
+  let timestamp = target;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const parts = bucharestParts(timestamp);
+    const represented = Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day), Number(parts.hour), Number(parts.minute), 0);
     timestamp += target - represented;
   }
   return timestamp;
@@ -339,6 +385,57 @@ export default async function handler(req, res) {
         open.canceledBy = requesterId;
         await writeAttendanceData(targetId, normalized.entries);
         return json(res, 200, { success: true });
+      }
+      if (action === 'edit-entry') {
+        if (!isLeadership) return json(res, 403, { error: 'Only callsigns 001-020 can edit attendance records' });
+        const targetId = String(req.body?.targetDiscordId || '').trim();
+        const entryStart = Number(req.body?.entryStart);
+        const reason = String(req.body?.reason || '').trim();
+        if (!Number.isFinite(entryStart)) return json(res, 400, { error: 'Pontajul selectat este invalid.' });
+        if (reason.length < 3) return json(res, 400, { error: 'Motivul editării este obligatoriu.' });
+        const target = members.find(row => String(row[19] || '').trim() === targetId);
+        if (!targetId || !target) return json(res, 404, { error: 'Membrul pentru editarea pontajului nu a fost găsit.' });
+        const normalized = closeExpiredAttendanceEntries(await readAttendanceData(targetId), now);
+        const entry = normalized.entries.find(item => item.start === entryStart);
+        if (!entry) return json(res, 404, { error: 'Pontajul selectat nu există.' });
+        const dateKey = attendanceDateKey(entry.start);
+        const newStart = attendanceTimestampFor(dateKey, req.body?.clockIn);
+        const clockOut = String(req.body?.clockOut || '').trim();
+        const newEnd = clockOut ? attendanceTimestampFor(dateKey, clockOut) : null;
+        if (newStart == null || (clockOut && newEnd == null)) return json(res, 400, { error: 'Ora introdusă este invalidă.' });
+        if (!clockOut && entry.end != null) return json(res, 400, { error: 'Clock-OUT este obligatoriu pentru un pontaj închis.' });
+        if (newEnd != null && newEnd <= newStart) return json(res, 400, { error: 'Clock-OUT trebuie să fie după Clock-IN.' });
+        if (newStart > now || (newEnd != null && newEnd > now)) return json(res, 400, { error: 'Ora nu poate fi în viitor.' });
+        const overlaps = normalized.entries.some(item => item !== entry && !item.canceled && item.start < (newEnd ?? Infinity) && (item.end ?? Infinity) > newStart);
+        if (overlaps) return json(res, 400, { error: 'Intervalul se suprapune cu alt pontaj al membrului.' });
+        const before = { start: entry.start, end: entry.end };
+        entry.start = newStart;
+        entry.end = newEnd;
+        delete entry.autoClosed;
+        entry.edited = true;
+        entry.editedAt = now;
+        entry.editedBy = requesterId;
+        entry.editReason = reason.slice(0, 500);
+        const saved = await writeAttendanceData(targetId, normalized.entries);
+        const savedEntry = saved.find(item => item.start === newStart);
+        const minutes = attendanceMinutesForDate(saved, dateKey, now);
+        let warning = '';
+        if (isCurrentWeekDate(dateKey, now)) {
+          if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON && !process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+            warning = `Pontajul a fost editat și totalul recalculat (${minutes} min), dar documentul nu este configurat pentru sincronizare.`;
+          } else {
+            try {
+              await writeAttendanceToSheet(await sheetsClient(), String(target[3] || '').trim(), dateKey, minutes);
+            } catch (error) {
+              console.error('Attendance sheet update after edit failed:', error);
+              warning = `Pontajul a fost editat și totalul recalculat (${minutes} min), dar documentul nu s-a putut sincroniza: ${error.message}`;
+            }
+          }
+        }
+        const editor = members.find(row => String(row[19] || '').trim() === requesterId);
+        await sendAttendanceEditWebhook({ editorId: requesterId, editor, targetId, target, before, entry: savedEntry || entry, dateKey, minutes, reason })
+          .catch(error => console.error('Attendance edit webhook failed:', error));
+        return json(res, 200, { success: true, entry: savedEntry, minutes, warning });
       }
       if (action === 'review-entry') {
         if (!isLeadership) return json(res, 403, { error: 'Only callsigns 001-020 can review attendance records' });
