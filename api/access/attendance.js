@@ -36,6 +36,9 @@ function cleanEntries(entries) {
       ...(entry.canceled === true ? { canceled: true } : {}),
       ...(entry.canceledAt != null && Number.isFinite(Number(entry.canceledAt)) ? { canceledAt: Number(entry.canceledAt) } : {}),
       ...(typeof entry.canceledBy === 'string' ? { canceledBy: entry.canceledBy } : {}),
+      ...(entry.validated === true ? { validated: true } : {}),
+      ...(entry.validatedAt != null && Number.isFinite(Date.parse(entry.validatedAt)) ? { validatedAt: entry.validatedAt } : {}),
+      ...(typeof entry.validatedBy === 'string' ? { validatedBy: entry.validatedBy } : {}),
       ...(entry.autoClosed === true ? { autoClosed: true } : {})
     }))
     .slice(-2000);
@@ -112,6 +115,9 @@ function isCurrentWeekDate(dateKey, now = Date.now()) {
   const today = attendanceDateKey(now);
   const currentWeekStart = addDays(today, -((new Date(`${today}T00:00:00Z`).getUTCDay() + 6) % 7));
   return dateKey >= currentWeekStart && dateKey <= addDays(currentWeekStart, 6);
+}
+function isPastOrCurrentDate(dateKey, now = Date.now()) {
+  return validDateKey(dateKey) && dateKey <= attendanceDateKey(now);
 }
 export function attendanceMinutesForDate(entries, dateKey, now = Date.now()) {
   if (!validDateKey(dateKey)) throw new Error('Data pontajului este invalidă.');
@@ -236,7 +242,7 @@ export default async function handler(req, res) {
     if (req.method === 'GET' && !isLeadership && req.query?.view !== 'own') return json(res, 403, { error: 'Only callsigns 001-020 can view department attendance records' });
     const now = Date.now();
     const reviewDateKey = String(req.query?.date || attendanceDateKey(now));
-    if (activeAttendanceView && !isCurrentWeekDate(reviewDateKey, now)) return json(res, 400, { error: 'Alege o zi din săptămâna curentă.' });
+    if (activeAttendanceView && !isPastOrCurrentDate(reviewDateKey, now)) return json(res, 400, { error: 'Alege o zi din trecut sau ziua curentă.' });
     if (!attendanceRedis.isConfigured) {
       if (req.method === 'GET')       return json(res, 200, { entries: isLeadership && req.query?.view !== 'own' ? {} : [], activeEntries: [], members: [], reviewStates: {}, configured: false });
       return json(res, 503, { error: 'Pontajele online nu sunt configurate.' });
@@ -293,6 +299,56 @@ export default async function handler(req, res) {
         open.canceledBy = requesterId;
         await writeAttendanceData(targetId, normalized.entries);
         return json(res, 200, { success: true });
+      }
+      if (action === 'review-entry') {
+        if (!isLeadership) return json(res, 403, { error: 'Only callsigns 001-020 can review attendance records' });
+        const targetId = String(req.body?.targetDiscordId || '').trim();
+        const entryStart = Number(req.body?.entryStart);
+        const dateKey = String(req.body?.dateKey || '');
+        const status = req.body?.status;
+        if (!Number.isFinite(entryStart)) return json(res, 400, { error: 'Pontajul selectat este invalid.' });
+        if (!['validated', 'canceled', 'unreviewed'].includes(status)) return json(res, 400, { error: 'Starea pontajului este invalidă.' });
+        if (!isPastOrCurrentDate(dateKey, now)) return json(res, 400, { error: 'Alege o zi din trecut sau ziua curentă.' });
+        const target = members.find(row => String(row[19] || '').trim() === targetId);
+        if (!targetId || !target) return json(res, 404, { error: 'Membrul pentru actualizarea pontajului nu a fost găsit.' });
+        const targetData = await readAttendanceData(targetId);
+        const normalized = closeExpiredAttendanceEntries(targetData, now);
+        const entry = normalized.entries.find(item => item.start === entryStart);
+        if (!entry || !attendanceHasEntryOnDate([entry], dateKey)) return json(res, 404, { error: 'Pontajul selectat nu există în ziua aleasă.' });
+        entry.canceled = status === 'canceled';
+        entry.validated = status === 'validated';
+        if (entry.canceled) {
+          if (entry.end == null) entry.end = now;
+          entry.canceledAt = now;
+          entry.canceledBy = requesterId;
+        } else {
+          delete entry.canceledAt;
+          delete entry.canceledBy;
+        }
+        if (entry.validated) {
+          entry.validatedAt = new Date(now).toISOString();
+          entry.validatedBy = requesterId;
+        } else {
+          delete entry.validatedAt;
+          delete entry.validatedBy;
+        }
+        const saved = await writeAttendanceData(targetId, normalized.entries);
+        const minutes = attendanceMinutesForDate(saved, dateKey, now);
+        let warning = '';
+        if (isCurrentWeekDate(dateKey, now)) {
+          if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON && !process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+            warning = `Pontajul a fost salvat și totalul recalculat (${minutes} min), dar documentul nu este configurat pentru sincronizare.`;
+          } else {
+            try {
+              const sheets = await sheetsClient();
+              await writeAttendanceToSheet(sheets, String(target[3] || '').trim(), dateKey, minutes);
+            } catch (error) {
+              console.error('Attendance sheet update after review failed:', error);
+              warning = `Pontajul a fost salvat și totalul recalculat (${minutes} min), dar documentul nu s-a putut sincroniza: ${error.message}`;
+            }
+          }
+        }
+        return json(res, 200, { success: true, entry: saved.find(item => item.start === entryStart), minutes, warning });
       }
 
       const data = await readAttendanceData(requesterId);

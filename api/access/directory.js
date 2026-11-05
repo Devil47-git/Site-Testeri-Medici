@@ -142,7 +142,7 @@ export default async function handler(req, res) {
       console.error('Discord avatar Redis read failed:', error);
       return new Map();
     });
-    const result = members.filter(row => String(row[3] || '').trim() && (activityView || relevantMember(row) || isLeadership(row))).map(row => {
+    const result = members.filter(row => String(row[3] || '').trim() && (relevantMember(row) || isLeadership(row))).map(row => {
       const discordId = String(row[19] || '').trim();
       const storedGrant = grantsByDiscord.get(discordId);
       const functions = functionsForMember(callsignNumber(row[2]), row[10]);

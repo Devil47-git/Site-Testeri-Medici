@@ -898,6 +898,10 @@ function attendanceAddDays(dateKey, days) {
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
 }
+function attendanceWeekDates(dateKey = activeAttendanceDate) {
+  const start = attendanceWeekStart(dateKey);
+  return ATTENDANCE_DAYS.map((_, index) => attendanceAddDays(start, index));
+}
 function attendanceMinutes(entry, now = Date.now()) {
   if (entry.canceled) return 0;
   const end = entry.end == null ? now : Number(entry.end);
@@ -1041,7 +1045,7 @@ function attendanceDateEntries(entries, dateKey) {
   return entries.filter(entry => {
     const start = Number(entry.start);
     const end = entry.end == null ? now : Number(entry.end);
-    return !entry.canceled && (attendanceDateKey(start) === dateKey || (start < endOfDay && end > startOfDay));
+    return start < endOfDay && end > startOfDay;
   });
 }
 function attendanceMinutesForDateClient(entries, dateKey, now = Date.now()) {
@@ -1055,31 +1059,45 @@ function attendanceMinutesForDateClient(entries, dateKey, now = Date.now()) {
   }, 0);
   return Math.floor(milliseconds / 60000);
 }
-function activeAttendanceStatusLabel(status) {
-  return status === 'validated' ? 'Validat' : status === 'unvalidated' ? 'Nevalidat' : 'Nevalidat încă';
+function attendanceEntryMinutesForDate(entry, dateKey, now = Date.now()) {
+  if (entry.canceled) return 0;
+  const startOfDay = bucharestDayStart(dateKey);
+  const endOfDay = bucharestDayStart(attendanceAddDays(dateKey, 1));
+  const start = Math.max(Number(entry.start), startOfDay);
+  const end = Math.min(entry.end == null ? now : Number(entry.end), endOfDay);
+  return end > start ? Math.floor((end - start) / 60000) : 0;
 }
 function renderActiveAttendanceView() {
   if (!hasLeadershipCallsign(currentUser)) return '<section class="panel view-panel"><p class="empty-state">Camera este disponibilă doar conducerii.</p></section>';
-  const dates = attendanceWeekDates();
-  if (!dates.includes(activeAttendanceDate)) activeAttendanceDate = attendanceDateKey(Date.now());
+  const now = Date.now();
+  const dates = attendanceWeekDates(activeAttendanceDate);
   const selectedIndex = attendanceDayIndex(activeAttendanceDate);
+  const today = attendanceDateKey(Date.now());
+  const currentWeekStart = attendanceWeekStart(today);
+  const selectedWeekStart = attendanceWeekStart(activeAttendanceDate);
+  const canGoForward = selectedWeekStart < currentWeekStart;
   const dayTabs = dates.map((dateKey, index) => {
     const label = new Intl.DateTimeFormat('ro-RO', { timeZone: 'Europe/Bucharest', day: '2-digit', month: '2-digit' }).format(new Date(`${dateKey}T12:00:00Z`));
-    return `<button type="button" class="active-attendance-day${dateKey === activeAttendanceDate ? ' is-selected' : ''}" data-attendance-date="${dateKey}" aria-pressed="${dateKey === activeAttendanceDate}" ${activeAttendanceBusy || attendanceLoadPending ? 'disabled' : ''}><strong>${ATTENDANCE_DAYS[index]}</strong><span>${label}</span></button>`;
+    return `<button type="button" class="active-attendance-day${dateKey === activeAttendanceDate ? ' is-selected' : ''}" data-attendance-date="${dateKey}" aria-pressed="${dateKey === activeAttendanceDate}" ${dateKey > today || activeAttendanceBusy || attendanceLoadPending ? 'disabled' : ''}><strong>${ATTENDANCE_DAYS[index]}</strong><span>${label}</span></button>`;
   }).join('');
   const members = [...attendanceDepartmentMembers].sort((first, second) => callsignNumber(first.callsign) - callsignNumber(second.callsign));
-  const rows = members.flatMap(member => {
-    const entries = attendanceEntriesFor(member);
-    if (!attendanceDateEntries(entries, activeAttendanceDate).length) return [];
-    const minutes = attendanceMinutesForDateClient(entries, activeAttendanceDate, now);
-    const review = attendanceReviewStates[activeAttendanceDate]?.[member.discordId];
-    const status = review?.status || '';
-    return [`<tr><td>${escapeHtml(normalizeCallsign(member.callsign))}</td><td>${escapeHtml(member.name || '—')}</td><td>${attendanceFormatMinutes(minutes)}</td><td><span class="active-attendance-state">${activeAttendanceStatusLabel(status)}</span></td><td><div class="active-attendance-review"><button class="outline active-attendance-validate${status === 'validated' ? ' is-selected' : ''}" type="button" data-attendance-review="validated" data-attendance-member="${escapeHtml(member.discordId)}" aria-pressed="${status === 'validated'}" ${activeAttendanceBusy || attendanceLoadPending ? 'disabled' : ''}>✓ Validat</button><button class="outline active-attendance-unvalidate${status === 'unvalidated' ? ' is-selected' : ''}" type="button" data-attendance-review="unvalidated" data-attendance-member="${escapeHtml(member.discordId)}" aria-pressed="${status === 'unvalidated'}" ${activeAttendanceBusy || attendanceLoadPending ? 'disabled' : ''}>✓ Nevalidat</button></div></td></tr>`];
-  }).join('');
+  const rows = members.flatMap(member => attendanceDateEntries(attendanceEntriesFor(member), activeAttendanceDate)
+    .sort((first, second) => Number(first.start) - Number(second.start))
+    .map(entry => {
+      const validated = entry.validated === true && !entry.canceled;
+      const status = entry.canceled ? 'Anulat' : validated ? 'Validat' : 'Nevalidat';
+      const clockOut = entry.canceled ? 'Anulat' : entry.end == null ? 'În desfășurare' : attendanceTime(entry.end);
+      const duration = entry.canceled ? '0 min' : attendanceFormatMinutes(attendanceEntryMinutesForDate(entry, activeAttendanceDate, now));
+      const attributes = `data-attendance-member="${escapeHtml(member.discordId)}" data-attendance-start="${Number(entry.start)}" ${activeAttendanceBusy || attendanceLoadPending ? 'disabled' : ''}`;
+      return `<tr class="${entry.canceled ? 'is-canceled' : ''}"><td>${escapeHtml(normalizeCallsign(member.callsign))}</td><td>${escapeHtml(member.name || '—')}</td><td>${attendanceTime(entry.start)}</td><td>${clockOut}${entry.autoClosed ? ' · Închis automat' : ''}</td><td>${duration}</td><td><span class="active-attendance-state${entry.canceled ? ' is-canceled' : validated ? ' is-validated' : ''}">${status}</span></td><td><div class="active-attendance-review"><label class="active-attendance-check active-attendance-validate"><input type="checkbox" data-attendance-review="validated" ${attributes} ${validated ? 'checked' : ''}><span>Validat</span></label><label class="active-attendance-check active-attendance-cancel"><input type="checkbox" data-attendance-review="canceled" ${attributes} ${entry.canceled ? 'checked' : ''}><span>Anulat</span></label></div></td></tr>`;
+    })).join('');
   const emptyMessage = attendanceLoadPending ? 'Se încarcă pontajele...' : attendanceSyncError ? escapeHtml(attendanceSyncError) : 'Nu există pontaje în ziua selectată.';
   const disabled = !attendanceRecordsLoaded || attendanceLoadPending || activeAttendanceBusy || Boolean(attendanceSyncError) || !rows;
   const dateLabel = `${ATTENDANCE_DAYS[selectedIndex]} ${new Intl.DateTimeFormat('ro-RO', { timeZone: 'Europe/Bucharest', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(`${activeAttendanceDate}T12:00:00Z`))}`;
-  return `<section class="panel active-attendance-panel"><div class="panel-head"><div><p class="eyebrow">PONTAJE PE ZILE</p><h2>Pontaje active</h2><p class="muted">Pontajele tuturor membrilor din ziua selectată și totalul minutelor lucrate.</p></div><button class="primary" id="attendance-docs-sync" type="button" ${disabled ? 'disabled' : ''}>Adăugare pontaje docs</button></div><div class="active-attendance-days" role="group" aria-label="Selectează ziua săptămânii">${dayTabs}</div><p class="active-attendance-date">${escapeHtml(dateLabel)}</p><p class="active-attendance-message muted" id="active-attendance-message" role="status" aria-live="polite">${escapeHtml(activeAttendanceMessage || (attendanceLoadPending ? 'Se sincronizează pontajele...' : ''))}</p><div class="attendance-recent-table-wrap"><table class="attendance-recent-table active-attendance-table"><thead><tr><th>CALLSIGN</th><th>NUME</th><th>TOTAL ZI</th><th>STARE</th><th>VALIDARE</th></tr></thead><tbody>${rows || `<tr><td colspan="5" class="attendance-recent-empty">${emptyMessage}</td></tr>`}</tbody></table></div></section>`;
+  const weekLabel = attendanceWeekLabel(selectedWeekStart, attendanceAddDays(selectedWeekStart, 6));
+  const dayTotal = members.reduce((total, member) => total + attendanceMinutesForDateClient(attendanceEntriesFor(member), activeAttendanceDate, now), 0);
+  const sheetSyncAllowed = selectedWeekStart === currentWeekStart;
+  return `<section class="panel active-attendance-panel"><div class="panel-head"><div><p class="eyebrow">PONTAJE PE ZILE</p><h2>Pontaje</h2><p class="muted">Fiecare pontaj deschis în ziua selectată este afișat separat, inclusiv sesiunile închise și anulate.</p></div><button class="primary" id="attendance-docs-sync" type="button" ${disabled || !sheetSyncAllowed ? 'disabled' : ''}>Sincronizează documentul</button></div><div class="active-attendance-week-nav"><button type="button" class="outline" data-attendance-week="-1" ${activeAttendanceBusy || attendanceLoadPending ? 'disabled' : ''}>← Săptămâna anterioară</button><strong>${weekLabel}</strong><button type="button" class="outline" data-attendance-week="1" ${!canGoForward || activeAttendanceBusy || attendanceLoadPending ? 'disabled' : ''}>Săptămâna următoare →</button></div><div class="active-attendance-days" role="group" aria-label="Selectează ziua săptămânii">${dayTabs}</div><div class="active-attendance-day-summary"><strong>${escapeHtml(dateLabel)}</strong><span>Total neanulat: ${dayTotal} min</span></div><p class="active-attendance-message muted" id="active-attendance-message" role="status" aria-live="polite">${escapeHtml(activeAttendanceMessage || (attendanceLoadPending ? 'Se sincronizează pontajele...' : !sheetSyncAllowed ? 'Pontajele istorice pot fi consultate; sincronizarea documentului este disponibilă pentru săptămâna curentă.' : ''))}</p><div class="attendance-recent-table-wrap"><table class="attendance-recent-table active-attendance-table"><thead><tr><th>CALLSIGN</th><th>NUME</th><th>CLOCK-IN</th><th>CLOCK-OUT</th><th>DURATĂ</th><th>STARE</th><th>VALIDARE / ANULARE</th></tr></thead><tbody>${rows || `<tr><td colspan="7" class="attendance-recent-empty">${emptyMessage}</td></tr>`}</tbody></table></div></section>`;
 }
 function refreshActiveAttendanceView() {
   if (window.history.state?.view !== 'active-attendance') return;
@@ -1094,9 +1112,18 @@ function wireActiveAttendanceEvents() {
     loadAttendanceRecords(true, { view: 'active', dateKey: activeAttendanceDate });
     refreshActiveAttendanceView();
   }));
-  viewContent.querySelectorAll('[data-attendance-review]').forEach(button => button.addEventListener('click', event => {
+  viewContent.querySelectorAll('[data-attendance-week]').forEach(button => button.addEventListener('click', event => {
+    const weekStart = attendanceAddDays(attendanceWeekStart(activeAttendanceDate), Number(event.currentTarget.dataset.attendanceWeek) * 7);
+    const today = attendanceDateKey(Date.now());
+    activeAttendanceDate = weekStart > today ? today : weekStart;
+    activeAttendanceMessage = '';
+    loadAttendanceRecords(true, { view: 'active', dateKey: activeAttendanceDate });
+    refreshActiveAttendanceView();
+  }));
+  viewContent.querySelectorAll('[data-attendance-review]').forEach(input => input.addEventListener('change', event => {
     const target = event.currentTarget;
-    updateAttendanceReview(target.dataset.attendanceMember, target.dataset.attendanceReview);
+    const status = target.checked ? target.dataset.attendanceReview : 'unreviewed';
+    updateAttendanceReview(target.dataset.attendanceMember, Number(target.dataset.attendanceStart), status);
   }));
   viewContent.querySelector('#attendance-docs-sync')?.addEventListener('click', syncSelectedAttendanceDay);
   attendanceTimer = setInterval(async () => {
@@ -1120,20 +1147,28 @@ async function submitAttendanceDocs(action, details = {}) {
   if (!response.ok) throw new Error(payload.error || 'Pontajele nu au putut fi sincronizate în document.');
   return payload;
 }
-async function updateAttendanceReview(targetDiscordId, status) {
+async function updateAttendanceReview(targetDiscordId, entryStart, status) {
   if (activeAttendanceBusy) return;
   const dateKey = activeAttendanceDate;
   activeAttendanceBusy = true;
-  activeAttendanceMessage = 'Se actualizează pontajul în document...';
+  activeAttendanceMessage = 'Se actualizează pontajul...';
   refreshActiveAttendanceView();
   try {
-    const payload = await submitAttendanceDocs('sync-docs', { targetDiscordId, status, dateKey });
-    attendanceReviewStates[dateKey] ||= {};
-    attendanceReviewStates[dateKey][targetDiscordId] = payload.review;
-    activeAttendanceMessage = `Pontajul a fost ${status === 'validated' ? 'validat' : 'marcat nevalidat'} și sincronizat (${payload.review.minutes} minute).`;
+    const payload = await submitAttendanceDocs('review-entry', { targetDiscordId, entryStart, status, dateKey });
+    const entry = attendanceEntriesByDiscordId[targetDiscordId]?.find(item => Number(item.start) === entryStart);
+    if (entry) {
+      entry.canceled = status === 'canceled';
+      entry.validated = status === 'validated';
+      if (!entry.canceled) {
+        delete entry.canceledAt;
+        delete entry.canceledBy;
+      }
+    }
+    const stateLabel = status === 'validated' ? 'validat' : status === 'canceled' ? 'anulat' : 'nevalidat';
+    activeAttendanceMessage = payload.warning || `Pontajul a fost ${stateLabel}; totalul zilei a fost recalculat (${payload.minutes} min).`;
   } catch (error) {
-    console.error('Attendance document sync failed:', error);
-    activeAttendanceMessage = error.message || 'Pontajul nu a putut fi sincronizat în document.';
+    console.error('Attendance review update failed:', error);
+    activeAttendanceMessage = error.message || 'Pontajul nu a putut fi actualizat.';
   } finally {
     activeAttendanceBusy = false;
     refreshActiveAttendanceView();

@@ -206,6 +206,20 @@ test('only callsigns 001-020 can read department-wide weekly attendance', async 
   assert.equal(rankOnly.statusCode, 403);
 });
 
+test('activity directory excludes non-member label and role rows', async () => {
+  const placeholders = ['NUME RANK', 'HELPER IN TESTE', 'HELPER', 'MODERATOR', 'ADMINISTRATOR', 'SUPERVIZOR']
+    .map((label, index) => row(label, label, `placeholder-${index}`));
+  sheetRows.push(...placeholders);
+  try {
+    const result = await callDirectory('leadership-id', 'activity');
+    assert.equal(result.statusCode, 200);
+    assert.equal(result.payload.members.length, 3);
+    assert.equal(result.payload.members.some(member => placeholders.some(placeholder => placeholder[3] === member.name)), false);
+  } finally {
+    sheetRows.splice(-placeholders.length);
+  }
+});
+
 test('the separate live timer still supports start and stop without manual weekly edits', async () => {
   const key = 'site-testeri-medici:attendance:member-id';
   redisValues.set(key, JSON.stringify({ entries: [], manualEntries: [{ id: 'legacy', minutes: 90 }] }));
@@ -280,6 +294,76 @@ test('active attendance view returns member names and validation state for a sel
   assert.equal(result.statusCode, 200);
   assert.ok(result.payload.members.some(member => member.discordId === 'member-id' && member.name === 'Membru'));
   assert.deepEqual(result.payload.reviewStates[dateKey]['member-id'], review);
+});
+
+test('leadership can validate, cancel, and restore an individual attendance entry', async () => {
+  const dateKey = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Bucharest', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  const start = Date.now() - 120000;
+  const end = Date.now() - 60000;
+  const key = 'site-testeri-medici:attendance:member-id';
+  redisValues.set(key, JSON.stringify([{ start, end }]));
+
+  const validated = await callAttendance('POST', 'leadership-id', {
+    action: 'review-entry',
+    targetDiscordId: 'member-id',
+    entryStart: start,
+    dateKey,
+    status: 'validated'
+  });
+  assert.equal(validated.statusCode, 200);
+  assert.equal(validated.payload.minutes, 1);
+  assert.equal(JSON.parse(redisValues.get(key))[0].validated, true);
+
+  const canceled = await callAttendance('POST', 'leadership-id', {
+    action: 'review-entry',
+    targetDiscordId: 'member-id',
+    entryStart: start,
+    dateKey,
+    status: 'canceled'
+  });
+  assert.equal(canceled.statusCode, 200);
+  assert.equal(canceled.payload.minutes, 0);
+  assert.equal(JSON.parse(redisValues.get(key))[0].canceled, true);
+  assert.equal(JSON.parse(redisValues.get(key))[0].validated, undefined);
+
+  const restored = await callAttendance('POST', 'leadership-id', {
+    action: 'review-entry',
+    targetDiscordId: 'member-id',
+    entryStart: start,
+    dateKey,
+    status: 'validated'
+  });
+  assert.equal(restored.statusCode, 200);
+  assert.equal(restored.payload.minutes, 1);
+  assert.equal(JSON.parse(redisValues.get(key))[0].canceled, undefined);
+  assert.equal(JSON.parse(redisValues.get(key))[0].validated, true);
+
+  const openStart = Date.now() - 30000;
+  redisValues.set(key, JSON.stringify([{ start: openStart, end: null }]));
+  const canceledOpen = await callAttendance('POST', 'leadership-id', {
+    action: 'review-entry',
+    targetDiscordId: 'member-id',
+    entryStart: openStart,
+    dateKey,
+    status: 'canceled'
+  });
+  assert.equal(canceledOpen.statusCode, 200);
+  assert.equal(Number.isFinite(JSON.parse(redisValues.get(key))[0].end), true);
+  assert.equal(JSON.parse(redisValues.get(key))[0].canceled, true);
+});
+
+test('active attendance view allows selecting previous dates but rejects future dates', async () => {
+  const today = new Date();
+  const previousDate = new Date(today);
+  previousDate.setDate(today.getDate() - 7);
+  const formatDate = date => new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Bucharest', year: 'numeric', month: '2-digit', day: '2-digit' }).format(date);
+  const previous = await callAttendance('GET', 'leadership-id', {}, { view: 'active', date: formatDate(previousDate) });
+  assert.equal(previous.statusCode, 200);
+
+  const futureDate = new Date(today);
+  futureDate.setDate(today.getDate() + 1);
+  const future = await callAttendance('GET', 'leadership-id', {}, { view: 'active', date: formatDate(futureDate) });
+  assert.equal(future.statusCode, 400);
 });
 
 test('only leadership can request attendance document updates', async () => {
