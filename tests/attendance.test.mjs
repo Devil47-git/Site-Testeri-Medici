@@ -113,7 +113,7 @@ test('weekly attendance columns keep document labels and text values unchanged',
   zeroRow[14] = 0;
   assert.equal(attendanceWeeksFromRows(headers, zeroRow)[0].value, '0');
   assert.deepEqual(attendanceWeeksFromRows([], attendanceSheetRows[5]), []);
-  assert.deepEqual(attendanceWeeksByCallsign(attendanceSheetRows).get('101'), attendanceWeeksFromRows(headers, attendanceSheetRows[5]));
+  assert.deepEqual(attendanceWeeksByCallsign(attendanceSheetRows).get('101').weeks, attendanceWeeksFromRows(headers, attendanceSheetRows[5]));
 });
 
 test('daily attendance minimums follow callsign leadership and member grade', () => {

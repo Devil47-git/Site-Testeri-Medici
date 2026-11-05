@@ -7,8 +7,8 @@ import { UpstashRedis } from '../../lib/storage/upstash-redis.js';
 const RESIDENT_TESTER_PATTERN = /S\.?\s*M\.?\s*U\.?\s*L\.?\s*S\.?|MOTO|A\.?\s*L\.?\s*S\.?|PILOT/;
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
-const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:U400';
-const ATTENDANCE_RANGE = process.env.GOOGLE_ATTENDANCE_RANGE || "'EVIDENTA ACTIVITATE'!A1:U400";
+const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:U1000';
+const ATTENDANCE_RANGE = process.env.GOOGLE_ATTENDANCE_RANGE || "'EVIDENTA ACTIVITATE'!A1:U1000";
 const GRANTS_RANGE = process.env.GOOGLE_GRANTS_RANGE || 'GRANTS!A1:F';
 const avatarRedis = new UpstashRedis();
 function isLeadership(row) { return isLeadershipRow(row); }
@@ -73,6 +73,14 @@ export function attendanceWeeksFromRows(headers, row) {
       : [];
   });
 }
+const DAY_HEADER_PATTERN = /^(LUNI|MARTI|MIERCURI|JOI|VINERI|SAMBATA|DUMINICA)/;
+export function attendanceDaysFromRows(headers, row) {
+  if (!Array.isArray(headers) || !Array.isArray(row)) return [];
+  return headers.flatMap((header, index) => {
+    const label = normalize(header).replace(/\s+/g, '');
+    return DAY_HEADER_PATTERN.test(label) ? [{ label: String(header).trim(), value: String(row[index] ?? '').trim() }] : [];
+  });
+}
 export function attendanceWeeksByCallsign(rows) {
   if (!Array.isArray(rows)) throw new Error('Attendance sheet rows are invalid');
   const normalizeHeader = value => normalize(value).replace(/[^A-Z0-9]/g, '');
@@ -82,7 +90,7 @@ export function attendanceWeeksByCallsign(rows) {
   const callsignIndex = headers.findIndex(value => normalizeHeader(value) === 'NRINSIGNA');
   return new Map(rows.slice(headerIndex + 1).filter(Array.isArray).flatMap(row => {
     const callsign = callsignNumber(row[callsignIndex]);
-    return callsign ? [[String(callsign), attendanceWeeksFromRows(headers, row)]] : [];
+    return callsign ? [[String(callsign), { weeks: attendanceWeeksFromRows(headers, row), days: attendanceDaysFromRows(headers, row) }]] : [];
   }));
 }
 export default async function handler(req, res) {
@@ -131,7 +139,8 @@ export default async function handler(req, res) {
           callsign: String(attendanceMember[2] || '').trim(),
           rank: String(attendanceMember[4] || '').trim(),
           attendanceMinimumMinutes: attendanceMinimumMinutes(attendanceMember[2], attendanceMember[4]),
-          attendanceWeeks: attendanceByCallsign.get(String(callsignNumber(attendanceMember[2]))) || []
+          attendanceWeeks: attendanceByCallsign.get(String(callsignNumber(attendanceMember[2])))?.weeks || [],
+          attendanceDays: attendanceByCallsign.get(String(callsignNumber(attendanceMember[2])))?.days || []
         }] : [],
         syncedAt: new Date().toISOString()
       });
@@ -142,7 +151,7 @@ export default async function handler(req, res) {
       console.error('Discord avatar Redis read failed:', error);
       return new Map();
     });
-    const result = members.filter(row => String(row[3] || '').trim() && (relevantMember(row) || isLeadership(row))).map(row => {
+    const result = members.filter(row => String(row[3] || '').trim() && (relevantMember(row) || isLeadership(row) || (activityView && callsignNumber(row[2]) >= 1 && callsignNumber(row[2]) <= 650))).map(row => {
       const discordId = String(row[19] || '').trim();
       const storedGrant = grantsByDiscord.get(discordId);
       const functions = functionsForMember(callsignNumber(row[2]), row[10]);
@@ -155,7 +164,8 @@ export default async function handler(req, res) {
         grantedTests, grantMode: storedGrant?.grantMode || '', updatedAt: storedGrant?.updatedAt || '', lastSeen: storedGrant?.lastSeen || '',
         attendanceMinimumMinutes: attendanceMinimumMinutes(row[2], row[4]),
         isTester: ['leadership', 'primar', 'specialist'].includes(gradeGroupFor(callsignNumber(row[2]))) || (callsignNumber(row[2]) >= 301 && callsignNumber(row[2]) <= 340 && RESIDENT_TESTER_PATTERN.test(normalize(functions))) || /TESTER/.test(normalize(functions)) || grantsByDiscord.has(discordId),
-        attendanceWeeks: activityView ? attendanceByCallsign.get(String(callsignNumber(row[2]))) || [] : undefined
+        attendanceWeeks: activityView ? attendanceByCallsign.get(String(callsignNumber(row[2])))?.weeks || [] : undefined,
+        attendanceDays: activityView ? attendanceByCallsign.get(String(callsignNumber(row[2])))?.days || [] : undefined
       };
     });
     return json(res, 200, { members: result, syncedAt: new Date().toISOString() });

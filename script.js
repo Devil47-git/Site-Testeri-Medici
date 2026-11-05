@@ -218,6 +218,7 @@ function bonusTesterCallsign(value) {
 /** @param {Member} user @returns {boolean} */
 function isLeadershipUser(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return Boolean(user?.accessLevel === 'leadership' || user?.isConducere || user?.isLeadership || (cs >= 1 && cs <= 20)); }
 function canViewTestersRoom(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return cs >= 1 && cs <= 399; }
+function isExemptFromAttendance(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return cs >= 1 && cs <= 4; }
 function hasLeadershipCallsign(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return cs >= 1 && cs <= 20; }
 /** @param {Member} member @returns {boolean} */
 function memberIsLeadership(member) { return isLeadershipUser(member); }
@@ -607,7 +608,7 @@ function renderAvailableTestsSubmenu() {
   const bonusNav = document.querySelector('#bonuses-nav');
   if (bonusNav) bonusNav.hidden = !hasLeadershipCallsign(currentUser);
   const attendanceNav = document.querySelector('#attendance-nav');
-  if (attendanceNav) attendanceNav.hidden = !currentUser?.discordId;
+  if (attendanceNav) attendanceNav.hidden = !currentUser?.discordId || isExemptFromAttendance(currentUser);
   const activityNav = document.querySelector('#activity-nav');
   if (activityNav) activityNav.hidden = !hasLeadershipCallsign(currentUser);
   const activeAttendanceNav = document.querySelector('#active-attendance-nav');
@@ -1147,7 +1148,7 @@ function renderActiveAttendanceView() {
     const label = new Intl.DateTimeFormat('ro-RO', { timeZone: 'Europe/Bucharest', day: '2-digit', month: '2-digit' }).format(new Date(`${dateKey}T12:00:00Z`));
     return `<button type="button" class="active-attendance-day${dateKey === activeAttendanceDate ? ' is-selected' : ''}" data-attendance-date="${dateKey}" aria-pressed="${dateKey === activeAttendanceDate}" ${dateKey > today || activeAttendanceBusy || attendanceLoadPending ? 'disabled' : ''}><strong>${ATTENDANCE_DAYS[index]}</strong><span>${label}</span></button>`;
   }).join('');
-  const members = [...attendanceDepartmentMembers].sort((first, second) => callsignNumber(first.callsign) - callsignNumber(second.callsign));
+  const members = attendanceDepartmentMembers.filter(member => !isExemptFromAttendance(member)).sort((first, second) => callsignNumber(first.callsign) - callsignNumber(second.callsign));
   const rows = members.flatMap(member => attendanceDateEntries(attendanceEntriesFor(member), activeAttendanceDate)
     .sort((first, second) => Number(first.start) - Number(second.start))
     .map(entry => {
@@ -1389,7 +1390,7 @@ async function loadActivityEntries() {
   }
   activityDataLoaded = true;
   await loadAttendanceRecords(true, { render: false });
-  if (window.history.state?.view === 'activity') viewContent.innerHTML = renderActivityView();
+  if (window.history.state?.view === 'activity') { viewContent.innerHTML = renderActivityView(); applyActivitySearch(); }
   else if (window.history.state?.view === 'activity-member') {
     const member = directoryMembers.find(item => normalizeCallsign(item.callsign) === window.history.state.callsign);
     if (member) viewContent.innerHTML = renderActivityMemberView(member);
@@ -1410,7 +1411,7 @@ function scheduleActivityAttendanceRefresh() {
     }
     if (attendanceLoadPending) return;
     await loadAttendanceRecords(true, { render: false });
-    if (window.history.state?.view === 'activity') viewContent.innerHTML = renderActivityView();
+    if (window.history.state?.view === 'activity') { viewContent.innerHTML = renderActivityView(); applyActivitySearch(); }
   }, 30000);
 }
 async function loadOwnActivityEntries() {
@@ -1431,31 +1432,53 @@ async function loadOwnActivityEntries() {
   await loadAttendanceRecords(false, { render: false });
   renderProfileData();
 }
+let activitySearch = '';
+function activityDayCells(member, today, target) {
+  const docDays = Array.isArray(member.attendanceDays) ? member.attendanceDays : [];
+  const live = attendanceWeekData(today, attendanceEntriesFor(member)).minutes;
+  const todayIndex = attendanceDayIndex(today);
+  return ATTENDANCE_DAYS.map((_, index) => {
+    const raw = docDays.length === 7 ? String(docDays[index]?.value ?? '').trim() : '';
+    const parsed = parseFloat(raw.replace(',', '.'));
+    const hasDoc = docDays.length === 7;
+    const text = hasDoc ? (raw || '0') : String(live[index] || 0);
+    const minutes = hasDoc ? (Number.isFinite(parsed) ? parsed : 0) : (live[index] || 0);
+    const numeric = !hasDoc || (raw !== '' && /^[\d.,]+$/.test(raw));
+    const state = target ? (minutes >= target ? 'meets-minimum' : 'below-minimum') : '';
+    const percent = target ? Math.min(100, Math.round(minutes / target * 100)) : 0;
+    return `<td class="activity-day-value ${state}${index === todayIndex ? ' is-today' : ''}"><strong>${escapeHtml(text)}${numeric ? ' min' : ''}</strong>${target ? `<span class="activity-bar"><i style="width:${percent}%"></i></span>` : '<small>fără minim</small>'}</td>`;
+  }).join('');
+}
 function renderActivityView() {
   if (!hasLeadershipCallsign(currentUser)) return '<section class="panel view-panel"><p class="empty-state">Camera este disponibilă doar conducerii.</p></section>';
-  const members = sortMembers(directoryMembers.filter(member => String(member?.name || '').trim()));
+  const members = sortMembers(directoryMembers.filter(member => String(member?.name || '').trim() && callsignNumber(member.callsign) >= 1 && callsignNumber(member.callsign) <= 650));
   const weeks = members.find(member => member.attendanceWeeks?.length)?.attendanceWeeks || [];
   const today = attendanceDateKey(Date.now());
   const weekStart = attendanceWeekStart(today);
+  const todayIndex = attendanceDayIndex(today);
   const dayHeaders = ATTENDANCE_DAYS.map((day, index) => {
     const date = attendanceAddDays(weekStart, index).split('-').reverse().slice(0, 2).join('.');
-    return `<th>${day}<small>${date}</small></th>`;
+    return `<th class="${index === todayIndex ? 'is-today' : ''}"><span>${day}</span><small>${date}</small></th>`;
   }).join('');
   const headers = weeks.map(week => `<th>${escapeHtml(week.label)}</th>`).join('');
   const rows = members.map(member => {
     const values = activityWeeksFor(member);
     const target = Number(member.attendanceMinimumMinutes) || 0;
-    const daily = attendanceWeekData(today, attendanceEntriesFor(member));
-    const dayCells = daily.minutes.map(minutes => {
-      const state = target ? minutes >= target ? 'meets-minimum' : 'below-minimum' : '';
-      return `<td class="activity-day-value ${state}"><strong>${minutes} min</strong><small>${target ? `minim ${target} min` : 'fără minim'}</small></td>`;
-    }).join('');
-    return `<tr><td class="activity-member"><button class="activity-member-link" type="button" data-activity-member="${escapeHtml(normalizeCallsign(member.callsign))}" aria-label="Vezi pontajele pentru ${escapeHtml(member.name)}">${avatarFor(member)}<span><strong>${escapeHtml(normalizeCallsign(member.callsign))}</strong><small>${escapeHtml(member.name)}<br>${escapeHtml(member.rank || '—')}</small></span></button></td><td class="activity-minimum">${target ? `${target} min` : '—'}</td>${dayCells}${weeks.map((week, index) => `<td class="activity-history-value">${escapeHtml(values[index]?.value || '—')}</td>`).join('')}</tr>`;
+    const search = normalizeCallsign(member.callsign) + ' ' + member.name + ' ' + (member.rank || '');
+    return `<tr data-activity-search="${escapeHtml(search.toLowerCase())}"><td class="activity-member"><button class="activity-member-link" type="button" data-activity-member="${escapeHtml(normalizeCallsign(member.callsign))}" aria-label="Vezi pontajele pentru ${escapeHtml(member.name)}">${avatarFor(member)}<span><strong>${escapeHtml(member.name)}</strong><small><b>${escapeHtml(normalizeCallsign(member.callsign))}</b> · ${escapeHtml(member.rank || '—')}</small></span></button></td><td class="activity-minimum">${target ? `${target} min` : '—'}</td>${activityDayCells(member, today, target)}${weeks.map((week, index) => `<td class="activity-history-value">${escapeHtml(values[index]?.value || '—')}</td>`).join('')}</tr>`;
   }).join('');
-  const statusText = activityLoadError ? `Nu s-au putut încărca datele: ${activityLoadError}` : attendanceSyncError ? `Pontajele live nu s-au putut actualiza: ${attendanceSyncError}` : members.length ? `${members.length} membri afișați.` : 'Lista departamentului se încarcă...';
-  return `<section class="panel activity-panel"><div class="panel-head"><div><p class="eyebrow">LISTA DEPARTAMENT</p><h2>Evidență activitate</h2><p class="muted">Pontaj live pe zile, de luni până duminică. Valorile săptămânale istorice sunt preluate din documentul departamentului.</p></div></div><p class="activity-status muted" id="activity-status" role="status" aria-live="polite">${escapeHtml(statusText)}</p><div class="activity-table-wrap"><table class="activity-table"><thead><tr><th>MEMBRU</th><th>MINIM ZILNIC</th>${dayHeaders}${headers}</tr></thead><tbody>${rows || `<tr><td colspan="${weeks.length + 9}">Nu există membri disponibili.</td></tr>`}</tbody></table></div></section>`;
+  const statusText = activityLoadError ? `Nu s-au putut încărca datele: ${activityLoadError}` : attendanceSyncError ? `Pontajele live nu s-au putut actualiza: ${attendanceSyncError}` : members.length ? `${members.length} membri afișați (001–650).` : 'Lista departamentului se încarcă...';
+  return `<section class="panel activity-panel"><div class="panel-head activity-head"><div><p class="eyebrow">LISTA DEPARTAMENT</p><h2>Evidență activitate</h2><p class="muted">Minutele pe zile și totalurile săptămânale sunt preluate din documentul departamentului.</p></div><input class="activity-search" id="activity-search" type="search" placeholder="Caută după nume, callsign sau grad" value="${escapeHtml(activitySearch)}" aria-label="Caută membru"></div><p class="activity-status muted" id="activity-status" role="status" aria-live="polite">${escapeHtml(statusText)}</p><div class="activity-table-wrap"><table class="activity-table"><thead><tr><th>MEMBRU</th><th>MINIM</th>${dayHeaders}${headers}</tr></thead><tbody>${rows || `<tr><td colspan="${weeks.length + 9}">Nu există membri disponibili.</td></tr>`}</tbody></table></div></section>`;
 }
-function renderActivityMemberView(member) {
+function applyActivitySearch() {
+  const query = activitySearch.trim().toLowerCase();
+  document.querySelectorAll('.activity-table tbody tr[data-activity-search]').forEach(row => { row.hidden = Boolean(query) && !row.dataset.activitySearch.includes(query); });
+}
+document.addEventListener('input', event => {
+  if (event.target?.id !== 'activity-search') return;
+  activitySearch = event.target.value;
+  applyActivitySearch();
+});function renderActivityMemberView(member) {
   return `<section class="panel activity-member-panel"><div class="panel-head"><div><p class="eyebrow">PONTAJE MEMBRU</p><h2>${escapeHtml(member.name || 'Membru')}</h2><p class="muted">${escapeHtml(normalizeCallsign(member.callsign))} · ${escapeHtml(member.rank || '—')}</p></div><button class="outline" type="button" data-back-to-activity>← Înapoi la evidență</button></div>${renderAttendanceProfilePanel(member, { loaded: activityDataLoaded })}</section>`;
 }
 function openActivityMember(member, { push = true, previousView: requestedPreviousView } = {}) {
