@@ -1168,3 +1168,6 @@ body.dark-mode .brand-with-logo small::before{width:15px;height:1px;background:l
 .activity-panel .activity-table .meets-minimum .activity-bar i{background:#39a578}
 .activity-panel .activity-table .activity-minimum{color:var(--muted)}
 .activity-panel .activity-table .activity-history-value{background:rgba(84,198,151,.08);border-radius:0}
+
+.activity-panel .activity-table .activity-group-row th{position:static;text-align:left;padding:14px 12px 6px;background:transparent;border:0;border-bottom:2px solid rgba(43,140,255,.45);color:#8fc1ff;font:700 13px 'Space Grotesk';letter-spacing:.8px;text-transform:uppercase}
+.activity-panel .activity-group-row th span{margin-left:8px;padding:2px 9px;border-radius:99px;background:rgba(43,140,255,.2);color:#fff;font-size:10px}

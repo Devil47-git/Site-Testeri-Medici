@@ -982,7 +982,9 @@ function attendanceStartAllowed(timestamp = Date.now()) {
   return hour < 23 || (hour === 23 && minute < 35);
 }
 function attendanceTime(value) {
-  return new Intl.DateTimeFormat('ro-RO', { timeZone: 'Europe/Bucharest', hour: '2-digit', minute: '2-digit' }).format(new Date(value));
+  const step = 5 * 60000;
+  const rounded = Math.round(Number(value) / step) * step;
+  return new Intl.DateTimeFormat('ro-RO', { timeZone: 'Europe/Bucharest', hour: '2-digit', minute: '2-digit' }).format(new Date(Number.isFinite(rounded) ? rounded : value));
 }
 function bucharestDayStart(dateKey) {
   const [year, month, day] = dateKey.split('-').map(Number);
@@ -1461,18 +1463,32 @@ function renderActivityView() {
     return `<th class="${index === todayIndex ? 'is-today' : ''}"><span>${day}</span><small>${date}</small></th>`;
   }).join('');
   const headers = weeks.map(week => `<th>${escapeHtml(week.label)}</th>`).join('');
-  const rows = members.map(member => {
+  const rankGroups = new Map();
+  members.forEach(member => {
+    const rank = String(member.rank || '').trim() || 'Fără grad';
+    const key = rank.toLowerCase();
+    if (!rankGroups.has(key)) rankGroups.set(key, { rank, members: [] });
+    rankGroups.get(key).members.push(member);
+  });
+  const columnCount = weeks.length + 9;
+  const rows = [...rankGroups.values()].map(group => `<tr class="activity-group-row"><th colspan="${columnCount}">${escapeHtml(group.rank)} <span>${group.members.length}</span></th></tr>` + group.members.map(member => {
     const values = activityWeeksFor(member);
     const target = Number(member.attendanceMinimumMinutes) || 0;
     const search = normalizeCallsign(member.callsign) + ' ' + member.name + ' ' + (member.rank || '');
     return `<tr data-activity-search="${escapeHtml(search.toLowerCase())}"><td class="activity-member"><button class="activity-member-link" type="button" data-activity-member="${escapeHtml(normalizeCallsign(member.callsign))}" aria-label="Vezi pontajele pentru ${escapeHtml(member.name)}">${avatarFor(member)}<span><strong>${escapeHtml(member.name)}</strong><small><b>${escapeHtml(normalizeCallsign(member.callsign))}</b> · ${escapeHtml(member.rank || '—')}</small></span></button></td><td class="activity-minimum">${target ? `${target} min` : '—'}</td>${activityDayCells(member, today, target)}${weeks.map((week, index) => `<td class="activity-history-value">${escapeHtml(values[index]?.value || '—')}</td>`).join('')}</tr>`;
-  }).join('');
+  }).join('')).join('');
   const statusText = activityLoadError ? `Nu s-au putut încărca datele: ${activityLoadError}` : attendanceSyncError ? `Pontajele live nu s-au putut actualiza: ${attendanceSyncError}` : members.length ? `${members.length} membri afișați (001–650).` : 'Lista departamentului se încarcă...';
   return `<section class="panel activity-panel"><div class="panel-head activity-head"><div><p class="eyebrow">LISTA DEPARTAMENT</p><h2>Evidență activitate</h2><p class="muted">Minutele pe zile și totalurile săptămânale sunt preluate din documentul departamentului.</p></div><input class="activity-search" id="activity-search" type="search" placeholder="Caută după nume, callsign sau grad" value="${escapeHtml(activitySearch)}" aria-label="Caută membru"></div><p class="activity-status muted" id="activity-status" role="status" aria-live="polite">${escapeHtml(statusText)}</p><div class="activity-table-wrap"><table class="activity-table"><thead><tr><th>MEMBRU</th><th>MINIM</th>${dayHeaders}${headers}</tr></thead><tbody>${rows || `<tr><td colspan="${weeks.length + 9}">Nu există membri disponibili.</td></tr>`}</tbody></table></div></section>`;
 }
 function applyActivitySearch() {
   const query = activitySearch.trim().toLowerCase();
   document.querySelectorAll('.activity-table tbody tr[data-activity-search]').forEach(row => { row.hidden = Boolean(query) && !row.dataset.activitySearch.includes(query); });
+  document.querySelectorAll('.activity-table .activity-group-row').forEach(header => {
+    let next = header.nextElementSibling;
+    let visible = false;
+    while (next && !next.classList.contains('activity-group-row')) { if (!next.hidden) visible = true; next = next.nextElementSibling; }
+    header.hidden = !visible;
+  });
 }
 document.addEventListener('input', event => {
   if (event.target?.id !== 'activity-search') return;

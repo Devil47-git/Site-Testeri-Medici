@@ -266,7 +266,7 @@ test('leadership-only navigation rooms require a leadership callsign', () => {
   const permissionsSource = source.match(/function renderAvailableTestsSubmenu\(\) \{[\s\S]*?^\}/m)?.[0] || '';
   const navigationSource = source.match(/function navigateTo\(view, \{ push = true \} = \{\}\) \{[\s\S]*?^\}/m)?.[0] || '';
   assert.match(permissionsSource, /bonusNav\.hidden = !hasLeadershipCallsign\(currentUser\)/);
-  assert.match(permissionsSource, /attendanceNav\.hidden = !currentUser\?\.discordId/);
+  assert.match(permissionsSource, /attendanceNav\.hidden = !currentUser\?\.discordId \|\| isExemptFromAttendance\(currentUser\)/);
   assert.match(permissionsSource, /activeAttendanceNav\.hidden = !hasLeadershipCallsign\(currentUser\)/);
   assert.match(permissionsSource, /activityNav\.hidden = !hasLeadershipCallsign\(currentUser\)/);
   assert.match(navigationSource, /view === 'bonuses' && !hasLeadershipCallsign\(currentUser\)/);
