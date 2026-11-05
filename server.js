@@ -17,7 +17,6 @@ const SHEET_RANGE = process.env.GOOGLE_SHEET_RANGE || 'LISTA DEPARTAMENT!A:T';
 const sessions = new Map();
 const oauthState = new Map();
 const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.gif': 'image/gif', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml' };
-const GUIDE_SOURCE_URL = 'https://ghidul-departamentului-medical-eight.vercel.app/';
 
 function cookie(req, key) {
   const raw = req.headers.cookie || '';
@@ -225,10 +224,19 @@ async function handleTestDefinitions(req, res) {
 async function handleGuide(req, res) {
   if (req.method !== 'GET') return json(res, 405, { error: 'Method not allowed' });
   try {
-    const html = await fs.readFile(path.join(ROOT, 'guide-original-source.html'), 'utf8');
-    const bundledGuide = html.replace(/(href|src)=(['"])(?!https?:|data:|#|\/)([^'"]+)\2/gi, (_, attribute, quote, resource) => `${attribute}=${quote}/assets/guide/${resource.split('/').map(encodeURIComponent).join('/').replace(/%2F/gi, '/').replace(/%20/gi, '%20')}${quote}`);
-    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' });
-    res.end(bundledGuide);
+    return await (await import('./api/guide.js')).default(req, {
+      setHeader: (name, value) => res.setHeader(name, value),
+      status: code => {
+        res.statusCode = code;
+        return {
+          send: content => res.end(content),
+          json: content => {
+            if (!res.headersSent) res.setHeader('Content-Type', 'application/json; charset=utf-8');
+            res.end(JSON.stringify(content));
+          }
+        };
+      }
+    });
   } catch (error) {
     console.error('Bundled guide could not be loaded:', error);
     return json(res, 500, { error: 'Ghidul oficial nu a putut fi încărcat.' });
