@@ -112,7 +112,7 @@ function refreshCurrentView() {
   renderAvailableTestsSubmenu();
   if (window.history.state?.view === 'test') return;
   if (window.history.state?.view === 'activity-member') {
-    if (!canReviewAttendance(currentUser)) { navigateTo('overview', { push: false }); return; }
+    if (!canViewAttendanceRooms(currentUser)) { navigateTo('overview', { push: false }); return; }
     const callsign = window.history.state.callsign;
     const member = directoryMembers.find(item => normalizeCallsign(item.callsign) === callsign);
     if (member) viewContent.innerHTML = renderActivityMemberView(member);
@@ -221,7 +221,15 @@ function isLeadershipUser(user) { const cs = callsignNumber(user?.csNum || user?
 function canViewTestersRoom(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return cs >= 1 && cs <= 399; }
 function isExemptFromAttendance(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return cs >= 1 && cs <= 4; }
 function hasLeadershipCallsign(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return cs >= 1 && cs <= 20; }
-function canReviewAttendance(user) { return hasLeadershipCallsign(user) || Boolean(user?.canManageAttendance); }
+function canReviewAttendance(user) {
+  if (hasLeadershipCallsign(user) || user?.canManageAttendance) return true;
+  const functions = String(user?.functions || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return functions.split('|').some(value => ['HR', 'HRAV', 'HRHRAV', 'RESURSEUMANE', 'MANAGERHR', 'RESPONSABILHR'].includes(value.replace(/[^A-Z0-9]/g, '')));
+}
+function canViewAttendanceRooms(user) {
+  const callsign = callsignNumber(user?.csNum || user?.callsign || user?.callSign);
+  return canReviewAttendance(user) || (callsign >= 1 && callsign <= 650);
+}
 /** @param {Member} member @returns {boolean} */
 function memberIsLeadership(member) { return isLeadershipUser(member); }
 /** @param {any} value @returns {string} */
@@ -615,11 +623,11 @@ function renderAvailableTestsSubmenu() {
   const bonusNav = document.querySelector('#bonuses-nav');
   if (bonusNav) bonusNav.hidden = !hasLeadershipCallsign(currentUser);
   const attendanceNav = document.querySelector('#attendance-nav');
-  if (attendanceNav) attendanceNav.hidden = !currentUser?.discordId || (isExemptFromAttendance(currentUser) && !currentUser?.canManageAttendance);
+  if (attendanceNav) attendanceNav.hidden = !currentUser?.discordId || !canViewAttendanceRooms(currentUser);
   const activityNav = document.querySelector('#activity-nav');
-  if (activityNav) activityNav.hidden = !canReviewAttendance(currentUser);
+  if (activityNav) activityNav.hidden = !canViewAttendanceRooms(currentUser);
   const activeAttendanceNav = document.querySelector('#active-attendance-nav');
-  if (activeAttendanceNav) activeAttendanceNav.hidden = !canReviewAttendance(currentUser);
+  if (activeAttendanceNav) activeAttendanceNav.hidden = !canViewAttendanceRooms(currentUser);
   const guideNav = document.querySelector('#guide-nav');
   if (guideNav) guideNav.hidden = !hasLeadershipCallsign(currentUser);
   renderGuideSubmenu();
@@ -1229,7 +1237,7 @@ function activityWeeksFor(member) {
   return activityWeeksByDiscordId[member?.discordId] || member?.attendanceWeeks || [];
 }
 function renderAttendanceProfilePanel(member, { loaded = false } = {}) {
-  if (!canReviewAttendance(currentUser) || !member?.discordId) return '';
+  if (!member?.discordId || (!canViewAttendanceRooms(currentUser) && member.discordId !== currentUser?.discordId)) return '';
   const weeks = activityWeeksFor(member);
   const memberLoaded = Object.hasOwn(activityWeeksByDiscordId, member.discordId) || Array.isArray(member.attendanceWeeks);
   const today = attendanceDateKey(Date.now());
@@ -1318,7 +1326,8 @@ function attendanceEntryMinutesForDate(entry, dateKey, now = Date.now()) {
   return end > start ? Math.floor((end - start) / 60000) : 0;
 }
 function renderActiveAttendanceView() {
-  if (!canReviewAttendance(currentUser)) return '<section class="panel view-panel"><p class="empty-state">Camera este disponibilă doar conducerii sau funcției H.R.</p></section>';
+  if (!canViewAttendanceRooms(currentUser)) return '<section class="panel view-panel"><p class="empty-state">Camera este disponibilă membrilor cu callsign 001–650.</p></section>';
+  const canReview = canReviewAttendance(currentUser);
   const now = Date.now();
   const dates = attendanceWeekDates(activeAttendanceDate);
   const selectedIndex = attendanceDayIndex(activeAttendanceDate);
@@ -1330,7 +1339,10 @@ function renderActiveAttendanceView() {
     const label = new Intl.DateTimeFormat('ro-RO', { timeZone: 'Europe/Bucharest', day: '2-digit', month: '2-digit' }).format(new Date(`${dateKey}T12:00:00Z`));
     return `<button type="button" class="active-attendance-day${dateKey === activeAttendanceDate ? ' is-selected' : ''}" data-attendance-date="${dateKey}" aria-pressed="${dateKey === activeAttendanceDate}" ${dateKey > today || activeAttendanceBusy || attendanceLoadPending ? 'disabled' : ''}><strong>${ATTENDANCE_DAYS[index]}</strong><span>${label}</span></button>`;
   }).join('');
-  const members = attendanceDepartmentMembers.filter(member => !isExemptFromAttendance(member)).sort((first, second) => callsignNumber(first.callsign) - callsignNumber(second.callsign));
+  const members = attendanceDepartmentMembers.filter(member => {
+    const callsign = callsignNumber(member.callsign);
+    return callsign >= 1 && callsign <= 650;
+  }).sort((first, second) => callsignNumber(first.callsign) - callsignNumber(second.callsign));
   const rows = members.flatMap(member => attendanceDateEntries(attendanceEntriesFor(member), activeAttendanceDate)
     .sort((first, second) => Number(first.start) - Number(second.start))
     .map(entry => {
@@ -1339,7 +1351,10 @@ function renderActiveAttendanceView() {
       const clockOut = entry.canceled ? 'Anulat' : entry.end == null ? 'În desfășurare' : attendanceTime(entry.end);
       const duration = entry.canceled ? '0 min' : attendanceFormatMinutes(attendanceEntryMinutesForDate(entry, activeAttendanceDate, now));
       const attributes = `data-attendance-member="${escapeHtml(member.discordId)}" data-attendance-start="${Number(entry.start)}" ${activeAttendanceBusy || attendanceLoadPending ? 'disabled' : ''}`;
-      return `<tr class="${entry.canceled ? 'is-canceled' : ''}"><td>${escapeHtml(normalizeCallsign(member.callsign))}</td><td>${escapeHtml(member.name || '—')}</td><td>${attendanceTypeLabel(attendanceTypeForEntry(entry))}</td><td>${attendanceTime(entry.start)}</td><td>${clockOut}${entry.autoClosed ? ' · Închis automat' : ''}</td><td>${duration}</td><td><span class="active-attendance-state${entry.canceled ? ' is-canceled' : validated ? ' is-validated' : ''}">${status}</span></td><td class="active-attendance-review-cell"><div class="active-attendance-review"><label class="active-attendance-check active-attendance-validate"><input type="checkbox" data-attendance-review="validated" ${attributes} ${validated ? 'checked' : ''}><span>Validat</span></label><label class="active-attendance-check active-attendance-cancel"><input type="checkbox" data-attendance-review="canceled" ${attributes} ${entry.canceled ? 'checked' : ''}><span>Anulat</span></label></div></td><td class="active-attendance-edit-cell"><button type="button" class="outline active-attendance-edit" data-attendance-edit data-attendance-member="${escapeHtml(member.discordId)}" data-attendance-start="${Number(entry.start)}" ${activeAttendanceBusy || attendanceLoadPending ? 'disabled' : ''}>✏️ Editează</button></td></tr>`;
+      const reviewControls = canReview
+        ? `<td class="active-attendance-review-cell"><div class="active-attendance-review"><label class="active-attendance-check active-attendance-validate"><input type="checkbox" data-attendance-review="validated" ${attributes} ${validated ? 'checked' : ''}><span>Validat</span></label><label class="active-attendance-check active-attendance-cancel"><input type="checkbox" data-attendance-review="canceled" ${attributes} ${entry.canceled ? 'checked' : ''}><span>Anulat</span></label></div></td><td class="active-attendance-edit-cell"><button type="button" class="outline active-attendance-edit" data-attendance-edit data-attendance-member="${escapeHtml(member.discordId)}" data-attendance-start="${Number(entry.start)}" ${activeAttendanceBusy || attendanceLoadPending ? 'disabled' : ''}>✏️ Editează</button></td>`
+        : '';
+      return `<tr class="${entry.canceled ? 'is-canceled' : ''}"><td>${escapeHtml(normalizeCallsign(member.callsign))}</td><td>${escapeHtml(member.name || '—')}</td><td>${attendanceTypeLabel(attendanceTypeForEntry(entry))}</td><td>${attendanceTime(entry.start)}</td><td>${clockOut}${entry.autoClosed ? ' · Închis automat' : ''}</td><td>${duration}</td><td><span class="active-attendance-state${entry.canceled ? ' is-canceled' : validated ? ' is-validated' : ''}">${status}</span></td>${reviewControls}</tr>`;
     })).join('');
   const emptyMessage = attendanceLoadPending ? 'Se încarcă pontajele...' : attendanceSyncError ? escapeHtml(attendanceSyncError) : 'Nu există pontaje în ziua selectată.';
   const disabled = !attendanceRecordsLoaded || attendanceLoadPending || activeAttendanceBusy || Boolean(attendanceSyncError) || !rows;
@@ -1347,7 +1362,9 @@ function renderActiveAttendanceView() {
   const weekLabel = attendanceWeekLabel(selectedWeekStart, attendanceAddDays(selectedWeekStart, 6));
   const dayTotal = members.reduce((total, member) => total + attendanceMinutesForDateClient(attendanceEntriesFor(member), activeAttendanceDate, now), 0);
   const sheetSyncAllowed = selectedWeekStart === currentWeekStart;
-  return `<section class="panel active-attendance-panel"><div class="panel-head"><div><p class="eyebrow">PONTAJE PE ZILE</p><h2>Pontaje</h2><p class="muted">Fiecare pontaj deschis în ziua selectată este afișat separat, inclusiv sesiunile închise și anulate.</p></div><button class="primary" id="attendance-docs-sync" type="button" ${disabled || !sheetSyncAllowed ? 'disabled' : ''}>Sincronizează documentul</button></div><div class="active-attendance-week-nav"><button type="button" class="outline" data-attendance-week="-1" ${activeAttendanceBusy || attendanceLoadPending ? 'disabled' : ''}>← Săptămâna anterioară</button><strong>${weekLabel}</strong><button type="button" class="outline" data-attendance-week="1" ${!canGoForward || activeAttendanceBusy || attendanceLoadPending ? 'disabled' : ''}>Săptămâna următoare →</button></div><div class="active-attendance-days" role="group" aria-label="Selectează ziua săptămânii">${dayTabs}</div><div class="active-attendance-day-summary"><strong>${escapeHtml(dateLabel)}</strong><span>Total neanulat: ${dayTotal} min</span></div><p class="active-attendance-message muted" id="active-attendance-message" role="status" aria-live="polite">${escapeHtml(activeAttendanceMessage || (attendanceLoadPending ? 'Se sincronizează pontajele...' : !sheetSyncAllowed ? 'Pontajele istorice pot fi consultate; sincronizarea documentului este disponibilă pentru săptămâna curentă.' : ''))}</p><div class="attendance-recent-table-wrap"><table class="attendance-recent-table active-attendance-table"><thead><tr><th>CALLSIGN</th><th>NUME</th><th>TIP</th><th>CLOCK-IN</th><th>CLOCK-OUT</th><th>DURATĂ</th><th>STARE</th><th>VALIDARE / ANULARE</th><th>EDITARE</th></tr></thead><tbody>${rows || `<tr><td colspan="9" class="attendance-recent-empty">${emptyMessage}</td></tr>`}</tbody></table></div></section>`;
+  const actionHeaders = canReview ? '<th>VALIDARE / ANULARE</th><th>EDITARE</th>' : '';
+  const syncButton = canReview ? `<button class="primary" id="attendance-docs-sync" type="button" ${disabled || !sheetSyncAllowed ? 'disabled' : ''}>Sincronizează documentul</button>` : '';
+  return `<section class="panel active-attendance-panel"><div class="panel-head"><div><p class="eyebrow">PONTAJE PE ZILE</p><h2>Pontaje</h2><p class="muted">Fiecare pontaj deschis în ziua selectată este afișat separat, inclusiv sesiunile închise și anulate.</p></div>${syncButton}</div><div class="active-attendance-week-nav"><button type="button" class="outline" data-attendance-week="-1" ${activeAttendanceBusy || attendanceLoadPending ? 'disabled' : ''}>← Săptămâna anterioară</button><strong>${weekLabel}</strong><button type="button" class="outline" data-attendance-week="1" ${!canGoForward || activeAttendanceBusy || attendanceLoadPending ? 'disabled' : ''}>Săptămâna următoare →</button></div><div class="active-attendance-days" role="group" aria-label="Selectează ziua săptămânii">${dayTabs}</div><div class="active-attendance-day-summary"><strong>${escapeHtml(dateLabel)}</strong><span>Total neanulat: ${dayTotal} min</span></div><p class="active-attendance-message muted" id="active-attendance-message" role="status" aria-live="polite">${escapeHtml(activeAttendanceMessage || (attendanceLoadPending ? 'Se sincronizează pontajele...' : !sheetSyncAllowed ? 'Pontajele istorice pot fi consultate; sincronizarea documentului este disponibilă pentru săptămâna curentă.' : ''))}</p><div class="attendance-recent-table-wrap"><table class="attendance-recent-table active-attendance-table"><thead><tr><th>CALLSIGN</th><th>NUME</th><th>TIP</th><th>CLOCK-IN</th><th>CLOCK-OUT</th><th>DURATĂ</th><th>STARE</th>${actionHeaders}</tr></thead><tbody>${rows || `<tr><td colspan="${canReview ? 9 : 7}" class="attendance-recent-empty">${emptyMessage}</td></tr>`}</tbody></table></div></section>`;
 }
 function refreshActiveAttendanceView() {
   if (window.history.state?.view !== 'active-attendance') return;
@@ -1665,7 +1682,7 @@ function scheduleActivityAttendanceRefresh() {
   }, 30000);
 }
 async function loadOwnActivityEntries() {
-  if (!canReviewAttendance(currentUser) || !currentUser?.discordId) return;
+  if (!currentUser?.discordId) return;
   activityLoadError = '';
   try {
     const response = await fetch(`/api/access/directory?requesterId=${encodeURIComponent(currentUser.discordId)}&view=attendance`);
@@ -1742,7 +1759,7 @@ function activityWeekCell(value, dailyMinimum) {
   return `<td class="activity-history-value ${state}"${metrics.percentage == null ? '' : ` title="Media: ${Math.round(metrics.average)} min din ${dailyMinimum} min pe ${7 - metrics.leaveDays} zile lucrate"`}><strong>${displayedValue}</strong>${average}</td>`;
 }
 function renderActivityView() {
-  if (!canReviewAttendance(currentUser)) return '<section class="panel view-panel"><p class="empty-state">Camera este disponibilă doar conducerii sau funcției H.R.</p></section>';
+  if (!canViewAttendanceRooms(currentUser)) return '<section class="panel view-panel"><p class="empty-state">Camera este disponibilă membrilor cu callsign 001–650.</p></section>';
   const members = sortMembers(directoryMembers.filter(member => String(member?.name || '').trim() && callsignNumber(member.callsign) >= 1 && callsignNumber(member.callsign) <= 650));
   const weeks = members.find(member => member.attendanceWeeks?.length)?.attendanceWeeks || [];
   const today = attendanceDateKey(Date.now());
@@ -1803,7 +1820,7 @@ document.addEventListener('input', event => {
   return `<section class="panel activity-member-panel"><div class="panel-head"><div><p class="eyebrow">PONTAJE MEMBRU</p><h2>${escapeHtml(member.name || 'Membru')}</h2><p class="muted">${escapeHtml(normalizeCallsign(member.callsign))} · ${escapeHtml(member.rank || '—')}</p></div><button class="outline" type="button" data-back-to-activity>← Înapoi la evidență</button></div>${renderAttendanceProfilePanel(member, { loaded: activityDataLoaded })}</section>`;
 }
 function openActivityMember(member, { push = true, previousView: requestedPreviousView } = {}) {
-  if (!canReviewAttendance(currentUser)) return;
+  if (!canViewAttendanceRooms(currentUser)) return;
   const callsign = normalizeCallsign(member.callsign);
   const currentState = window.history.state || {};
   const previousView = requestedPreviousView || (currentState.view === 'activity-member' ? currentState.previousView : document.querySelector('.nav-item.active')?.dataset.view || 'activity');
@@ -3719,7 +3736,7 @@ document.querySelector('#invite-btn').onclick = async () => {
 };
 viewContent.addEventListener('click', event => {
   const memberButton = event.target.closest('[data-activity-member]');
-  if (memberButton && canReviewAttendance(currentUser)) {
+  if (memberButton && canViewAttendanceRooms(currentUser)) {
     const callsign = normalizeCallsign(memberButton.dataset.activityMember);
     const member = directoryMembers.find(item => normalizeCallsign(item.callsign) === callsign);
     if (member) openActivityMember(member);
@@ -3808,8 +3825,8 @@ const labels = { overview: 'Profilul tău', testers: 'Testerii departamentului',
 function navigateTo(view, { push = true } = {}) {
   if (view === 'bonuses' && !hasLeadershipCallsign(currentUser)) view = 'overview';
   if (view === 'attendance' && !currentUser?.discordId) view = 'overview';
-  if (view === 'active-attendance' && !canReviewAttendance(currentUser)) view = 'overview';
-  if (view === 'activity' && !canReviewAttendance(currentUser)) view = 'overview';
+  if (view === 'active-attendance' && !canViewAttendanceRooms(currentUser)) view = 'overview';
+  if (view === 'activity' && !canViewAttendanceRooms(currentUser)) view = 'overview';
   if (view === 'guide' && !hasLeadershipCallsign(currentUser)) view = 'overview';
   if (view === 'testers' && !canViewTestersRoom(currentUser)) view = 'overview';
   if (!labels[view]) return;
@@ -3831,7 +3848,7 @@ function navigateTo(view, { push = true } = {}) {
   document.querySelector('#section-label').textContent = 'Site Testeri';
   document.querySelector('.sidebar').classList.remove('open');
   renderView(view);
-  if (view === 'overview' && canReviewAttendance(currentUser)) loadOwnActivityEntries();
+  if (view === 'overview') loadOwnActivityEntries();
 }
 document.querySelectorAll('[data-view]').forEach(btn => btn.addEventListener('click', () => navigateTo(btn.dataset.view)));
 document.querySelector('#guide-submenu')?.addEventListener('click', event => {
@@ -3988,12 +4005,10 @@ async function enterApp(user) {
     await fetchGlobalTestDefinitions();
     await loadDirectory();
     await loadRemoteGrants();
-    if (canReviewAttendance(currentUser)) {
-      if (requestedActivityCallsign) await loadActivityEntries();
-      else await loadOwnActivityEntries();
-    }
+    if (requestedActivityCallsign && canViewAttendanceRooms(currentUser)) await loadActivityEntries();
+    else await loadOwnActivityEntries();
     if (navigationRevision !== initialNavigationRevision) return;
-    if (requestedActivityCallsign && canReviewAttendance(currentUser)) {
+    if (requestedActivityCallsign && canViewAttendanceRooms(currentUser)) {
       const member = directoryMembers.find(item => normalizeCallsign(item.callsign) === requestedActivityCallsign);
       if (member) openActivityMember(member, { push: false, previousView: requestedRoute.previousView || 'activity' });
       else navigateTo('activity', { push: false });

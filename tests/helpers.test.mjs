@@ -198,11 +198,11 @@ test('CVV keeps its label while using the same weekly calculation as CO', () => 
   assert.match(activityWeekCell('CVV', 80), />CVV<\/strong>/);
 });
 
-test('activity directory members open an attendance detail page for leadership and H.R.', () => {
+test('activity directory members open an attendance detail page for department members', () => {
   assert.match(source, /data-activity-member="\$\{escapeHtml\(normalizeCallsign\(member\.callsign\)\)\}"/);
   assert.match(source, /function renderActivityMemberView\(member\)/);
   assert.match(source, /activityWeeksFor\(member\)/);
-  assert.match(source, /if \(memberButton && canReviewAttendance\(currentUser\)\)/);
+  assert.match(source, /if \(memberButton && canViewAttendanceRooms\(currentUser\)\)/);
   assert.match(source, /function openActivityMember\(member, \{ push = true, previousView: requestedPreviousView \} = \{\}\)/);
   assert.match(source, /view: 'activity-member', callsign/);
   assert.match(storageSource, /view: 'activity-member', callsign: decodeURIComponent/);
@@ -211,19 +211,19 @@ test('activity directory members open an attendance detail page for leadership a
 test('member profiles and activity table show weekly values from the department sheet', () => {
   assert.match(indexSource, /<section id="profile-attendance"><\/section>/);
   assert.match(source, /function renderAttendanceProfilePanel\(member, \{ loaded = false \} = \{\}\)/);
-  assert.match(source, /if \(!canReviewAttendance\(currentUser\) \|\| !member\?\.discordId\) return ''/);
+  assert.match(source, /if \(!member\?\.discordId \|\| \(!canViewAttendanceRooms\(currentUser\) && member\.discordId !== currentUser\?\.discordId\)\) return ''/);
   assert.match(source, /renderAttendanceProfilePanel\(profile, \{\s*loaded: activityDataLoaded/);
   assert.match(source, /renderAttendanceProfilePanel\(member, \{ loaded: activityDataLoaded \}\)/);
   assert.match(source, /async function loadOwnActivityEntries\(\)[\s\S]*?view=attendance/);
   assert.match(source, /async function loadActivityEntries\(\)[\s\S]*?view=activity/);
-  assert.match(source, /if \(view === 'overview' && canReviewAttendance\(currentUser\)\) loadOwnActivityEntries\(\)/);
+  assert.match(source, /if \(view === 'overview'\) loadOwnActivityEntries\(\)/);
   assert.match(source, /const headers = activityShowWeeks \? weeks\.map\(week =>/);
   assert.doesNotMatch(source, /data-attendance-manual-form|manual-add|manual-update|manual-delete/);
   const directorySource = readFileSync(join(here, '..', 'api', 'access', 'directory.js'), 'utf8');
   assert.match(directorySource, /attendanceWeeksFromRows/);
   assert.match(directorySource, /const ATTENDANCE_RANGE = process\.env\.GOOGLE_ATTENDANCE_RANGE/);
   assert.match(directorySource, /attendanceWeeks: activityView \? attendanceByCallsign\.get/);
-  assert.match(directorySource, /if \(attendanceView && !canReviewAttendance\) return json\(res, 403/);
+  assert.doesNotMatch(directorySource, /if \(attendanceView && !canReviewAttendance\) return json\(res, 403/);
   assert.match(directorySource, /attendanceMember = members\.find\(row => String\(row\[19\] \|\| ''\)\.trim\(\) === requesterId\)/);
   assert.match(source, /function attendanceChartHtml\(week, title = 'Pontaj săptămânal'\)/);
   assert.match(source, /ULTIMELE 30 DE PONTAJE/);
@@ -308,16 +308,16 @@ test('only callsigns 001 through 020 can reset test counts', () => {
   assert.equal(canResetTestCounts(['', '', '021']), false);
   assert.equal(canResetTestCounts(['', '', '100', '', 'Director']), false);
 });
-test('attendance management navigation is available to leadership and H.R.', () => {
+test('attendance rooms are available to all department members but review actions stay restricted', () => {
   const permissionsSource = source.match(/function renderAvailableTestsSubmenu\(\) \{[\s\S]*?^\}/m)?.[0] || '';
   const navigationSource = source.match(/function navigateTo\(view, \{ push = true \} = \{\}\) \{[\s\S]*?^\}/m)?.[0] || '';
   assert.match(permissionsSource, /bonusNav\.hidden = !hasLeadershipCallsign\(currentUser\)/);
-  assert.match(permissionsSource, /attendanceNav\.hidden = !currentUser\?\.discordId \|\| \(isExemptFromAttendance\(currentUser\) && !currentUser\?\.canManageAttendance\)/);
-  assert.match(permissionsSource, /activeAttendanceNav\.hidden = !canReviewAttendance\(currentUser\)/);
-  assert.match(permissionsSource, /activityNav\.hidden = !canReviewAttendance\(currentUser\)/);
+  assert.match(permissionsSource, /attendanceNav\.hidden = !currentUser\?\.discordId \|\| !canViewAttendanceRooms\(currentUser\)/);
+  assert.match(permissionsSource, /activeAttendanceNav\.hidden = !canViewAttendanceRooms\(currentUser\)/);
+  assert.match(permissionsSource, /activityNav\.hidden = !canViewAttendanceRooms\(currentUser\)/);
   assert.match(navigationSource, /view === 'bonuses' && !hasLeadershipCallsign\(currentUser\)/);
-  assert.match(navigationSource, /view === 'active-attendance' && !canReviewAttendance\(currentUser\)/);
-  assert.match(navigationSource, /view === 'activity' && !canReviewAttendance\(currentUser\)/);
+  assert.match(navigationSource, /view === 'active-attendance' && !canViewAttendanceRooms\(currentUser\)/);
+  assert.match(navigationSource, /view === 'activity' && !canViewAttendanceRooms\(currentUser\)/);
   const testResultsSource = readFileSync(join(here, '..', 'api', 'access', 'test-results.js'), 'utf8');
   assert.match(testResultsSource, /requesterCallsign < 1 \|\| requesterCallsign > 20/);
   assert.match(indexSource, /data-view="attendance"[\s\S]*data-view="active-attendance"[\s\S]*data-view="activity"/);
@@ -325,13 +325,15 @@ test('attendance management navigation is available to leadership and H.R.', () 
   const activeAttendanceViewSource = source.match(/function renderActiveAttendanceView\(\) \{[\s\S]*?^\}/m)?.[0] || '';
   assert.doesNotMatch(attendanceViewSource, /Pontaje active în acest moment/);
   assert.match(activeAttendanceViewSource, /<h2>Pontaje<\/h2>/);
-  assert.match(activeAttendanceViewSource, /<th>CALLSIGN<\/th><th>NUME<\/th><th>TIP<\/th><th>CLOCK-IN<\/th><th>CLOCK-OUT<\/th><th>DURATĂ<\/th><th>STARE<\/th><th>VALIDARE \/ ANULARE<\/th><th>EDITARE<\/th>/);
-  assert.match(activeAttendanceViewSource, /Sincronizează documentul/);
+  assert.match(activeAttendanceViewSource, /const canReview = canReviewAttendance\(currentUser\)/);
+  assert.match(activeAttendanceViewSource, /const actionHeaders = canReview \? '<th>VALIDARE \/ ANULARE<\/th><th>EDITARE<\/th>' : ''/);
+  assert.match(activeAttendanceViewSource, /const syncButton = canReview \?/);
   assert.doesNotMatch(activeAttendanceViewSource, /Pontaje active în acest moment|START|Anulează/);
   assert.match(source, /status === 'canceled' \? window\.prompt\('Scrie motivul anulării pontajului \(obligatoriu\):'\)/);
   assert.match(source, /updateAttendanceReview\(targetDiscordId, entryStart, status, reason = ''\)/);
   assert.match(source, /\.\.\.\(action === 'cancel' \? \{ reason \} : \{\}\)/);
   assert.match(source, /function renderActiveAttendanceView\(\)/);
+  assert.match(source, /function canViewAttendanceRooms\(user\)/);
   assert.match(source, /function attendanceMinutesForDateClient\(/);
   assert.match(source, /submitAttendanceDocs\('sync-docs-all'/);
 });
@@ -741,6 +743,8 @@ test('H.R. function enables attendance management without leadership test access
   assert.equal(canManageAttendance('P.R.'), false);
   assert.equal(accessFor(101, 'H.R.', 'Medic Specialist', '').allowedTests.length, 0);
   assert.equal(canReviewAttendance({ csNum: 101, canManageAttendance: true }), true);
+  assert.equal(canReviewAttendance({ csNum: 101, functions: 'H.R.' }), true);
+  assert.equal(canReviewAttendance({ csNum: 101, functions: 'Resurse Umane' }), true);
   assert.equal(canReviewAttendance({ csNum: 101 }), false);
 });
 

@@ -199,9 +199,12 @@ test('individual attendance sync matches TEST PONTAJE names and writes daily min
   assert.deepEqual(updates[0].requestBody.values, [[135]]);
 });
 
-test('only leadership can read weekly attendance values from Sheets', async () => {
+test('every department member can read only their own weekly attendance values from Sheets', async () => {
   const memberRequest = await callDirectory('member-id', 'attendance');
-  assert.equal(memberRequest.statusCode, 403);
+  assert.equal(memberRequest.statusCode, 200);
+  assert.equal(memberRequest.payload.members.length, 1);
+  assert.equal(memberRequest.payload.members[0].discordId, 'member-id');
+  assert.equal(memberRequest.payload.members[0].attendanceWeeks[0].value, '134/2CO');
 
   const first = await callDirectory('leadership-id', 'attendance');
   assert.equal(first.statusCode, 200);
@@ -213,6 +216,10 @@ test('only leadership can read weekly attendance values from Sheets', async () =
   attendanceSheetRows[4][14] = 'updated in document';
   const refreshed = await callDirectory('leadership-id', 'attendance');
   assert.equal(refreshed.payload.members[0].attendanceWeeks[0].value, 'updated in document');
+
+  const hr = await callDirectory('hr-id', 'attendance');
+  assert.equal(hr.statusCode, 200);
+  assert.equal(hr.payload.members[0].discordId, 'hr-id');
 });
 
 test('department directory reads member entry dates from column J', async () => {
@@ -221,7 +228,7 @@ test('department directory reads member entry dates from column J', async () => 
   assert.equal(response.payload.members.find(member => member.discordId === 'member-id').joinedAt, '01.02.2024');
 });
 
-test('leadership and H.R. can read department-wide weekly attendance', async () => {
+test('department members with callsigns 001-650 can read department-wide weekly attendance', async () => {
   const leadership = await callDirectory('leadership-id', 'activity');
   assert.equal(leadership.statusCode, 200);
   assert.equal(leadership.payload.members.length, 4);
@@ -232,7 +239,8 @@ test('leadership and H.R. can read department-wide weekly attendance', async () 
   assert.equal(hr.payload.members.length, 4);
 
   const rankOnly = await callDirectory('rank-only-id', 'activity');
-  assert.equal(rankOnly.statusCode, 403);
+  assert.equal(rankOnly.statusCode, 200);
+  assert.equal(rankOnly.payload.members.length, 4);
 });
 
 test('activity directory excludes non-member label and role rows', async () => {
@@ -298,14 +306,16 @@ test('HR and PR timers require assigned functions and keep their entry types', a
   }
 });
 
-test('members can read only their own live attendance while leadership can read all records', async () => {
+test('members can read their own live attendance and callsigns 001-650 can view department attendance', async () => {
   redisValues.set('site-testeri-medici:attendance:member-id', JSON.stringify([{ start: 1000, end: 2000 }]));
   const member = await callAttendance('GET', 'member-id', {}, { view: 'own' });
   assert.equal(member.statusCode, 200);
   assert.deepEqual(member.payload.entries, [{ start: 1000, end: 2000 }]);
 
-  const memberDepartment = await callAttendance('GET', 'member-id');
-  assert.equal(memberDepartment.statusCode, 403);
+  const memberDepartment = await callAttendance('GET', 'member-id', {}, { view: 'active' });
+  assert.equal(memberDepartment.statusCode, 200);
+  assert.equal(memberDepartment.payload.entries['member-id'][0].start, 1000);
+  assert.ok(Array.isArray(memberDepartment.payload.members));
 
   const leadership = await callAttendance('GET', 'leadership-id', {}, { view: 'own' });
   assert.equal(leadership.statusCode, 200);
@@ -582,6 +592,11 @@ test('only leadership and H.R. can request attendance document updates', async (
     status: 'validated'
   });
   assert.equal(result.statusCode, 403);
+
+  const memberActiveView = await callAttendance('GET', 'member-id', {}, { view: 'active' });
+  assert.equal(memberActiveView.statusCode, 200);
+  assert.ok(memberActiveView.payload.entries);
+  assert.ok(Array.isArray(memberActiveView.payload.members));
 
   const hr = await callAttendance('GET', 'hr-id', {}, { view: 'active', date: today });
   assert.equal(hr.statusCode, 200);

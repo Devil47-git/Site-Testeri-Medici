@@ -346,13 +346,14 @@ export default async function handler(req, res) {
     if (!requester) return json(res, 403, { error: 'Requester is not a department member' });
     const requesterCallsign = callsignNumber(requester[2]);
     const canReviewAttendance = (requesterCallsign >= 1 && requesterCallsign <= 20) || canManageAttendance(requester[10] || '');
+    const canViewAttendanceRooms = canReviewAttendance || (requesterCallsign >= 1 && requesterCallsign <= 650);
     const activeAttendanceView = req.method === 'GET' && req.query?.view === 'active';
-    if (req.method === 'GET' && !canReviewAttendance && req.query?.view !== 'own') return json(res, 403, { error: 'Only callsigns 001-020 or H.R. can view department attendance records' });
+    if (req.method === 'GET' && !canViewAttendanceRooms && req.query?.view !== 'own') return json(res, 403, { error: 'Only department members with callsigns 001-650 can view department attendance records' });
     const now = Date.now();
     const reviewDateKey = String(req.query?.date || attendanceDateKey(now));
     if (activeAttendanceView && !isPastOrCurrentDate(reviewDateKey, now)) return json(res, 400, { error: 'Alege o zi din trecut sau ziua curentă.' });
     if (!attendanceRedis.isConfigured) {
-      if (req.method === 'GET')       return json(res, 200, { entries: canReviewAttendance && req.query?.view !== 'own' ? {} : [], activeEntries: [], members: [], reviewStates: {}, configured: false });
+      if (req.method === 'GET')       return json(res, 200, { entries: canViewAttendanceRooms && req.query?.view !== 'own' ? {} : [], activeEntries: [], members: [], reviewStates: {}, configured: false });
       return json(res, 503, { error: 'Pontajele online nu sunt configurate.' });
     }
     if (req.method === 'GET' && req.query?.view === 'own') {
@@ -548,7 +549,7 @@ export default async function handler(req, res) {
       return json(res, 200, { success: true, entries: saved });
     }
 
-    if (!canReviewAttendance) {
+    if (!canReviewAttendance && !activeAttendanceView) {
       const ownData = await readAttendanceData(requesterId);
       const normalized = closeExpiredAttendanceEntries(ownData, Date.now());
       if (normalized.closed) await writeAttendanceData(requesterId, normalized.entries);

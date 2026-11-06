@@ -113,9 +113,10 @@ export default async function handler(req, res) {
     const activityView = req.query?.view === 'activity';
     const attendanceView = req.query?.view === 'attendance';
     const allMembersView = req.query?.view === 'members';
-    const canReviewAttendance = (callsignNumber(requester[2]) >= 1 && callsignNumber(requester[2]) <= LEADERSHIP_MAX) || canManageAttendance(requester[10] || '');
-    if (activityView && !canReviewAttendance) return json(res, 403, { error: 'Only callsigns 001-020 or H.R. can view the activity directory' });
-    if (attendanceView && !canReviewAttendance) return json(res, 403, { error: 'Only callsigns 001-020 or H.R. can view attendance records' });
+    const requesterCallsign = callsignNumber(requester[2]);
+    const canReviewAttendance = (requesterCallsign >= 1 && requesterCallsign <= LEADERSHIP_MAX) || canManageAttendance(requester[10] || '');
+    const canViewAttendanceRooms = canReviewAttendance || (requesterCallsign >= 1 && requesterCallsign <= 650);
+    if (activityView && !canViewAttendanceRooms) return json(res, 403, { error: 'Only department members with callsigns 001-650 can view the activity directory' });
     const attendanceByCallsign = activityView || attendanceView
       ? attendanceWeeksByCallsign(await readPublic(ATTENDANCE_RANGE))
       : new Map();
