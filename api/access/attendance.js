@@ -1,5 +1,5 @@
 import '../../lib/config.js';
-import { attendanceTypesForFunctions, callsignNumber, normalize } from '../../lib/access/shared.js';
+import { attendanceTypesForFunctions, canManageAttendance, callsignNumber, normalize } from '../../lib/access/shared.js';
 import { UpstashRedis } from '../../lib/storage/upstash-redis.js';
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
@@ -340,14 +340,14 @@ export default async function handler(req, res) {
     const requester = members.find(row => String(row[19] || '').trim() === requesterId);
     if (!requester) return json(res, 403, { error: 'Requester is not a department member' });
     const requesterCallsign = callsignNumber(requester[2]);
-    const isLeadership = requesterCallsign >= 1 && requesterCallsign <= 20;
+    const canReviewAttendance = (requesterCallsign >= 1 && requesterCallsign <= 20) || canManageAttendance(requester[10] || '');
     const activeAttendanceView = req.method === 'GET' && req.query?.view === 'active';
-    if (req.method === 'GET' && !isLeadership && req.query?.view !== 'own') return json(res, 403, { error: 'Only callsigns 001-020 can view department attendance records' });
+    if (req.method === 'GET' && !canReviewAttendance && req.query?.view !== 'own') return json(res, 403, { error: 'Only callsigns 001-020 or H.R. can view department attendance records' });
     const now = Date.now();
     const reviewDateKey = String(req.query?.date || attendanceDateKey(now));
     if (activeAttendanceView && !isPastOrCurrentDate(reviewDateKey, now)) return json(res, 400, { error: 'Alege o zi din trecut sau ziua curentă.' });
     if (!attendanceRedis.isConfigured) {
-      if (req.method === 'GET')       return json(res, 200, { entries: isLeadership && req.query?.view !== 'own' ? {} : [], activeEntries: [], members: [], reviewStates: {}, configured: false });
+      if (req.method === 'GET')       return json(res, 200, { entries: canReviewAttendance && req.query?.view !== 'own' ? {} : [], activeEntries: [], members: [], reviewStates: {}, configured: false });
       return json(res, 503, { error: 'Pontajele online nu sunt configurate.' });
     }
     if (req.method === 'GET' && req.query?.view === 'own') {
@@ -359,7 +359,7 @@ export default async function handler(req, res) {
       const action = req.body?.action;
       const now = Date.now();
       if (action === 'sync-docs' || action === 'sync-docs-all') {
-        if (!isLeadership) return json(res, 403, { error: 'Only callsigns 001-020 can update attendance in Google Sheets' });
+        if (!canReviewAttendance) return json(res, 403, { error: 'Only callsigns 001-020 or H.R. can update attendance in Google Sheets' });
         const dateKey = String(req.body?.dateKey || '');
         if (!isCurrentWeekDate(dateKey, now)) return json(res, 400, { error: 'Alege o zi din săptămâna curentă.' });
         if (action === 'sync-docs') {
@@ -393,7 +393,7 @@ export default async function handler(req, res) {
         return json(res, 200, { success: true, updated });
       }
       if (action === 'cancel') {
-        if (!isLeadership) return json(res, 403, { error: 'Only callsigns 001-020 can cancel attendance records' });
+        if (!canReviewAttendance) return json(res, 403, { error: 'Only callsigns 001-020 or H.R. can cancel attendance records' });
         const targetId = String(req.body?.targetDiscordId || '').trim();
         const target = members.find(row => String(row[19] || '').trim() === targetId);
         if (!targetId || !target) return json(res, 404, { error: 'Membrul pentru anularea pontajului nu a fost găsit.' });
@@ -409,7 +409,7 @@ export default async function handler(req, res) {
         return json(res, 200, { success: true });
       }
       if (action === 'edit-entry') {
-        if (!isLeadership) return json(res, 403, { error: 'Only callsigns 001-020 can edit attendance records' });
+        if (!canReviewAttendance) return json(res, 403, { error: 'Only callsigns 001-020 or H.R. can edit attendance records' });
         const targetId = String(req.body?.targetDiscordId || '').trim();
         const entryStart = Number(req.body?.entryStart);
         const reason = String(req.body?.reason || '').trim();
@@ -460,7 +460,7 @@ export default async function handler(req, res) {
         return json(res, 200, { success: true, entry: savedEntry, minutes, warning });
       }
       if (action === 'review-entry') {
-        if (!isLeadership) return json(res, 403, { error: 'Only callsigns 001-020 can review attendance records' });
+        if (!canReviewAttendance) return json(res, 403, { error: 'Only callsigns 001-020 or H.R. can review attendance records' });
         const targetId = String(req.body?.targetDiscordId || '').trim();
         const entryStart = Number(req.body?.entryStart);
         const dateKey = String(req.body?.dateKey || '');
@@ -539,7 +539,7 @@ export default async function handler(req, res) {
       return json(res, 200, { success: true, entries: saved });
     }
 
-    if (!isLeadership) {
+    if (!canReviewAttendance) {
       const ownData = await readAttendanceData(requesterId);
       const normalized = closeExpiredAttendanceEntries(ownData, Date.now());
       if (normalized.closed) await writeAttendanceData(requesterId, normalized.entries);

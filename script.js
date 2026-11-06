@@ -7,7 +7,7 @@
  * @property {string} [updatedAt]
  * @property {number} [lastSeen]
  *
- * @typedef {Grant & { csNum?: number|string, isTester?: boolean, isLeadership?: boolean, isConducere?: boolean, functions?: string, functionIds?: string[], joinedAt?: string, accessLevel?: string, allowedTests?: string[], eligibleSpecializations?: string[], rank?: string, lastName?: string }} Member
+ * @typedef {Grant & { csNum?: number|string, isTester?: boolean, isLeadership?: boolean, isConducere?: boolean, canManageAttendance?: boolean, functions?: string, functionIds?: string[], joinedAt?: string, accessLevel?: string, allowedTests?: string[], eligibleSpecializations?: string[], rank?: string, lastName?: string }} Member
  *
  * @typedef {Object} TestDefinition
  * @property {string} name
@@ -112,6 +112,7 @@ function refreshCurrentView() {
   renderAvailableTestsSubmenu();
   if (window.history.state?.view === 'test') return;
   if (window.history.state?.view === 'activity-member') {
+    if (!canReviewAttendance(currentUser)) { navigateTo('overview', { push: false }); return; }
     const callsign = window.history.state.callsign;
     const member = directoryMembers.find(item => normalizeCallsign(item.callsign) === callsign);
     if (member) viewContent.innerHTML = renderActivityMemberView(member);
@@ -220,6 +221,7 @@ function isLeadershipUser(user) { const cs = callsignNumber(user?.csNum || user?
 function canViewTestersRoom(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return cs >= 1 && cs <= 399; }
 function isExemptFromAttendance(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return cs >= 1 && cs <= 4; }
 function hasLeadershipCallsign(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return cs >= 1 && cs <= 20; }
+function canReviewAttendance(user) { return hasLeadershipCallsign(user) || Boolean(user?.canManageAttendance); }
 /** @param {Member} member @returns {boolean} */
 function memberIsLeadership(member) { return isLeadershipUser(member); }
 /** @param {any} value @returns {string} */
@@ -613,11 +615,11 @@ function renderAvailableTestsSubmenu() {
   const bonusNav = document.querySelector('#bonuses-nav');
   if (bonusNav) bonusNav.hidden = !hasLeadershipCallsign(currentUser);
   const attendanceNav = document.querySelector('#attendance-nav');
-  if (attendanceNav) attendanceNav.hidden = !currentUser?.discordId || isExemptFromAttendance(currentUser);
+  if (attendanceNav) attendanceNav.hidden = !currentUser?.discordId || (isExemptFromAttendance(currentUser) && !currentUser?.canManageAttendance);
   const activityNav = document.querySelector('#activity-nav');
-  if (activityNav) activityNav.hidden = !hasLeadershipCallsign(currentUser);
+  if (activityNav) activityNav.hidden = !canReviewAttendance(currentUser);
   const activeAttendanceNav = document.querySelector('#active-attendance-nav');
-  if (activeAttendanceNav) activeAttendanceNav.hidden = !hasLeadershipCallsign(currentUser);
+  if (activeAttendanceNav) activeAttendanceNav.hidden = !canReviewAttendance(currentUser);
   const guideNav = document.querySelector('#guide-nav');
   if (guideNav) guideNav.hidden = !hasLeadershipCallsign(currentUser);
   renderGuideSubmenu();
@@ -1227,7 +1229,7 @@ function activityWeeksFor(member) {
   return activityWeeksByDiscordId[member?.discordId] || member?.attendanceWeeks || [];
 }
 function renderAttendanceProfilePanel(member, { loaded = false } = {}) {
-  if (!hasLeadershipCallsign(currentUser) || !member?.discordId) return '';
+  if (!canReviewAttendance(currentUser) || !member?.discordId) return '';
   const weeks = activityWeeksFor(member);
   const memberLoaded = Object.hasOwn(activityWeeksByDiscordId, member.discordId) || Array.isArray(member.attendanceWeeks);
   const today = attendanceDateKey(Date.now());
@@ -1316,7 +1318,7 @@ function attendanceEntryMinutesForDate(entry, dateKey, now = Date.now()) {
   return end > start ? Math.floor((end - start) / 60000) : 0;
 }
 function renderActiveAttendanceView() {
-  if (!hasLeadershipCallsign(currentUser)) return '<section class="panel view-panel"><p class="empty-state">Camera este disponibilă doar conducerii.</p></section>';
+  if (!canReviewAttendance(currentUser)) return '<section class="panel view-panel"><p class="empty-state">Camera este disponibilă doar conducerii sau funcției H.R.</p></section>';
   const now = Date.now();
   const dates = attendanceWeekDates(activeAttendanceDate);
   const selectedIndex = attendanceDayIndex(activeAttendanceDate);
@@ -1386,7 +1388,7 @@ function wireActiveAttendanceEvents() {
   }, 30000);
 }
 async function submitAttendanceDocs(action, details = {}) {
-  if (!hasLeadershipCallsign(currentUser) || !currentUser?.discordId) throw new Error('Doar conducerea poate sincroniza pontajele.');
+  if (!canReviewAttendance(currentUser) || !currentUser?.discordId) throw new Error('Doar conducerea sau funcția H.R. poate gestiona pontajele.');
   const response = await fetch('/api/access/attendance', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1650,7 +1652,7 @@ function scheduleActivityAttendanceRefresh() {
   }, 30000);
 }
 async function loadOwnActivityEntries() {
-  if (!hasLeadershipCallsign(currentUser) || !currentUser?.discordId) return;
+  if (!canReviewAttendance(currentUser) || !currentUser?.discordId) return;
   activityLoadError = '';
   try {
     const response = await fetch(`/api/access/directory?requesterId=${encodeURIComponent(currentUser.discordId)}&view=attendance`);
@@ -1727,7 +1729,7 @@ function activityWeekCell(value, dailyMinimum) {
   return `<td class="activity-history-value ${state}"${metrics.percentage == null ? '' : ` title="Media: ${Math.round(metrics.average)} min din ${dailyMinimum} min pe ${7 - metrics.leaveDays} zile lucrate"`}><strong>${displayedValue}</strong>${average}</td>`;
 }
 function renderActivityView() {
-  if (!hasLeadershipCallsign(currentUser)) return '<section class="panel view-panel"><p class="empty-state">Camera este disponibilă doar conducerii.</p></section>';
+  if (!canReviewAttendance(currentUser)) return '<section class="panel view-panel"><p class="empty-state">Camera este disponibilă doar conducerii sau funcției H.R.</p></section>';
   const members = sortMembers(directoryMembers.filter(member => String(member?.name || '').trim() && callsignNumber(member.callsign) >= 1 && callsignNumber(member.callsign) <= 650));
   const weeks = members.find(member => member.attendanceWeeks?.length)?.attendanceWeeks || [];
   const today = attendanceDateKey(Date.now());
@@ -1788,7 +1790,7 @@ document.addEventListener('input', event => {
   return `<section class="panel activity-member-panel"><div class="panel-head"><div><p class="eyebrow">PONTAJE MEMBRU</p><h2>${escapeHtml(member.name || 'Membru')}</h2><p class="muted">${escapeHtml(normalizeCallsign(member.callsign))} · ${escapeHtml(member.rank || '—')}</p></div><button class="outline" type="button" data-back-to-activity>← Înapoi la evidență</button></div>${renderAttendanceProfilePanel(member, { loaded: activityDataLoaded })}</section>`;
 }
 function openActivityMember(member, { push = true, previousView: requestedPreviousView } = {}) {
-  if (!hasLeadershipCallsign(currentUser)) return;
+  if (!canReviewAttendance(currentUser)) return;
   const callsign = normalizeCallsign(member.callsign);
   const currentState = window.history.state || {};
   const previousView = requestedPreviousView || (currentState.view === 'activity-member' ? currentState.previousView : document.querySelector('.nav-item.active')?.dataset.view || 'activity');
@@ -3704,7 +3706,7 @@ document.querySelector('#invite-btn').onclick = async () => {
 };
 viewContent.addEventListener('click', event => {
   const memberButton = event.target.closest('[data-activity-member]');
-  if (memberButton && hasLeadershipCallsign(currentUser)) {
+  if (memberButton && canReviewAttendance(currentUser)) {
     const callsign = normalizeCallsign(memberButton.dataset.activityMember);
     const member = directoryMembers.find(item => normalizeCallsign(item.callsign) === callsign);
     if (member) openActivityMember(member);
@@ -3793,8 +3795,8 @@ const labels = { overview: 'Profilul tău', testers: 'Testerii departamentului',
 function navigateTo(view, { push = true } = {}) {
   if (view === 'bonuses' && !hasLeadershipCallsign(currentUser)) view = 'overview';
   if (view === 'attendance' && !currentUser?.discordId) view = 'overview';
-  if (view === 'active-attendance' && !hasLeadershipCallsign(currentUser)) view = 'overview';
-  if (view === 'activity' && !hasLeadershipCallsign(currentUser)) view = 'overview';
+  if (view === 'active-attendance' && !canReviewAttendance(currentUser)) view = 'overview';
+  if (view === 'activity' && !canReviewAttendance(currentUser)) view = 'overview';
   if (view === 'guide' && !hasLeadershipCallsign(currentUser)) view = 'overview';
   if (view === 'testers' && !canViewTestersRoom(currentUser)) view = 'overview';
   if (!labels[view]) return;
@@ -3816,7 +3818,7 @@ function navigateTo(view, { push = true } = {}) {
   document.querySelector('#section-label').textContent = 'Site Testeri';
   document.querySelector('.sidebar').classList.remove('open');
   renderView(view);
-  if (view === 'overview' && hasLeadershipCallsign(currentUser)) loadOwnActivityEntries();
+  if (view === 'overview' && canReviewAttendance(currentUser)) loadOwnActivityEntries();
 }
 document.querySelectorAll('[data-view]').forEach(btn => btn.addEventListener('click', () => navigateTo(btn.dataset.view)));
 document.querySelector('#guide-submenu')?.addEventListener('click', event => {
@@ -3973,12 +3975,12 @@ async function enterApp(user) {
     await fetchGlobalTestDefinitions();
     await loadDirectory();
     await loadRemoteGrants();
-    if (hasLeadershipCallsign(currentUser)) {
+    if (canReviewAttendance(currentUser)) {
       if (requestedActivityCallsign) await loadActivityEntries();
       else await loadOwnActivityEntries();
     }
     if (navigationRevision !== initialNavigationRevision) return;
-    if (requestedActivityCallsign && hasLeadershipCallsign(currentUser)) {
+    if (requestedActivityCallsign && canReviewAttendance(currentUser)) {
       const member = directoryMembers.find(item => normalizeCallsign(item.callsign) === requestedActivityCallsign);
       if (member) openActivityMember(member, { push: false, previousView: requestedRoute.previousView || 'activity' });
       else navigateTo('activity', { push: false });

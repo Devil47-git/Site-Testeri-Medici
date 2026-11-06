@@ -6,11 +6,12 @@ process.env.UPSTASH_REDIS_REST_URL = 'https://attendance-redis.example';
 process.env.UPSTASH_REDIS_REST_TOKEN = 'test-token';
 process.env.CRON_SECRET = 'test-cron-secret';
 
-const row = (callsign, name, discordId, rank = '') => {
+const row = (callsign, name, discordId, rank = '', functions = '') => {
   const member = Array(21).fill('');
   member[2] = callsign;
   member[3] = name;
   member[4] = rank;
+  member[10] = functions;
   member[9] = '01.02.2024';
   member[19] = discordId;
   return member;
@@ -32,6 +33,7 @@ let sheetRows = [
   ['', '', 'CALLSIGN', 'NAME', 'RANK', '', '', '', '', '', '', '', '', '', '', '', '', '', '', 'DISCORD ID'],
   row('001', 'Conducere', 'leadership-id'),
   row('101', 'Membru', 'member-id'),
+  row('102', 'Responsabil H.R.', 'hr-id', '', 'H.R.'),
   row('021', 'Grad fără callsign de conducere', 'rank-only-id', 'Director General')
 ];
 const attendanceSheetRows = [
@@ -212,11 +214,15 @@ test('department directory reads member entry dates from column J', async () => 
   assert.equal(response.payload.members.find(member => member.discordId === 'member-id').joinedAt, '01.02.2024');
 });
 
-test('only callsigns 001-020 can read department-wide weekly attendance', async () => {
+test('leadership and H.R. can read department-wide weekly attendance', async () => {
   const leadership = await callDirectory('leadership-id', 'activity');
   assert.equal(leadership.statusCode, 200);
-  assert.equal(leadership.payload.members.length, 3);
+  assert.equal(leadership.payload.members.length, 4);
   assert.deepEqual(leadership.payload.members[1].attendanceWeeks.map(week => week.value), ['134/2CO', '138/5CVV', '—']);
+
+  const hr = await callDirectory('hr-id', 'activity');
+  assert.equal(hr.statusCode, 200);
+  assert.equal(hr.payload.members.length, 4);
 
   const rankOnly = await callDirectory('rank-only-id', 'activity');
   assert.equal(rankOnly.statusCode, 403);
@@ -229,7 +235,7 @@ test('activity directory excludes non-member label and role rows', async () => {
   try {
     const result = await callDirectory('leadership-id', 'activity');
     assert.equal(result.statusCode, 200);
-    assert.equal(result.payload.members.length, 3);
+    assert.equal(result.payload.members.length, 4);
     assert.equal(result.payload.members.some(member => placeholders.some(placeholder => placeholder[3] === member.name)), false);
   } finally {
     sheetRows.splice(-placeholders.length);
@@ -415,7 +421,7 @@ test('active attendance view allows selecting previous dates but rejects future 
   assert.equal(future.statusCode, 400);
 });
 
-test('only leadership can request attendance document updates', async () => {
+test('only leadership and H.R. can request attendance document updates', async () => {
   const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Bucharest', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
   const result = await callAttendance('POST', 'member-id', {
     action: 'sync-docs',
@@ -424,6 +430,32 @@ test('only leadership can request attendance document updates', async () => {
     status: 'validated'
   });
   assert.equal(result.statusCode, 403);
+
+  const hr = await callAttendance('GET', 'hr-id', {}, { view: 'active', date: today });
+  assert.equal(hr.statusCode, 200);
+  assert.ok(Array.isArray(hr.payload.members));
+
+  const start = Date.now() - 120000;
+  const memberKey = 'site-testeri-medici:attendance:member-id';
+  redisValues.set(memberKey, JSON.stringify([{ start, end: start + 60000 }]));
+  const hrReview = await callAttendance('POST', 'hr-id', {
+    action: 'review-entry',
+    targetDiscordId: 'member-id',
+    entryStart: start,
+    dateKey: today,
+    status: 'validated'
+  });
+  assert.equal(hrReview.statusCode, 200);
+  assert.equal(JSON.parse(redisValues.get(memberKey))[0].validated, true);
+
+  const nonHrReview = await callAttendance('POST', 'member-id', {
+    action: 'review-entry',
+    targetDiscordId: 'member-id',
+    entryStart: Date.now() - 60000,
+    dateKey: today,
+    status: 'validated'
+  });
+  assert.equal(nonHrReview.statusCode, 403);
 });
 
 test('authenticated midnight cron closes department entries', async () => {

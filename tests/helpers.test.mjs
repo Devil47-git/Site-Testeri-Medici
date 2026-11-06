@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { accessFor, candidateForCallsign, catalog as accessCatalog, coreTests, effectiveTestsForMember, functionsForMember, isLeadership, normalizeTests, testsForFunctions } from '../lib/access/shared.js';
+import { accessFor, canManageAttendance, candidateForCallsign, catalog as accessCatalog, coreTests, effectiveTestsForMember, functionsForMember, isLeadership, normalizeTests, testsForFunctions } from '../lib/access/shared.js';
 import { canResetTestCounts, discordTesterMentionPayload, createAdmissionEmbed, createAdmissionTesterComponents, webhookComponentsUrl, webhookIdentity, createAlsResultEmbed, createSpecialtyResultEmbed, specialtyNotificationDetails, createMedicalCertificateComponents, createMedicalCertificateEmbeds, medicalCertificateNumberForRow, bonusEntryFromRow } from '../api/access/test-results.js';
 import { cooldownPayersFromRows, statusFromRow } from '../api/access/directory.js';
 import { cooldownIsActive, failedTestCooldownExpiry, parseCooldownS } from '../lib/access/cooldowns.js';
@@ -47,7 +47,7 @@ function extract(name) {
 const catalog = ['Test admitere', 'Test transfer', 'Adeverință medicală', 'Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști'];
 const definitions = Object.fromEntries(catalog.map(n => [n, { name: n, questions: [] }]));
 
-const names = ['callsignNumber', 'bonusTesterCallsign', 'bonusClipboardValues', 'bonusRowGroups', 'normalizeCallsign', 'cooldownPaymentAmount', 'cooldownPaymentMaxDays', 'cooldownPaymentPayerForCallsign', 'cooldownPaymentMessage', 'isAdmissionChecklistReminder', 'testNameFromHash', 'routeFromLocation', 'validSavedRoute', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberHasTestAccess', 'memberHasGrade', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'processedTestGroups', 'processedTestBadgesHtml', 'sortMembers', 'avatarUrlForMember', 'testTagClass', 'gradeGroupFor', 'normalizeGrantBundle', 'plausibleIdentityDetails', 'identityCardCrop', 'memberAccessTests', 'testerAccessHtml', 'profileTestTagsHtml', 'mergeTestDefinitions', 'admissionChecklistHtml', 'admissionConsentHtml', 'admissionChecksComplete', 'motoChecksComplete', 'pilotLicenseChecklistHtml', 'alsChecklistHtml', 'alsChecksComplete', 'alsCaseListHtml', 'smulsChecklistHtml', 'smulsChecksComplete', 'smulsCaseListHtml', 'memberStatus', 'testerFunctionsForDisplay', 'isTestFailed', 'canUseAdmittedVerdict', 'startVerdictButtonCooldown', 'maxWrongForTest', 'cachedUserWithinSession', 'questionItemHtml', 'evaluationStageHtml', 'parseIdentityCardText', 'mergeIdentityCardDetails', 'displayTestName', 'departmentCalendarDate', 'latestCompleteBonusPeriodIndex', 'activeBonusPeriodIndex', 'bonusPeriodFor'];
+const names = ['callsignNumber', 'bonusTesterCallsign', 'bonusClipboardValues', 'bonusRowGroups', 'normalizeCallsign', 'cooldownPaymentAmount', 'cooldownPaymentMaxDays', 'cooldownPaymentPayerForCallsign', 'cooldownPaymentMessage', 'isAdmissionChecklistReminder', 'testNameFromHash', 'routeFromLocation', 'validSavedRoute', 'isLeadershipUser', 'canReviewAttendance', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberHasTestAccess', 'memberHasGrade', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'processedTestGroups', 'processedTestBadgesHtml', 'sortMembers', 'avatarUrlForMember', 'testTagClass', 'gradeGroupFor', 'normalizeGrantBundle', 'plausibleIdentityDetails', 'identityCardCrop', 'memberAccessTests', 'testerAccessHtml', 'profileTestTagsHtml', 'mergeTestDefinitions', 'admissionChecklistHtml', 'admissionConsentHtml', 'admissionChecksComplete', 'motoChecksComplete', 'pilotLicenseChecklistHtml', 'alsChecklistHtml', 'alsChecksComplete', 'alsCaseListHtml', 'smulsChecklistHtml', 'smulsChecksComplete', 'smulsCaseListHtml', 'memberStatus', 'testerFunctionsForDisplay', 'isTestFailed', 'canUseAdmittedVerdict', 'startVerdictButtonCooldown', 'maxWrongForTest', 'cachedUserWithinSession', 'questionItemHtml', 'evaluationStageHtml', 'parseIdentityCardText', 'mergeIdentityCardDetails', 'displayTestName', 'departmentCalendarDate', 'latestCompleteBonusPeriodIndex', 'activeBonusPeriodIndex', 'bonusPeriodFor'];
 const srcs = names.map(extract).join('\n');
 const pattern = source.match(/^const RESIDENT_TESTER_PATTERN = .*$/m)?.[0] || 'const RESIDENT_TESTER_PATTERN = /TESTER/;';
 const normalizeTextSrc = extract('normalizeText');
@@ -62,10 +62,10 @@ const load = new Function(
   'testSummaryDefinitions',
   'residentTesterPattern',
   'leadershipMax',
-  `${fullSrc}\nreturn { callsignNumber, bonusTesterCallsign, bonusClipboardValues, bonusRowGroups, normalizeCallsign, cooldownPaymentAmount, cooldownPaymentMaxDays, cooldownPaymentPayerForCallsign, cooldownPaymentMessage, isAdmissionChecklistReminder, testNameFromHash, routeFromLocation, validSavedRoute, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberHasGrade, memberIsTester, memberCanGiveTest, docsAssignedTests, processedTestGroups, processedTestBadgesHtml, sortMembers, avatarUrlForMember, testTagClass, gradeGroupFor, testerAccessHtml, profileTestTagsHtml, mergeTestDefinitions, admissionChecklistHtml, admissionConsentHtml, admissionChecksComplete, motoChecksComplete, pilotLicenseChecklistHtml, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, canUseAdmittedVerdict, startVerdictButtonCooldown, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, departmentCalendarDate, latestCompleteBonusPeriodIndex, activeBonusPeriodIndex, bonusPeriodFor, memberAccessTests, plausibleIdentityDetails, identityCardCrop };`,
+  `${fullSrc}\nreturn { callsignNumber, bonusTesterCallsign, bonusClipboardValues, bonusRowGroups, normalizeCallsign, cooldownPaymentAmount, cooldownPaymentMaxDays, cooldownPaymentPayerForCallsign, cooldownPaymentMessage, isAdmissionChecklistReminder, testNameFromHash, routeFromLocation, validSavedRoute, isLeadershipUser, canReviewAttendance, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberHasGrade, memberIsTester, memberCanGiveTest, docsAssignedTests, processedTestGroups, processedTestBadgesHtml, sortMembers, avatarUrlForMember, testTagClass, gradeGroupFor, testerAccessHtml, profileTestTagsHtml, mergeTestDefinitions, admissionChecklistHtml, admissionConsentHtml, admissionChecksComplete, motoChecksComplete, pilotLicenseChecklistHtml, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, canUseAdmittedVerdict, startVerdictButtonCooldown, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, departmentCalendarDate, latestCompleteBonusPeriodIndex, activeBonusPeriodIndex, bonusPeriodFor, memberAccessTests, plausibleIdentityDetails, identityCardCrop };`,
 )(catalog, definitions, testSummaryDefinitions, residentTesterPattern, leadershipMax);
 
-const { callsignNumber, bonusTesterCallsign, bonusClipboardValues, bonusRowGroups, normalizeCallsign, cooldownPaymentAmount, cooldownPaymentMaxDays, cooldownPaymentPayerForCallsign, cooldownPaymentMessage, isAdmissionChecklistReminder, testNameFromHash, routeFromLocation, validSavedRoute, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberHasGrade, memberIsTester, memberCanGiveTest, docsAssignedTests, processedTestGroups, processedTestBadgesHtml, sortMembers, avatarUrlForMember, testTagClass, gradeGroupFor, testerAccessHtml, profileTestTagsHtml, mergeTestDefinitions, admissionChecklistHtml, admissionConsentHtml, admissionChecksComplete, motoChecksComplete, pilotLicenseChecklistHtml, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, canUseAdmittedVerdict, startVerdictButtonCooldown, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, departmentCalendarDate, latestCompleteBonusPeriodIndex, activeBonusPeriodIndex, bonusPeriodFor, memberAccessTests, plausibleIdentityDetails, identityCardCrop } = load;
+const { callsignNumber, bonusTesterCallsign, bonusClipboardValues, bonusRowGroups, normalizeCallsign, cooldownPaymentAmount, cooldownPaymentMaxDays, cooldownPaymentPayerForCallsign, cooldownPaymentMessage, isAdmissionChecklistReminder, testNameFromHash, routeFromLocation, validSavedRoute, isLeadershipUser, canReviewAttendance, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberHasGrade, memberIsTester, memberCanGiveTest, docsAssignedTests, processedTestGroups, processedTestBadgesHtml, sortMembers, avatarUrlForMember, testTagClass, gradeGroupFor, testerAccessHtml, profileTestTagsHtml, mergeTestDefinitions, admissionChecklistHtml, admissionConsentHtml, admissionChecksComplete, motoChecksComplete, pilotLicenseChecklistHtml, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, canUseAdmittedVerdict, startVerdictButtonCooldown, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, departmentCalendarDate, latestCompleteBonusPeriodIndex, activeBonusPeriodIndex, bonusPeriodFor, memberAccessTests, plausibleIdentityDetails, identityCardCrop } = load;
 const attendanceDisplay = new Function(
   `${extract('escapeHtml')}\n${extract('attendanceLeaveCode')}\n${extract('activityWeekMetrics')}\n${extract('activityWeekCell')}\nreturn { attendanceLeaveCode, activityWeekMetrics, activityWeekCell };`,
 )();
@@ -198,11 +198,11 @@ test('CVV keeps its label while using the same weekly calculation as CO', () => 
   assert.match(activityWeekCell('CVV', 80), />CVV<\/strong>/);
 });
 
-test('activity directory members open a leadership-only attendance detail page', () => {
+test('activity directory members open an attendance detail page for leadership and H.R.', () => {
   assert.match(source, /data-activity-member="\$\{escapeHtml\(normalizeCallsign\(member\.callsign\)\)\}"/);
   assert.match(source, /function renderActivityMemberView\(member\)/);
   assert.match(source, /activityWeeksFor\(member\)/);
-  assert.match(source, /if \(memberButton && hasLeadershipCallsign\(currentUser\)\)/);
+  assert.match(source, /if \(memberButton && canReviewAttendance\(currentUser\)\)/);
   assert.match(source, /function openActivityMember\(member, \{ push = true, previousView: requestedPreviousView \} = \{\}\)/);
   assert.match(source, /view: 'activity-member', callsign/);
   assert.match(storageSource, /view: 'activity-member', callsign: decodeURIComponent/);
@@ -211,19 +211,19 @@ test('activity directory members open a leadership-only attendance detail page',
 test('member profiles and activity table show weekly values from the department sheet', () => {
   assert.match(indexSource, /<section id="profile-attendance"><\/section>/);
   assert.match(source, /function renderAttendanceProfilePanel\(member, \{ loaded = false \} = \{\}\)/);
-  assert.match(source, /if \(!hasLeadershipCallsign\(currentUser\) \|\| !member\?\.discordId\) return ''/);
+  assert.match(source, /if \(!canReviewAttendance\(currentUser\) \|\| !member\?\.discordId\) return ''/);
   assert.match(source, /renderAttendanceProfilePanel\(profile, \{\s*loaded: activityDataLoaded/);
   assert.match(source, /renderAttendanceProfilePanel\(member, \{ loaded: activityDataLoaded \}\)/);
   assert.match(source, /async function loadOwnActivityEntries\(\)[\s\S]*?view=attendance/);
   assert.match(source, /async function loadActivityEntries\(\)[\s\S]*?view=activity/);
-  assert.match(source, /if \(view === 'overview' && hasLeadershipCallsign\(currentUser\)\) loadOwnActivityEntries\(\)/);
-  assert.match(source, /weeks\.map\(week => `<th>\$\{escapeHtml\(week\.label\)\}<\/th>`\)/);
+  assert.match(source, /if \(view === 'overview' && canReviewAttendance\(currentUser\)\) loadOwnActivityEntries\(\)/);
+  assert.match(source, /const headers = activityShowWeeks \? weeks\.map\(week =>/);
   assert.doesNotMatch(source, /data-attendance-manual-form|manual-add|manual-update|manual-delete/);
   const directorySource = readFileSync(join(here, '..', 'api', 'access', 'directory.js'), 'utf8');
   assert.match(directorySource, /attendanceWeeksFromRows/);
   assert.match(directorySource, /const ATTENDANCE_RANGE = process\.env\.GOOGLE_ATTENDANCE_RANGE/);
   assert.match(directorySource, /attendanceWeeks: activityView \? attendanceByCallsign\.get/);
-  assert.match(directorySource, /if \(attendanceView && !leadershipRequester\) return json\(res, 403/);
+  assert.match(directorySource, /if \(attendanceView && !canReviewAttendance\) return json\(res, 403/);
   assert.match(directorySource, /attendanceMember = members\.find\(row => String\(row\[19\] \|\| ''\)\.trim\(\) === requesterId\)/);
   assert.match(source, /function attendanceChartHtml\(week, title = 'Pontaj săptămânal'\)/);
   assert.match(source, /ULTIMELE 30 DE PONTAJE/);
@@ -308,27 +308,29 @@ test('only callsigns 001 through 020 can reset test counts', () => {
   assert.equal(canResetTestCounts(['', '', '021']), false);
   assert.equal(canResetTestCounts(['', '', '100', '', 'Director']), false);
 });
-test('leadership-only navigation rooms require a leadership callsign', () => {
+test('attendance management navigation is available to leadership and H.R.', () => {
   const permissionsSource = source.match(/function renderAvailableTestsSubmenu\(\) \{[\s\S]*?^\}/m)?.[0] || '';
   const navigationSource = source.match(/function navigateTo\(view, \{ push = true \} = \{\}\) \{[\s\S]*?^\}/m)?.[0] || '';
   assert.match(permissionsSource, /bonusNav\.hidden = !hasLeadershipCallsign\(currentUser\)/);
-  assert.match(permissionsSource, /attendanceNav\.hidden = !currentUser\?\.discordId \|\| isExemptFromAttendance\(currentUser\)/);
-  assert.match(permissionsSource, /activeAttendanceNav\.hidden = !hasLeadershipCallsign\(currentUser\)/);
-  assert.match(permissionsSource, /activityNav\.hidden = !hasLeadershipCallsign\(currentUser\)/);
+  assert.match(permissionsSource, /attendanceNav\.hidden = !currentUser\?\.discordId \|\| \(isExemptFromAttendance\(currentUser\) && !currentUser\?\.canManageAttendance\)/);
+  assert.match(permissionsSource, /activeAttendanceNav\.hidden = !canReviewAttendance\(currentUser\)/);
+  assert.match(permissionsSource, /activityNav\.hidden = !canReviewAttendance\(currentUser\)/);
   assert.match(navigationSource, /view === 'bonuses' && !hasLeadershipCallsign\(currentUser\)/);
-  assert.match(navigationSource, /view === 'active-attendance' && !hasLeadershipCallsign\(currentUser\)/);
+  assert.match(navigationSource, /view === 'active-attendance' && !canReviewAttendance\(currentUser\)/);
+  assert.match(navigationSource, /view === 'activity' && !canReviewAttendance\(currentUser\)/);
   const testResultsSource = readFileSync(join(here, '..', 'api', 'access', 'test-results.js'), 'utf8');
   assert.match(testResultsSource, /requesterCallsign < 1 \|\| requesterCallsign > 20/);
   assert.match(indexSource, /data-view="attendance"[\s\S]*data-view="active-attendance"[\s\S]*data-view="activity"/);
   const attendanceViewSource = source.match(/function renderAttendanceView\(\) \{[\s\S]*?^\}/m)?.[0] || '';
   const activeAttendanceViewSource = source.match(/function renderActiveAttendanceView\(\) \{[\s\S]*?^\}/m)?.[0] || '';
   assert.doesNotMatch(attendanceViewSource, /Pontaje active în acest moment/);
-  assert.match(activeAttendanceViewSource, /Pontaje active/);
-  assert.match(activeAttendanceViewSource, /<th>CALLSIGN<\/th><th>NUME<\/th><th>TOTAL ZI<\/th><th>STARE<\/th><th>VALIDARE<\/th>/);
-  assert.doesNotMatch(activeAttendanceViewSource, /Pontaje active în acest moment|START|DURATĂ|Anulează/);
+  assert.match(activeAttendanceViewSource, /<h2>Pontaje<\/h2>/);
+  assert.match(activeAttendanceViewSource, /<th>CALLSIGN<\/th><th>NUME<\/th><th>TIP<\/th><th>CLOCK-IN<\/th><th>CLOCK-OUT<\/th><th>DURATĂ<\/th><th>STARE<\/th><th>VALIDARE \/ ANULARE<\/th><th>EDITARE<\/th>/);
+  assert.match(activeAttendanceViewSource, /Sincronizează documentul/);
+  assert.doesNotMatch(activeAttendanceViewSource, /Pontaje active în acest moment|START|Anulează/);
   assert.match(source, /function renderActiveAttendanceView\(\)/);
   assert.match(source, /function attendanceMinutesForDateClient\(/);
-  assert.match(source, /Adăugare pontaje docs/);
+  assert.match(source, /submitAttendanceDocs\('sync-docs-all'/);
 });
 
 test('normalizeCallsign pads to three digits', () => {
@@ -726,6 +728,17 @@ test('leadership alone receives general catalog access', () => {
   assert.deepEqual(allowedForUser({ csNum: 1, grantedTests: [] }), catalog);
   assert.equal(isLeadership(210, 'Medic Specialist', 'Departamentul Medical'), false);
   assert.equal(isLeadership(4, 'Director Adjunct', 'Departamentul Medical'), true);
+});
+
+test('H.R. function enables attendance management without leadership test access', () => {
+  for (const label of ['H.R.', 'HR', 'Manager HR', 'Resurse Umane']) {
+    assert.equal(canManageAttendance(label), true);
+    assert.equal(accessFor(101, label, 'Medic Specialist', '').canManageAttendance, true);
+  }
+  assert.equal(canManageAttendance('P.R.'), false);
+  assert.equal(accessFor(101, 'H.R.', 'Medic Specialist', '').allowedTests.length, 0);
+  assert.equal(canReviewAttendance({ csNum: 101, canManageAttendance: true }), true);
+  assert.equal(canReviewAttendance({ csNum: 101 }), false);
 });
 
 test('Tester Docs role maps to the complete three-test bundle', () => {

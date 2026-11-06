@@ -1,5 +1,5 @@
 import '../../lib/config.js';
-import { normalize, callsignNumber, candidateForCallsign, isLeadershipRow, gradeGroupFor, GRADE_GROUPS, LEADERSHIP_MAX, effectiveTestsForMember, normalizeTests, functionsForMember, attendanceMinimumMinutes } from '../../lib/access/shared.js';
+import { normalize, callsignNumber, candidateForCallsign, isLeadershipRow, canManageAttendance, gradeGroupFor, GRADE_GROUPS, LEADERSHIP_MAX, effectiveTestsForMember, normalizeTests, functionsForMember, attendanceMinimumMinutes } from '../../lib/access/shared.js';
 import { parseCooldownS } from '../../lib/access/cooldowns.js';
 import { avatarUrlForDiscordMember, discordAvatarHashFromUrl, readDiscordAvatarHashes, storeDiscordAvatarHash } from '../../lib/access/avatar-store.js';
 import { UpstashRedis } from '../../lib/storage/upstash-redis.js';
@@ -113,9 +113,9 @@ export default async function handler(req, res) {
     const activityView = req.query?.view === 'activity';
     const attendanceView = req.query?.view === 'attendance';
     const allMembersView = req.query?.view === 'members';
-    const leadershipRequester = callsignNumber(requester[2]) >= 1 && callsignNumber(requester[2]) <= LEADERSHIP_MAX;
-    if (activityView && !leadershipRequester) return json(res, 403, { error: 'Only callsigns 001-020 can view the activity directory' });
-    if (attendanceView && !leadershipRequester) return json(res, 403, { error: 'Only callsigns 001-020 can view attendance records' });
+    const canReviewAttendance = (callsignNumber(requester[2]) >= 1 && callsignNumber(requester[2]) <= LEADERSHIP_MAX) || canManageAttendance(requester[10] || '');
+    if (activityView && !canReviewAttendance) return json(res, 403, { error: 'Only callsigns 001-020 or H.R. can view the activity directory' });
+    if (attendanceView && !canReviewAttendance) return json(res, 403, { error: 'Only callsigns 001-020 or H.R. can view attendance records' });
     const attendanceByCallsign = activityView || attendanceView
       ? attendanceWeeksByCallsign(await readPublic(ATTENDANCE_RANGE))
       : new Map();
