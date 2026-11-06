@@ -806,13 +806,13 @@ function memberFunctionBadges(member) {
   const assigned = new Set(Array.isArray(member.functionIds) ? member.functionIds : []);
   return memberFunctionCatalog.flatMap((item, index) => assigned.has(item.id)
     ? [`<span class="member-function-badge" style="--member-function-hue:${(index * 37) % 360}" title="${escapeHtml(item.description)}">${escapeHtml(item.label)}</span>`]
-    : []).join('') || '<span class="muted">Nicio funcție atribuită</span>';
+    : []).join('') || '<span class="muted">Nimic atribuit</span>';
 }
 function memberCardHtml(member) {
   const editAction = hasLeadershipCallsign(currentUser) && member.discordId
-    ? `<button class="outline member-functions-edit" type="button" data-member-functions="${escapeHtml(member.discordId)}">＋ Atribuie funcții</button>`
+    ? `<button class="outline member-functions-edit" type="button" data-member-functions="${escapeHtml(member.discordId)}">＋ Editează</button>`
     : '';
-  return `<article class="member-room-card"><div class="member-room-identity">${avatarFor(member)}<div class="member-room-name-line"><span class="member-room-callsign">${escapeHtml(normalizeCallsign(member.callsign) || '—')}</span><strong>${escapeHtml(memberNameFor(member))}</strong></div></div><div class="member-room-detail"><span>DATA DE INTRARE</span><strong>${escapeHtml(member.joinedAt || '—')}</strong></div><div class="member-room-functions"><span>FUNCȚII</span><div class="member-room-function-content"><div class="member-function-badges">${memberFunctionBadges(member)}</div>${editAction}</div></div></article>`;
+  return `<article class="member-room-card"><div class="member-room-identity">${avatarFor(member)}<div class="member-room-name-line"><span class="member-room-callsign">${escapeHtml(normalizeCallsign(member.callsign) || '—')}</span><strong>${escapeHtml(memberNameFor(member))}</strong></div></div><div class="member-room-detail"><span>DATA DE INTRARE</span><strong>${escapeHtml(member.joinedAt || '—')}</strong></div><div class="member-room-functions"><div class="member-room-function-content"><div class="member-function-badges">${memberFunctionBadges(member)}</div>${editAction}</div></div></article>`;
 }
 const MEMBER_GRADE_ORDER = ['Director General', 'Director Adjunct', 'Medic Inspector', 'Medic Chirurg', 'Medic Primar', 'Medic Specialist', 'Medic Rezident', 'Medic Stagiar', 'Asistent Medical', 'Brancardier'];
 function memberGradeLabel(member) { return String(member?.rank || '').trim() || String(member?.gradeGroup || '').trim() || 'Grad neprecizat'; }
@@ -848,7 +848,7 @@ function renderMembersView() {
     ? `<div class="member-room-message" role="alert">${escapeHtml(membersRoomError)} <button class="outline" id="retry-members-room" type="button">Încearcă din nou</button></div>`
     : !membersRoomLoaded
       ? '<div class="member-room-message" role="status">Se încarcă membrii departamentului…</div>'
-      : `<label class="member-room-search">Caută după nume, callsign sau funcție<input id="member-room-search" type="search" autocomplete="off" placeholder="Ex.: 105, Popescu sau A.L.S."></label><div class="member-room-cards" id="member-room-cards"></div>`;
+      : `<label class="member-room-search">Caută după nume sau callsign<input id="member-room-search" type="search" autocomplete="off" placeholder="Ex.: 105 sau Popescu"></label><div class="member-room-cards" id="member-room-cards"></div>`;
   const memberCount = departmentMembers.filter(memberHasGrade).length;
   return `<section class="panel view-panel member-room-panel"><div class="panel-head"><div><h2>Membrii departamentului</h2><p class="muted">Lista completă din camera Lista Departament</p></div><span class="member-room-count">${membersRoomLoaded ? memberCount : ''}</span></div>${content}</section>`;
 }
@@ -867,7 +867,7 @@ async function loadMembersRoom({ force = false } = {}) {
         parseApiResponse(functionsResponse)
       ]);
       if (!directoryResponse.ok) throw new Error(directoryPayload.error || 'Lista membrilor nu a putut fi încărcată.');
-      if (!functionsResponse.ok) throw new Error(functionsPayload.error || 'Funcțiile membrilor nu au putut fi încărcate.');
+      if (!functionsResponse.ok) throw new Error(functionsPayload.error || 'Datele membrilor nu au putut fi încărcate.');
       if (!Array.isArray(directoryPayload.members) || !Array.isArray(functionsPayload.catalog) || !Array.isArray(functionsPayload.assignments)) {
         throw new Error('Răspuns invalid de la lista membrilor.');
       }
@@ -914,7 +914,7 @@ function openMemberFunctionsModal(member) {
   modal.dataset.targetDiscordId = member.discordId;
   memberLabel.textContent = `${memberNameFor(member)} · ${normalizeCallsign(member.callsign)}`;
   options.innerHTML = memberFunctionCatalog.map((item, index) => `<label class="member-function-option"><input type="checkbox" value="${escapeHtml(item.id)}" ${(member.functionIds || []).includes(item.id) ? 'checked' : ''}><span class="member-function-badge" style="--member-function-hue:${(index * 37) % 360}" title="${escapeHtml(item.description)}">${escapeHtml(item.label)}</span><small>${escapeHtml(item.description)}</small></label>`).join('');
-  options.insertAdjacentHTML('beforeend', '<label class="member-function-option member-function-add"><span>Funcție nouă</span><input id="member-function-new" type="text" maxlength="120" autocomplete="off" placeholder="Scrie funcția și salveaz-o pentru acest membru"></label>');
+  options.insertAdjacentHTML('beforeend', '<label class="member-function-option member-function-add"><span>Adaugă element</span><input id="member-function-new" type="text" maxlength="120" autocomplete="off" placeholder="Scrie un element nou pentru acest membru"></label>');
   status.textContent = '';
   saveButton.disabled = false;
   modal.classList.add('open');
@@ -1752,14 +1752,17 @@ function renderActivityView() {
   });
   const visibleWeeks = activityShowWeeks ? weeks : [];
   const columnCount = visibleWeeks.length + 9;
+  const dayColumnWidth = visibleWeeks.length ? 6 : 75 / ATTENDANCE_DAYS.length;
+  const weekColumnWidth = visibleWeeks.length ? 33 / visibleWeeks.length : 0;
+  const tableColumns = `<colgroup><col style="width:19%"><col style="width:6%">${ATTENDANCE_DAYS.map(() => `<col style="width:${dayColumnWidth}%">`).join('')}${visibleWeeks.map(() => `<col style="width:${weekColumnWidth}%">`).join('')}</colgroup>`;
   const rows = [...rankGroups.values()].map(group => `<tr class="activity-group-row"><th colspan="${columnCount}">${escapeHtml(group.rank)} <span>${group.members.length}</span></th></tr>` + group.members.map(member => {
     const values = activityWeeksFor(member);
     const target = Number(member.attendanceMinimumMinutes) || 0;
     const search = normalizeCallsign(member.callsign) + ' ' + member.name + ' ' + (member.rank || '');
-    return `<tr data-activity-search="${escapeHtml(search.toLowerCase())}"><td class="activity-member"><button class="activity-member-link" type="button" data-activity-member="${escapeHtml(normalizeCallsign(member.callsign))}" aria-label="Vezi pontajele pentru ${escapeHtml(member.name)}">${avatarFor(member)}<span><strong>${escapeHtml(member.name)}</strong><small><b class="activity-callsign">${escapeHtml(normalizeCallsign(member.callsign))}</b><em class="activity-rank">${escapeHtml(member.rank || '—')}</em></small></span></button></td><td class="activity-minimum">${target ? `${target} min` : '—'}</td>${activityDayCells(member, today, target)}${visibleWeeks.map((week, index) => activityWeekCell(values[index]?.value || '—', target)).join('')}</tr>`;
+    return `<tr data-activity-search="${escapeHtml(search.toLowerCase())}"><td class="activity-member"><button class="activity-member-link" type="button" data-activity-member="${escapeHtml(normalizeCallsign(member.callsign))}" aria-label="Vezi pontajele pentru ${escapeHtml(member.name)}">${avatarFor(member)}<span><small><b class="activity-callsign">${escapeHtml(normalizeCallsign(member.callsign))}</b></small><strong>${escapeHtml(member.name)}</strong></span></button></td><td class="activity-minimum">${target ? `${target} min` : '—'}</td>${activityDayCells(member, today, target)}${visibleWeeks.map((week, index) => activityWeekCell(values[index]?.value || '—', target)).join('')}</tr>`;
   }).join('')).join('');
   const statusText = activityLoadError ? `Nu s-au putut încărca datele: ${activityLoadError}` : attendanceSyncError ? `Pontajele live nu s-au putut actualiza: ${attendanceSyncError}` : members.length ? `${members.length} membri afișați (001–650).` : 'Lista departamentului se încarcă...';
-  return `<section class="panel activity-panel"><div class="panel-head activity-head"><div><p class="eyebrow">LISTA DEPARTAMENT</p><h2>Evidență activitate</h2><p class="muted">Minutele pe zile și totalurile săptămânale sunt preluate din documentul departamentului.</p></div><div class="activity-tools"><button class="outline site-guide-frame activity-weeks-toggle" id="activity-weeks-toggle" type="button" aria-pressed="${activityShowWeeks}">${activityShowWeeks ? 'Ascunde totalurile săptămânale' : 'Arată totalurile săptămânale'}</button><input class="activity-search" id="activity-search" type="search" placeholder="Caută după nume, callsign sau grad" value="${escapeHtml(activitySearch)}" aria-label="Caută membru"></div></div><p class="activity-status muted" id="activity-status" role="status" aria-live="polite">${escapeHtml(statusText)}</p><div class="activity-table-wrap"><table class="activity-table"><thead><tr><th>MEMBRU</th><th>MINIM</th>${dayHeaders}${headers}</tr></thead><tbody>${rows || `<tr><td colspan="${weeks.length + 9}">Nu există membri disponibili.</td></tr>`}</tbody></table></div></section>`;
+  return `<section class="panel activity-panel"><div class="panel-head activity-head"><div><p class="eyebrow">LISTA DEPARTAMENT</p><h2>Evidență activitate</h2><p class="muted">Minutele pe zile și totalurile săptămânale sunt preluate din documentul departamentului.</p></div><div class="activity-tools"><button class="outline site-guide-frame activity-weeks-toggle" id="activity-weeks-toggle" type="button" aria-pressed="${activityShowWeeks}">${activityShowWeeks ? 'Ascunde totalurile săptămânale' : 'Arată totalurile săptămânale'}</button><input class="activity-search" id="activity-search" type="search" placeholder="Caută după nume, callsign sau grad" value="${escapeHtml(activitySearch)}" aria-label="Caută membru"></div></div><p class="activity-status muted" id="activity-status" role="status" aria-live="polite">${escapeHtml(statusText)}</p><div class="activity-table-wrap"><table class="activity-table">${tableColumns}<thead><tr><th>MEMBRU</th><th>MINIM</th>${dayHeaders}${headers}</tr></thead><tbody>${rows || `<tr><td colspan="${weeks.length + 9}">Nu există membri disponibili.</td></tr>`}</tbody></table></div></section>`;
 }
 function applyActivitySearch() {
   const query = activitySearch.trim().toLowerCase();
@@ -1881,6 +1884,7 @@ function wireSettingsEvents() {
 function renderView(view) {
   const overview = document.querySelector('#overview-view');
   const isOverview = view === 'overview';
+  document.querySelector('#app')?.classList.toggle('activity-wide', view === 'activity');
   viewContent.hidden = isOverview;
   overview.hidden = !isOverview;
   viewContent.style.display = isOverview ? 'none' : 'block';

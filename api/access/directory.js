@@ -160,7 +160,7 @@ export default async function handler(req, res) {
       const status = statusFromRow(row);
       const grantedTests = effectiveTestsForMember(functions, storedGrant, callsignNumber(row[2]), String(row[4] || '').trim(), String(row[5] || '').trim());
       return {
-        discordId, name: String(row[3] || '').trim(), callsign: String(row[2] || '').trim(), csNum: callsignNumber(row[2]), joinedAt: String(row[0] || '').trim(), rank: String(row[4] || '').trim(), dept: String(row[5] || '').trim(), functions, status, gradeGroup: groupLabel(row),
+        discordId, name: String(row[3] || '').trim(), callsign: String(row[2] || '').trim(), csNum: callsignNumber(row[2]), joinedAt: String(row[9] || '').trim(), rank: String(row[4] || '').trim(), dept: String(row[5] || '').trim(), functions, status, gradeGroup: groupLabel(row),
         isLeadership: isConducere, leadershipTitle: isConducere ? leadershipTitle(row) : '', avatar: avatarUrlForDiscordMember(discordId, row[20], avatarHashes),
         grantedTests, grantMode: storedGrant?.grantMode || '', updatedAt: storedGrant?.updatedAt || '', lastSeen: storedGrant?.lastSeen || '',
         attendanceMinimumMinutes: attendanceMinimumMinutes(row[2], row[4]),

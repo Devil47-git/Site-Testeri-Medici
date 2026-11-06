@@ -11,6 +11,7 @@ const row = (callsign, name, discordId, rank = '') => {
   member[2] = callsign;
   member[3] = name;
   member[4] = rank;
+  member[9] = '01.02.2024';
   member[19] = discordId;
   return member;
 };
@@ -203,6 +204,12 @@ test('only leadership can read weekly attendance values from Sheets', async () =
   attendanceSheetRows[4][14] = 'updated in document';
   const refreshed = await callDirectory('leadership-id', 'attendance');
   assert.equal(refreshed.payload.members[0].attendanceWeeks[0].value, 'updated in document');
+});
+
+test('department directory reads member entry dates from column J', async () => {
+  const response = await callDirectory('leadership-id', 'members');
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.payload.members.find(member => member.discordId === 'member-id').joinedAt, '01.02.2024');
 });
 
 test('only callsigns 001-020 can read department-wide weekly attendance', async () => {

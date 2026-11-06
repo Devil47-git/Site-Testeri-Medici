@@ -232,6 +232,28 @@ test('member profiles and activity table show weekly values from the department 
   assert.match(attendanceApi, /req\.query\?\.view === 'own'/);
 });
 
+test('activity table uses the available page width without a forced horizontal minimum', () => {
+  assert.match(source, /classList\.toggle\('activity-wide', view === 'activity'\)/);
+  assert.match(source, /<colgroup><col style="width:19%"><col style="width:6%">/);
+  assert.match(source, /tableColumns/);
+  assert.match(styleSource, /\.page-wrap\.activity-wide\{width:100%;max-width:none/);
+  assert.match(styleSource, /\.activity-wide \.activity-panel \.activity-table-wrap\{overflow-x:hidden;overflow-y:auto\}/);
+  assert.match(styleSource, /\.activity-wide \.activity-panel \.activity-table\{width:100%;min-width:0;table-layout:fixed\}/);
+  assert.match(styleSource, /\.activity-wide \.activity-panel \.activity-table thead th\.activity-week-header\{min-width:0/);
+  assert.match(styleSource, /\.activity-wide \.activity-panel \.activity-table \.activity-history-value\{min-width:0/);
+});
+
+test('member cards use the department entry date and keep the identity centered beside the avatar', () => {
+  assert.match(directorySource, /joinedAt: String\(row\[9\] \|\| ''\)\.trim\(\)/);
+  assert.match(source, /<span class="member-room-callsign">[\s\S]*?<strong>\$\{escapeHtml\(memberNameFor\(member\)\)\}<\/strong>/);
+  assert.match(source, /member-room-function-content"><div class="member-function-badges">/);
+  assert.doesNotMatch(source, /<span>FUNCȚII<\/span>|Caută după nume, callsign sau funcție|Atribuie funcții|Nicio funcție atribuită/);
+  assert.match(source, /<small><b class="activity-callsign">[\s\S]*?<\/b><\/small><strong>\$\{escapeHtml\(member\.name\)\}<\/strong>/);
+  assert.doesNotMatch(source, /class="activity-rank"/);
+  assert.match(styleSource, /\.activity-panel \.activity-member-link>span\{display:flex;flex-direction:column;justify-content:center/);
+  assert.match(styleSource, /\.member-room-name-line\{display:flex;align-items:center/);
+});
+
 test('SMULS, Moto, Pilot, and parachutism test pages show their fixed corner logos', () => {
   assert.match(source, /class="panel view-panel\$\{isSmulsTest \? ' smuls-background-panel' : isAlsTest \? ' als-background-panel' : isAdmissionTest/);
   assert.match(source, /document\.body\.classList\.toggle\('smuls-background-mode', testName === 'Test SMULS'\)/);
