@@ -1,25 +1,17 @@
 import '../../lib/config.js';
-import { callsignNumber, normalize } from '../../lib/access/shared.js';
+import { attendanceTypesForFunctions, callsignNumber, normalize } from '../../lib/access/shared.js';
 import { UpstashRedis } from '../../lib/storage/upstash-redis.js';
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:U400';
 const ATTENDANCE_SHEET_RANGE = process.env.GOOGLE_ATTENDANCE_RANGE || "'EVIDENTA ACTIVITATE'!A1:U400";
 const TEST_PONTAJE_RANGE = process.env.GOOGLE_TEST_PONTAJE_RANGE || "'TEST PONTAJE'!D1:D400";
-const MEMBER_FUNCTIONS_RANGE = 'MEMBER_FUNCTIONS!A1:D';
 const ATTENDANCE_TIME_ZONE = 'Europe/Bucharest';
 const attendanceRedis = new UpstashRedis();
-const HR_ATTENDANCE_FUNCTIONS = new Set(['resurse-umane', 'manager-hr']);
-const PR_ATTENDANCE_FUNCTIONS = new Set(['relatii-publice', 'manager-pr', 'adjunct-pr']);
 
 function json(res, status, body) { return res.status(status).json(body); }
 export function attendanceTypesForFunctionIds(functionIds) {
-  const ids = new Set(Array.isArray(functionIds) ? functionIds : []);
-  return [
-    'regular',
-    ...(Array.from(HR_ATTENDANCE_FUNCTIONS).some(id => ids.has(id)) ? ['hr'] : []),
-    ...(Array.from(PR_ATTENDANCE_FUNCTIONS).some(id => ids.has(id)) ? ['pr'] : [])
-  ];
+  return attendanceTypesForFunctions(Array.isArray(functionIds) ? functionIds.join('|') : '');
 }
 function attendanceTypeForEntry(entry) {
   return entry?.type === 'hr' || entry?.type === 'pr' ? entry.type : 'regular';
@@ -27,12 +19,12 @@ function attendanceTypeForEntry(entry) {
 async function allowedAttendanceTypesForMember(discordId) {
   const key = process.env.GOOGLE_API_KEY;
   if (!key) throw new Error('GOOGLE_API_KEY is not configured');
-  const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(MEMBER_FUNCTIONS_RANGE)}?key=${encodeURIComponent(key)}`);
+  const response = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(MEMBER_RANGE)}?key=${encodeURIComponent(key)}`);
   const data = await response.json();
-  if (response.status === 400 && String(data?.error?.message || '').includes('Unable to parse range')) return ['regular'];
   if (!response.ok || !Array.isArray(data.values)) throw new Error('Google Sheets member function read failed');
-  const assignment = data.values.slice(1).find(row => String(row?.[0] || '').trim() === discordId);
-  return attendanceTypesForFunctionIds(String(assignment?.[2] || '').split('|'));
+  const member = data.values.slice(1).find(row => String(row?.[19] || '').trim() === discordId);
+  if (!member) throw new Error('Department member not found while checking attendance functions');
+  return attendanceTypesForFunctions(member[10] || '');
 }
 function attendanceReviewKey(dateKey, discordId) { return `site-testeri-medici:attendance-review:${dateKey}:${discordId}`; }
 function reviewTime(value) {

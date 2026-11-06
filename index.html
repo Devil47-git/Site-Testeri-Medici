@@ -10,7 +10,7 @@
     <link
         href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet"         href="style.css?v=20261105a">
+    <link rel="stylesheet"         href="style.css?v=20261106b">
 </head>
 
 <body class="dark-mode">
@@ -30,8 +30,8 @@
     </div>
     <div class="app-shell" id="app-shell">
         <aside class="sidebar">
-            <button class="brand brand-button brand-with-logo" id="brand-settings" type="button" title="Deschide profilul tău"><img class="brand-logo-image" src="/assets/eclipse-medical-banner.svg" alt="Eclipse Medical Tower, clădirea departamentului medical"><span><b>DEPARTAMENTUL MEDICAL</b><small>SUB-DEPARTAMENTUL TESTERILOR</small></span></button>
-            <div class="workspace-label">SITE TESTERI</div>
+            <button class="brand brand-button brand-with-logo" id="brand-settings" type="button" title="Deschide profilul tău"><img class="brand-logo-image" src="/assets/eclipse-medical-banner.png" alt="Eclipse Medical Tower, clădirea departamentului medical"></button>
+            <div class="workspace-label">PANEL MEDICI</div>
             <nav>
                 <button class="nav-item active" data-view="overview"><span class="nav-ico">👤</span> Profilul tău</button>
                 <button class="nav-item" data-view="testers"><span class="nav-ico">📋</span><span class="nav-label">Testeri</span><em id="tester-count">0</em></button>
@@ -124,6 +124,7 @@
             <p class="eyebrow">GESTIONARE FUNCȚII</p>
             <h2 id="member-functions-title">Atribuie funcții</h2>
             <p class="muted" id="member-functions-member"></p>
+            <p class="muted">Lista este sincronizată cu coloana K din Lista Departament. Funcțiile noi salvate aici apar automat în opțiuni.</p>
             <div class="member-function-options" id="member-function-options"></div>
             <p class="member-functions-status muted" id="member-functions-status" role="status" aria-live="polite"></p>
             <button class="primary full" id="save-member-functions" type="button">Salvează funcțiile</button>
@@ -135,7 +136,7 @@
     </div>
     <script src="tests.js"></script>
     <script src="js/storage.js?v=20261005a"></script>
-    <script src="script.js?v=20261105a"></script>
+    <script src="script.js?v=20261106a"></script>
 </body>
 
 </html>

@@ -47,7 +47,7 @@ function extract(name) {
 const catalog = ['Test admitere', 'Test transfer', 'Adeverință medicală', 'Test ALS', 'Test SMULS', 'Test MOTO', 'Test PILOT', 'Test parașutiști'];
 const definitions = Object.fromEntries(catalog.map(n => [n, { name: n, questions: [] }]));
 
-const names = ['callsignNumber', 'bonusTesterCallsign', 'bonusClipboardValues', 'bonusRowGroups', 'normalizeCallsign', 'cooldownPaymentAmount', 'cooldownPaymentMaxDays', 'cooldownPaymentPayerForCallsign', 'cooldownPaymentMessage', 'isAdmissionChecklistReminder', 'testNameFromHash', 'routeFromLocation', 'validSavedRoute', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberHasTestAccess', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'processedTestGroups', 'processedTestBadgesHtml', 'sortMembers', 'avatarUrlForMember', 'testTagClass', 'gradeGroupFor', 'normalizeGrantBundle', 'plausibleIdentityDetails', 'identityCardCrop', 'memberAccessTests', 'testerAccessHtml', 'profileTestTagsHtml', 'mergeTestDefinitions', 'admissionChecklistHtml', 'admissionConsentHtml', 'admissionChecksComplete', 'motoChecksComplete', 'pilotLicenseChecklistHtml', 'alsChecklistHtml', 'alsChecksComplete', 'alsCaseListHtml', 'smulsChecklistHtml', 'smulsChecksComplete', 'smulsCaseListHtml', 'memberStatus', 'testerFunctionsForDisplay', 'isTestFailed', 'canUseAdmittedVerdict', 'startVerdictButtonCooldown', 'maxWrongForTest', 'cachedUserWithinSession', 'questionItemHtml', 'evaluationStageHtml', 'parseIdentityCardText', 'mergeIdentityCardDetails', 'displayTestName', 'departmentCalendarDate', 'latestCompleteBonusPeriodIndex', 'activeBonusPeriodIndex', 'bonusPeriodFor'];
+const names = ['callsignNumber', 'bonusTesterCallsign', 'bonusClipboardValues', 'bonusRowGroups', 'normalizeCallsign', 'cooldownPaymentAmount', 'cooldownPaymentMaxDays', 'cooldownPaymentPayerForCallsign', 'cooldownPaymentMessage', 'isAdmissionChecklistReminder', 'testNameFromHash', 'routeFromLocation', 'validSavedRoute', 'isLeadershipUser', 'memberIsLeadership', 'leadershipTitleForCallsign', 'allowedForUser', 'memberHasTestAccess', 'memberHasGrade', 'memberIsTester', 'memberCanGiveTest', 'docsAssignedTests', 'processedTestGroups', 'processedTestBadgesHtml', 'sortMembers', 'avatarUrlForMember', 'testTagClass', 'gradeGroupFor', 'normalizeGrantBundle', 'plausibleIdentityDetails', 'identityCardCrop', 'memberAccessTests', 'testerAccessHtml', 'profileTestTagsHtml', 'mergeTestDefinitions', 'admissionChecklistHtml', 'admissionConsentHtml', 'admissionChecksComplete', 'motoChecksComplete', 'pilotLicenseChecklistHtml', 'alsChecklistHtml', 'alsChecksComplete', 'alsCaseListHtml', 'smulsChecklistHtml', 'smulsChecksComplete', 'smulsCaseListHtml', 'memberStatus', 'testerFunctionsForDisplay', 'isTestFailed', 'canUseAdmittedVerdict', 'startVerdictButtonCooldown', 'maxWrongForTest', 'cachedUserWithinSession', 'questionItemHtml', 'evaluationStageHtml', 'parseIdentityCardText', 'mergeIdentityCardDetails', 'displayTestName', 'departmentCalendarDate', 'latestCompleteBonusPeriodIndex', 'activeBonusPeriodIndex', 'bonusPeriodFor'];
 const srcs = names.map(extract).join('\n');
 const pattern = source.match(/^const RESIDENT_TESTER_PATTERN = .*$/m)?.[0] || 'const RESIDENT_TESTER_PATTERN = /TESTER/;';
 const normalizeTextSrc = extract('normalizeText');
@@ -62,10 +62,13 @@ const load = new Function(
   'testSummaryDefinitions',
   'residentTesterPattern',
   'leadershipMax',
-  `${fullSrc}\nreturn { callsignNumber, bonusTesterCallsign, bonusClipboardValues, bonusRowGroups, normalizeCallsign, cooldownPaymentAmount, cooldownPaymentMaxDays, cooldownPaymentPayerForCallsign, cooldownPaymentMessage, isAdmissionChecklistReminder, testNameFromHash, routeFromLocation, validSavedRoute, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, processedTestGroups, processedTestBadgesHtml, sortMembers, avatarUrlForMember, testTagClass, gradeGroupFor, testerAccessHtml, profileTestTagsHtml, mergeTestDefinitions, admissionChecklistHtml, admissionConsentHtml, admissionChecksComplete, motoChecksComplete, pilotLicenseChecklistHtml, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, canUseAdmittedVerdict, startVerdictButtonCooldown, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, departmentCalendarDate, latestCompleteBonusPeriodIndex, activeBonusPeriodIndex, bonusPeriodFor, memberAccessTests, plausibleIdentityDetails, identityCardCrop };`,
+  `${fullSrc}\nreturn { callsignNumber, bonusTesterCallsign, bonusClipboardValues, bonusRowGroups, normalizeCallsign, cooldownPaymentAmount, cooldownPaymentMaxDays, cooldownPaymentPayerForCallsign, cooldownPaymentMessage, isAdmissionChecklistReminder, testNameFromHash, routeFromLocation, validSavedRoute, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberHasGrade, memberIsTester, memberCanGiveTest, docsAssignedTests, processedTestGroups, processedTestBadgesHtml, sortMembers, avatarUrlForMember, testTagClass, gradeGroupFor, testerAccessHtml, profileTestTagsHtml, mergeTestDefinitions, admissionChecklistHtml, admissionConsentHtml, admissionChecksComplete, motoChecksComplete, pilotLicenseChecklistHtml, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, canUseAdmittedVerdict, startVerdictButtonCooldown, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, departmentCalendarDate, latestCompleteBonusPeriodIndex, activeBonusPeriodIndex, bonusPeriodFor, memberAccessTests, plausibleIdentityDetails, identityCardCrop };`,
 )(catalog, definitions, testSummaryDefinitions, residentTesterPattern, leadershipMax);
 
-const { callsignNumber, bonusTesterCallsign, bonusClipboardValues, bonusRowGroups, normalizeCallsign, cooldownPaymentAmount, cooldownPaymentMaxDays, cooldownPaymentPayerForCallsign, cooldownPaymentMessage, isAdmissionChecklistReminder, testNameFromHash, routeFromLocation, validSavedRoute, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberIsTester, memberCanGiveTest, docsAssignedTests, processedTestGroups, processedTestBadgesHtml, sortMembers, avatarUrlForMember, testTagClass, gradeGroupFor, testerAccessHtml, profileTestTagsHtml, mergeTestDefinitions, admissionChecklistHtml, admissionConsentHtml, admissionChecksComplete, motoChecksComplete, pilotLicenseChecklistHtml, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, canUseAdmittedVerdict, startVerdictButtonCooldown, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, departmentCalendarDate, latestCompleteBonusPeriodIndex, activeBonusPeriodIndex, bonusPeriodFor, memberAccessTests, plausibleIdentityDetails, identityCardCrop } = load;
+const { callsignNumber, bonusTesterCallsign, bonusClipboardValues, bonusRowGroups, normalizeCallsign, cooldownPaymentAmount, cooldownPaymentMaxDays, cooldownPaymentPayerForCallsign, cooldownPaymentMessage, isAdmissionChecklistReminder, testNameFromHash, routeFromLocation, validSavedRoute, isLeadershipUser, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberHasGrade, memberIsTester, memberCanGiveTest, docsAssignedTests, processedTestGroups, processedTestBadgesHtml, sortMembers, avatarUrlForMember, testTagClass, gradeGroupFor, testerAccessHtml, profileTestTagsHtml, mergeTestDefinitions, admissionChecklistHtml, admissionConsentHtml, admissionChecksComplete, motoChecksComplete, pilotLicenseChecklistHtml, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, canUseAdmittedVerdict, startVerdictButtonCooldown, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, departmentCalendarDate, latestCompleteBonusPeriodIndex, activeBonusPeriodIndex, bonusPeriodFor, memberAccessTests, plausibleIdentityDetails, identityCardCrop } = load;
+const attendanceDisplay = new Function(
+  `${extract('escapeHtml')}\n${extract('attendanceLeaveCode')}\n${extract('activityWeekMetrics')}\n${extract('activityWeekCell')}\nreturn { attendanceLeaveCode, activityWeekMetrics, activityWeekCell };`,
+)();
 
 test('guide loads from the bundled asset route with local media and an authorized submenu', () => {
   assert.match(source, /fetch\('\/api\/guide'\)/);
@@ -172,6 +175,27 @@ test('all members can view the tester directory while only callsigns 001-020 can
   assert.match(loadDirectorySource, /testers = directoryMembers\.filter\(member => member\.isTester \|\| memberIsTester\(member\)\)/);
   assert.match(testerViewSource, /const actions = hasLeadershipCallsign\(currentUser\) \?/);
   assert.match(grantsSource, /requesterCallsign < 1 \|\| requesterCallsign > LEADERSHIP_MAX/);
+});
+
+test('member room omits members without a rank or grade group', () => {
+  assert.equal(memberHasGrade({ rank: 'Medic Specialist' }), true);
+  assert.equal(memberHasGrade({ gradeGroup: 'Medic Primar' }), true);
+  assert.equal(memberHasGrade({ rank: ' ', gradeGroup: '' }), false);
+  assert.equal(memberHasGrade({}), false);
+  assert.match(source, /departmentMembers\.filter\(member => \{\s*if \(!memberHasGrade\(member\)\) return false;/);
+  assert.match(source, /const memberCount = departmentMembers\.filter\(memberHasGrade\)\.length/);
+});
+
+test('CVV keeps its label while using the same weekly calculation as CO', () => {
+  const { attendanceLeaveCode, activityWeekMetrics, activityWeekCell } = attendanceDisplay;
+  assert.equal(attendanceLeaveCode('CVV'), 'CVV');
+  assert.equal(attendanceLeaveCode('CCV'), 'CVV');
+  assert.equal(attendanceLeaveCode('CO'), 'CO');
+  assert.deepEqual(activityWeekMetrics('138/5CVV', 80), activityWeekMetrics('138/5CO', 80));
+  assert.match(activityWeekCell('138/5CVV', 80), /\+5 CVV/);
+  assert.match(activityWeekCell('138/5CCV', 80), /\+5 CVV/);
+  assert.match(activityWeekCell('138/2CO', 80), /\+2 CO/);
+  assert.match(activityWeekCell('CVV', 80), />CVV<\/strong>/);
 });
 
 test('activity directory members open a leadership-only attendance detail page', () => {
@@ -1011,9 +1035,21 @@ test('overview includes a centered animated heartbeat trace', () => {
   assert.match(indexSource, /viewBox="0 0 440 80" focusable="false"/);
   assert.equal((indexSource.match(/class="heartbeat-track"/g) || []).length, 1);
   assert.equal((indexSource.match(/class="heartbeat-pulse"/g) || []).length, 1);
-  assert.match(styleSource, /\.heartbeat-monitor\{position:fixed;z-index:1;left:calc\(50% \+ 122px\);bottom:22px;width:min\(520px,calc\(100vw - 36px\)\);height:80px/);
+  assert.match(styleSource, /\.heartbeat-monitor\{position:relative;z-index:0;width:min\(900px,100%\);height:auto;aspect-ratio:11\/2;margin:24px auto 0/);
+  assert.match(styleSource, /@media\(max-width:760px\)\{\.heartbeat-monitor\{width:100%;margin-top:20px\}\}/);
+  assert.doesNotMatch(styleSource.match(/\.heartbeat-monitor\{[^}]*\}/)?.[0] || '', /position:fixed/);
   assert.match(styleSource, /\.heartbeat-pulse\{[^}]*animation:heartbeat-sweep 2\.8s linear infinite\}/);
   assert.match(indexSource, /class="heartbeat-pulse" pathLength="1000" d="M0 40H88/);
+});
+
+test('sidebar uses the full-width Eclipse banner image', () => {
+  assert.match(indexSource, /class="brand-logo-image" src="\/assets\/eclipse-medical-banner\.png"/);
+  assert.doesNotMatch(indexSource.match(/<button class="brand brand-button brand-with-logo"[\s\S]*?<\/button>/)?.[0] || '', /DEPARTAMENTUL MEDICAL<\/b>|SUB-DEPARTAMENTUL TESTERILOR/);
+  assert.match(styleSource, /body\.dark-mode \.brand-logo-image\{[^}]*width:100%;max-width:100%;height:auto/);
+});
+
+test('sidebar workspace label is Panel Medici', () => {
+  assert.match(indexSource, /class="workspace-label">PANEL MEDICI<\/div>/);
 });
 
 test('admission test rejects the fourth mistake', () => {

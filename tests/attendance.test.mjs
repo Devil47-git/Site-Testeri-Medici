@@ -39,10 +39,9 @@ const attendanceSheetRows = [
   headers,
   Array(21).fill(''),
   attendanceRow('001', '50', '60', '70'),
-  attendanceRow('101', '134/2CO', '138/5CCV', '—'),
+  attendanceRow('101', '134/2CO', '138/5CVV', '—'),
   attendanceRow('021', '30', '40', '50')
 ];
-let memberFunctionRows = [['discordId', 'callsign', 'functionIds', 'updatedAt']];
 const redisValues = new Map();
 
 globalThis.fetch = async (url, options = {}) => {
@@ -68,7 +67,7 @@ globalThis.fetch = async (url, options = {}) => {
   const range = decodeURIComponent(new URL(url).pathname.split('/').pop());
   return {
     ok: true,
-    json: async () => ({ values: range.includes('EVIDENTA ACTIVITATE') ? attendanceSheetRows : range.startsWith('LISTA') ? sheetRows : range.includes('MEMBER_FUNCTIONS') ? memberFunctionRows : [Array(6).fill('')] })
+    json: async () => ({ values: range.includes('EVIDENTA ACTIVITATE') ? attendanceSheetRows : range.startsWith('LISTA') ? sheetRows : [Array(6).fill('')] })
   };
 };
 
@@ -107,7 +106,7 @@ async function callAttendance(method, requesterId, body = {}, extraQuery = {}, h
 test('weekly attendance columns keep document labels and text values unchanged', () => {
   assert.deepEqual(attendanceWeeksFromRows(headers, attendanceSheetRows[5]), [
     { label: 'TOTAL/ZI CW 40 (05.10-11.10)', value: '134/2CO' },
-    { label: 'TOTAL/ZI CW 41 (12.10-18.10)', value: '138/5CCV' },
+    { label: 'TOTAL/ZI CW 41 (12.10-18.10)', value: '138/5CVV' },
     { label: 'TOTAL/ZI CW 42 (19.10-25.10)', value: '—' }
   ]);
   const zeroRow = [...attendanceSheetRows[5]];
@@ -139,6 +138,8 @@ test('HR and PR attendance permissions follow assigned member functions', () => 
   assert.deepEqual(attendanceTypesForFunctionIds(['resurse-umane']), ['regular', 'hr']);
   assert.deepEqual(attendanceTypesForFunctionIds(['manager-hr']), ['regular', 'hr']);
   assert.deepEqual(attendanceTypesForFunctionIds(['relatii-publice', 'adjunct-pr']), ['regular', 'pr']);
+  assert.deepEqual(attendanceTypesForFunctionIds(['H.R. / H.R. AV']), ['regular', 'hr']);
+  assert.deepEqual(attendanceTypesForFunctionIds(['P.R.', 'Manager P.R.']), ['regular', 'pr']);
   assert.deepEqual(attendanceTypesForFunctionIds([]), ['regular']);
 });
 
@@ -208,7 +209,7 @@ test('only callsigns 001-020 can read department-wide weekly attendance', async 
   const leadership = await callDirectory('leadership-id', 'activity');
   assert.equal(leadership.statusCode, 200);
   assert.equal(leadership.payload.members.length, 3);
-  assert.deepEqual(leadership.payload.members[1].attendanceWeeks.map(week => week.value), ['134/2CO', '138/5CCV', '—']);
+  assert.deepEqual(leadership.payload.members[1].attendanceWeeks.map(week => week.value), ['134/2CO', '138/5CVV', '—']);
 
   const rankOnly = await callDirectory('rank-only-id', 'activity');
   assert.equal(rankOnly.statusCode, 403);
@@ -246,10 +247,7 @@ test('the separate live timer still supports start and stop without manual weekl
 
 test('HR and PR timers require assigned functions and keep their entry types', async () => {
   const memberKey = 'site-testeri-medici:attendance:member-id';
-  memberFunctionRows = [
-    ['discordId', 'callsign', 'functionIds', 'updatedAt'],
-    ['member-id', '101', 'resurse-umane', '']
-  ];
+  sheetRows[2][10] = 'H.R. / H.R. AV';
   try {
     const ownAttendance = await callAttendance('GET', 'member-id', {}, { view: 'own' });
     assert.equal(ownAttendance.statusCode, 200);
@@ -266,10 +264,7 @@ test('HR and PR timers require assigned functions and keep their entry types', a
     assert.equal(stoppedHr.payload.entries.at(-1).type, 'hr');
     assert.equal(Number.isFinite(stoppedHr.payload.entries.at(-1).end), true);
 
-    memberFunctionRows = [
-      ['discordId', 'callsign', 'functionIds', 'updatedAt'],
-      ['member-id', '101', 'relatii-publice', '']
-    ];
+    sheetRows[2][10] = 'P.R.';
     const deniedHr = await callAttendance('POST', 'member-id', { action: 'start', attendanceType: 'hr' });
     assert.equal(deniedHr.statusCode, 403);
     const startedPr = await callAttendance('POST', 'member-id', { action: 'start', attendanceType: 'pr' });
@@ -278,7 +273,7 @@ test('HR and PR timers require assigned functions and keep their entry types', a
     const stoppedPr = await callAttendance('POST', 'member-id', { action: 'stop', attendanceType: 'pr' });
     assert.equal(stoppedPr.statusCode, 200);
   } finally {
-    memberFunctionRows = [['discordId', 'callsign', 'functionIds', 'updatedAt']];
+    sheetRows[2][10] = '';
     redisValues.delete(memberKey);
   }
 });

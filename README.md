@@ -33,7 +33,7 @@ Medical certificates use a separate `MEDICAL_CERTIFICATES` sheet and `DISCORD_ME
 
 The leadership reset clears both current test counts and processed-test totals for all testers.
 
-The `Membri` room lists every named member from `LISTA DEPARTAMENT`, including the entry date from column A and the Discord avatar. Callsigns 001–020 can assign the predefined roles; assignments are stored in the `MEMBER_FUNCTIONS` Google Sheets tab, created automatically on the first save. The configured service account needs edit access to the spreadsheet, and the sheet must be publicly readable through the configured Google API key, like the department list.
+The `Membri` room lists every named member from `LISTA DEPARTAMENT`, including the entry date from column A and the Discord avatar. Its function options are built from the distinct values in column K and refresh whenever the room is opened. Callsigns 001–020 can assign or remove those functions, and can add a new function for a member; each save writes that member's function list directly to column K. A function removed from every member's column K entry disappears from the site's options. The configured service account needs edit access to the spreadsheet, and the sheet must be publicly readable through the configured Google API key, like the department list. HR and PR attendance permissions are also read from column K.
 
 ## Cooldowns and bonuses
 

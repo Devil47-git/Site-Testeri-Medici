@@ -684,6 +684,9 @@ body.dark-mode .nav-item.active{box-shadow:inset 2px 0 var(--purple)}
 .member-function-option input{grid-row:span 2;width:16px;height:16px;accent-color:#6f7cff}
 .member-function-option .member-function-badge{justify-self:start}
 .member-function-option small{grid-column:2;color:var(--muted);font-size:10px}
+.member-function-add{grid-template-columns:1fr}
+.member-function-add input{grid-row:auto;width:100%;height:auto;accent-color:initial}
+.member-function-add span{font-size:11px;font-weight:800}
 .member-functions-status{min-height:18px}
 @media(max-width:900px){.member-room-card{grid-template-columns:minmax(170px,1fr) minmax(110px,.5fr) minmax(180px,1.2fr)}.member-functions-edit{grid-column:1/-1;justify-self:start}}
 @media(max-width:600px){.member-room-panel{padding:16px}.member-room-card{grid-template-columns:minmax(0,1fr) auto;gap:12px;padding:13px}.member-room-identity{grid-column:1/-1;padding-bottom:10px;border-bottom:1px solid var(--line)}.member-room-functions{grid-column:1/-1}.member-functions-edit{grid-column:1/-1}.member-function-options{grid-template-columns:1fr}.member-room-message{align-items:flex-start;flex-direction:column}}
@@ -914,17 +917,17 @@ body.dark-mode .top-actions{display:flex;align-items:center}
 body.dark-mode .topbar .help{border:2px solid var(--neon-red);box-shadow:0 0 10px rgba(255,45,61,.55)}
 body.dark-mode .main-content{position:relative;background:radial-gradient(ellipse 60% 40% at 85% 0,rgba(255,45,61,.16),transparent 70%),radial-gradient(ellipse 60% 45% at 10% 100%,rgba(43,140,255,.16),transparent 70%)}
 body.dark-mode .page-wrap{position:relative;background:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='900' height='120' viewBox='0 0 900 120'><path d='M0 60H300l15-5 10 5 12-40 14 80 12-60 10 20 8-5H900' fill='none' stroke='%232b8cff' stroke-opacity='.35' stroke-width='2'/></svg>") center bottom 40px/900px 120px repeat-x}
-.heartbeat-monitor{position:fixed;z-index:1;left:calc(50% + 122px);bottom:22px;width:min(520px,calc(100vw - 36px));height:80px;transform:translateX(-50%);pointer-events:none;filter:drop-shadow(0 0 10px rgba(43,140,255,.55))}
+.heartbeat-monitor{position:relative;z-index:0;width:min(900px,100%);height:auto;aspect-ratio:11/2;margin:24px auto 0;pointer-events:none;filter:drop-shadow(0 0 10px rgba(43,140,255,.55))}
 .heartbeat-monitor svg{display:block;width:100%;height:100%;overflow:visible}
 .heartbeat-monitor path{fill:none;stroke-linecap:round;stroke-linejoin:round}
 .heartbeat-track{stroke:var(--neon-blue);stroke-width:2;stroke-opacity:.55}
 .heartbeat-pulse{stroke:var(--neon-red);stroke-width:3.5;stroke-dasharray:76 924;stroke-dashoffset:1000;animation:heartbeat-sweep 2.8s linear infinite}
 @keyframes heartbeat-sweep{to{stroke-dashoffset:0}}
-@media(max-width:760px){.heartbeat-monitor{left:50%;bottom:14px;width:min(440px,calc(100vw - 36px));height:72px}}
+@media(max-width:760px){.heartbeat-monitor{width:100%;margin-top:20px}}
 @media(prefers-reduced-motion:reduce){.heartbeat-pulse{animation-duration:8s}}
 
 /* Mockup header: logo, department text, breadcrumb pill, ambulance banner */
-body.dark-mode .brand-logo-image{filter:none;width:100%;max-width:200px;height:auto;border-radius:8px;margin-left:0;object-fit:contain}
+body.dark-mode .brand-logo-image{filter:none;width:100%;max-width:100%;height:auto;border-radius:8px;margin-left:0;object-fit:contain}
 body.dark-mode button.brand-with-logo{padding-bottom:16px}
 body.dark-mode button.brand-with-logo>span{margin-top:12px}
 body.dark-mode .brand-with-logo b{display:block;color:#4aa3ff;font-size:12px;line-height:1.35;letter-spacing:.3px;text-shadow:0 0 8px rgba(74,163,255,.5)}

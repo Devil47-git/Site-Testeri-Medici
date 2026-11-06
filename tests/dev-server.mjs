@@ -2,7 +2,7 @@ import http from 'node:http';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { readTestDefinitions, writeTestDefinitions } from '../lib/test-definitions-store.js';
-import { MEMBER_FUNCTIONS } from '../api/access/functions.js';
+import { attendanceTypesForFunctions } from '../lib/access/shared.js';
 const ROOT = process.cwd();
 const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.gif': 'image/gif', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml' };
 const MOCK = [
@@ -35,11 +35,8 @@ const BONUS_TESTS = [
 ];
 const testResults = [];
 const lifetimeTestResults = [];
-const memberFunctionAssignments = new Map([
-  ['0', { discordId: '0', callsign: '001', functionIds: ['resurse-umane', 'relatii-publice'], updatedAt: '' }],
-  ['3', { discordId: '3', callsign: '105', functionIds: ['resurse-umane'], updatedAt: '' }],
-  ['7', { discordId: '7', callsign: '220', functionIds: ['relatii-publice'], updatedAt: '' }]
-]);
+MOCK.find(member => member.discordId === '3').functions = 'H.R. / H.R. AV';
+MOCK.find(member => member.discordId === '7').functions = 'P.R.';
 const attendanceEntriesByMember = Object.fromEntries(MOCK.map(member => [member.discordId, []]));
 attendanceEntriesByMember['1'] = [
   { start: Date.parse('2026-11-02T10:15:00+02:00'), end: Date.parse('2026-11-02T12:10:00+02:00') }
@@ -59,7 +56,7 @@ for (const [index, member] of MOCK.entries()) {
           : null;
   member.attendanceWeeks = [
     { label: 'TOTAL/ZI\nCW 40', value: String(120 + index) },
-    { label: 'TOTAL/ZI\nCW 41', value: index % 2 ? '138/5CCV' : '134/2CO' },
+    { label: 'TOTAL/ZI\nCW 41', value: index % 2 ? '138/5CVV' : '134/2CO' },
     { label: 'TOTAL/ZI\nCW 42', value: '—' }
   ];
   member.attendanceDays = Array.from({ length: 7 }, (_, day) => ({
@@ -67,7 +64,7 @@ for (const [index, member] of MOCK.entries()) {
     value: member.discordId === '3' && day === (new Date().getDay() + 6) % 7
       ? 'CO'
       : member.discordId === '4' && day === 0
-        ? 'CCV'
+        ? 'CVV'
         : '0'
   }));
 }
@@ -102,11 +99,8 @@ http.createServer(async (req, res) => {
       const payload = JSON.parse(body || '{}');
       const entries = attendanceEntriesByMember[payload.requesterId] || (attendanceEntriesByMember[payload.requesterId] = []);
       const attendanceType = payload.attendanceType || 'regular';
-      const assignedFunctions = memberFunctionAssignments.get(payload.requesterId)?.functionIds || [];
-      const allowedTypes = ['regular',
-        ...(assignedFunctions.some(id => ['resurse-umane', 'manager-hr'].includes(id)) ? ['hr'] : []),
-        ...(assignedFunctions.some(id => ['relatii-publice', 'manager-pr', 'adjunct-pr'].includes(id)) ? ['pr'] : [])
-      ];
+      const assignedFunctions = MOCK.find(member => member.discordId === payload.requesterId)?.functions || '';
+      const allowedTypes = attendanceTypesForFunctions(assignedFunctions);
       if (!allowedTypes.includes(attendanceType)) {
         res.writeHead(403, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Nu ai funcția necesară pentru acest tip de pontaj.' }));
@@ -162,19 +156,25 @@ http.createServer(async (req, res) => {
         return;
       }
       const target = MOCK.find(member => member.discordId === payload.targetDiscordId);
-      if (!target || !Array.isArray(payload.functionIds) || payload.functionIds.some(id => !MEMBER_FUNCTIONS.some(item => item.id === id))) {
+      if (!target || !Array.isArray(payload.functionIds) || payload.functionIds.some(id => typeof id !== 'string')) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Invalid member function selection' }));
         return;
       }
-      const assignment = { discordId: target.discordId, callsign: target.callsign, functionIds: [...new Set(payload.functionIds)], updatedAt: new Date().toISOString() };
-      memberFunctionAssignments.set(target.discordId, assignment);
+      const functionIds = [...new Set(payload.functionIds.map(value => value.trim()).filter(Boolean))];
+      target.functions = functionIds.join(' | ');
+      const assignment = { discordId: target.discordId, callsign: target.callsign, functionIds, attendanceTypes: attendanceTypesForFunctions(target.functions), updatedAt: new Date().toISOString() };
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ success: true, assignment }));
       return;
     }
+    const catalog = [...new Map(MOCK.flatMap(member => String(member.functions || '').split('|').map(value => value.trim()).filter(Boolean).map(label => [label.toLocaleLowerCase('ro'), { id: label, label, description: label }]))).values()];
+    const assignments = MOCK.map(member => {
+      const functionIds = [...new Set(String(member.functions || '').split('|').map(value => value.trim()).filter(Boolean))];
+      return { discordId: member.discordId, callsign: member.callsign, functionIds, attendanceTypes: attendanceTypesForFunctions(member.functions) };
+    });
     res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ catalog: MEMBER_FUNCTIONS, assignments: [...memberFunctionAssignments.values()] }));
+    res.end(JSON.stringify({ catalog, assignments }));
     return;
   }
   if (url.pathname.startsWith('/api/access/directory')) {

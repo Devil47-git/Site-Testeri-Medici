@@ -1,44 +1,17 @@
 import '../../lib/config.js';
-import { callsignNumber, LEADERSHIP_MAX } from '../../lib/access/shared.js';
+import { attendanceTypesForFunctions, callsignNumber, LEADERSHIP_MAX, normalize } from '../../lib/access/shared.js';
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:T400';
-const FUNCTIONS_RANGE = 'MEMBER_FUNCTIONS!A1:D';
-const FUNCTIONS_HEADER = ['discordId', 'callsign', 'functionIds', 'updatedAt'];
-
-export const MEMBER_FUNCTIONS = Object.freeze([
-  { id: 'coordonator-jaf', label: 'C.J.', description: 'Coordonator jaf' },
-  { id: 'resurse-umane', label: 'H.R. / H.R. AV', description: 'Resurse umane' },
-  { id: 'relatii-publice', label: 'P.R.', description: 'Relații cu publicul' },
-  { id: 'instructor-pilot', label: 'PILOT / P', description: 'Instructor pilot' },
-  { id: 'instructor-moto', label: 'MOTO / M', description: 'Instructor moto' },
-  { id: 'instructor-smuls', label: 'S.M.U.L.S. / S', description: 'Instructor S.M.U.L.S.' },
-  { id: 'instructor-als', label: 'A.L.S. / A', description: 'Instructor A.L.S.' },
-  { id: 'consilier-psihologic', label: 'PH', description: 'Consilier psihologic' },
-  { id: 'manager-hr', label: 'Manager H.R.', description: 'Manager H.R.' },
-  { id: 'manager-pr', label: 'Manager P.R.', description: 'Manager P.R.' },
-  { id: 'manager-ssmls-pcls', label: 'Manager S.S.M.L.S. - P.C.L.S.', description: 'Manager S.S.M.L.S. - P.C.L.S.' },
-  { id: 'manager-mmls-pcls', label: 'Manager M.M.L.S. - P.C.L.S.', description: 'Manager M.M.L.S. - P.C.L.S.' },
-  { id: 'manager-isuls-pcls', label: 'Manager I.S.U.L.S. - P.C.L.S.', description: 'Manager I.S.U.L.S. - P.C.L.S.' },
-  { id: 'manager-dsls-pcls', label: 'Manager D.S.L.S. - P.C.L.S.', description: 'Manager D.S.L.S. - P.C.L.S.' },
-  { id: 'manager-isuls-smuls', label: 'Manager I.S.U.L.S. | S.M.U.L.S.', description: 'Manager I.S.U.L.S. | S.M.U.L.S.' },
-  { id: 'adjunct-pr', label: 'Adjunct P.R.', description: 'Adjunct P.R.' },
-  { id: 'adjunct-ssmls-pcls', label: 'Adjunct S.S.M.L.S. - P.C.L.S.', description: 'Adjunct S.S.M.L.S. - P.C.L.S.' },
-  { id: 'adjunct-mmls-pcls', label: 'Adjunct M.M.L.S. - P.C.L.S.', description: 'Adjunct M.M.L.S. - P.C.L.S.' },
-  { id: 'adjunct-isuls-pcls', label: 'Adjunct I.S.U.L.S. - P.C.L.S.', description: 'Adjunct I.S.U.L.S. - P.C.L.S.' },
-  { id: 'adjunct-dsls-pcls', label: 'Adjunct D.S.L.S. - P.C.L.S.', description: 'Adjunct D.S.L.S. - P.C.L.S.' },
-  { id: 'adjunct-isuls-smuls', label: 'Adjunct I.S.U.L.S. | S.M.U.L.S.', description: 'Adjunct I.S.U.L.S. | S.M.U.L.S.' },
-  { id: 'responsabil-testeri', label: 'Responsabil Testeri', description: 'Responsabil Testeri' },
-  { id: 'responsabil-concedii', label: 'Responsabil Co (concedii)', description: 'Responsabil Co (concedii)' },
-  { id: 'responsabil-sedinte', label: 'Responsabil Sedinte', description: 'Responsabil ședințe' }
-]);
-
-const FUNCTION_IDS = new Set(MEMBER_FUNCTIONS.map(item => item.id));
+const COMPOUND_FUNCTION_LABELS = [
+  'Manager I.S.U.L.S. | S.M.U.L.S.',
+  'Adjunct I.S.U.L.S. | S.M.U.L.S.'
+];
 
 function json(res, status, body) { return res.status(status).json(body); }
-export function normalizeFunctionIds(value) {
-  if (!Array.isArray(value)) return [];
-  return [...new Set(value.filter(id => typeof id === 'string' && FUNCTION_IDS.has(id)))];
+function validMemberFunctionLabel(value) {
+  const label = String(value || '').trim();
+  return Boolean(label && label.length <= 120 && !/[\r\n]/.test(label) && (!label.includes('|') || COMPOUND_FUNCTION_LABELS.some(item => normalize(item) === normalize(label))));
 }
 function serviceAccountConfigured() {
   if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON && !process.env.GOOGLE_APPLICATION_CREDENTIALS) {
@@ -71,79 +44,68 @@ async function readMemberRows(sheets) {
 function findMemberByDiscordId(rows, discordId) {
   return rows.slice(1).filter(Array.isArray).find(row => String(row[19] || '').trim() === discordId) || null;
 }
-async function ensureFunctionsSheet(sheets) {
-  const spreadsheet = await sheets.spreadsheets.get({ spreadsheetId: SHEET_ID, fields: 'sheets.properties.title' });
-  const exists = (spreadsheet.data.sheets || []).some(sheet => sheet.properties?.title === 'MEMBER_FUNCTIONS');
-  if (!exists) {
-    await sheets.spreadsheets.batchUpdate({
-      spreadsheetId: SHEET_ID,
-      requestBody: { requests: [{ addSheet: { properties: { title: 'MEMBER_FUNCTIONS' } } }] }
-    });
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: SHEET_ID,
-      range: 'MEMBER_FUNCTIONS!A1:D1',
-      valueInputOption: 'RAW',
-      requestBody: { values: [FUNCTIONS_HEADER] }
-    });
-    return;
+export function memberFunctionLabels(value = '') {
+  let protectedValue = String(value);
+  COMPOUND_FUNCTION_LABELS.forEach((label, index) => {
+    protectedValue = protectedValue.replace(new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), `\uE000${index}\uE001`);
+  });
+  return [...new Map(protectedValue.split('|')
+    .map(label => label.replace(/\uE000(\d+)\uE001/g, (_, index) => COMPOUND_FUNCTION_LABELS[Number(index)]))
+    .map(label => label.trim())
+    .filter(Boolean)
+    .map(label => [normalize(label), label])).values()];
+}
+export function memberFunctionsDirectory(rows) {
+  const catalog = new Map();
+  const memberRows = (Array.isArray(rows) ? rows.slice(1) : []).filter(Array.isArray);
+  for (const row of memberRows) {
+    for (const label of memberFunctionLabels(row[10] || '')) if (!catalog.has(normalize(label))) {
+      catalog.set(normalize(label), { id: label, label, description: label });
+    }
   }
-  const header = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: 'MEMBER_FUNCTIONS!A1:D1' });
-  if (String(header.data.values?.[0]?.[0] || '').trim() === FUNCTIONS_HEADER[0]) return;
+  const assignments = [];
+  for (const row of memberRows) {
+    const functionIds = memberFunctionLabels(row[10] || '').map(label => catalog.get(normalize(label)).id);
+    const discordId = String(row[19] || '').trim();
+    if (String(row[3] || '').trim()) assignments.push({
+      discordId,
+      callsign: String(row[2] || '').trim(),
+      functionIds,
+      attendanceTypes: attendanceTypesForFunctions(functionIds.join('|'))
+    });
+  }
+  return { catalog: [...catalog.values()], assignments };
+}
+export function normalizeMemberFunctionLabels(values) {
+  if (!Array.isArray(values)) return [];
+  const labels = new Map();
+  for (const value of values) {
+    if (typeof value !== 'string') continue;
+    const label = value.trim();
+    if (!validMemberFunctionLabel(label)) continue;
+    if (!labels.has(normalize(label))) labels.set(normalize(label), label);
+  }
+  return [...labels.values()];
+}
+export async function saveDepartmentFunctionAssignment(sheets, members, targetDiscordId, functionValues, updatedAt = new Date().toISOString()) {
+  const targetIndex = members.findIndex((row, index) => index > 0 && String(row?.[19] || '').trim() === targetDiscordId);
+  if (targetIndex < 1) throw new Error('Target member not found');
+  const functionIds = normalizeMemberFunctionLabels(functionValues);
+  const sheetTitle = MEMBER_RANGE.split('!')[0].replace(/^'|'$/g, '').replace(/'/g, "''");
   await sheets.spreadsheets.values.update({
     spreadsheetId: SHEET_ID,
-    range: 'MEMBER_FUNCTIONS!A1:D1',
+    range: `'${sheetTitle}'!K${targetIndex + 1}`,
     valueInputOption: 'RAW',
-    requestBody: { values: [FUNCTIONS_HEADER] }
+    requestBody: { values: [[functionIds.join(' | ')]] }
   });
-}
-async function readFunctionRows(sheets) {
-  const result = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: FUNCTIONS_RANGE });
-  return Array.isArray(result.data.values) ? result.data.values : [];
-}
-export async function saveFunctionAssignment(sheets, target, targetDiscordId, functionIds, updatedAt = new Date().toISOString()) {
-  await ensureFunctionsSheet(sheets);
-  const rows = await readFunctionRows(sheets);
-  const hasHeader = String(rows[0]?.[0] || '').trim() === FUNCTIONS_HEADER[0];
-  const body = hasHeader ? rows.slice(1) : rows;
-  const rowIndex = body.findIndex(row => String(row?.[0] || '').trim() === targetDiscordId);
-  const rowValues = [
-    targetDiscordId,
-    String(target[2] || '').trim(),
-    normalizeFunctionIds(functionIds).join('|'),
+  return {
+    discordId: targetDiscordId,
+    callsign: String(members[targetIndex]?.[2] || '').trim(),
+    functionIds,
+    attendanceTypes: attendanceTypesForFunctions(functionIds.join('|')),
     updatedAt
-  ];
-  if (rowIndex < 0) {
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: SHEET_ID,
-      range: FUNCTIONS_RANGE,
-      valueInputOption: 'RAW',
-      insertDataOption: 'INSERT_ROWS',
-      requestBody: { values: [rowValues] }
-    });
-  } else {
-    const sheetRowNumber = rowIndex + (hasHeader ? 2 : 1);
-    await sheets.spreadsheets.values.update({
-      spreadsheetId: SHEET_ID,
-      range: `MEMBER_FUNCTIONS!A${sheetRowNumber}:D${sheetRowNumber}`,
-      valueInputOption: 'RAW',
-      requestBody: { values: [rowValues] }
-    });
-  }
-  return assignmentsFromRows([FUNCTIONS_HEADER, rowValues])[0];
+  };
 }
-function assignmentsFromRows(rows) {
-  return rows.slice(1).filter(Array.isArray).flatMap(row => {
-    const discordId = String(row[0] || '').trim();
-    if (!discordId) return [];
-    return [{
-      discordId,
-      callsign: String(row[1] || '').trim(),
-      functionIds: normalizeFunctionIds(String(row[2] || '').split('|')),
-      updatedAt: String(row[3] || '').trim()
-    }];
-  });
-}
-
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'GET' && req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
@@ -155,8 +117,7 @@ export default async function handler(req, res) {
       const members = await readPublicValues(MEMBER_RANGE);
       const requester = findMemberByDiscordId(members, requesterId.trim());
       if (!requester) return json(res, 403, { error: 'Requester is not a department member' });
-      const rows = await readPublicValues(FUNCTIONS_RANGE);
-      return json(res, 200, { catalog: MEMBER_FUNCTIONS, assignments: assignmentsFromRows(rows) });
+      return json(res, 200, memberFunctionsDirectory(members));
     }
 
     const sheets = await sheetsClient();
@@ -173,11 +134,11 @@ export default async function handler(req, res) {
     const target = findMemberByDiscordId(members, targetDiscordId);
     if (!target) return json(res, 404, { error: 'Target member not found' });
     if (!String(target[3] || '').trim()) return json(res, 422, { error: 'Target member has no name in column D' });
-    if (!Array.isArray(req.body?.functionIds) || req.body.functionIds.some(id => typeof id !== 'string' || !FUNCTION_IDS.has(id))) {
+    if (!Array.isArray(req.body?.functionIds) || req.body.functionIds.some(id => typeof id !== 'string' || !validMemberFunctionLabel(id))) {
       return json(res, 400, { error: 'Invalid member function selection' });
     }
 
-    const assignment = await saveFunctionAssignment(sheets, target, targetDiscordId, req.body.functionIds);
+    const assignment = await saveDepartmentFunctionAssignment(sheets, members, targetDiscordId, req.body.functionIds);
     return json(res, 200, { success: true, assignment });
   } catch (error) {
     console.error('Member functions storage failed:', error);

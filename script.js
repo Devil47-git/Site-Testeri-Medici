@@ -816,11 +816,13 @@ function memberCardHtml(member) {
 }
 const MEMBER_GRADE_ORDER = ['Director General', 'Director Adjunct', 'Medic Inspector', 'Medic Chirurg', 'Medic Primar', 'Medic Specialist', 'Medic Rezident', 'Medic Stagiar', 'Asistent Medical', 'Brancardier'];
 function memberGradeLabel(member) { return String(member?.rank || '').trim() || String(member?.gradeGroup || '').trim() || 'Grad neprecizat'; }
+function memberHasGrade(member) { return Boolean(String(member?.rank || '').trim() || String(member?.gradeGroup || '').trim()); }
 function renderMemberCards() {
   const list = document.querySelector('#member-room-cards');
   if (!list) return;
   const query = String(document.querySelector('#member-room-search')?.value || '').trim().toLocaleLowerCase('ro');
   const members = departmentMembers.filter(member => {
+    if (!memberHasGrade(member)) return false;
     const functionNames = memberFunctionCatalog.filter(item => (member.functionIds || []).includes(item.id)).map(item => `${item.label} ${item.description}`).join(' ');
     return `${member.name} ${member.callsign} ${memberGradeLabel(member)} ${functionNames}`.toLocaleLowerCase('ro').includes(query);
   });
@@ -847,10 +849,11 @@ function renderMembersView() {
     : !membersRoomLoaded
       ? '<div class="member-room-message" role="status">Se încarcă membrii departamentului…</div>'
       : `<label class="member-room-search">Caută după nume, callsign sau funcție<input id="member-room-search" type="search" autocomplete="off" placeholder="Ex.: 105, Popescu sau A.L.S."></label><div class="member-room-cards" id="member-room-cards"></div>`;
-  return `<section class="panel view-panel member-room-panel"><div class="panel-head"><div><h2>Membrii departamentului</h2><p class="muted">Lista completă din camera Lista Departament</p></div><span class="member-room-count">${membersRoomLoaded ? departmentMembers.length : ''}</span></div>${content}</section>`;
+  const memberCount = departmentMembers.filter(memberHasGrade).length;
+  return `<section class="panel view-panel member-room-panel"><div class="panel-head"><div><h2>Membrii departamentului</h2><p class="muted">Lista completă din camera Lista Departament</p></div><span class="member-room-count">${membersRoomLoaded ? memberCount : ''}</span></div>${content}</section>`;
 }
-async function loadMembersRoom() {
-  if (!currentUser?.discordId || membersRoomLoaded || membersRoomRequest) return membersRoomRequest;
+async function loadMembersRoom({ force = false } = {}) {
+  if (!currentUser?.discordId || (membersRoomLoaded && !force) || membersRoomRequest) return membersRoomRequest;
   membersRoomError = '';
   membersRoomRequest = (async () => {
     try {
@@ -868,10 +871,14 @@ async function loadMembersRoom() {
       if (!Array.isArray(directoryPayload.members) || !Array.isArray(functionsPayload.catalog) || !Array.isArray(functionsPayload.assignments)) {
         throw new Error('Răspuns invalid de la lista membrilor.');
       }
-      const assignments = new Map(functionsPayload.assignments.map(item => [item.discordId, item.functionIds]));
+      const assignmentsByDiscordId = new Map(functionsPayload.assignments.filter(item => item.discordId).map(item => [item.discordId, item.functionIds]));
+      const assignmentsByCallsign = new Map(functionsPayload.assignments.filter(item => item.callsign).map(item => [normalizeCallsign(item.callsign), item.functionIds]));
       departmentMembers = directoryPayload.members
         .filter(member => String(member?.name || '').trim())
-        .map(member => ({ ...member, functionIds: assignments.get(member.discordId) || [] }));
+        .map(member => ({
+          ...member,
+          functionIds: assignmentsByDiscordId.get(member.discordId) || assignmentsByCallsign.get(normalizeCallsign(member.callsign)) || []
+        }));
       memberFunctionCatalog = functionsPayload.catalog;
       membersRoomLoaded = true;
       membersRoomError = '';
@@ -907,6 +914,7 @@ function openMemberFunctionsModal(member) {
   modal.dataset.targetDiscordId = member.discordId;
   memberLabel.textContent = `${memberNameFor(member)} · ${normalizeCallsign(member.callsign)}`;
   options.innerHTML = memberFunctionCatalog.map((item, index) => `<label class="member-function-option"><input type="checkbox" value="${escapeHtml(item.id)}" ${(member.functionIds || []).includes(item.id) ? 'checked' : ''}><span class="member-function-badge" style="--member-function-hue:${(index * 37) % 360}" title="${escapeHtml(item.description)}">${escapeHtml(item.label)}</span><small>${escapeHtml(item.description)}</small></label>`).join('');
+  options.insertAdjacentHTML('beforeend', '<label class="member-function-option member-function-add"><span>Funcție nouă</span><input id="member-function-new" type="text" maxlength="120" autocomplete="off" placeholder="Scrie funcția și salveaz-o pentru acest membru"></label>');
   status.textContent = '';
   saveButton.disabled = false;
   modal.classList.add('open');
@@ -918,6 +926,8 @@ async function saveMemberFunctions() {
   const targetDiscordId = modal?.dataset.targetDiscordId || '';
   if (!targetDiscordId || !currentUser?.discordId || !hasLeadershipCallsign(currentUser)) return;
   const functionIds = [...document.querySelectorAll('#member-function-options input:checked')].map(input => input.value);
+  const newFunction = String(document.querySelector('#member-function-new')?.value || '').trim();
+  if (newFunction && !functionIds.some(item => item.toLocaleLowerCase('ro') === newFunction.toLocaleLowerCase('ro'))) functionIds.push(newFunction);
   button.disabled = true;
   status.textContent = 'Se salvează…';
   try {
@@ -928,14 +938,20 @@ async function saveMemberFunctions() {
     });
     const payload = await parseApiResponse(response);
     if (!response.ok) throw new Error(payload.error || 'Funcțiile nu au putut fi salvate.');
-    if (!payload.assignment || !Array.isArray(payload.assignment.functionIds)) throw new Error('Răspuns invalid la salvarea funcțiilor.');
+    if (!payload.assignment || !Array.isArray(payload.assignment.functionIds) || !Array.isArray(payload.assignment.attendanceTypes)) throw new Error('Răspuns invalid la salvarea funcțiilor.');
+    const updatedFunctions = payload.assignment.functionIds.join(' | ');
     departmentMembers = departmentMembers.map(member => member.discordId === targetDiscordId
-      ? { ...member, functionIds: payload.assignment.functionIds }
+      ? { ...member, functions: updatedFunctions, functionIds: payload.assignment.functionIds }
       : member);
+    const availableFunctions = new Map();
+    for (const member of departmentMembers) for (const label of member.functionIds || []) {
+      if (!availableFunctions.has(label.toLocaleLowerCase('ro'))) availableFunctions.set(label.toLocaleLowerCase('ro'), { id: label, label, description: label });
+    }
+    memberFunctionCatalog = [...availableFunctions.values()];
     modal.classList.remove('open');
     renderMemberCards();
     const count = document.querySelector('.member-room-count');
-    if (count) count.textContent = departmentMembers.length;
+    if (count) count.textContent = departmentMembers.filter(memberHasGrade).length;
   } catch (error) {
     console.error('Member functions save failed:', error);
     status.textContent = error.message || 'Funcțiile nu au putut fi salvate.';
@@ -1047,8 +1063,6 @@ function renderSettingsView(title) {
 }
 const ATTENDANCE_DAYS = ['Luni', 'Marți', 'Miercuri', 'Joi', 'Vineri', 'Sâmbătă', 'Duminică'];
 const ATTENDANCE_DAY_SHORT = ['LUN', 'MAR', 'MIE', 'JOI', 'VIN', 'SÂM', 'DUM'];
-const HR_ATTENDANCE_FUNCTION_IDS = new Set(['resurse-umane', 'manager-hr']);
-const PR_ATTENDANCE_FUNCTION_IDS = new Set(['relatii-publice', 'manager-pr', 'adjunct-pr']);
 let attendanceTimer = null;
 let attendanceEntriesByDiscordId = {};
 let attendanceDepartmentMembers = [];
@@ -1545,12 +1559,8 @@ async function loadAttendancePermissions() {
     if (!response.ok) throw new Error(payload.error || 'Funcțiile membrului nu au putut fi verificate.');
     if (!Array.isArray(payload.assignments)) throw new Error('Răspuns invalid la verificarea funcțiilor membrului.');
     const assignment = payload.assignments.find(item => item.discordId === currentUser.discordId);
-    const functionIds = Array.isArray(assignment?.functionIds) ? assignment.functionIds : [];
-    attendanceAllowedTypes = [
-      'regular',
-      ...(functionIds.some(id => HR_ATTENDANCE_FUNCTION_IDS.has(id)) ? ['hr'] : []),
-      ...(functionIds.some(id => PR_ATTENDANCE_FUNCTION_IDS.has(id)) ? ['pr'] : [])
-    ];
+    if (!Array.isArray(assignment?.attendanceTypes)) throw new Error('Funcțiile pentru pontaj nu au fost găsite în coloana K.');
+    attendanceAllowedTypes = assignment.attendanceTypes;
   } catch (error) {
     console.error('Attendance function permissions could not be loaded:', error);
     attendancePermissionsError = error.message || 'Funcțiile membrului nu au putut fi verificate.';
@@ -1659,16 +1669,23 @@ async function loadOwnActivityEntries() {
 }
 let activitySearch = '';
 let activityShowWeeks = false;
+function attendanceLeaveCode(value) {
+  const code = String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
+  if (code === 'CVV' || code === 'CCV') return 'CVV';
+  if (/^(?:CO|CO[\s-]*CIVIL|CONCEDIU)$/.test(code)) return 'CO';
+  return '';
+}
 function activityDayCells(member, today, target) {
   const docDays = Array.isArray(member.attendanceDays) ? member.attendanceDays : [];
   const live = attendanceWeekData(today, attendanceEntriesFor(member)).minutes;
   const todayIndex = attendanceDayIndex(today);
   return ATTENDANCE_DAYS.map((_, index) => {
     const raw = docDays.length === 7 ? String(docDays[index]?.value ?? '').trim() : '';
-    const isLeave = docDays.length === 7 && /^(?:CO|CCV|CO[\s-]*CIVIL|CONCEDIU)$/i.test(raw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim());
+    const leaveCode = docDays.length === 7 ? attendanceLeaveCode(raw) : '';
+    const isLeave = Boolean(leaveCode);
     const parsed = parseFloat(raw.replace(',', '.'));
     const hasDoc = docDays.length === 7;
-    const text = isLeave ? 'CO' : hasDoc ? (raw || '0') : String(live[index] || 0);
+    const text = isLeave ? leaveCode : hasDoc ? (raw || '0') : String(live[index] || 0);
     const minutes = hasDoc ? (Number.isFinite(parsed) ? parsed : 0) : (live[index] || 0);
     const numeric = !hasDoc || (raw !== '' && /^[\d.,]+$/.test(raw));
     const state = target ? (minutes >= target ? 'meets-minimum' : 'below-minimum') : '';
@@ -1678,10 +1695,10 @@ function activityDayCells(member, today, target) {
 }
 function activityWeekMetrics(value, dailyMinimum) {
   const raw = String(value || '').trim();
-  if (/^(?:CO|CCV|CO[\s-]*CIVIL|CONCEDIU)$/i.test(raw.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim())) {
+  if (attendanceLeaveCode(raw)) {
     return { leaveDays: 7, percentage: null, average: null };
   }
-  const match = raw.match(/^(\d+(?:[.,]\d+)?)\s*(?:\/\s*(\d+)\s*(?:CO|CCV))?$/i);
+  const match = raw.match(/^(\d+(?:[.,]\d+)?)\s*(?:\/\s*(\d+)\s*(CO|CVV|CCV))?$/i);
   if (!match || !dailyMinimum) return { leaveDays: 0, percentage: null, average: null };
   const minutes = Number(match[1].replace(',', '.'));
   const leaveDays = Math.min(7, Number(match[2] || 0));
@@ -1693,7 +1710,8 @@ function activityWeekMetrics(value, dailyMinimum) {
 function activityWeekCell(value, dailyMinimum) {
   const raw = String(value || '—').trim() || '—';
   const metrics = activityWeekMetrics(raw, dailyMinimum);
-  if (metrics.leaveDays === 7) return '<td class="activity-history-value is-leave"><strong>CO</strong></td>';
+  const standaloneLeave = attendanceLeaveCode(raw);
+  if (metrics.leaveDays === 7) return `<td class="activity-history-value is-leave"><strong>${standaloneLeave}</strong></td>`;
   const state = metrics.percentage == null
     ? ''
     : metrics.percentage < 50
@@ -1701,12 +1719,12 @@ function activityWeekCell(value, dailyMinimum) {
       : metrics.percentage === 50
         ? 'is-half-minimum'
         : 'is-meets-minimum';
-  const valueParts = raw.match(/^(\d+(?:[.,]\d+)?)\s*(?:\/\s*(\d+)\s*(?:CO|CCV))?$/i);
+  const valueParts = raw.match(/^(\d+(?:[.,]\d+)?)\s*(?:\/\s*(\d+)\s*(CO|CVV|CCV))?$/i);
   const displayedValue = valueParts
-    ? `${escapeHtml(valueParts[1])}${Number(valueParts[2] || 0) ? `<span class="activity-week-leave">+${escapeHtml(valueParts[2])} CO</span>` : ''}`
+    ? `${escapeHtml(valueParts[1])}${Number(valueParts[2] || 0) ? `<span class="activity-week-leave">+${escapeHtml(valueParts[2])} ${attendanceLeaveCode(valueParts[3])}</span>` : ''}`
     : escapeHtml(raw);
   const average = metrics.average == null ? '' : `<small class="activity-week-average">Medie ${Math.round(metrics.average)} min · ${Math.round(metrics.percentage)}%</small>`;
-  return `<td class="activity-history-value ${state}"${metrics.percentage == null ? '' : ` title="Media: ${Math.round(metrics.average)} min din ${dailyMinimum} min pe ${7 - metrics.leaveDays} zile fără CO"`}><strong>${displayedValue}</strong>${average}</td>`;
+  return `<td class="activity-history-value ${state}"${metrics.percentage == null ? '' : ` title="Media: ${Math.round(metrics.average)} min din ${dailyMinimum} min pe ${7 - metrics.leaveDays} zile lucrate"`}><strong>${displayedValue}</strong>${average}</td>`;
 }
 function renderActivityView() {
   if (!hasLeadershipCallsign(currentUser)) return '<section class="panel view-panel"><p class="empty-state">Camera este disponibilă doar conducerii.</p></section>';
@@ -1870,7 +1888,7 @@ function renderView(view) {
   if (isOverview) { renderProfileData(); return; }
   const title = labels[view] || 'Site Testeri';
   document.querySelector('#section-label').textContent = 'Site Testeri';
-  if (view === 'members') { viewContent.innerHTML = renderMembersView(); wireMembersView(); if (!membersRoomLoaded) loadMembersRoom(); else renderMemberCards(); }
+  if (view === 'members') { viewContent.innerHTML = renderMembersView(); wireMembersView(); loadMembersRoom({ force: true }); }
   else if (view === 'testers') { viewContent.innerHTML = renderTestersView(); wireTestersEvents(); }
   else if (view === 'statistics') { viewContent.innerHTML = renderStatisticsView(); renderDashboardData(); }
   else if (view === 'bonuses') { viewContent.innerHTML = renderBonusesView(); wireBonusesEvents(); }
