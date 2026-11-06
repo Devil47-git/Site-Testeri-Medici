@@ -328,6 +328,9 @@ test('attendance management navigation is available to leadership and H.R.', () 
   assert.match(activeAttendanceViewSource, /<th>CALLSIGN<\/th><th>NUME<\/th><th>TIP<\/th><th>CLOCK-IN<\/th><th>CLOCK-OUT<\/th><th>DURATĂ<\/th><th>STARE<\/th><th>VALIDARE \/ ANULARE<\/th><th>EDITARE<\/th>/);
   assert.match(activeAttendanceViewSource, /Sincronizează documentul/);
   assert.doesNotMatch(activeAttendanceViewSource, /Pontaje active în acest moment|START|Anulează/);
+  assert.match(source, /status === 'canceled' \? window\.prompt\('Scrie motivul anulării pontajului \(obligatoriu\):'\)/);
+  assert.match(source, /updateAttendanceReview\(targetDiscordId, entryStart, status, reason = ''\)/);
+  assert.match(source, /\.\.\.\(action === 'cancel' \? \{ reason \} : \{\}\)/);
   assert.match(source, /function renderActiveAttendanceView\(\)/);
   assert.match(source, /function attendanceMinutesForDateClient\(/);
   assert.match(source, /submitAttendanceDocs\('sync-docs-all'/);

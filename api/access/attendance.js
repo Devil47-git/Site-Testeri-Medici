@@ -39,9 +39,13 @@ function reviewWebhookUrl() {
     return '';
   }
 }
-export async function sendAttendanceReviewWebhook({ status, reviewerId, reviewer, targetId, target, entry, dateKey, minutes }) {
+function requiredReviewWebhookUrl() {
   const url = reviewWebhookUrl();
-  if (!url) return;
+  if (!url) throw new Error('DISCORD_ATTENDANCE_REVIEW_WEBHOOK is missing or invalid');
+  return url;
+}
+export async function sendAttendanceReviewWebhook({ status, reviewerId, reviewer, targetId, target, entry, dateKey, minutes }) {
+  const url = requiredReviewWebhookUrl();
   const origin = String(process.env.APP_ORIGIN || 'https://site-wheat-zeta-76.vercel.app').trim().replace(/\/+$/, '');
   const validated = status === 'validated';
   const [year, month, day] = String(dateKey).split('-');
@@ -56,7 +60,8 @@ export async function sendAttendanceReviewWebhook({ status, reviewerId, reviewer
       { name: 'Data', value: `${day}.${month}.${year}`, inline: true },
       { name: 'Clock-IN', value: reviewTime(entry.start), inline: true },
       { name: 'Clock-OUT', value: entry.end == null ? 'În desfășurare' : reviewTime(entry.end), inline: true },
-      { name: 'Total zi', value: `${minutes} min`, inline: true }
+      { name: 'Total zi', value: `${minutes} min`, inline: true },
+      ...(status === 'canceled' ? [{ name: 'Motiv', value: String(entry.cancelReason || '').slice(0, 1000) || '—' }] : [])
     ],
     timestamp: new Date().toISOString()
   };
@@ -68,8 +73,7 @@ export async function sendAttendanceReviewWebhook({ status, reviewerId, reviewer
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
 }
 export async function sendAttendanceEditWebhook({ editorId, editor, targetId, target, before, entry, dateKey, minutes, reason }) {
-  const url = reviewWebhookUrl();
-  if (!url) return;
+  const url = requiredReviewWebhookUrl();
   const origin = String(process.env.APP_ORIGIN || 'https://site-wheat-zeta-76.vercel.app').trim().replace(/\/+$/, '');
   const [year, month, day] = String(dateKey).split('-');
   const person = (id, row) => `<@${id}> (${String(row?.[2] || '').trim() || '—'} · ${String(row?.[3] || '').trim() || '—'})`;
@@ -121,6 +125,7 @@ function cleanEntries(entries) {
       ...(entry.canceled === true ? { canceled: true } : {}),
       ...(entry.canceledAt != null && Number.isFinite(Number(entry.canceledAt)) ? { canceledAt: Number(entry.canceledAt) } : {}),
       ...(typeof entry.canceledBy === 'string' ? { canceledBy: entry.canceledBy } : {}),
+      ...(typeof entry.cancelReason === 'string' ? { cancelReason: entry.cancelReason.slice(0, 500) } : {}),
       ...(entry.validated === true ? { validated: true } : {}),
       ...(entry.validatedAt != null && Number.isFinite(Date.parse(entry.validatedAt)) ? { validatedAt: entry.validatedAt } : {}),
       ...(typeof entry.validatedBy === 'string' ? { validatedBy: entry.validatedBy } : {}),
@@ -395,6 +400,9 @@ export default async function handler(req, res) {
       if (action === 'cancel') {
         if (!canReviewAttendance) return json(res, 403, { error: 'Only callsigns 001-020 or H.R. can cancel attendance records' });
         const targetId = String(req.body?.targetDiscordId || '').trim();
+        const reason = String(req.body?.reason || '').trim();
+        if (reason.length < 3) return json(res, 400, { error: 'Motivul anulării este obligatoriu.' });
+        if (reason.length > 500) return json(res, 400, { error: 'Motivul anulării nu poate depăși 500 de caractere.' });
         const target = members.find(row => String(row[19] || '').trim() === targetId);
         if (!targetId || !target) return json(res, 404, { error: 'Membrul pentru anularea pontajului nu a fost găsit.' });
         const targetData = await readAttendanceData(targetId);
@@ -405,8 +413,19 @@ export default async function handler(req, res) {
         open.canceled = true;
         open.canceledAt = now;
         open.canceledBy = requesterId;
-        await writeAttendanceData(targetId, normalized.entries);
-        return json(res, 200, { success: true });
+        open.cancelReason = reason;
+        const saved = await writeAttendanceData(targetId, normalized.entries);
+        const dateKey = attendanceDateKey(open.start);
+        const minutes = attendanceMinutesForDate(saved, dateKey, now);
+        let warning = '';
+        const reviewer = members.find(row => String(row[19] || '').trim() === requesterId);
+        try {
+          await sendAttendanceReviewWebhook({ status: 'canceled', reviewerId: requesterId, reviewer, targetId, target, entry: saved.find(entry => entry.start === open.start) || open, dateKey, minutes });
+        } catch (error) {
+          console.error('Attendance cancellation webhook failed:', error);
+          warning = `Pontajul a fost anulat, dar notificarea Discord nu a putut fi trimisă: ${error.message}`;
+        }
+        return json(res, 200, { success: true, warning });
       }
       if (action === 'edit-entry') {
         if (!canReviewAttendance) return json(res, 403, { error: 'Only callsigns 001-020 or H.R. can edit attendance records' });
@@ -455,8 +474,12 @@ export default async function handler(req, res) {
           }
         }
         const editor = members.find(row => String(row[19] || '').trim() === requesterId);
-        await sendAttendanceEditWebhook({ editorId: requesterId, editor, targetId, target, before, entry: savedEntry || entry, dateKey, minutes, reason })
-          .catch(error => console.error('Attendance edit webhook failed:', error));
+        try {
+          await sendAttendanceEditWebhook({ editorId: requesterId, editor, targetId, target, before, entry: savedEntry || entry, dateKey, minutes, reason });
+        } catch (error) {
+          console.error('Attendance edit webhook failed:', error);
+          warning = [warning, `Pontajul a fost salvat, dar notificarea Discord nu a putut fi trimisă: ${error.message}`].filter(Boolean).join(' ');
+        }
         return json(res, 200, { success: true, entry: savedEntry, minutes, warning });
       }
       if (action === 'review-entry') {
@@ -465,8 +488,11 @@ export default async function handler(req, res) {
         const entryStart = Number(req.body?.entryStart);
         const dateKey = String(req.body?.dateKey || '');
         const status = req.body?.status;
+        const reason = String(req.body?.reason || '').trim();
         if (!Number.isFinite(entryStart)) return json(res, 400, { error: 'Pontajul selectat este invalid.' });
         if (!['validated', 'canceled', 'unreviewed'].includes(status)) return json(res, 400, { error: 'Starea pontajului este invalidă.' });
+        if (status === 'canceled' && reason.length < 3) return json(res, 400, { error: 'Motivul anulării este obligatoriu.' });
+        if (status === 'canceled' && reason.length > 500) return json(res, 400, { error: 'Motivul anulării nu poate depăși 500 de caractere.' });
         if (!isPastOrCurrentDate(dateKey, now)) return json(res, 400, { error: 'Alege o zi din trecut sau ziua curentă.' });
         const target = members.find(row => String(row[19] || '').trim() === targetId);
         if (!targetId || !target) return json(res, 404, { error: 'Membrul pentru actualizarea pontajului nu a fost găsit.' });
@@ -480,9 +506,11 @@ export default async function handler(req, res) {
           if (entry.end == null) entry.end = now;
           entry.canceledAt = now;
           entry.canceledBy = requesterId;
+          entry.cancelReason = reason;
         } else {
           delete entry.canceledAt;
           delete entry.canceledBy;
+          delete entry.cancelReason;
         }
         if (entry.validated) {
           entry.validatedAt = new Date(now).toISOString();
@@ -493,22 +521,26 @@ export default async function handler(req, res) {
         }
         const saved = await writeAttendanceData(targetId, normalized.entries);
         const minutes = attendanceMinutesForDate(saved, dateKey, now);
+        let warning = '';
         if (status !== 'unreviewed') {
           const reviewer = members.find(row => String(row[19] || '').trim() === requesterId);
-          await sendAttendanceReviewWebhook({ status, reviewerId: requesterId, reviewer, targetId, target, entry: saved.find(item => item.start === entryStart) || entry, dateKey, minutes })
-            .catch(error => console.error('Attendance review webhook failed:', error));
+          try {
+            await sendAttendanceReviewWebhook({ status, reviewerId: requesterId, reviewer, targetId, target, entry: saved.find(item => item.start === entryStart) || entry, dateKey, minutes });
+          } catch (error) {
+            console.error('Attendance review webhook failed:', error);
+            warning = `Pontajul a fost actualizat, dar notificarea Discord nu a putut fi trimisă: ${error.message}`;
+          }
         }
-        let warning = '';
         if (isCurrentWeekDate(dateKey, now)) {
           if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON && !process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-            warning = `Pontajul a fost salvat și totalul recalculat (${minutes} min), dar documentul nu este configurat pentru sincronizare.`;
+            warning = [warning, `Pontajul a fost salvat și totalul recalculat (${minutes} min), dar documentul nu este configurat pentru sincronizare.`].filter(Boolean).join(' ');
           } else {
             try {
               const sheets = await sheetsClient();
               await writeAttendanceToSheet(sheets, String(target[3] || '').trim(), dateKey, minutes);
             } catch (error) {
               console.error('Attendance sheet update after review failed:', error);
-              warning = `Pontajul a fost salvat și totalul recalculat (${minutes} min), dar documentul nu s-a putut sincroniza: ${error.message}`;
+              warning = [warning, `Pontajul a fost salvat și totalul recalculat (${minutes} min), dar documentul nu s-a putut sincroniza: ${error.message}`].filter(Boolean).join(' ');
             }
           }
         }

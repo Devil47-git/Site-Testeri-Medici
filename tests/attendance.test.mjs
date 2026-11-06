@@ -5,6 +5,7 @@ process.env.GOOGLE_API_KEY = 'test-key';
 process.env.UPSTASH_REDIS_REST_URL = 'https://attendance-redis.example';
 process.env.UPSTASH_REDIS_REST_TOKEN = 'test-token';
 process.env.CRON_SECRET = 'test-cron-secret';
+process.env.DISCORD_ATTENDANCE_REVIEW_WEBHOOK = 'https://discord.com/api/webhooks/test/token';
 
 const row = (callsign, name, discordId, rank = '', functions = '') => {
   const member = Array(21).fill('');
@@ -46,6 +47,8 @@ const attendanceSheetRows = [
   attendanceRow('021', '30', '40', '50')
 ];
 const redisValues = new Map();
+const discordWebhookRequests = [];
+let discordWebhookFailure = false;
 
 globalThis.fetch = async (url, options = {}) => {
   if (String(url).startsWith('https://attendance-redis.example')) {
@@ -66,6 +69,10 @@ globalThis.fetch = async (url, options = {}) => {
       return { ok: true, json: async () => ({ result: 'OK' }) };
     }
     throw new Error(`Unexpected Redis command: ${commands[0]}`);
+  }
+  if (String(url) === process.env.DISCORD_ATTENDANCE_REVIEW_WEBHOOK) {
+    discordWebhookRequests.push(JSON.parse(options.body));
+    return { ok: !discordWebhookFailure, status: discordWebhookFailure ? 500 : 204 };
   }
   const range = decodeURIComponent(new URL(url).pathname.split('/').pop());
   return {
@@ -320,7 +327,7 @@ test('leadership can load its own attendance separately from the department reco
   assert.deepEqual(department.payload.entries['leadership-id'], [{ start: 3000, end: 4000 }]);
 });
 
-test('department attendance includes active member details and leadership can cancel any active entry', async () => {
+test('department attendance includes active member details and leadership can cancel any active entry with a reason', async () => {
   const memberKey = 'site-testeri-medici:attendance:member-id';
   redisValues.set(memberKey, JSON.stringify([{ start: Date.now() - 60000, end: null }]));
 
@@ -329,11 +336,12 @@ test('department attendance includes active member details and leadership can ca
   assert.equal(department.payload.activeEntries[0].discordId, 'member-id');
   assert.equal(department.payload.activeEntries[0].name, 'Membru');
 
-  const canceled = await callAttendance('POST', 'leadership-id', { action: 'cancel', targetDiscordId: 'member-id' });
+  const canceled = await callAttendance('POST', 'leadership-id', { action: 'cancel', targetDiscordId: 'member-id', reason: 'Pontaj deschis nejustificat' });
   assert.equal(canceled.statusCode, 200);
   const canceledEntry = JSON.parse(redisValues.get(memberKey))[0];
   assert.equal(canceledEntry.canceled, true);
   assert.equal(canceledEntry.canceledBy, 'leadership-id');
+  assert.equal(canceledEntry.cancelReason, 'Pontaj deschis nejustificat');
   assert.equal(Number.isFinite(canceledEntry.end), true);
 
   redisValues.set(memberKey, JSON.stringify([{ start: Date.now(), end: null }]));
@@ -374,11 +382,13 @@ test('leadership can validate, cancel, and restore an individual attendance entr
     targetDiscordId: 'member-id',
     entryStart: start,
     dateKey,
-    status: 'canceled'
+    status: 'canceled',
+    reason: 'Pontaj nejustificat'
   });
   assert.equal(canceled.statusCode, 200);
   assert.equal(canceled.payload.minutes, 0);
   assert.equal(JSON.parse(redisValues.get(key))[0].canceled, true);
+  assert.equal(JSON.parse(redisValues.get(key))[0].cancelReason, 'Pontaj nejustificat');
   assert.equal(JSON.parse(redisValues.get(key))[0].validated, undefined);
 
   const restored = await callAttendance('POST', 'leadership-id', {
@@ -391,6 +401,7 @@ test('leadership can validate, cancel, and restore an individual attendance entr
   assert.equal(restored.statusCode, 200);
   assert.equal(restored.payload.minutes, 1);
   assert.equal(JSON.parse(redisValues.get(key))[0].canceled, undefined);
+  assert.equal(JSON.parse(redisValues.get(key))[0].cancelReason, undefined);
   assert.equal(JSON.parse(redisValues.get(key))[0].validated, true);
 
   const openStart = Date.now() - 30000;
@@ -400,11 +411,139 @@ test('leadership can validate, cancel, and restore an individual attendance entr
     targetDiscordId: 'member-id',
     entryStart: openStart,
     dateKey,
-    status: 'canceled'
+    status: 'canceled',
+    reason: 'Pontaj deschis nejustificat'
   });
   assert.equal(canceledOpen.statusCode, 200);
   assert.equal(Number.isFinite(JSON.parse(redisValues.get(key))[0].end), true);
   assert.equal(JSON.parse(redisValues.get(key))[0].canceled, true);
+});
+
+test('H.R. validation and cancellation send Discord notifications, including cancellation reason', async () => {
+  const dateKey = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Bucharest', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  const start = Date.now() - 120000;
+  const key = 'site-testeri-medici:attendance:member-id';
+  redisValues.set(key, JSON.stringify([{ start, end: start + 60000 }]));
+  discordWebhookRequests.length = 0;
+
+  const validated = await callAttendance('POST', 'hr-id', {
+    action: 'review-entry',
+    targetDiscordId: 'member-id',
+    entryStart: start,
+    dateKey,
+    status: 'validated'
+  });
+  assert.equal(validated.statusCode, 200);
+  assert.equal(discordWebhookRequests.length, 1);
+  assert.equal(discordWebhookRequests[0].embeds[0].title, '✅ Pontaj validat');
+  assert.match(discordWebhookRequests[0].embeds[0].fields[0].value, /Responsabil H\.R\./);
+
+  const canceled = await callAttendance('POST', 'hr-id', {
+    action: 'review-entry',
+    targetDiscordId: 'member-id',
+    entryStart: start,
+    dateKey,
+    status: 'canceled',
+    reason: 'Pontaj deschis greșit'
+  });
+  assert.equal(canceled.statusCode, 200);
+  assert.equal(discordWebhookRequests.length, 2);
+  assert.equal(discordWebhookRequests[1].embeds[0].title, '❌ Pontaj anulat');
+  assert.equal(discordWebhookRequests[1].embeds[0].fields.find(field => field.name === 'Motiv').value, 'Pontaj deschis greșit');
+});
+
+test('attendance cancellation requires a reason on both cancellation endpoints', async () => {
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Bucharest', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  const start = Date.now() - 60000;
+  const key = 'site-testeri-medici:attendance:member-id';
+  redisValues.set(key, JSON.stringify([{ start, end: null }]));
+
+  const active = await callAttendance('POST', 'hr-id', { action: 'cancel', targetDiscordId: 'member-id' });
+  assert.equal(active.statusCode, 400);
+  assert.match(active.payload.error, /Motivul anulării este obligatoriu/);
+
+  const review = await callAttendance('POST', 'hr-id', {
+    action: 'review-entry',
+    targetDiscordId: 'member-id',
+    entryStart: start,
+    dateKey: today,
+    status: 'canceled'
+  });
+  assert.equal(review.statusCode, 400);
+  assert.match(review.payload.error, /Motivul anulării este obligatoriu/);
+
+  discordWebhookRequests.length = 0;
+  const canceled = await callAttendance('POST', 'hr-id', {
+    action: 'cancel',
+    targetDiscordId: 'member-id',
+    reason: 'Pontaj deschis nejustificat'
+  });
+  assert.equal(canceled.statusCode, 200);
+  assert.equal(discordWebhookRequests.length, 1);
+  assert.equal(discordWebhookRequests[0].embeds[0].title, '❌ Pontaj anulat');
+  assert.equal(discordWebhookRequests[0].embeds[0].fields.find(field => field.name === 'Motiv').value, 'Pontaj deschis nejustificat');
+});
+
+test('H.R. attendance edits post the editor, changes, and reason to Discord', async () => {
+  const oldStart = Date.now() - 86400000;
+  const oldEnd = oldStart + 1800000;
+  const dateKey = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Bucharest', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(oldStart));
+  const key = 'site-testeri-medici:attendance:member-id';
+  redisValues.set(key, JSON.stringify([{ start: oldStart, end: oldEnd }]));
+  discordWebhookRequests.length = 0;
+
+  const edited = await callAttendance('POST', 'hr-id', {
+    action: 'edit-entry',
+    targetDiscordId: 'member-id',
+    entryStart: oldStart,
+    clockIn: '10:00',
+    clockOut: '10:30',
+    reason: 'Pontaj nedeschis'
+  });
+  assert.equal(edited.statusCode, 200);
+  assert.equal(edited.payload.success, true);
+  assert.equal(discordWebhookRequests.length, 1);
+  const webhook = discordWebhookRequests[0];
+  assert.equal(webhook.content, '<@hr-id> <@member-id>');
+  assert.equal(webhook.embeds[0].title, '✏️ Pontaj editat');
+  assert.equal(webhook.embeds[0].fields.find(field => field.name === 'Editat de').value, '<@hr-id> (102 · Responsabil H.R.)');
+  assert.equal(webhook.embeds[0].fields.find(field => field.name === 'Motiv').value, 'Pontaj nedeschis');
+  assert.equal(webhook.embeds[0].fields.find(field => field.name === 'Data').value, dateKey.split('-').reverse().join('.'));
+});
+
+test('attendance edit reports Discord delivery failures instead of silently succeeding', async () => {
+  const oldStart = Date.now() - 86400000;
+  const key = 'site-testeri-medici:attendance:member-id';
+  redisValues.set(key, JSON.stringify([{ start: oldStart, end: oldStart + 1800000 }]));
+  discordWebhookFailure = true;
+  try {
+    const edited = await callAttendance('POST', 'hr-id', {
+      action: 'edit-entry',
+      targetDiscordId: 'member-id',
+      entryStart: oldStart,
+      clockIn: '10:00',
+      clockOut: '10:30',
+      reason: 'Pontaj nedeschis'
+    });
+    assert.equal(edited.statusCode, 200);
+    assert.match(edited.payload.warning, /notificarea Discord nu a putut fi trimisă: HTTP 500/);
+
+    discordWebhookFailure = false;
+    process.env.DISCORD_ATTENDANCE_REVIEW_WEBHOOK = '';
+    redisValues.set(key, JSON.stringify([{ start: oldStart, end: oldStart + 1800000 }]));
+    const missingWebhook = await callAttendance('POST', 'hr-id', {
+      action: 'edit-entry',
+      targetDiscordId: 'member-id',
+      entryStart: oldStart,
+      clockIn: '10:00',
+      clockOut: '10:30',
+      reason: 'Pontaj nedeschis'
+    });
+    assert.match(missingWebhook.payload.warning, /DISCORD_ATTENDANCE_REVIEW_WEBHOOK is missing or invalid/);
+  } finally {
+    discordWebhookFailure = false;
+    process.env.DISCORD_ATTENDANCE_REVIEW_WEBHOOK = 'https://discord.com/api/webhooks/test/token';
+  }
 });
 
 test('active attendance view allows selecting previous dates but rejects future dates', async () => {

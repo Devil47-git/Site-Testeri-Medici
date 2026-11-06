@@ -1373,7 +1373,13 @@ function wireActiveAttendanceEvents() {
   viewContent.querySelectorAll('[data-attendance-review]').forEach(input => input.addEventListener('change', event => {
     const target = event.currentTarget;
     const status = target.checked ? target.dataset.attendanceReview : 'unreviewed';
-    updateAttendanceReview(target.dataset.attendanceMember, Number(target.dataset.attendanceStart), status);
+    const reason = status === 'canceled' ? window.prompt('Scrie motivul anulării pontajului (obligatoriu):') : '';
+    if (status === 'canceled' && (reason == null || reason.trim().length < 3 || reason.trim().length > 500)) {
+      if (reason != null) window.alert('Motivul anulării trebuie să aibă între 3 și 500 de caractere.');
+      refreshActiveAttendanceView();
+      return;
+    }
+    updateAttendanceReview(target.dataset.attendanceMember, Number(target.dataset.attendanceStart), status, reason?.trim() || '');
   }));
   viewContent.querySelectorAll('[data-attendance-edit]').forEach(button => button.addEventListener('click', event => openAttendanceEditDialog(event.currentTarget.dataset.attendanceMember, Number(event.currentTarget.dataset.attendanceStart))));
   viewContent.querySelector('#attendance-docs-sync')?.addEventListener('click', syncSelectedAttendanceDay);
@@ -1398,14 +1404,14 @@ async function submitAttendanceDocs(action, details = {}) {
   if (!response.ok) throw new Error(payload.error || 'Pontajele nu au putut fi sincronizate în document.');
   return payload;
 }
-async function updateAttendanceReview(targetDiscordId, entryStart, status) {
+async function updateAttendanceReview(targetDiscordId, entryStart, status, reason = '') {
   if (activeAttendanceBusy) return;
   const dateKey = activeAttendanceDate;
   activeAttendanceBusy = true;
   activeAttendanceMessage = 'Se actualizează pontajul...';
   refreshActiveAttendanceView();
   try {
-    const payload = await submitAttendanceDocs('review-entry', { targetDiscordId, entryStart, status, dateKey });
+    const payload = await submitAttendanceDocs('review-entry', { targetDiscordId, entryStart, status, dateKey, ...(status === 'canceled' ? { reason } : {}) });
     const entry = attendanceEntriesByDiscordId[targetDiscordId]?.find(item => Number(item.start) === entryStart);
     if (entry) {
       entry.canceled = status === 'canceled';
@@ -1503,12 +1509,19 @@ function wireAttendanceEvents() {
   document.querySelectorAll('[data-attendance-action]').forEach(button => button.addEventListener('click', event => submitAction(event.currentTarget.dataset.attendanceAction, event.currentTarget)));
   document.querySelectorAll('[data-cancel-attendance]').forEach(button => button.addEventListener('click', async event => {
     const targetDiscordId = event.currentTarget.dataset.cancelAttendance;
-    if (!window.confirm('Sigur vrei să anulezi acest pontaj activ?')) return;
+    const reason = window.prompt('Scrie motivul anulării pontajului (obligatoriu):');
+    if (reason == null) return;
+    if (reason.trim().length < 3 || reason.trim().length > 500) {
+      window.alert('Motivul anulării trebuie să aibă între 3 și 500 de caractere.');
+      return;
+    }
     event.currentTarget.disabled = true;
-    const saved = await syncAttendanceRemote('cancel', targetDiscordId);
+    const saved = await syncAttendanceRemote('cancel', targetDiscordId, 'regular', reason.trim());
     if (saved) {
       await loadAttendanceRecords(false, { render: false });
       refreshAttendanceView();
+      const status = document.querySelector('#attendance-status');
+      if (status && saved.warning) status.textContent = saved.warning;
     } else {
       const status = document.querySelector('#attendance-status');
       if (status) status.textContent = attendanceSyncError;
@@ -1531,10 +1544,10 @@ function refreshAttendanceView() {
   viewContent.innerHTML = renderAttendanceView();
   wireAttendanceEvents();
 }
-async function syncAttendanceRemote(action, targetDiscordId = '', attendanceType = 'regular') {
+async function syncAttendanceRemote(action, targetDiscordId = '', attendanceType = 'regular', reason = '') {
   if (!currentUser?.discordId) return false;
   try {
-    const response = await fetch('/api/access/attendance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requesterId: currentUser.discordId, action, targetDiscordId, ...(action === 'start' || action === 'stop' ? { attendanceType } : {}) }) });
+    const response = await fetch('/api/access/attendance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ requesterId: currentUser.discordId, action, targetDiscordId, ...(action === 'start' || action === 'stop' ? { attendanceType } : {}), ...(action === 'cancel' ? { reason } : {}) }) });
     const payload = await parseApiResponse(response);
     if (!response.ok) throw new Error(payload.error || 'Pontajul nu a putut fi sincronizat.');
     if (action !== 'cancel') {
@@ -1543,7 +1556,7 @@ async function syncAttendanceRemote(action, targetDiscordId = '', attendanceType
     }
     attendanceRecordsLoaded = true;
     attendanceSyncError = '';
-    return true;
+    return { warning: payload.warning || '' };
   } catch (error) {
     console.error('Attendance sync failed:', error);
     attendanceSyncError = error.message || 'Pontajul nu a putut fi sincronizat.';
