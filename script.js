@@ -1422,7 +1422,7 @@ async function updateAttendanceReview(targetDiscordId, entryStart, status, reaso
       }
     }
     const stateLabel = status === 'validated' ? 'validat' : status === 'canceled' ? 'anulat' : 'nevalidat';
-    activeAttendanceMessage = payload.warning || `Pontajul a fost ${stateLabel}; totalul zilei a fost recalculat (${payload.minutes} min).`;
+    activeAttendanceMessage = payload.warning || `Pontajul a fost ${stateLabel}; durata acestuia este ${payload.minutes} min.`;
   } catch (error) {
     console.error('Attendance review update failed:', error);
     activeAttendanceMessage = error.message || 'Pontajul nu a putut fi actualizat.';
@@ -1457,7 +1457,7 @@ function openAttendanceEditDialog(targetDiscordId, entryStart) {
     try {
       const payload = await submitAttendanceDocs('edit-entry', { targetDiscordId, entryStart, clockIn: String(data.get('clockIn') || ''), clockOut: String(data.get('clockOut') || ''), reason });
       dialog.close();
-      activeAttendanceMessage = payload.warning || `Pontajul a fost editat; totalul zilei a fost recalculat (${payload.minutes} min).`;
+      activeAttendanceMessage = payload.warning || `Pontajul a fost editat; durata acestuia este ${payload.minutes} min.`;
       await loadAttendanceRecords(true, { render: false, view: 'active', dateKey: activeAttendanceDate });
       refreshActiveAttendanceView();
     } catch (error) {

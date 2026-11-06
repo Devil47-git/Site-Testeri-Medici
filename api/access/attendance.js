@@ -49,18 +49,18 @@ export async function sendAttendanceReviewWebhook({ status, reviewerId, reviewer
   const origin = String(process.env.APP_ORIGIN || 'https://site-wheat-zeta-76.vercel.app').trim().replace(/\/+$/, '');
   const validated = status === 'validated';
   const [year, month, day] = String(dateKey).split('-');
-  const person = (id, row) => `<@${id}> (${String(row?.[2] || '').trim() || '—'} · ${String(row?.[3] || '').trim() || '—'})`;
+  const person = id => `<@${id}>`;
   const embed = {
     title: validated ? '✅ Pontaj validat' : '❌ Pontaj anulat',
     color: validated ? 0x39a578 : 0xe35662,
     thumbnail: { url: `${origin}/assets/hr-team.png` },
     fields: [
-      { name: validated ? 'Validat de' : 'Anulat de', value: person(reviewerId, reviewer), inline: true },
-      { name: 'Pontajul lui', value: person(targetId, target), inline: true },
+      { name: validated ? 'Validat de' : 'Anulat de', value: person(reviewerId), inline: true },
+      { name: 'Pontajul lui', value: person(targetId), inline: true },
       { name: 'Data', value: `${day}.${month}.${year}`, inline: true },
       { name: 'Clock-IN', value: reviewTime(entry.start), inline: true },
       { name: 'Clock-OUT', value: entry.end == null ? 'În desfășurare' : reviewTime(entry.end), inline: true },
-      { name: 'Total zi', value: `${minutes} min`, inline: true },
+      { name: 'Durată pontaj', value: `${minutes} min`, inline: true },
       ...(status === 'canceled' ? [{ name: 'Motiv', value: String(entry.cancelReason || '').slice(0, 1000) || '—' }] : [])
     ],
     timestamp: new Date().toISOString()
@@ -68,7 +68,7 @@ export async function sendAttendanceReviewWebhook({ status, reviewerId, reviewer
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: 'HR TEAM', avatar_url: `${origin}/assets/hr-team.png`, content: `<@${reviewerId}> <@${targetId}>`, allowed_mentions: { users: [reviewerId, targetId] }, embeds: [embed] })
+    body: JSON.stringify({ username: 'HR TEAM', avatar_url: `${origin}/assets/hr-team.png`, allowed_mentions: { parse: [] }, embeds: [embed] })
   });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
 }
@@ -76,19 +76,19 @@ export async function sendAttendanceEditWebhook({ editorId, editor, targetId, ta
   const url = requiredReviewWebhookUrl();
   const origin = String(process.env.APP_ORIGIN || 'https://site-wheat-zeta-76.vercel.app').trim().replace(/\/+$/, '');
   const [year, month, day] = String(dateKey).split('-');
-  const person = (id, row) => `<@${id}> (${String(row?.[2] || '').trim() || '—'} · ${String(row?.[3] || '').trim() || '—'})`;
+  const person = id => `<@${id}>`;
   const out = value => value == null ? 'În desfășurare' : reviewTime(value);
   const embed = {
     title: '✏️ Pontaj editat',
     color: 0x2b8cff,
     thumbnail: { url: `${origin}/assets/hr-team.png` },
     fields: [
-      { name: 'Editat de', value: person(editorId, editor), inline: true },
-      { name: 'Pontajul lui', value: person(targetId, target), inline: true },
+      { name: 'Editat de', value: person(editorId), inline: true },
+      { name: 'Pontajul lui', value: person(targetId), inline: true },
       { name: 'Data', value: `${day}.${month}.${year}`, inline: true },
       { name: 'Clock-IN', value: `${reviewTime(before.start)} → **${reviewTime(entry.start)}**`, inline: true },
       { name: 'Clock-OUT', value: `${out(before.end)} → **${out(entry.end)}**`, inline: true },
-      { name: 'Total zi', value: `${minutes} min`, inline: true },
+      { name: 'Durată pontaj', value: `${minutes} min`, inline: true },
       { name: 'Motiv', value: String(reason).slice(0, 1000) }
     ],
     timestamp: new Date().toISOString()
@@ -96,7 +96,7 @@ export async function sendAttendanceEditWebhook({ editorId, editor, targetId, ta
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: 'HR TEAM', avatar_url: `${origin}/assets/hr-team.png`, content: `<@${editorId}> <@${targetId}>`, allowed_mentions: { users: [editorId, targetId] }, embeds: [embed] })
+    body: JSON.stringify({ username: 'HR TEAM', avatar_url: `${origin}/assets/hr-team.png`, allowed_mentions: { parse: [] }, embeds: [embed] })
   });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
 }
@@ -416,11 +416,12 @@ export default async function handler(req, res) {
         open.cancelReason = reason;
         const saved = await writeAttendanceData(targetId, normalized.entries);
         const dateKey = attendanceDateKey(open.start);
-        const minutes = attendanceMinutesForDate(saved, dateKey, now);
+        const savedEntry = saved.find(entry => entry.start === open.start) || open;
+        const minutes = attendanceMinutesForDate([{ ...savedEntry, canceled: false }], dateKey, now);
         let warning = '';
         const reviewer = members.find(row => String(row[19] || '').trim() === requesterId);
         try {
-          await sendAttendanceReviewWebhook({ status: 'canceled', reviewerId: requesterId, reviewer, targetId, target, entry: saved.find(entry => entry.start === open.start) || open, dateKey, minutes });
+          await sendAttendanceReviewWebhook({ status: 'canceled', reviewerId: requesterId, reviewer, targetId, target, entry: savedEntry, dateKey, minutes });
         } catch (error) {
           console.error('Attendance cancellation webhook failed:', error);
           warning = `Pontajul a fost anulat, dar notificarea Discord nu a putut fi trimisă: ${error.message}`;
@@ -459,20 +460,8 @@ export default async function handler(req, res) {
         entry.editReason = reason.slice(0, 500);
         const saved = await writeAttendanceData(targetId, normalized.entries);
         const savedEntry = saved.find(item => item.start === newStart);
-        const minutes = attendanceMinutesForDate(saved, dateKey, now);
+        const minutes = attendanceMinutesForDate([{ ...(savedEntry || entry), canceled: false }], dateKey, now);
         let warning = '';
-        if (isCurrentWeekDate(dateKey, now)) {
-          if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON && !process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-            warning = `Pontajul a fost editat și totalul recalculat (${minutes} min), dar documentul nu este configurat pentru sincronizare.`;
-          } else {
-            try {
-              await writeAttendanceToSheet(await sheetsClient(), String(target[3] || '').trim(), dateKey, minutes);
-            } catch (error) {
-              console.error('Attendance sheet update after edit failed:', error);
-              warning = `Pontajul a fost editat și totalul recalculat (${minutes} min), dar documentul nu s-a putut sincroniza: ${error.message}`;
-            }
-          }
-        }
         const editor = members.find(row => String(row[19] || '').trim() === requesterId);
         try {
           await sendAttendanceEditWebhook({ editorId: requesterId, editor, targetId, target, before, entry: savedEntry || entry, dateKey, minutes, reason });
@@ -520,31 +509,19 @@ export default async function handler(req, res) {
           delete entry.validatedBy;
         }
         const saved = await writeAttendanceData(targetId, normalized.entries);
-        const minutes = attendanceMinutesForDate(saved, dateKey, now);
+        const savedEntry = saved.find(item => item.start === entryStart) || entry;
+        const minutes = attendanceMinutesForDate([{ ...savedEntry, canceled: false }], dateKey, now);
         let warning = '';
         if (status !== 'unreviewed') {
           const reviewer = members.find(row => String(row[19] || '').trim() === requesterId);
           try {
-            await sendAttendanceReviewWebhook({ status, reviewerId: requesterId, reviewer, targetId, target, entry: saved.find(item => item.start === entryStart) || entry, dateKey, minutes });
+            await sendAttendanceReviewWebhook({ status, reviewerId: requesterId, reviewer, targetId, target, entry: savedEntry, dateKey, minutes });
           } catch (error) {
             console.error('Attendance review webhook failed:', error);
             warning = `Pontajul a fost actualizat, dar notificarea Discord nu a putut fi trimisă: ${error.message}`;
           }
         }
-        if (isCurrentWeekDate(dateKey, now)) {
-          if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON && !process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-            warning = [warning, `Pontajul a fost salvat și totalul recalculat (${minutes} min), dar documentul nu este configurat pentru sincronizare.`].filter(Boolean).join(' ');
-          } else {
-            try {
-              const sheets = await sheetsClient();
-              await writeAttendanceToSheet(sheets, String(target[3] || '').trim(), dateKey, minutes);
-            } catch (error) {
-              console.error('Attendance sheet update after review failed:', error);
-              warning = [warning, `Pontajul a fost salvat și totalul recalculat (${minutes} min), dar documentul nu s-a putut sincroniza: ${error.message}`].filter(Boolean).join(' ');
-            }
-          }
-        }
-        return json(res, 200, { success: true, entry: saved.find(item => item.start === entryStart), minutes, warning });
+        return json(res, 200, { success: true, entry: savedEntry, minutes, warning });
       }
 
       const data = await readAttendanceData(requesterId);

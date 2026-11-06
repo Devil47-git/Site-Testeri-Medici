@@ -386,7 +386,7 @@ test('leadership can validate, cancel, and restore an individual attendance entr
     reason: 'Pontaj nejustificat'
   });
   assert.equal(canceled.statusCode, 200);
-  assert.equal(canceled.payload.minutes, 0);
+  assert.equal(canceled.payload.minutes, 1);
   assert.equal(JSON.parse(redisValues.get(key))[0].canceled, true);
   assert.equal(JSON.parse(redisValues.get(key))[0].cancelReason, 'Pontaj nejustificat');
   assert.equal(JSON.parse(redisValues.get(key))[0].validated, undefined);
@@ -434,9 +434,14 @@ test('H.R. validation and cancellation send Discord notifications, including can
     status: 'validated'
   });
   assert.equal(validated.statusCode, 200);
+  assert.equal(validated.payload.minutes, 1);
+  assert.equal(validated.payload.warning, '');
   assert.equal(discordWebhookRequests.length, 1);
   assert.equal(discordWebhookRequests[0].embeds[0].title, '✅ Pontaj validat');
-  assert.match(discordWebhookRequests[0].embeds[0].fields[0].value, /Responsabil H\.R\./);
+  assert.equal(discordWebhookRequests[0].content, undefined);
+  assert.equal(discordWebhookRequests[0].allowed_mentions.parse.length, 0);
+  assert.equal(discordWebhookRequests[0].embeds[0].fields[0].value, '<@hr-id>');
+  assert.equal(discordWebhookRequests[0].embeds[0].fields.find(field => field.name === 'Durată pontaj').value, '1 min');
 
   const canceled = await callAttendance('POST', 'hr-id', {
     action: 'review-entry',
@@ -450,6 +455,7 @@ test('H.R. validation and cancellation send Discord notifications, including can
   assert.equal(discordWebhookRequests.length, 2);
   assert.equal(discordWebhookRequests[1].embeds[0].title, '❌ Pontaj anulat');
   assert.equal(discordWebhookRequests[1].embeds[0].fields.find(field => field.name === 'Motiv').value, 'Pontaj deschis greșit');
+  assert.equal(discordWebhookRequests[1].embeds[0].fields.find(field => field.name === 'Durată pontaj').value, '1 min');
 });
 
 test('attendance cancellation requires a reason on both cancellation endpoints', async () => {
@@ -482,6 +488,8 @@ test('attendance cancellation requires a reason on both cancellation endpoints',
   assert.equal(discordWebhookRequests.length, 1);
   assert.equal(discordWebhookRequests[0].embeds[0].title, '❌ Pontaj anulat');
   assert.equal(discordWebhookRequests[0].embeds[0].fields.find(field => field.name === 'Motiv').value, 'Pontaj deschis nejustificat');
+  assert.equal(discordWebhookRequests[0].embeds[0].fields.find(field => field.name === 'Durată pontaj').value, '1 min');
+  assert.equal(discordWebhookRequests[0].content, undefined);
 });
 
 test('H.R. attendance edits post the editor, changes, and reason to Discord', async () => {
@@ -489,7 +497,8 @@ test('H.R. attendance edits post the editor, changes, and reason to Discord', as
   const oldEnd = oldStart + 1800000;
   const dateKey = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Bucharest', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(oldStart));
   const key = 'site-testeri-medici:attendance:member-id';
-  redisValues.set(key, JSON.stringify([{ start: oldStart, end: oldEnd }]));
+  const otherEntryStart = Date.parse(`${dateKey}T05:00:00Z`);
+  redisValues.set(key, JSON.stringify([{ start: oldStart, end: oldEnd }, { start: otherEntryStart, end: otherEntryStart + 1800000 }]));
   discordWebhookRequests.length = 0;
 
   const edited = await callAttendance('POST', 'hr-id', {
@@ -502,11 +511,15 @@ test('H.R. attendance edits post the editor, changes, and reason to Discord', as
   });
   assert.equal(edited.statusCode, 200);
   assert.equal(edited.payload.success, true);
+  assert.equal(edited.payload.minutes, 30);
+  assert.equal(edited.payload.warning, '');
   assert.equal(discordWebhookRequests.length, 1);
   const webhook = discordWebhookRequests[0];
-  assert.equal(webhook.content, '<@hr-id> <@member-id>');
+  assert.equal(webhook.content, undefined);
+  assert.equal(webhook.allowed_mentions.parse.length, 0);
   assert.equal(webhook.embeds[0].title, '✏️ Pontaj editat');
-  assert.equal(webhook.embeds[0].fields.find(field => field.name === 'Editat de').value, '<@hr-id> (102 · Responsabil H.R.)');
+  assert.equal(webhook.embeds[0].fields.find(field => field.name === 'Editat de').value, '<@hr-id>');
+  assert.equal(webhook.embeds[0].fields.find(field => field.name === 'Durată pontaj').value, '30 min');
   assert.equal(webhook.embeds[0].fields.find(field => field.name === 'Motiv').value, 'Pontaj nedeschis');
   assert.equal(webhook.embeds[0].fields.find(field => field.name === 'Data').value, dateKey.split('-').reverse().join('.'));
 });
