@@ -239,6 +239,17 @@ export function attendanceMinutesForDate(entries, dateKey, now = Date.now()) {
   }, 0);
   return Math.floor(milliseconds / 60000);
 }
+export function attendanceRoundedMinutesForDate(entries, dateKey, now = Date.now()) {
+  if (!validDateKey(dateKey)) throw new Error('Data pontajului este invalidă.');
+  const startOfDay = bucharestDayStart(dateKey);
+  const endOfDay = bucharestDayStart(addDays(dateKey, 1));
+  return cleanEntries(entries).reduce((total, entry) => {
+    if (entry.canceled) return total;
+    const start = Math.max(entry.start, startOfDay);
+    const end = Math.min(entry.end == null ? now : entry.end, endOfDay);
+    return end > start ? total + Math.round((end - start) / 300000) * 5 : total;
+  }, 0);
+}
 function attendanceHasEntryOnDate(entries, dateKey) {
   const startOfDay = bucharestDayStart(dateKey);
   const endOfDay = bucharestDayStart(addDays(dateKey, 1));
@@ -297,7 +308,7 @@ async function writeDepartmentAttendanceToSheet(sheets, members, entries, dateKe
     const rowNumber = targetRows.get(name);
     if (rowNumber === undefined) throw new Error(`Persoana ${member.name} nu a fost găsită în coloana D din EVIDENTA ACTIVITATE.`);
     if (rowNumber === null) throw new Error(`Numele ${member.name} apare de mai multe ori în EVIDENTA ACTIVITATE.`);
-    return [{ range: attendanceSheetCell(dayColumn, rowNumber), values: [[attendanceMinutesForDate(entries[member.discordId], dateKey)]] }];
+    return [{ range: attendanceSheetCell(dayColumn, rowNumber), values: [[attendanceRoundedMinutesForDate(entries[member.discordId], dateKey)]] }];
   });
   if (updates.length) await sheets.spreadsheets.values.batchUpdate({ spreadsheetId: SHEET_ID, requestBody: { valueInputOption: 'RAW', data: updates } });
   return updates.length;
@@ -378,7 +389,7 @@ export default async function handler(req, res) {
           const normalized = closeExpiredAttendanceEntries(targetData, now);
           if (normalized.closed) await writeAttendanceData(targetId, normalized.entries);
           if (!attendanceHasEntryOnDate(normalized.entries, dateKey)) return json(res, 409, { error: 'Membrul nu are pontaje în ziua selectată.' });
-          const minutes = attendanceMinutesForDate(normalized.entries, dateKey, now);
+          const minutes = attendanceRoundedMinutesForDate(normalized.entries, dateKey, now);
           const sheets = await sheetsClient();
           await writeAttendanceToSheet(sheets, String(target[3] || '').trim(), dateKey, minutes);
           const review = { status, minutes, updatedAt: new Date(now).toISOString(), updatedBy: requesterId };
@@ -399,9 +410,10 @@ export default async function handler(req, res) {
         return json(res, 200, { success: true, updated });
       }
       if (action === 'cancel') {
-        if (!canReviewAttendance) return json(res, 403, { error: 'Only callsigns 001-020 or H.R. can cancel attendance records' });
         const targetId = String(req.body?.targetDiscordId || '').trim();
-        const reason = String(req.body?.reason || '').trim();
+        const isSelfCancellation = targetId === requesterId;
+        if (!canReviewAttendance && !isSelfCancellation) return json(res, 403, { error: "Only callsigns 001-020 or H.R. can cancel another member's attendance records" });
+        const reason = String(req.body?.reason || '').trim() || (isSelfCancellation ? 'Anulat de membru' : '');
         if (reason.length < 3) return json(res, 400, { error: 'Motivul anulării este obligatoriu.' });
         if (reason.length > 500) return json(res, 400, { error: 'Motivul anulării nu poate depăși 500 de caractere.' });
         const target = members.find(row => String(row[19] || '').trim() === targetId);

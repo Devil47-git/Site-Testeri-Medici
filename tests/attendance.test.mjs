@@ -82,7 +82,7 @@ globalThis.fetch = async (url, options = {}) => {
 };
 
 const { default: directoryHandler, attendanceWeeksFromRows, attendanceWeeksByCallsign } = await import('../api/access/directory.js');
-const { default: attendanceHandler, attendanceMinutesForDate, attendanceSheetDayColumn, attendanceStartAllowed, attendanceTypesForFunctionIds, closeExpiredAttendanceEntries, writeAttendanceToSheet } = await import('../api/access/attendance.js');
+const { default: attendanceHandler, attendanceMinutesForDate, attendanceRoundedMinutesForDate, attendanceSheetDayColumn, attendanceStartAllowed, attendanceTypesForFunctionIds, closeExpiredAttendanceEntries, writeAttendanceToSheet } = await import('../api/access/attendance.js');
 const { attendanceMinimumMinutes } = await import('../lib/access/shared.js');
 
 async function callDirectory(requesterId, view) {
@@ -173,6 +173,18 @@ test('daily attendance sums only non-canceled minutes within the Bucharest day',
   assert.throws(() => attendanceMinutesForDate(entries, '2026-02-31'), /Data pontajului este invalidă/);
 });
 
+test('daily attendance rounds each individual entry to the nearest five minutes before summing', () => {
+  const entries = [
+    { start: Date.parse('2026-01-03T15:10:00Z'), end: Date.parse('2026-01-03T16:05:01Z') },
+    { start: Date.parse('2026-01-03T17:10:00Z'), end: Date.parse('2026-01-03T17:37:00Z') },
+    { start: Date.parse('2026-01-03T18:10:00Z'), end: Date.parse('2026-01-03T18:34:59Z') }
+  ];
+  assert.equal(attendanceRoundedMinutesForDate(entries.slice(0, 1), '2026-01-03'), 55);
+  assert.equal(attendanceRoundedMinutesForDate(entries.slice(1, 2), '2026-01-03'), 25);
+  assert.equal(attendanceRoundedMinutesForDate(entries.slice(2), '2026-01-03'), 25);
+  assert.equal(attendanceRoundedMinutesForDate(entries.slice(0, 2), '2026-01-03'), 80);
+});
+
 test('weekday columns map Monday through Sunday to columns F through L', () => {
   const dates = ['2026-11-02', '2026-11-03', '2026-11-04', '2026-11-05', '2026-11-06', '2026-11-07', '2026-11-08'];
   assert.deepEqual(dates.map(attendanceSheetDayColumn), ['F', 'G', 'H', 'I', 'J', 'K', 'L']);
@@ -226,6 +238,18 @@ test('department directory reads member entry dates from column J', async () => 
   const response = await callDirectory('leadership-id', 'members');
   assert.equal(response.statusCode, 200);
   assert.equal(response.payload.members.find(member => member.discordId === 'member-id').joinedAt, '01.02.2024');
+});
+
+test('members directory excludes header rows without a valid callsign', async () => {
+  const placeholder = row('', 'NUME', '', 'RANK');
+  sheetRows.push(placeholder);
+  try {
+    const response = await callDirectory('leadership-id', 'members');
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.payload.members.some(member => member.name === 'NUME'), false);
+  } finally {
+    sheetRows.pop();
+  }
 });
 
 test('department members with callsigns 001-650 can read department-wide weekly attendance', async () => {
@@ -355,8 +379,14 @@ test('department attendance includes active member details and leadership can ca
   assert.equal(Number.isFinite(canceledEntry.end), true);
 
   redisValues.set(memberKey, JSON.stringify([{ start: Date.now(), end: null }]));
+  const memberCancelOther = await callAttendance('POST', 'member-id', { action: 'cancel', targetDiscordId: 'leadership-id' });
+  assert.equal(memberCancelOther.statusCode, 403);
   const member = await callAttendance('POST', 'member-id', { action: 'cancel', targetDiscordId: 'member-id' });
-  assert.equal(member.statusCode, 403);
+  assert.equal(member.statusCode, 200);
+  const selfCanceledEntry = JSON.parse(redisValues.get(memberKey))[0];
+  assert.equal(selfCanceledEntry.canceled, true);
+  assert.equal(selfCanceledEntry.canceledBy, 'member-id');
+  assert.equal(selfCanceledEntry.cancelReason, 'Anulat de membru');
 });
 
 test('active attendance view returns member names and validation state for a selected weekday', async () => {

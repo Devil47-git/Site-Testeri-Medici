@@ -67,7 +67,7 @@ const load = new Function(
 
 const { callsignNumber, bonusTesterCallsign, bonusClipboardValues, bonusRowGroups, normalizeCallsign, cooldownPaymentAmount, cooldownPaymentMaxDays, cooldownPaymentPayerForCallsign, cooldownPaymentMessage, isAdmissionChecklistReminder, testNameFromHash, routeFromLocation, validSavedRoute, isLeadershipUser, canReviewAttendance, memberIsLeadership, leadershipTitleForCallsign, allowedForUser, memberHasTestAccess, memberHasGrade, memberIsTester, memberCanGiveTest, docsAssignedTests, processedTestGroups, processedTestBadgesHtml, sortMembers, avatarUrlForMember, testTagClass, gradeGroupFor, testerAccessHtml, profileTestTagsHtml, mergeTestDefinitions, admissionChecklistHtml, admissionConsentHtml, admissionChecksComplete, motoChecksComplete, pilotLicenseChecklistHtml, alsChecklistHtml, alsChecksComplete, alsCaseListHtml, smulsChecklistHtml, smulsChecksComplete, smulsCaseListHtml, memberStatus, testerFunctionsForDisplay, isTestFailed, canUseAdmittedVerdict, startVerdictButtonCooldown, maxWrongForTest, cachedUserWithinSession, questionItemHtml, evaluationStageHtml, parseIdentityCardText, mergeIdentityCardDetails, displayTestName, departmentCalendarDate, latestCompleteBonusPeriodIndex, activeBonusPeriodIndex, bonusPeriodFor, memberAccessTests, plausibleIdentityDetails, identityCardCrop } = load;
 const attendanceDisplay = new Function(
-  `${extract('escapeHtml')}\n${extract('attendanceLeaveCode')}\n${extract('activityWeekMetrics')}\n${extract('activityWeekCell')}\nreturn { attendanceLeaveCode, activityWeekMetrics, activityWeekCell };`,
+  `${extract('escapeHtml')}\n${extract('attendanceLeaveCode')}\n${extract('activityWeekMetrics')}\n${extract('activityWeekCell')}\n${extract('attendanceChartScale')}\nreturn { attendanceLeaveCode, activityWeekMetrics, activityWeekCell, attendanceChartScale };`,
 )();
 
 test('guide loads from the bundled asset route with local media and an authorized submenu', () => {
@@ -207,6 +207,14 @@ test('historical weekly attendance values are treated as already calculated aver
   assert.match(activityWeekCell('153/5CO', 80), /Medie 153 min · 191%/);
 });
 
+test('historical weekly attendance colors use red below 50%, yellow below 100%, and green from 100%', () => {
+  const { activityWeekCell } = attendanceDisplay;
+  assert.match(activityWeekCell('39.9', 80), /activity-history-value is-below-minimum/);
+  assert.match(activityWeekCell('40', 80), /activity-history-value is-half-minimum/);
+  assert.match(activityWeekCell('79.9', 80), /activity-history-value is-half-minimum/);
+  assert.match(activityWeekCell('80', 80), /activity-history-value is-meets-minimum/);
+});
+
 test('activity directory members open an attendance detail page for department members', () => {
   assert.match(source, /data-activity-member="\$\{escapeHtml\(normalizeCallsign\(member\.callsign\)\)\}"/);
   assert.match(source, /function renderActivityMemberView\(member\)/);
@@ -234,11 +242,26 @@ test('member profiles and activity table show weekly values from the department 
   assert.match(directorySource, /attendanceWeeks: activityView \? attendanceByCallsign\.get/);
   assert.doesNotMatch(directorySource, /if \(attendanceView && !canReviewAttendance\) return json\(res, 403/);
   assert.match(directorySource, /attendanceMember = members\.find\(row => String\(row\[19\] \|\| ''\)\.trim\(\) === requesterId\)/);
-  assert.match(source, /function attendanceChartHtml\(week, title = 'Pontaj săptămânal'\)/);
+  assert.match(source, /function attendanceChartHtml\(week, title = 'Pontaj săptămânal', targetMinutes = 120\)/);
   assert.match(source, /ULTIMELE 30 DE PONTAJE/);
   assert.match(source, /attendance-chart-total/);
   const attendanceApi = readFileSync(join(here, '..', 'api', 'access', 'attendance.js'), 'utf8');
   assert.match(attendanceApi, /req\.query\?\.view === 'own'/);
+});
+
+test('attendance chart scale follows the member minimum while still fitting higher totals', () => {
+  const { attendanceChartScale } = attendanceDisplay;
+  assert.equal(attendanceChartScale({ minutes: [20, 0, 0, 0, 0, 0, 0] }, 80), 80);
+  assert.equal(attendanceChartScale({ minutes: [80, 0, 0, 0, 0, 0, 0] }, 80), 80);
+  assert.equal(attendanceChartScale({ minutes: [20, 0, 0, 0, 0, 0, 0] }, 100), 100);
+  assert.equal(attendanceChartScale({ minutes: [20, 0, 0, 0, 0, 0, 0] }, 120), 120);
+  assert.equal(attendanceChartScale({ minutes: [130, 0, 0, 0, 0, 0, 0] }, 80), 180);
+});
+
+test('attendance loading for the activity directory requests department-wide entries with active view', () => {
+  assert.match(source, /loadAttendanceRecords\(true, \{ render: false, view: 'active', dateKey: attendanceDateKey\(Date\.now\(\)\) \}\)/);
+  assert.match(source, /data-attendance-action="cancel"/);
+  assert.match(source, /Anulează pontaj/);
 });
 
 test('activity table uses the available page width without a forced horizontal minimum', () => {

@@ -509,6 +509,7 @@ body.dark-mode .nav-item.active{box-shadow:inset 2px 0 var(--purple)}
 .attendance-actions{display:flex;justify-content:flex-start;flex-wrap:wrap;gap:8px;margin-top:18px}
 .attendance-actions button{min-width:145px}
 .attendance-stop{border-color:#d75b65;color:#c23d49}
+.attendance-cancel-own{border-color:#d75b65;color:#ff858d}
 .attendance-status{text-align:center;min-height:18px;margin-bottom:0}
 .attendance-week-box .panel-head,.attendance-history .panel-head{align-items:center}
 .attendance-week-box h3,.attendance-history h3{margin:0;font:700 16px 'Space Grotesk'}
