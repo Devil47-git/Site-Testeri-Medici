@@ -343,6 +343,18 @@ test('only callsigns 001 through 020 can reset test counts', () => {
   assert.equal(canResetTestCounts(['', '', '021']), false);
   assert.equal(canResetTestCounts(['', '', '100', '', 'Director']), false);
 });
+test('Certifica Trusa is listed and accessible only for callsigns 001 through 020', () => {
+  const hasLeadershipCallsign = new Function('callsignNumber', `${extract('hasLeadershipCallsign')}; return hasLeadershipCallsign;`)(accessCallsignNumber);
+  assert.equal(hasLeadershipCallsign({ callsign: 'M-001' }), true);
+  assert.equal(hasLeadershipCallsign({ callsign: 'M-020' }), true);
+  assert.equal(hasLeadershipCallsign({ callsign: 'M-021' }), false);
+  const submenuSource = extract('renderAvailableTestsSubmenu');
+  const navigationSource = source.match(/function navigateTo\(view,[\s\S]*?^\}/m)?.[0] || '';
+  assert.match(submenuSource, /if \(hasLeadershipCallsign\(currentUser\)\)[\s\S]*data-certifica-trusa/);
+  assert.match(navigationSource, /view === 'certifica-trusa' && !hasLeadershipCallsign\(currentUser\)/);
+  assert.match(source, /function renderCertificaTrusaView\(\)/);
+  assert.match(source, /if \(event\.target\.closest\('\[data-certifica-trusa\]'\)\) return navigateTo\('certifica-trusa'\)/);
+});
 test('attendance rooms are available to all department members but review actions stay restricted', () => {
   const permissionsSource = source.match(/function renderAvailableTestsSubmenu\(\) \{[\s\S]*?^\}/m)?.[0] || '';
   const navigationSource = source.match(/function navigateTo\(view, \{ push = true \} = \{\}\) \{[\s\S]*?^\}/m)?.[0] || '';

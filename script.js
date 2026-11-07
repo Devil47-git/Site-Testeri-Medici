@@ -94,6 +94,22 @@ const GUIDE_CONTENT = {
       ['Regulament general', ['Comportamentul trebuie să fie adecvat meseriei.', 'Respectă indicațiile conducerii și ale cadrelor medicale superioare.', 'Nu modifica vizual autospecialele în afara modelului aprobat.', 'Între 21:00 și 04:00 sunt necesare minimum 3 cadre medicale cu Asistent Medical+ și certificate RADIO, BLS și ALS.', 'Nu folosi dispecerul OFF-DUTY.', 'Nu conduce autospeciale fără gradul aferent.', 'Nu vorbi peste gradele superioare pe stație.', 'Tatuajele și machiajele faciale nu sunt permise.']],
       ['Pontaj și sancțiuni', ['Pontajul minim este de 30 de minute.', 'Pontajele se deschid și se închid cu maximum +/- 10 minute.', 'Închide pontajul când iei pauză și treci pe camera de spital AFK.', 'Nu șterge pontajele anulate.', 'Două săptămâni consecutive cu pontaj pe roșu pot duce la DEMIS / DOWN.']]
     ]
+  },
+  'certifica-trusa': {
+    intro: 'Acordarea primului ajutor în diferite situații de urgență',
+    sections: [
+      ['Acordarea primului ajutor este foarte importantă în situațiile de urgență', ['Acordarea primului ajutor este foarte importantă în situațiile de urgență, deoarece intervenția rapidă și corectă poate salva viața unei persoane. Un paramedic trebuie să își păstreze calmul, să analizeze situația și să acorde îngrijirile necesare în funcție de starea pacientului.']],
+      ['1. Primirea pacientului la fața locului', ['Atunci când ajungem la locul unui incident, primul lucru pe care trebuie să îl facem este să ne asigurăm că zona este sigură atât pentru noi, cât și pentru victimă. Ulterior, ne apropiem de pacient, îl examinăm și verificăm dacă este conștient. Urmărim respirația prin metoda P.A.S. (Privește, Ascultă, Simte), observăm eventualele răni și evaluăm starea generală. Dacă pacientul prezintă o stare stabilă, îl putem așeza într-o poziție de siguranță și așteptăm intervenția sau transportul medical.']],
+      ['2. Accidentări la nivelul mâinilor și picioarelor', ['În cazul unei persoane care a suferit o accidentare la nivelul mâinii sau piciorului, trebuie să examinăm zona afectată pentru a identifica eventuale fracturi, luxații sau răni. Dacă observăm că membrul este luxat sau există suspiciunea unei fracturi, acesta trebuie imobilizat pentru a preveni agravarea leziunii. Putem folosi atele și bandaje pentru susținerea membrului afectat. Pacientul trebuie ajutat să se deplaseze sau să fie transportat pe targă, fără a pune presiune pe zona accidentată.']],
+      ['3. Accidente de mașină sau motocicletă', ['În cazul unui accident rutier, paramedicul trebuie să verifice mai întâi starea pacientului. Se examinează conștiența, respirația, pulsul și eventualele răni vizibile. Dacă pacientul este conștient și respiră normal, se verifică existența unor traumatisme și se acordă primul ajutor în funcție de leziuni. Dacă există suspiciunea unei leziuni la nivelul coloanei cervicale, capul și gâtul trebuie menținute în poziție neutră, evitând mișcările inutile.', 'Dacă pacientul nu prezintă puls și nu respiră normal, situația devine extrem de gravă, fiind necesară începerea resuscitării cardio-respiratorii. Se efectuează compresii toracice și ventilații, dacă salvatorul este instruit, și se utilizează defibrilatorul automat extern cât mai repede. Pacientul trebuie transportat la spital de către personalul medical.']],
+      ['4. Explozie la o benzinărie sau la o mașină', ['În urma unei explozii, victimele pot suferi arsuri de diferite grade. Primul pas este evaluarea pacientului și identificarea zonelor afectate. În cazul arsurilor, zona trebuie răcită cu apă curentă timp de aproximativ 20 de minute, dacă acest lucru este posibil și sigur. Ulterior, arsura se acoperă cu un pansament steril, neaderent. Nu se aplică creme, uleiuri sau alte substanțe pe arsură. În cazul unor arsuri extinse sau grave, pacientul trebuie transportat urgent la spital.']],
+      ['5. Căi respiratorii blocate', ['Blocarea căilor respiratorii reprezintă o urgență medicală, deoarece pacientul nu mai poate respira corespunzător. Această situație poate fi provocată de un obiect străin care blochează căile respiratorii. Dacă persoana poate tuși, trebuie încurajată să continue să tușească. Dacă nu poate respira, vorbi sau tuși eficient, se aplică manevrele de dezobstrucție corespunzătoare. Dacă pacientul își pierde cunoștința și nu respiră normal, se începe resuscitarea cardio-respiratorie și se solicită ajutor medical de urgență.']],
+      ['6. Șocul anafilactic', ['Șocul anafilactic este o reacție alergică foarte gravă, care poate apărea după contactul cu anumite alimente, medicamente sau înțepături de insecte. Pacientul poate prezenta umflarea feței sau a gâtului, dificultăți de respirație, amețeli și scăderea tensiunii arteriale. În această situație trebuie solicitat imediat ajutorul medical. Tratamentul de primă linie este administrarea adrenalinei intramuscular, conform protocolului medical. Pacientul trebuie monitorizat permanent până la sosirea echipajului specializat.']],
+      ['7. Dureri insuportabile după un accident', ['După un accident, pacientul poate prezenta dureri foarte puternice, mai ales dacă există o fractură sau o altă leziune gravă. Paramedicul trebuie să examineze zona afectată, să identifice eventualele deformări și să evalueze intensitatea durerii. Membrul accidentat trebuie imobilizat, iar pacientul trebuie supravegheat și transportat la spital. Medicamentele pentru calmarea durerii se administrează numai de personal medical autorizat, în funcție de starea pacientului și de protocol.']],
+      ['8. Pacient înecat', ['În cazul unei persoane care s-a înecat, este important ca salvatorul să nu se pună în pericol. După scoaterea victimei din apă, se verifică dacă este conștientă și dacă respiră normal. Dacă nu respiră normal, se solicită ajutor de urgență și se începe resuscitarea cardio-respiratorie, conform pregătirii salvatorului. În cazul înecului, ventilațiile au o importanță deosebită. Pacientul trebuie evaluat și transportat la spital chiar dacă își revine.']],
+      ['9. Medicamente și materiale medicale', ['Un paramedic trebuie să cunoască principalele medicamente și materialele medicale utilizate în intervențiile de urgență. Printre acestea se numără analgezicele pentru calmarea durerii, medicamentele pentru alergii, adrenalina pentru reacțiile anafilactice, medicamentele utilizate în stopul cardio-respirator și soluțiile pentru îngrijirea rănilor. De asemenea, echipamentul medical poate include seringi sterile, ace, comprese, bandaje, folii pentru arsuri, defibrilator și aparatură pentru monitorizarea pacientului.', 'Este important ca medicamentele să fie administrate numai de personal calificat, în dozele și condițiile prevăzute de protocoalele medicale.']],
+      ['Întrebări pe baza textului', ['1. Care sunt primii pași pe care trebuie să îi urmeze un paramedic atunci când ajunge la locul unui accident?', '2. Ce trebuie să facem atunci când întâlnim un pacient care prezintă o posibilă fractură sau luxație la nivelul mâinii ori piciorului?', '3. Care sunt principalele manevre necesare atunci când un pacient se află în stop cardio-respirator?', '4. Ce simptome poate prezenta o persoană care suferă un șoc anafilactic și care este tratamentul de primă linie?', '5. De ce este importantă verificarea respirației și a stării de conștiență în cazul unui pacient înecat?']]
+    ]
   }
 };
 function saveTesters() { localStorage.setItem(GRANTS_KEY, JSON.stringify(testers)); }
@@ -640,9 +656,11 @@ function renderAvailableTestsSubmenu() {
   if (!submenu || !currentUser) return;
   const selectedTest = window.history.state?.view === 'test' ? window.history.state.testName : '';
   const tests = allowedForUser(currentUser);
-  submenu.innerHTML = tests.length
-          ? tests.map(test => `<button type="button" class="nav-subitem ${selectedTest === test ? 'active' : ''}" data-available-test="${escapeHtml(test)}">${escapeHtml(displayTestName(test))}</button>`).join('')
-    : '<span class="nav-submenu-empty">Nu ai teste disponibile.</span>';
+  const items = tests.map(test => `<button type="button" class="nav-subitem ${selectedTest === test ? 'active' : ''}" data-available-test="${escapeHtml(test)}">${escapeHtml(displayTestName(test))}</button>`);
+  if (hasLeadershipCallsign(currentUser)) {
+    items.push(`<button type="button" class="nav-subitem ${window.history.state?.view === 'certifica-trusa' ? 'active' : ''}" data-certifica-trusa>Certificat Trusa</button>`);
+  }
+  submenu.innerHTML = items.length ? items.join('') : '<span class="nav-submenu-empty">Nu ai teste disponibile.</span>';
 }
 function renderGuideSubmenu() {
   const submenu = document.querySelector('#guide-submenu');
@@ -663,6 +681,11 @@ function renderGuideView() {
     return `<section class="panel guide-panel"><p class="muted">${message}</p></section>`;
   }
   return `<section class="panel guide-panel"><div class="panel-head"><div><p class="eyebrow">GHID SPITAL · SECȚIUNE INTERNĂ</p><h2>${escapeHtml(title)}</h2><p class="muted">Informațiile și imaginile ghidului spitalului sunt integrate aici în Site Testeri.</p></div></div><article class="guide-official-content" data-guide-section-content="${section}">${content}</article></section>`;
+}
+function renderCertificaTrusaView() {
+  const content = GUIDE_CONTENT['certifica-trusa'];
+  const sections = content.sections.map(([title, paragraphs]) => `<section class="content-card"><h3>${escapeHtml(title)}</h3>${paragraphs.map(paragraph => `<p>${escapeHtml(paragraph)}</p>`).join('')}</section>`).join('');
+  return `<section class="panel guide-panel certifica-trusa-panel"><div class="panel-head"><div><p class="eyebrow">MATERIAL DE STUDIU</p><h2>Certificat Trusa</h2><p class="muted">${escapeHtml(content.intro)}</p></div></div><article class="guide-official-content certifica-trusa-content">${sections}</article></section>`;
 }
 function openGuideSectionFromContent(sectionId) {
   const sections = guideSections.length ? guideSections : GUIDE_SECTIONS;
@@ -1952,6 +1975,7 @@ function renderView(view) {
   else if (view === 'attendance') { attendanceAllowedTypes = ['regular']; attendancePermissionsError = ''; attendanceRecordsLoaded = false; viewContent.innerHTML = renderAttendanceView(); wireAttendanceEvents(); loadAttendanceRecords(false); loadAttendancePermissions(); }
   else if (view === 'active-attendance') { activeAttendanceMessage = ''; viewContent.innerHTML = renderActiveAttendanceView(); wireActiveAttendanceEvents(); loadAttendanceRecords(true, { view: 'active', dateKey: activeAttendanceDate }); }
   else if (view === 'activity') { viewContent.innerHTML = renderActivityView(); loadActivityEntries(); }
+  else if (view === 'certifica-trusa') viewContent.innerHTML = renderCertificaTrusaView();
   else if (view === 'guide') { viewContent.innerHTML = renderGuideView(); wireGuideContentEvents(); renderGuideSubmenu(); }
   else if (view === 'cooldowns') { viewContent.innerHTML = renderCooldownPaymentsView(); wireCooldownPaymentsEvents(); }
   else { viewContent.innerHTML = renderSettingsView(title); wireSettingsEvents(); }
@@ -3842,9 +3866,10 @@ document.querySelector('#member-functions-modal').addEventListener('click', even
 });
 document.querySelector('#save-member-functions').addEventListener('click', saveMemberFunctions);
 document.querySelector('#brand-settings').onclick = () => navigateTo('overview'); document.querySelector('#user-menu').onclick = () => navigateTo('overview'); document.querySelector('#profile-settings').onclick = () => navigateTo('settings');
-const labels = { overview: 'Profilul tău', testers: 'Testerii departamentului', members: 'Membri', statistics: 'Statistica Teste', cooldowns: 'Cooldown-uri', bonuses: 'Bonusuri', attendance: 'Pontaje', 'active-attendance': 'Pontaje active', activity: 'Evidență activitate', guide: 'Ghid Spital', settings: 'Setări' };
+const labels = { overview: 'Profilul tău', testers: 'Testerii departamentului', members: 'Membri', statistics: 'Statistica Teste', cooldowns: 'Cooldown-uri', bonuses: 'Bonusuri', attendance: 'Pontaje', 'active-attendance': 'Pontaje active', activity: 'Evidență activitate', guide: 'Ghid Spital', 'certifica-trusa': 'Certificat Trusa', settings: 'Setări' };
 function navigateTo(view, { push = true } = {}) {
   if (view === 'bonuses' && !hasLeadershipCallsign(currentUser)) view = 'overview';
+  if (view === 'certifica-trusa' && !hasLeadershipCallsign(currentUser)) view = 'overview';
   if (view === 'attendance' && !currentUser?.discordId) view = 'overview';
   if (view === 'active-attendance' && !canViewAttendanceRooms(currentUser)) view = 'overview';
   if (view === 'activity' && !canViewAttendanceRooms(currentUser)) view = 'overview';
@@ -3864,7 +3889,7 @@ function navigateTo(view, { push = true } = {}) {
   else if (!push && (window.history.state?.view !== view || window.location.hash !== `#${view}`)) window.history.replaceState({ view }, '', `#${view}`);
   saveActiveRoute({ view });
   renderAvailableTestsSubmenu();
-  document.querySelectorAll('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.view === view));
+  document.querySelectorAll('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.view === view || (view === 'certifica-trusa' && item.id === 'available-tests-toggle')));
   document.querySelector('#page-label').textContent = labels[view];
   document.querySelector('#section-label').textContent = 'Site Testeri';
   document.querySelector('.sidebar').classList.remove('open');
@@ -3892,6 +3917,7 @@ availableTestsToggle.addEventListener('click', () => {
   availableTestsSubmenu.hidden = expanded;
 });
 availableTestsSubmenu.addEventListener('click', event => {
+  if (event.target.closest('[data-certifica-trusa]')) return navigateTo('certifica-trusa');
   const button = event.target.closest('[data-available-test]');
   if (button) openTest(button.dataset.availableTest);
 });

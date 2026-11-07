@@ -749,6 +749,11 @@ body.dark-mode .nav-item.active{box-shadow:inset 2px 0 var(--purple)}
 .guide-note strong{color:var(--ink)}
 .guide-loading{margin:18px 0 0;text-align:center}
 .guide-official-content{width:100%;max-width:none;min-width:0;height:auto;min-height:0;max-height:75vh;overflow:auto;margin:0 auto;padding:28px 32px;border:1px solid #315987;border-radius:20px;background:linear-gradient(145deg,#081936 0%,#0d2448 52%,#101b3b 100%);color:#eaf2ff;box-shadow:0 12px 34px rgba(2,10,28,.48)}
+.guide-official-content.certifica-trusa-content h3{margin:0 0 16px;color:#fff!important;font-size:20px;font-weight:700;line-height:1.4}
+.guide-official-content.certifica-trusa-content p{margin:0 0 14px;color:#fff!important;font-size:16px;font-weight:700;line-height:1.65}
+.certifica-trusa-content .content-card{padding:24px;margin:18px 0}
+.certifica-trusa-panel>.panel-head h2{font-size:20px}
+.certifica-trusa-panel>.panel-head .muted{color:#fff;font-size:14px;font-weight:700;line-height:1.5}
 .guide-official-content .section-header,.guide-official-content .section-title{display:flex;align-items:center;justify-content:center;gap:12px;flex-wrap:wrap;margin:0 0 24px;color:#8ec5ff;text-align:center}
 .guide-official-content h1,.guide-official-content h2,.guide-official-content h3,.guide-official-content h4{color:#8ec5ff!important;font-family:'Space Grotesk',sans-serif}
 .guide-official-content h1{font-size:32px;letter-spacing:1px;text-transform:uppercase}
