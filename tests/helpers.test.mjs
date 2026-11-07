@@ -198,6 +198,15 @@ test('CVV keeps its label while using the same weekly calculation as CO', () => 
   assert.match(activityWeekCell('CVV', 80), />CVV<\/strong>/);
 });
 
+test('historical weekly attendance values are treated as already calculated averages', () => {
+  const { activityWeekMetrics, activityWeekCell } = attendanceDisplay;
+  assert.deepEqual(activityWeekMetrics('131', 80), { leaveDays: 0, average: 131, percentage: 163.75 });
+  assert.deepEqual(activityWeekMetrics('182', 80), { leaveDays: 0, average: 182, percentage: 227.5 });
+  assert.match(activityWeekCell('131', 80), /activity-history-value is-meets-minimum/);
+  assert.match(activityWeekCell('182', 80), /activity-history-value is-meets-minimum/);
+  assert.match(activityWeekCell('153/5CO', 80), /Medie 153 min · 191%/);
+});
+
 test('activity directory members open an attendance detail page for department members', () => {
   assert.match(source, /data-activity-member="\$\{escapeHtml\(normalizeCallsign\(member\.callsign\)\)\}"/);
   assert.match(source, /function renderActivityMemberView\(member\)/);
@@ -243,15 +252,18 @@ test('activity table uses the available page width without a forced horizontal m
   assert.match(styleSource, /\.activity-wide \.activity-panel \.activity-table \.activity-history-value\{min-width:0/);
 });
 
-test('member cards use the department entry date and keep the identity centered beside the avatar', () => {
+test('member cards hide the entry date and keep the identity beside the avatar', () => {
   assert.match(directorySource, /joinedAt: String\(row\[9\] \|\| ''\)\.trim\(\)/);
-  assert.match(source, /<span class="member-room-callsign">[\s\S]*?<strong>\$\{escapeHtml\(memberNameFor\(member\)\)\}<\/strong>/);
+  const memberCard = extract('memberCardHtml');
+  assert.match(memberCard, /<span class="member-room-callsign">[\s\S]*?<strong>\$\{escapeHtml\(memberNameFor\(member\)\)\}<\/strong>/);
+  assert.doesNotMatch(memberCard, /DATA DE INTRARE|member-room-detail|joinedAt/);
   assert.match(source, /member-room-function-content"><div class="member-function-badges">/);
   assert.doesNotMatch(source, /<span>FUNCȚII<\/span>|Caută după nume, callsign sau funcție|Atribuie funcții|Nicio funcție atribuită/);
   assert.match(source, /<small><b class="activity-callsign">[\s\S]*?<\/b><\/small><strong>\$\{escapeHtml\(member\.name\)\}<\/strong>/);
   assert.doesNotMatch(source, /class="activity-rank"/);
   assert.match(styleSource, /\.activity-panel \.activity-member-link>span\{display:flex;flex-direction:column;justify-content:center/);
   assert.match(styleSource, /\.member-room-name-line\{display:flex;align-items:center/);
+  assert.match(styleSource, /\.member-room-card\{grid-template-columns:minmax\(210px,\.9fr\) minmax\(0,1\.9fr\)/);
 });
 
 test('SMULS, Moto, Pilot, and parachutism test pages show their fixed corner logos', () => {

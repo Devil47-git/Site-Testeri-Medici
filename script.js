@@ -826,7 +826,7 @@ function memberCardHtml(member) {
   const editAction = hasLeadershipCallsign(currentUser) && member.discordId
     ? `<button class="outline member-functions-edit" type="button" data-member-functions="${escapeHtml(member.discordId)}">＋ Editează</button>`
     : '';
-  return `<article class="member-room-card"><div class="member-room-identity">${avatarFor(member)}<div class="member-room-name-line"><span class="member-room-callsign">${escapeHtml(normalizeCallsign(member.callsign) || '—')}</span><strong>${escapeHtml(memberNameFor(member))}</strong></div></div><div class="member-room-detail"><span>DATA DE INTRARE</span><strong>${escapeHtml(member.joinedAt || '—')}</strong></div><div class="member-room-functions"><div class="member-room-function-content"><div class="member-function-badges">${memberFunctionBadges(member)}</div>${editAction}</div></div></article>`;
+  return `<article class="member-room-card"><div class="member-room-identity">${avatarFor(member)}<div class="member-room-name-line"><span class="member-room-callsign">${escapeHtml(normalizeCallsign(member.callsign) || '—')}</span><strong>${escapeHtml(memberNameFor(member))}</strong></div></div><div class="member-room-functions"><div class="member-room-function-content"><div class="member-function-badges">${memberFunctionBadges(member)}</div>${editAction}</div></div></article>`;
 }
 const MEMBER_GRADE_ORDER = ['Director General', 'Director Adjunct', 'Medic Inspector', 'Medic Chirurg', 'Medic Primar', 'Medic Specialist', 'Medic Rezident', 'Medic Stagiar', 'Asistent Medical', 'Brancardier'];
 function memberGradeLabel(member) { return String(member?.rank || '').trim() || String(member?.gradeGroup || '').trim() || 'Grad neprecizat'; }
@@ -1744,9 +1744,8 @@ function activityWeekMetrics(value, dailyMinimum) {
   if (!match || !dailyMinimum) return { leaveDays: 0, percentage: null, average: null };
   const minutes = Number(match[1].replace(',', '.'));
   const leaveDays = Math.min(7, Number(match[2] || 0));
-  const workedDays = 7 - leaveDays;
-  if (!workedDays) return { leaveDays, percentage: null, average: null };
-  const average = minutes / workedDays;
+  if (leaveDays === 7) return { leaveDays, percentage: null, average: null };
+  const average = minutes;
   return { leaveDays, average, percentage: average / dailyMinimum * 100 };
 }
 function activityWeekCell(value, dailyMinimum) {

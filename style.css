@@ -708,7 +708,7 @@ body.dark-mode .nav-item.active{box-shadow:inset 2px 0 var(--purple)}
 @media(max-width:600px){.member-room-panel{padding:16px}.member-room-card{grid-template-columns:minmax(0,1fr) auto;gap:12px;padding:13px}.member-room-identity{grid-column:1/-1;padding-bottom:10px;border-bottom:1px solid var(--line)}.member-room-functions{grid-column:1/-1}.member-functions-edit{grid-column:1/-1}.member-function-options{grid-template-columns:1fr}.member-room-message{align-items:flex-start;flex-direction:column}}
 .member-room-cards{gap:14px}
 .member-grade-list{gap:6px}
-.member-room-card{grid-template-columns:minmax(210px,.9fr) minmax(145px,.55fr) minmax(220px,1.35fr);gap:12px;padding:10px 12px}
+.member-room-card{grid-template-columns:minmax(210px,.9fr) minmax(0,1.9fr);gap:12px;padding:10px 12px}
 .member-room-identity{gap:9px}
 .member-room-name-line{gap:8px}
 .member-room-callsign{font-size:13px!important}
