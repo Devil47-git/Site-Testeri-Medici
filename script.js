@@ -226,8 +226,12 @@ function canReviewAttendance(user) {
   const functions = String(user?.functions || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   return functions.split('|').some(value => ['HR', 'HRAV', 'HRHRAV', 'RESURSEUMANE', 'MANAGERHR', 'RESPONSABILHR'].includes(value.replace(/[^A-Z0-9]/g, '')));
 }
+function attendanceCallsignNumber(user) {
+  const callsigns = [user?.callsign, user?.callSign, user?.csNum].map(callsignNumber).filter(value => value > 0);
+  return callsigns.find(value => value <= 650) || callsigns[0] || 0;
+}
 function canViewAttendanceRooms(user) {
-  const callsign = callsignNumber(user?.csNum || user?.callsign || user?.callSign);
+  const callsign = attendanceCallsignNumber(user);
   return canReviewAttendance(user) || (callsign >= 1 && callsign <= 650);
 }
 /** @param {Member} member @returns {boolean} */
@@ -1138,6 +1142,9 @@ function attendanceMinutes(entry, now = Date.now()) {
   const end = entry.end == null ? now : Number(entry.end);
   return Math.max(0, Math.floor((end - Number(entry.start)) / 60000));
 }
+function roundAttendanceMinutes(value) {
+  return Math.max(0, Math.round(Number(value) / 5) * 5);
+}
 function attendanceTypeForEntry(entry) {
   return entry?.type === 'hr' || entry?.type === 'pr' ? entry.type : 'regular';
 }
@@ -1153,7 +1160,7 @@ function attendanceStartAllowed(timestamp = Date.now()) {
 function attendanceTime(value) {
   const step = 5 * 60000;
   const rounded = Math.round(Number(value) / step) * step;
-  return new Intl.DateTimeFormat('ro-RO', { timeZone: 'Europe/Bucharest', hour: '2-digit', minute: '2-digit' }).format(new Date(Number.isFinite(rounded) ? rounded : value));
+  return new Intl.DateTimeFormat('ro-RO', { timeZone: 'Europe/Bucharest', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(Number.isFinite(rounded) ? rounded : value));
 }
 function bucharestDayStart(dateKey) {
   const [year, month, day] = dateKey.split('-').map(Number);
@@ -1188,12 +1195,11 @@ function attendanceWeekData(dateKey, entries = attendanceEntries(), now = Date.n
       cursor = segmentEnd;
     }
   });
-  const dailyMinutes = minutes.map(value => Math.floor(value));
+  const dailyMinutes = minutes.map(value => roundAttendanceMinutes(value));
   return { start, minutes: dailyMinutes, counts, total: dailyMinutes.reduce((sum, value) => sum + value, 0), average: dailyMinutes.reduce((sum, value) => sum + value, 0) / 7 };
 }
 function attendanceFormatMinutes(value) {
-  const minutes = Math.max(0, Math.round(value));
-  return `${minutes} min`;
+  return `${roundAttendanceMinutes(value)} min`;
 }
 function attendanceClosedWeeks(dateKey, entries) {
   const currentStart = attendanceWeekStart(dateKey);
@@ -1360,7 +1366,7 @@ function renderActiveAttendanceView() {
   const disabled = !attendanceRecordsLoaded || attendanceLoadPending || activeAttendanceBusy || Boolean(attendanceSyncError) || !rows;
   const dateLabel = `${ATTENDANCE_DAYS[selectedIndex]} ${new Intl.DateTimeFormat('ro-RO', { timeZone: 'Europe/Bucharest', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(`${activeAttendanceDate}T12:00:00Z`))}`;
   const weekLabel = attendanceWeekLabel(selectedWeekStart, attendanceAddDays(selectedWeekStart, 6));
-  const dayTotal = members.reduce((total, member) => total + attendanceMinutesForDateClient(attendanceEntriesFor(member), activeAttendanceDate, now), 0);
+  const dayTotal = roundAttendanceMinutes(members.reduce((total, member) => total + attendanceMinutesForDateClient(attendanceEntriesFor(member), activeAttendanceDate, now), 0));
   const sheetSyncAllowed = selectedWeekStart === currentWeekStart;
   const actionHeaders = canReview ? '<th>VALIDARE / ANULARE</th><th>EDITARE</th>' : '';
   const syncButton = canReview ? `<button class="primary" id="attendance-docs-sync" type="button" ${disabled || !sheetSyncAllowed ? 'disabled' : ''}>Sincronizează documentul</button>` : '';
@@ -1406,9 +1412,11 @@ function wireActiveAttendanceEvents() {
       attendanceTimer = null;
       return;
     }
-    if (!attendanceLoadPending && !activeAttendanceBusy) await loadAttendanceRecords(true, { render: false, view: 'active' });
+    if (document.visibilityState === 'visible' && !attendanceLoadPending && !activeAttendanceBusy) {
+      await loadAttendanceRecords(true, { render: false, view: 'active', dateKey: activeAttendanceDate });
+    }
     refreshActiveAttendanceView();
-  }, 30000);
+  }, 5000);
 }
 async function submitAttendanceDocs(action, details = {}) {
   if (!canReviewAttendance(currentUser) || !currentUser?.discordId) throw new Error('Doar conducerea sau funcția H.R. poate gestiona pontajele.');
@@ -1439,7 +1447,7 @@ async function updateAttendanceReview(targetDiscordId, entryStart, status, reaso
       }
     }
     const stateLabel = status === 'validated' ? 'validat' : status === 'canceled' ? 'anulat' : 'nevalidat';
-    activeAttendanceMessage = payload.warning || `Pontajul a fost ${stateLabel}; durata acestuia este ${payload.minutes} min.`;
+    activeAttendanceMessage = payload.warning || `Pontajul a fost ${stateLabel}; durata acestuia este ${attendanceFormatMinutes(payload.minutes)}.`;
   } catch (error) {
     console.error('Attendance review update failed:', error);
     activeAttendanceMessage = error.message || 'Pontajul nu a putut fi actualizat.';
@@ -1459,7 +1467,7 @@ function openAttendanceEditDialog(targetDiscordId, entryStart) {
   const dialog = document.createElement('dialog');
   dialog.id = 'attendance-edit-dialog';
   dialog.className = 'attendance-edit-dialog';
-  dialog.innerHTML = `<form method="dialog" class="attendance-edit-form"><p class="eyebrow">EDITARE PONTAJ</p><h3>${escapeHtml(member.name || '—')} · ${escapeHtml(normalizeCallsign(member.callsign))}</h3><label>Clock-IN<input type="time" name="clockIn" required value="${attendanceInputTime(entry.start)}"></label><label>Clock-OUT<input type="time" name="clockOut" ${entry.end == null ? '' : 'required'} value="${entry.end == null ? '' : attendanceInputTime(entry.end)}"></label><label>Motiv (obligatoriu)<textarea name="reason" required minlength="3" maxlength="500" rows="3" placeholder="Scrie motivul editării"></textarea></label><p class="attendance-edit-error" role="alert"></p><div class="attendance-edit-actions"><button type="button" class="outline" data-edit-cancel>Renunță</button><button type="submit" class="primary">Salvează</button></div></form>`;
+  dialog.innerHTML = `<form method="dialog" class="attendance-edit-form"><p class="eyebrow">EDITARE PONTAJ</p><h3>${escapeHtml(member.name || '—')} · ${escapeHtml(normalizeCallsign(member.callsign))}</h3><label>Clock-IN (24h)<input type="text" name="clockIn" inputmode="text" pattern="(?:[01][0-9]|2[0-3]):[0-5][0-9]" title="Folosește formatul de 24 de ore HH:MM (ex. 14:30)" placeholder="HH:MM" maxlength="5" required value="${attendanceInputTime(entry.start)}"></label><label>Clock-OUT (24h)<input type="text" name="clockOut" inputmode="text" pattern="(?:[01][0-9]|2[0-3]):[0-5][0-9]" title="Folosește formatul de 24 de ore HH:MM (ex. 14:30)" placeholder="HH:MM" maxlength="5" ${entry.end == null ? '' : 'required'} value="${entry.end == null ? '' : attendanceInputTime(entry.end)}"></label><label>Motiv (obligatoriu)<textarea name="reason" required minlength="3" maxlength="500" rows="3" placeholder="Scrie motivul editării"></textarea></label><p class="attendance-edit-error" role="alert"></p><div class="attendance-edit-actions"><button type="button" class="outline" data-edit-cancel>Renunță</button><button type="submit" class="primary">Salvează</button></div></form>`;
   document.body.append(dialog);
   const form = dialog.querySelector('form');
   dialog.querySelector('[data-edit-cancel]').addEventListener('click', () => dialog.close());
@@ -1474,7 +1482,7 @@ function openAttendanceEditDialog(targetDiscordId, entryStart) {
     try {
       const payload = await submitAttendanceDocs('edit-entry', { targetDiscordId, entryStart, clockIn: String(data.get('clockIn') || ''), clockOut: String(data.get('clockOut') || ''), reason });
       dialog.close();
-      activeAttendanceMessage = payload.warning || `Pontajul a fost editat; durata acestuia este ${payload.minutes} min.`;
+      activeAttendanceMessage = payload.warning || `Pontajul a fost editat; durata acestuia este ${attendanceFormatMinutes(payload.minutes)}.`;
       await loadAttendanceRecords(true, { render: false, view: 'active', dateKey: activeAttendanceDate });
       refreshActiveAttendanceView();
     } catch (error) {
@@ -1717,7 +1725,9 @@ function activityDayCells(member, today, target) {
     const isLeave = Boolean(leaveCode);
     const parsed = parseFloat(raw.replace(',', '.'));
     const hasDoc = docDays.length === 7;
-    const text = isLeave ? leaveCode : hasDoc ? (raw || '0') : String(live[index] || 0);
+    const text = isLeave ? leaveCode : hasDoc
+      ? raw && Number.isFinite(parsed) ? String(roundAttendanceMinutes(parsed)) : (raw || '0')
+      : String(live[index] || 0);
     const minutes = hasDoc ? (Number.isFinite(parsed) ? parsed : 0) : (live[index] || 0);
     const numeric = !hasDoc || (raw !== '' && /^[\d.,]+$/.test(raw));
     const state = target ? (minutes >= target ? 'meets-minimum' : 'below-minimum') : '';

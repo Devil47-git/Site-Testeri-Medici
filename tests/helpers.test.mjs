@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { accessFor, canManageAttendance, candidateForCallsign, catalog as accessCatalog, coreTests, effectiveTestsForMember, functionsForMember, isLeadership, normalizeTests, testsForFunctions } from '../lib/access/shared.js';
+import { accessFor, callsignNumber as accessCallsignNumber, canManageAttendance, candidateForCallsign, catalog as accessCatalog, coreTests, effectiveTestsForMember, functionsForMember, isLeadership, normalizeTests, testsForFunctions } from '../lib/access/shared.js';
 import { canResetTestCounts, discordTesterMentionPayload, createAdmissionEmbed, createAdmissionTesterComponents, webhookComponentsUrl, webhookIdentity, createAlsResultEmbed, createSpecialtyResultEmbed, specialtyNotificationDetails, createMedicalCertificateComponents, createMedicalCertificateEmbeds, medicalCertificateNumberForRow, bonusEntryFromRow } from '../api/access/test-results.js';
 import { cooldownPayersFromRows, statusFromRow } from '../api/access/directory.js';
 import { cooldownIsActive, failedTestCooldownExpiry, parseCooldownS } from '../lib/access/cooldowns.js';
@@ -336,6 +336,13 @@ test('attendance rooms are available to all department members but review action
   assert.match(source, /function canViewAttendanceRooms\(user\)/);
   assert.match(source, /function attendanceMinutesForDateClient\(/);
   assert.match(source, /submitAttendanceDocs\('sync-docs-all'/);
+});
+
+test('attendance room access resolves callsign from any valid user field', () => {
+  const getAttendanceCallsign = new Function('callsignNumber', `${extract('attendanceCallsignNumber')}; return attendanceCallsignNumber;`)(accessCallsignNumber);
+  assert.equal(getAttendanceCallsign({ csNum: 0, callsign: 'M-106' }), 106);
+  assert.equal(getAttendanceCallsign({ csNum: 700, callsign: 'M-106' }), 106);
+  assert.equal(getAttendanceCallsign({ csNum: 700, callsign: 'M-701' }), 701);
 });
 
 test('normalizeCallsign pads to three digits', () => {
