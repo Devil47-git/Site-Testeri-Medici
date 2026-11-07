@@ -7,6 +7,8 @@ const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:U4
 const ATTENDANCE_SHEET_RANGE = process.env.GOOGLE_ATTENDANCE_RANGE || "'EVIDENTA ACTIVITATE'!A1:U400";
 const TEST_PONTAJE_RANGE = process.env.GOOGLE_TEST_PONTAJE_RANGE || "'TEST PONTAJE'!D1:D400";
 const ATTENDANCE_TIME_ZONE = 'Europe/Bucharest';
+const HOSPITAL_CHAT_ROLE_ID = '804382163536576616';
+const HR_TEAM_EMOJI = '<:HRTEAM:1467455378374787116>';
 const attendanceRedis = new UpstashRedis();
 
 function json(res, status, body) { return res.status(status).json(body); }
@@ -97,6 +99,54 @@ export async function sendAttendanceEditWebhook({ editorId, editor, targetId, ta
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username: 'HR TEAM', avatar_url: `${origin}/assets/hr-team.png`, allowed_mentions: { parse: [] }, embeds: [embed] })
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+}
+function hospitalChatWebhookUrl() {
+  try {
+    const url = new URL(String(process.env.DISCORD_HOSPITAL_CHAT_WEBHOOK || '').trim());
+    return url.protocol === 'https:' && url.hostname === 'discord.com' && url.pathname.startsWith('/api/webhooks/') ? url.toString() : '';
+  } catch {
+    return '';
+  }
+}
+function formatAttendanceDate(dateKey) {
+  const [year, month, day] = String(dateKey).split('-');
+  return `${day}/${month}/${year}`;
+}
+export async function sendHospitalAttendanceWebhook({ requesterId, reviewer, dateKey, championId = '', championName = '', minutes = 0 }) {
+  const url = hospitalChatWebhookUrl();
+  if (!url) throw new Error('DISCORD_HOSPITAL_CHAT_WEBHOOK is missing or invalid');
+  const date = formatAttendanceDate(dateKey);
+  const users = [...new Set([requesterId, championId].filter(Boolean))];
+  const champion = championId ? `<@${championId}>` : championName || '@Membru';
+  const signature = `${String(reviewer?.[4] || '').trim() || 'H.R.'}, ${String(reviewer?.[3] || '').trim() || 'Echipa HR'}`;
+  const content =
+    `${HR_TEAM_EMOJI} De la: <@${requesterId}>\n` +
+    `${HR_TEAM_EMOJI} Catre: <@&${HOSPITAL_CHAT_ROLE_ID}>\n\n` +
+    `💌 Subiect: ✅ Pontajele din ${date} au fost actualizate!\n\n` +
+    `🌟 Veste bună:\n` +
+    `Pontajele din ${date} au fost trecute cu succes în Evidența Activității! Mulțumim tuturor pentru implicare și seriozitate. 👏🏿\n\n` +
+    `🥇 Campionul zilei:\n` +
+    `Cel mai mare pontaj aparține lui ${champion}, cu un total de ${minutes} minute.\n` +
+    `Felicitări! 🔥 Efortul tău a ieșit în evidență!\n\n` +
+    `🚀 Bravo tuturor!\n` +
+    `Vă mulțumim că vă faceți timp să înregistrați pontajele. Sunteți o echipă pe cinste și dovediți asta în fiecare zi!\n\n` +
+    `⏳ Nu ai apucat să faci pontaj?\n` +
+    `Nu-i nimic! Poți recupera minutele oricând. Nu te descuraja, fiecare zi e o nouă șansă să adaugi activitate. 💪🏿\n\n` +
+    `🔍 Ai observat vreo problemă?\n` +
+    `Te rugăm să ne scrii direct în privat pentru o verificare rapidă.\n\n` +
+    `📈 Verifică-ți pontajul [aici](https://docs.google.com/spreadsheets/d/${SHEET_ID}/edit?gid=1043421534#gid=1043421534)\n` +
+    `👉🏿 📊 Evidența Activitate\n\n` +
+    `🖋️ Cu respect și apreciere,\n` +
+    `🧑🏿‍⚕️ ${signature}`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      content,
+      allowed_mentions: { parse: [], users, roles: [HOSPITAL_CHAT_ROLE_ID] }
+    })
   });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
 }
@@ -266,8 +316,16 @@ function attendanceSheetTitle() {
 }
 function attendanceSheetNamesRange() { return `'${attendanceSheetTitle()}'!D1:D400`; }
 function attendanceSheetCell(column, row) { return `'${attendanceSheetTitle()}'!${column}${row}`; }
+function attendanceSheetColumnRange(column, startRow, endRow) { return `'${attendanceSheetTitle()}'!${column}${startRow}:${column}${endRow}`; }
 function normalizedName(value) {
   return normalize(value).replace(/[^\p{L}\p{N}]+/gu, ' ').trim().replace(/\s+/g, ' ');
+}
+export function attendanceCellUpdate(currentValue, minutes) {
+  if (currentValue == null || String(currentValue).trim() === '') return minutes;
+  const current = String(currentValue).trim();
+  const match = current.match(/^(\d+)([+*])$/);
+  if (!match) return null;
+  return `=${match[1]}${match[2]}${minutes}`;
 }
 export async function writeAttendanceToSheet(sheets, memberName, dateKey, minutes) {
   const [sourceResult, targetResult] = await Promise.all([
@@ -280,14 +338,19 @@ export async function writeAttendanceToSheet(sheets, memberName, dateKey, minute
   const targetRows = (targetResult.data.values || []).flatMap((row, index) => normalizedName(row[0]) === wantedName ? [index + 1] : []);
   if (!targetRows.length) throw new Error(`Persoana ${memberName} nu a fost găsită în coloana D din EVIDENTA ACTIVITATE.`);
   if (targetRows.length > 1) throw new Error(`Numele ${memberName} apare de mai multe ori în EVIDENTA ACTIVITATE.`);
+  const cellRange = attendanceSheetCell(attendanceSheetDayColumn(dateKey), targetRows[0]);
+  const cellResult = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: cellRange });
+  const value = attendanceCellUpdate(cellResult.data.values?.[0]?.[0], minutes);
+  if (value == null) return false;
   await sheets.spreadsheets.values.update({
     spreadsheetId: SHEET_ID,
-    range: attendanceSheetCell(attendanceSheetDayColumn(dateKey), targetRows[0]),
-    valueInputOption: 'RAW',
-    requestBody: { values: [[minutes]] }
+    range: cellRange,
+    valueInputOption: 'USER_ENTERED',
+    requestBody: { values: [[value]] }
   });
+  return true;
 }
-async function writeDepartmentAttendanceToSheet(sheets, members, entries, dateKey) {
+export async function writeDepartmentAttendanceToSheet(sheets, members, entries, dateKey) {
   const [sourceResult, targetResult] = await Promise.all([
     sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: TEST_PONTAJE_RANGE }),
     sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: attendanceSheetNamesRange() })
@@ -301,6 +364,10 @@ async function writeDepartmentAttendanceToSheet(sheets, members, entries, dateKe
     else targetRows.set(name, index + 1);
   });
   const dayColumn = attendanceSheetDayColumn(dateKey);
+  const cellValues = (await sheets.spreadsheets.values.get({
+    spreadsheetId: SHEET_ID,
+    range: attendanceSheetColumnRange(dayColumn, 1, 400)
+  })).data.values || [];
   const updates = members.flatMap(member => {
     const name = normalizedName(member.name);
     if (!attendanceHasEntryOnDate(entries[member.discordId], dateKey)) return [];
@@ -308,10 +375,40 @@ async function writeDepartmentAttendanceToSheet(sheets, members, entries, dateKe
     const rowNumber = targetRows.get(name);
     if (rowNumber === undefined) throw new Error(`Persoana ${member.name} nu a fost găsită în coloana D din EVIDENTA ACTIVITATE.`);
     if (rowNumber === null) throw new Error(`Numele ${member.name} apare de mai multe ori în EVIDENTA ACTIVITATE.`);
-    return [{ range: attendanceSheetCell(dayColumn, rowNumber), values: [[attendanceRoundedMinutesForDate(entries[member.discordId], dateKey)]] }];
+    const minutes = attendanceRoundedMinutesForDate(entries[member.discordId], dateKey);
+    const value = attendanceCellUpdate(cellValues[rowNumber - 1]?.[0], minutes);
+    return value == null ? [] : [{ range: attendanceSheetCell(dayColumn, rowNumber), values: [[value]] }];
   });
-  if (updates.length) await sheets.spreadsheets.values.batchUpdate({ spreadsheetId: SHEET_ID, requestBody: { valueInputOption: 'RAW', data: updates } });
-  return updates.length;
+  if (updates.length) await sheets.spreadsheets.values.batchUpdate({ spreadsheetId: SHEET_ID, requestBody: { valueInputOption: 'USER_ENTERED', data: updates } });
+  return updates;
+}
+async function attendanceChampionFromSheet(sheets, members, dateKey) {
+  const column = attendanceSheetDayColumn(dateKey);
+  const [valuesResult, namesResult] = await Promise.all([
+    sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: attendanceSheetColumnRange(column, 11, 254)
+    }),
+    sheets.spreadsheets.values.get({
+      spreadsheetId: SHEET_ID,
+      range: `'${attendanceSheetTitle()}'!D11:D254`
+    })
+  ]);
+  const values = valuesResult.data.values || [];
+  const names = namesResult.data.values || [];
+  let maxMinutes = -1;
+  let championId = '';
+  let championName = '';
+  values.forEach((row, index) => {
+    const minutes = Number.parseFloat(row[0]);
+    if (!Number.isFinite(minutes) || minutes <= maxMinutes) return;
+    maxMinutes = minutes;
+    const name = String(names[index]?.[0] || '').trim();
+    const member = members.find(item => normalizedName(item[3]) === normalizedName(name));
+    championId = String(member?.[19] || '').trim();
+    championName = String(member?.[3] || name).trim();
+  });
+  return { championId, championName, minutes: maxMinutes };
 }
 async function closeExpiredDepartmentEntries(members, now) {
   const ids = members.map(row => String(row[19] || '').trim());
@@ -391,10 +488,20 @@ export default async function handler(req, res) {
           if (!attendanceHasEntryOnDate(normalized.entries, dateKey)) return json(res, 409, { error: 'Membrul nu are pontaje în ziua selectată.' });
           const minutes = attendanceRoundedMinutesForDate(normalized.entries, dateKey, now);
           const sheets = await sheetsClient();
-          await writeAttendanceToSheet(sheets, String(target[3] || '').trim(), dateKey, minutes);
+          const sheetUpdated = await writeAttendanceToSheet(sheets, String(target[3] || '').trim(), dateKey, minutes);
           const review = { status, minutes, updatedAt: new Date(now).toISOString(), updatedBy: requesterId };
           await attendanceRedis.setJson(attendanceReviewKey(dateKey, targetId), review, { expirationSeconds: 60 * 60 * 24 * 400 });
-          return json(res, 200, { success: true, review });
+          let warning = '';
+          if (sheetUpdated) {
+            try {
+              const champion = await attendanceChampionFromSheet(sheets, members, dateKey);
+              await sendHospitalAttendanceWebhook({ requesterId, reviewer: members.find(row => String(row[19] || '').trim() === requesterId), dateKey, ...champion, minutes: Math.max(0, champion.minutes) });
+            } catch (error) {
+              console.error('Hospital attendance webhook failed:', error);
+              warning = `Evidența a fost actualizată, dar mesajul nu a putut fi trimis în chatul spitalului: ${error.message}`;
+            }
+          }
+          return json(res, 200, { success: true, review, sheetUpdated, warning });
         }
         const sheets = await sheetsClient();
         const ids = members.map(row => String(row[19] || '').trim());
@@ -406,8 +513,18 @@ export default async function handler(req, res) {
           departmentEntries[ids[index]] = normalized.entries;
         });
         const sheetMembers = members.map(row => ({ discordId: String(row[19] || '').trim(), name: String(row[3] || '').trim() }));
-        const updated = await writeDepartmentAttendanceToSheet(sheets, sheetMembers, departmentEntries, dateKey);
-        return json(res, 200, { success: true, updated });
+        const updates = await writeDepartmentAttendanceToSheet(sheets, sheetMembers, departmentEntries, dateKey);
+        let warning = '';
+        if (updates.length) {
+          try {
+            const champion = await attendanceChampionFromSheet(sheets, members, dateKey);
+            await sendHospitalAttendanceWebhook({ requesterId, reviewer: members.find(row => String(row[19] || '').trim() === requesterId), dateKey, ...champion, minutes: Math.max(0, champion.minutes) });
+          } catch (error) {
+            console.error('Hospital attendance webhook failed:', error);
+            warning = `Evidența a fost actualizată, dar mesajul nu a putut fi trimis în chatul spitalului: ${error.message}`;
+          }
+        }
+        return json(res, 200, { success: true, updated: updates.length, warning });
       }
       if (action === 'cancel') {
         const targetId = String(req.body?.targetDiscordId || '').trim();
@@ -542,7 +659,7 @@ export default async function handler(req, res) {
       if (normalized.closed) await writeAttendanceData(requesterId, normalized.entries);
       if (action === 'start') {
         const attendanceType = req.body?.attendanceType || 'regular';
-        if (!['regular', 'hr', 'pr'].includes(attendanceType)) return json(res, 400, { error: 'Tipul de pontaj este invalid.' });
+        if (!['regular', 'hr'].includes(attendanceType)) return json(res, 400, { error: 'Tipul de pontaj este invalid.' });
         const allowedTypes = attendanceType === 'regular' ? ['regular'] : await allowedAttendanceTypesForMember(requesterId);
         if (!allowedTypes.includes(attendanceType)) return json(res, 403, { error: 'Nu ai funcția necesară pentru acest tip de pontaj.' });
         if (!attendanceStartAllowed(now)) return json(res, 409, { error: 'Pontajul nu mai poate fi deschis după ora 23:35.' });
@@ -550,7 +667,7 @@ export default async function handler(req, res) {
         normalized.entries.push({ start: now, end: null, ...(attendanceType !== 'regular' ? { type: attendanceType } : {}) });
       } else if (action === 'stop') {
         const attendanceType = req.body?.attendanceType || 'regular';
-        if (!['regular', 'hr', 'pr'].includes(attendanceType)) return json(res, 400, { error: 'Tipul de pontaj este invalid.' });
+        if (!['regular', 'hr'].includes(attendanceType)) return json(res, 400, { error: 'Tipul de pontaj este invalid.' });
         const allowedTypes = attendanceType === 'regular' ? ['regular'] : await allowedAttendanceTypesForMember(requesterId);
         if (!allowedTypes.includes(attendanceType)) return json(res, 403, { error: 'Nu ai funcția necesară pentru acest tip de pontaj.' });
         const open = [...normalized.entries].reverse().find(entry => entry.end == null && attendanceTypeForEntry(entry) === attendanceType);

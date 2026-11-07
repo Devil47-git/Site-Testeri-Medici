@@ -20,8 +20,8 @@ test('function directory is derived from distinct values in department column K'
       { id: 'PILOT / P', label: 'PILOT / P', description: 'PILOT / P' }
     ],
     assignments: [
-      { discordId: 'leader', callsign: '001', functionIds: ['H.R. / H.R. AV', 'P.R.'], attendanceTypes: ['regular', 'hr', 'pr'] },
-      { discordId: 'member', callsign: '105', functionIds: ['P.R.', 'PILOT / P'], attendanceTypes: ['regular', 'pr'] },
+      { discordId: 'leader', callsign: '001', functionIds: ['H.R. / H.R. AV', 'P.R.'], attendanceTypes: ['regular', 'hr'] },
+      { discordId: 'member', callsign: '105', functionIds: ['P.R.', 'PILOT / P'], attendanceTypes: ['regular'] },
       { discordId: 'other', callsign: '106', functionIds: [], attendanceTypes: ['regular'] },
       { discordId: '', callsign: '107', functionIds: ['PILOT / P'], attendanceTypes: ['regular'] }
     ]
@@ -47,7 +47,7 @@ test('saving member functions writes only the target member column K cell', asyn
     discordId: 'target',
     callsign: '105',
     functionIds: ['P.R.', 'New Role'],
-    attendanceTypes: ['regular', 'pr'],
+    attendanceTypes: ['regular'],
     updatedAt: '2026-01-02T00:00:00.000Z'
   });
   assert.equal(writes.length, 1);

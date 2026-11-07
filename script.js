@@ -1325,8 +1325,7 @@ function renderAttendanceView() {
     : '';
   const timerCards = [
     attendanceTimerCard('regular', 'PONTAJUL MEU', entries, controlsDisabled, startAllowed),
-    ...(attendanceAllowedTypes.includes('hr') ? [attendanceTimerCard('hr', 'PONTAJ H.R.', entries, controlsDisabled, startAllowed)] : []),
-    ...(attendanceAllowedTypes.includes('pr') ? [attendanceTimerCard('pr', 'PONTAJ P.R.', entries, controlsDisabled, startAllowed)] : [])
+    ...(attendanceAllowedTypes.includes('hr') ? [attendanceTimerCard('hr', 'PONTAJ H.R.', entries, controlsDisabled, startAllowed)] : [])
   ].join('');
   const attendanceMember = directoryMembers.find(member => member.discordId === currentUser.discordId) || currentUser;
   const attendanceTarget = attendanceMember?.attendanceMinimumMinutes;
@@ -1378,28 +1377,32 @@ function renderActiveAttendanceView() {
     const callsign = callsignNumber(member.callsign);
     return callsign >= 1 && callsign <= 650;
   }).sort((first, second) => callsignNumber(first.callsign) - callsignNumber(second.callsign));
-  const rows = members.flatMap(member => attendanceDateEntries(attendanceEntriesFor(member), activeAttendanceDate)
-    .sort((first, second) => Number(first.start) - Number(second.start))
-    .map(entry => {
-      const validated = entry.validated === true && !entry.canceled;
-      const status = entry.canceled ? 'Anulat' : validated ? 'Validat' : 'Nevalidat';
-      const clockOut = entry.canceled ? 'Anulat' : entry.end == null ? 'În desfășurare' : attendanceTime(entry.end);
-      const duration = entry.canceled ? '0 min' : attendanceFormatMinutes(attendanceEntryMinutesForDate(entry, activeAttendanceDate, now));
-      const attributes = `data-attendance-member="${escapeHtml(member.discordId)}" data-attendance-start="${Number(entry.start)}" ${activeAttendanceBusy || attendanceLoadPending ? 'disabled' : ''}`;
-      const reviewControls = canReview
-        ? `<td class="active-attendance-review-cell"><div class="active-attendance-review"><label class="active-attendance-check active-attendance-validate"><input type="checkbox" data-attendance-review="validated" ${attributes} ${validated ? 'checked' : ''}><span>Validat</span></label><label class="active-attendance-check active-attendance-cancel"><input type="checkbox" data-attendance-review="canceled" ${attributes} ${entry.canceled ? 'checked' : ''}><span>Anulat</span></label></div></td><td class="active-attendance-edit-cell"><button type="button" class="outline active-attendance-edit" data-attendance-edit data-attendance-member="${escapeHtml(member.discordId)}" data-attendance-start="${Number(entry.start)}" ${activeAttendanceBusy || attendanceLoadPending ? 'disabled' : ''}>✏️ Editează</button></td>`
-        : '';
-      return `<tr class="${entry.canceled ? 'is-canceled' : ''}"><td>${escapeHtml(normalizeCallsign(member.callsign))}</td><td>${escapeHtml(member.name || '—')}</td><td>${attendanceTypeLabel(attendanceTypeForEntry(entry))}</td><td>${attendanceTime(entry.start)}</td><td>${clockOut}${entry.autoClosed ? ' · Închis automat' : ''}</td><td>${duration}</td><td><span class="active-attendance-state${entry.canceled ? ' is-canceled' : validated ? ' is-validated' : ''}">${status}</span></td>${reviewControls}</tr>`;
-    })).join('');
+  const attendanceEntries = members.flatMap(member =>
+    attendanceDateEntries(attendanceEntriesFor(member), activeAttendanceDate).map(entry => ({ member, entry }))
+  ).sort((first, second) => Number(first.entry.start) - Number(second.entry.start));
+  const openEntries = attendanceEntries.filter(({ entry }) => entry.end == null);
+  const closedEntries = attendanceEntries.filter(({ entry }) => entry.end != null);
   const emptyMessage = attendanceLoadPending ? 'Se încarcă pontajele...' : attendanceSyncError ? escapeHtml(attendanceSyncError) : 'Nu există pontaje în ziua selectată.';
-  const disabled = !attendanceRecordsLoaded || attendanceLoadPending || activeAttendanceBusy || Boolean(attendanceSyncError) || !rows;
+  const disabled = !attendanceRecordsLoaded || attendanceLoadPending || activeAttendanceBusy || Boolean(attendanceSyncError) || !attendanceEntries.length;
   const dateLabel = `${ATTENDANCE_DAYS[selectedIndex]} ${new Intl.DateTimeFormat('ro-RO', { timeZone: 'Europe/Bucharest', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(`${activeAttendanceDate}T12:00:00Z`))}`;
   const weekLabel = attendanceWeekLabel(selectedWeekStart, attendanceAddDays(selectedWeekStart, 6));
   const dayTotal = roundAttendanceMinutes(members.reduce((total, member) => total + attendanceMinutesForDateClient(attendanceEntriesFor(member), activeAttendanceDate, now), 0));
   const sheetSyncAllowed = selectedWeekStart === currentWeekStart;
   const actionHeaders = canReview ? '<th>VALIDARE / ANULARE</th><th>EDITARE</th>' : '';
+  const renderAttendanceRows = entries => entries.map(({ member, entry }) => {
+    const validated = entry.validated === true && !entry.canceled;
+    const status = entry.canceled ? 'Anulat' : validated ? 'Validat' : 'Nevalidat';
+    const clockOut = entry.canceled ? 'Anulat' : entry.end == null ? 'În desfășurare' : attendanceTime(entry.end);
+    const duration = entry.canceled ? '0 min' : attendanceFormatMinutes(attendanceEntryMinutesForDate(entry, activeAttendanceDate, now));
+    const attributes = `data-attendance-member="${escapeHtml(member.discordId)}" data-attendance-start="${Number(entry.start)}" ${activeAttendanceBusy || attendanceLoadPending ? 'disabled' : ''}`;
+    const reviewControls = canReview
+      ? `<td class="active-attendance-review-cell"><div class="active-attendance-review"><label class="active-attendance-check active-attendance-validate"><input type="checkbox" data-attendance-review="validated" ${attributes} ${validated ? 'checked' : ''}><span>Validat</span></label><label class="active-attendance-check active-attendance-cancel"><input type="checkbox" data-attendance-review="canceled" ${attributes} ${entry.canceled ? 'checked' : ''}><span>Anulat</span></label></div></td><td class="active-attendance-edit-cell"><button type="button" class="outline active-attendance-edit" data-attendance-edit data-attendance-member="${escapeHtml(member.discordId)}" data-attendance-start="${Number(entry.start)}" ${activeAttendanceBusy || attendanceLoadPending ? 'disabled' : ''}>✏️ Editează</button></td>`
+      : '';
+    return `<tr class="${entry.canceled ? 'is-canceled' : ''}"><td>${escapeHtml(normalizeCallsign(member.callsign))}</td><td>${escapeHtml(member.name || '—')}</td><td>${attendanceTypeLabel(attendanceTypeForEntry(entry))}</td><td>${attendanceTime(entry.start)}</td><td>${clockOut}${entry.autoClosed ? ' · Închis automat' : ''}</td><td>${duration}</td><td><span class="active-attendance-state${entry.canceled ? ' is-canceled' : validated ? ' is-validated' : ''}">${status}</span></td>${reviewControls}</tr>`;
+  }).join('');
+  const attendanceGroup = (title, entries) => `<section class="active-attendance-group"><h3>${title}</h3><div class="attendance-recent-table-wrap"><table class="attendance-recent-table active-attendance-table"><thead><tr><th>CALLSIGN</th><th>NUME</th><th>TIP</th><th>CLOCK-IN</th><th>CLOCK-OUT</th><th>DURATĂ</th><th>STARE</th>${actionHeaders}</tr></thead><tbody>${renderAttendanceRows(entries) || `<tr><td colspan="${canReview ? 9 : 7}" class="attendance-recent-empty">${attendanceLoadPending || attendanceSyncError ? emptyMessage : 'Nu există pontaje aici.'}</td></tr>`}</tbody></table></div></section>`;
   const syncButton = canReview ? `<button class="primary" id="attendance-docs-sync" type="button" ${disabled || !sheetSyncAllowed ? 'disabled' : ''}>Sincronizează documentul</button>` : '';
-  return `<section class="panel active-attendance-panel"><div class="panel-head"><div><p class="eyebrow">PONTAJE PE ZILE</p><h2>Pontaje</h2><p class="muted">Fiecare pontaj deschis în ziua selectată este afișat separat, inclusiv sesiunile închise și anulate.</p></div>${syncButton}</div><div class="active-attendance-week-nav"><button type="button" class="outline" data-attendance-week="-1" ${activeAttendanceBusy || attendanceLoadPending ? 'disabled' : ''}>← Săptămâna anterioară</button><strong>${weekLabel}</strong><button type="button" class="outline" data-attendance-week="1" ${!canGoForward || activeAttendanceBusy || attendanceLoadPending ? 'disabled' : ''}>Săptămâna următoare →</button></div><div class="active-attendance-days" role="group" aria-label="Selectează ziua săptămânii">${dayTabs}</div><div class="active-attendance-day-summary"><strong>${escapeHtml(dateLabel)}</strong><span>Total neanulat: ${dayTotal} min</span></div><p class="active-attendance-message muted" id="active-attendance-message" role="status" aria-live="polite">${escapeHtml(activeAttendanceMessage || (attendanceLoadPending ? 'Se sincronizează pontajele...' : !sheetSyncAllowed ? 'Pontajele istorice pot fi consultate; sincronizarea documentului este disponibilă pentru săptămâna curentă.' : ''))}</p><div class="attendance-recent-table-wrap"><table class="attendance-recent-table active-attendance-table"><thead><tr><th>CALLSIGN</th><th>NUME</th><th>TIP</th><th>CLOCK-IN</th><th>CLOCK-OUT</th><th>DURATĂ</th><th>STARE</th>${actionHeaders}</tr></thead><tbody>${rows || `<tr><td colspan="${canReview ? 9 : 7}" class="attendance-recent-empty">${emptyMessage}</td></tr>`}</tbody></table></div></section>`;
+  return `<section class="panel active-attendance-panel"><div class="panel-head"><div><p class="eyebrow">PONTAJE PE ZILE</p><h2>Pontaje</h2><p class="muted">Fiecare pontaj deschis în ziua selectată este afișat separat, inclusiv sesiunile închise și anulate.</p></div>${syncButton}</div><div class="active-attendance-week-nav"><button type="button" class="outline" data-attendance-week="-1" ${activeAttendanceBusy || attendanceLoadPending ? 'disabled' : ''}>← Săptămâna anterioară</button><strong>${weekLabel}</strong><button type="button" class="outline" data-attendance-week="1" ${!canGoForward || activeAttendanceBusy || attendanceLoadPending ? 'disabled' : ''}>Săptămâna următoare →</button></div><div class="active-attendance-days" role="group" aria-label="Selectează ziua săptămânii">${dayTabs}</div><div class="active-attendance-day-summary"><strong>${escapeHtml(dateLabel)}</strong><span>Total neanulat: ${dayTotal} min</span></div><p class="active-attendance-message muted" id="active-attendance-message" role="status" aria-live="polite">${escapeHtml(activeAttendanceMessage || (attendanceLoadPending ? 'Se sincronizează pontajele...' : !sheetSyncAllowed ? 'Pontajele istorice pot fi consultate; sincronizarea documentului este disponibilă pentru săptămâna curentă.' : ''))}</p>${attendanceGroup('PONTAJE DESCHISE', openEntries)}${attendanceGroup('PONTAJE ÎNCHISE', closedEntries)}</section>`;
 }
 function refreshActiveAttendanceView() {
   if (window.history.state?.view !== 'active-attendance') return;
@@ -1529,7 +1532,7 @@ async function syncSelectedAttendanceDay() {
   refreshActiveAttendanceView();
   try {
     const payload = await submitAttendanceDocs('sync-docs-all', { dateKey });
-    activeAttendanceMessage = `Pontaje sincronizate în document pentru ${ATTENDANCE_DAYS[attendanceDayIndex(dateKey)]}: ${payload.updated}.`;
+    activeAttendanceMessage = `Pontaje sincronizate în document pentru ${ATTENDANCE_DAYS[attendanceDayIndex(dateKey)]}: ${payload.updated}.${payload.warning ? ` ${payload.warning}` : ''}`;
   } catch (error) {
     console.error('Department attendance document sync failed:', error);
     activeAttendanceMessage = error.message || 'Pontajele nu au putut fi sincronizate în document.';
