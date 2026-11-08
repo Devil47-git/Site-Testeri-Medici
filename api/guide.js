@@ -87,7 +87,13 @@ export default async function handler(req, res) {
     const html = await readGuideSource();
     const validSections = guideSectionIds(html);
     if (req.method === 'GET') {
-      const overrides = await readGuideOverrides();
+      let overrides = {};
+      try {
+        overrides = await readGuideOverrides();
+      } catch (error) {
+        console.error('Guide overrides could not be loaded; serving the bundled guide:', error);
+        res.setHeader('X-Guide-Overrides-Status', 'unavailable');
+      }
       const bundledGuide = html
         .replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, '')
         .replace(/<link\b[^>]*>/gi, tag => /\bhref\s*=\s*(['"])https?:/i.test(tag) ? '' : tag)

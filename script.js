@@ -60,6 +60,7 @@ let guideContent = {};
 let guideContentPromise = null;
 let guideSections = [];
 let guideLoadError = '';
+let guideLoadWarning = '';
 const GUIDE_SECTIONS = [
   ['introducere', 'Introducere'],
   ['regulament', 'Regulament Intern'],
@@ -693,20 +694,24 @@ function renderGuideSubmenu() {
   submenu.innerHTML = sections.map(([key, label]) => `<button type="button" class="nav-subitem ${selectedGuideSection === key ? 'active' : ''}" data-guide-section="${key}">${escapeHtml(label)}</button>`).join('');
 }
 function renderGuideView() {
-  if (!guideContentPromise) loadGuideContent();
+  if (!guideContentPromise && !guideLoadError) loadGuideContent();
   const sections = guideSections.length ? guideSections : GUIDE_SECTIONS;
   const section = sections.find(([key]) => key === selectedGuideSection)?.[0] || 'introducere';
   const title = sections.find(([key]) => key === section)?.[1] || 'Introducere';
   const content = guideContent[section];
   if (!content) {
-    if (!guideContentPromise) loadGuideContent();
-    const message = guideLoadError ? 'Ghidul nu s-a putut încărca. Reîncarcă pagina pentru a încerca din nou.' : 'Se încarcă ghidul spitalului…';
-    return `<section class="panel guide-panel"><p class="muted">${message}</p></section>`;
+    const message = guideLoadError
+      ? `<p class="muted">Ghidul nu s-a putut încărca: ${escapeHtml(guideLoadError)}</p><button type="button" class="outline" data-guide-retry>Încearcă din nou</button>`
+      : '<p class="muted">Se încarcă ghidul spitalului…</p>';
+    return `<section class="panel guide-panel">${message}</section>`;
   }
   const editor = hasLeadershipCallsign(currentUser)
     ? '<div class="guide-editor-toolbar"><button type="button" class="outline" data-guide-edit-action="start">Editează secțiunea</button><button type="button" class="primary" data-guide-edit-action="save" hidden>Salvează modificările</button><button type="button" class="outline" data-guide-edit-action="cancel" hidden>Anulează</button><span class="guide-editor-status" role="status" aria-live="polite"></span></div>'
     : '';
-  return `<section class="panel guide-panel"><div class="panel-head"><div><p class="eyebrow">GHID SPITAL · SECȚIUNE INTERNĂ</p><h2>${escapeHtml(title)}</h2><p class="muted">Informațiile și imaginile ghidului spitalului sunt integrate aici în Panel Medici.</p></div>${editor}</div><article class="guide-official-content" data-guide-section-content="${section}"><div class="section active" id="${section}">${content}</div></article></section>`;
+  const warning = guideLoadWarning
+    ? `<p class="guide-load-warning" role="status">${escapeHtml(guideLoadWarning)}</p>`
+    : '';
+  return `<section class="panel guide-panel">${warning}<div class="panel-head"><div><p class="eyebrow">GHID SPITAL · SECȚIUNE INTERNĂ</p><h2>${escapeHtml(title)}</h2><p class="muted">Informațiile și imaginile ghidului spitalului sunt integrate aici în Panel Medici.</p></div>${editor}</div><article class="guide-official-content" data-guide-section-content="${section}"><div class="section active" id="${section}">${content}</div></article></section>`;
 }
 function renderCertificaTrusaView() {
   const content = GUIDE_CONTENT['certifica-trusa'];
@@ -821,8 +826,12 @@ async function saveGuideSection() {
 async function loadGuideContent() {
   if (guideContentPromise) return guideContentPromise;
   guideLoadError = '';
+  guideLoadWarning = '';
   guideContentPromise = fetch('/api/guide').then(async response => {
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+    if (response.headers.get('X-Guide-Overrides-Status') === 'unavailable') {
+      guideLoadWarning = 'Ghidul este disponibil, dar modificările salvate nu pot fi citite momentan.';
+    }
     const source = await response.text();
     const document = new DOMParser().parseFromString(source, 'text/html');
     const sections = [...document.querySelectorAll('.section[id]')];
@@ -898,7 +907,7 @@ async function loadGuideContent() {
     return {};
   });
   const loaded = await guideContentPromise;
-  if (Object.keys(loaded).length && window.history.state?.view === 'guide') {
+  if (window.history.state?.view === 'guide') {
     viewContent.innerHTML = renderGuideView();
     wireGuideContentEvents();
     renderGuideSubmenu();
@@ -3983,7 +3992,7 @@ document.addEventListener('paste', event => {
   fileInput.files = transfer.files;
   fileInput.dispatchEvent(new Event('change', { bubbles: true }));
 });
-testerGroups?.addEventListener('click', event => { const button = event.target.closest('[data-member-menu]'); if (!button) return; const member = testers.find(item => normalizeCallsign(item.callsign) === button.dataset.memberMenu); if (member) { selectedMember = member; openAddModal(member); } }); rows?.addEventListener('click', event => { const button = event.target.closest('[data-member-menu]'); if (!button) return; const member = testers.find(item => normalizeCallsign(item.callsign) === button.dataset.memberMenu); if (member) { selectedMember = member; openAddModal(member); } }); document.querySelector('#brand-settings').onclick = () => navigateTo('overview'); document.querySelector('#user-menu').onclick = () => navigateTo('overview'); document.querySelector('#profile-settings').onclick = () => navigateTo('settings');
+testerGroups?.addEventListener('click', event => { const button = event.target.closest('[data-member-menu]'); if (!button) return; const member = testers.find(item => normalizeCallsign(item.callsign) === button.dataset.memberMenu); if (member) { selectedMember = member; openAddModal(member); } }); rows?.addEventListener('click', event => { const button = event.target.closest('[data-member-menu]'); if (!button) return; const member = testers.find(item => normalizeCallsign(item.callsign) === button.dataset.memberMenu); if (member) { selectedMember = member; openAddModal(member); } }); document.querySelector('#brand-settings').onclick = () => navigateTo('overview'); document.querySelector('#profile-settings').onclick = () => navigateTo('settings');
 viewContent.addEventListener('click', event => {
   const button = event.target.closest('[data-member-profile]');
   if (!button || !hasLeadershipCallsign(currentUser)) return;
@@ -4006,7 +4015,7 @@ document.querySelector('#member-functions-modal').addEventListener('click', even
 });
 document.querySelector('#save-member-functions').addEventListener('click', saveMemberFunctions);
 document.querySelector('#use-docs-functions').addEventListener('click', useDocsMemberFunctions);
-document.querySelector('#brand-settings').onclick = () => navigateTo('overview'); document.querySelector('#user-menu').onclick = () => navigateTo('overview'); document.querySelector('#profile-settings').onclick = () => navigateTo('settings');
+document.querySelector('#brand-settings').onclick = () => navigateTo('overview'); document.querySelector('#profile-settings').onclick = () => navigateTo('settings');
 const labels = { overview: 'Profilul tău', testers: 'Testerii departamentului', members: 'Membri', statistics: 'Statistica Teste', cooldowns: 'Cooldown-uri', bonuses: 'Bonusuri', attendance: 'Pontaje', 'active-attendance': 'Pontaje active', activity: 'Evidență activitate', guide: 'Ghid Spital', 'certifica-trusa': 'Certificat Trusa', settings: 'Setări' };
 function navigateTo(view, { push = true } = {}) {
   if (view === 'bonuses' && !hasLeadershipCallsign(currentUser)) view = 'overview';
@@ -4049,6 +4058,13 @@ document.querySelector('#guide-submenu')?.addEventListener('click', event => {
     viewContent.innerHTML = renderGuideView();
     renderGuideSubmenu();
   }
+});
+viewContent.addEventListener('click', event => {
+  const retryButton = event.target.closest('[data-guide-retry]');
+  if (!retryButton) return;
+  guideContentPromise = null;
+  guideLoadError = '';
+  viewContent.innerHTML = renderGuideView();
 });
 const availableTestsToggle = document.querySelector('#available-tests-toggle');
 const availableTestsSubmenu = document.querySelector('#available-tests-submenu');
@@ -4135,14 +4151,10 @@ window.addEventListener('storage', event => { if (event.key === PRESENCE_KEY) { 
 function initialsFrom(name='User'){return name.split(/\s+/).map(x=>x[0]).join('').slice(0,2).toUpperCase()}
 /** @param {any} user @returns {{name:string, callsign:string}} */
 function setWelcomeHeader(user){
-  const name = user.name || user.displayName || 'Utilizator';
   const callsign = normalizeCallsign(user.callsign || user.callSign);
   user.callsign = callsign;
-  document.querySelector('#user-name').textContent = name;
-  document.querySelector('#user-role').textContent = isLeadershipUser(user) ? 'Conducere' : 'Tester';
-  document.querySelector('#user-avatar').innerHTML = avatarFor(user);
   renderProfileData();
-  return { name, callsign };
+  return { name: user.name || user.displayName || 'Utilizator', callsign };
 }
 /** @param {any} user @returns {void} */
 function setVisibilityPermissions(user){

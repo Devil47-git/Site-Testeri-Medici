@@ -11,7 +11,9 @@ process.env.UPSTASH_REDIS_REST_URL = 'https://redis.example.test';
 process.env.UPSTASH_REDIS_REST_TOKEN = 'test-token';
 const importedFetch = globalThis.fetch;
 const redisWrites = [];
+let redisReadFailure = false;
 globalThis.fetch = async (_url, options = {}) => {
+  if (redisReadFailure) throw new Error('Redis unavailable');
   redisWrites.push(JSON.parse(options.body));
   return new Response(JSON.stringify({ result: 1 }), { status: 200 });
 };
@@ -60,6 +62,19 @@ test('guide API rewrites raid-guide image paths to the bundled static-asset rout
     assert.doesNotMatch(response.body, /src="jaf poze\//);
   } finally {
     globalThis.fetch = originalFetch;
+  }
+});
+
+test('guide API serves the bundled guide when saved overrides cannot be read', async () => {
+  redisReadFailure = true;
+  try {
+    const response = createResponse();
+    await handler({ method: 'GET', query: {} }, response);
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.headers['X-Guide-Overrides-Status'], 'unavailable');
+    assert.match(response.body, /id="introducere"/);
+  } finally {
+    redisReadFailure = false;
   }
 });
 

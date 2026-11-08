@@ -741,6 +741,7 @@ body.dark-mode .nav-item.active{box-shadow:inset 2px 0 var(--purple)}
 .guide-panel>.panel-head h2{color:#f4f7ff}
 .guide-panel>.panel-head .muted{color:#aabbd8}
 .guide-panel>.panel-head .eyebrow{color:#81b8ff}
+.guide-load-warning{margin:0 0 16px;color:#f3b354}
 .guide-panel .guide-external-link{border-color:#385981;background:rgba(255,255,255,.06);color:#dbeaff}
 .guide-panel>.panel-head h2{font-size:20px}
 .guide-editor-toolbar{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}
@@ -993,13 +994,6 @@ body.dark-mode .main-content{background:linear-gradient(180deg,rgba(5,9,22,.55) 
 body.dark-mode .view-panel,body.dark-mode .stat-card,body.dark-mode .test-card,body.dark-mode .test-summary-card,body.dark-mode .profile-card,body.dark-mode .bonus-panel,body.dark-mode .sync-panel,body.dark-mode .testers-panel,body.dark-mode .member-group,body.dark-mode .als-case,body.dark-mode .smuls-case,body.dark-mode .parachutism-case,body.dark-mode .parachutism-information-card,body.dark-mode .evaluation-stage-card,body.dark-mode .als-intro-box,body.dark-mode .activity-item,body.dark-mode .profile-test-removal-item,body.dark-mode .modal,body.dark-mode .auth-card{border:2px solid transparent;border-radius:16px;background:var(--neon-fill) padding-box,conic-gradient(from var(--guide-border-angle),var(--neon-red),var(--neon-blue),var(--neon-red),var(--neon-blue),var(--neon-red)) border-box;animation:guide-border-sweep 7s linear infinite;box-shadow:0 0 14px rgba(255,45,61,.28),0 0 14px rgba(43,140,255,.28),0 0 8px rgba(255,255,255,.12)}
 body.dark-mode .view-panel.admission-background-panel,body.dark-mode .view-panel.transfer-background-panel,body.dark-mode .view-panel.als-background-panel,body.dark-mode .view-panel.smuls-background-panel,body.dark-mode .view-panel.moto-background-panel,body.dark-mode .view-panel.pilot-background-panel,body.dark-mode .view-panel.parasutism-background-panel,body.dark-mode .view-panel.adeverinta-background-panel{background:rgba(10,18,38,.62) padding-box,conic-gradient(from var(--guide-border-angle),var(--neon-red),var(--neon-blue),var(--neon-red),var(--neon-blue),var(--neon-red)) border-box}
 @media (prefers-reduced-motion:reduce){body.dark-mode .view-panel,body.dark-mode .stat-card,body.dark-mode .test-card,body.dark-mode .modal,body.dark-mode .auth-card{animation:none}}
-/* User card like mockup */
-body.dark-mode .user-mini{padding:12px 14px;border:1px solid rgba(60,140,255,.5);border-radius:12px;background:linear-gradient(90deg,rgba(14,28,56,.85),rgba(14,22,44,.6));box-shadow:0 0 10px rgba(43,140,255,.35)}
-body.dark-mode .user-mini-avatar{width:44px;height:44px}
-body.dark-mode .user-mini-avatar .avatar{width:44px;height:44px;border:2px solid #fff;box-shadow:0 0 0 2px #2b8cff,0 0 10px rgba(43,140,255,.7)}
-body.dark-mode .user-mini b{display:block;color:#fff;font-size:14px;font-weight:700}
-body.dark-mode .user-mini small{color:#6fb4ff;font-size:13px}
-body.dark-mode .user-mini>span{color:#cfe3ff;font-size:16px}
 /* Room backgrounds must stay visible behind the page */
 body.dark-mode[class*="-background-mode"] .main-content{background:transparent}
 /* Top bar without ambulance image */
