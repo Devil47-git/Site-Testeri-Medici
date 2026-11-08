@@ -18,7 +18,7 @@ function relevantMember(row, assignedFunctions = row[10]) {
   if (!number || number > 399 || !String(row[3] || '').trim()) return false;
   if (number >= 1 && number <= LEADERSHIP_MAX) return true;
   if (number >= GRADE_GROUPS.primar.min && number <= GRADE_GROUPS.specialist.max) return true;
-  return number >= 100 && number <= 299;
+  return number >= 100 && number <= 399;
 }
 function leadershipTitle(row) {
   const number = callsignNumber(row[2]);
