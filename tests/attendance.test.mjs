@@ -6,6 +6,7 @@ process.env.UPSTASH_REDIS_REST_URL = 'https://attendance-redis.example';
 process.env.UPSTASH_REDIS_REST_TOKEN = 'test-token';
 process.env.CRON_SECRET = 'test-cron-secret';
 process.env.DISCORD_ATTENDANCE_REVIEW_WEBHOOK = 'https://discord.com/api/webhooks/test/token';
+process.env.DISCORD_HOSPITAL_CHAT_WEBHOOK = 'https://discord.com/api/webhooks/hospital/token';
 
 const row = (callsign, name, discordId, rank = '', functions = '') => {
   const member = Array(21).fill('');
@@ -48,6 +49,7 @@ const attendanceSheetRows = [
 ];
 const redisValues = new Map();
 const discordWebhookRequests = [];
+const hospitalWebhookRequests = [];
 let discordWebhookFailure = false;
 
 globalThis.fetch = async (url, options = {}) => {
@@ -74,6 +76,10 @@ globalThis.fetch = async (url, options = {}) => {
     discordWebhookRequests.push(JSON.parse(options.body));
     return { ok: !discordWebhookFailure, status: discordWebhookFailure ? 500 : 204 };
   }
+  if (String(url) === process.env.DISCORD_HOSPITAL_CHAT_WEBHOOK) {
+    hospitalWebhookRequests.push(JSON.parse(options.body));
+    return { ok: !discordWebhookFailure, status: discordWebhookFailure ? 500 : 204 };
+  }
   const range = decodeURIComponent(new URL(url).pathname.split('/').pop());
   return {
     ok: true,
@@ -82,7 +88,7 @@ globalThis.fetch = async (url, options = {}) => {
 };
 
 const { default: directoryHandler, attendanceWeeksFromRows, attendanceWeeksByCallsign } = await import('../api/access/directory.js');
-const { default: attendanceHandler, attendanceMinutesForDate, attendanceRoundedMinutesForDate, attendanceSheetDayColumn, attendanceStartAllowed, attendanceTypesForFunctionIds, closeExpiredAttendanceEntries, writeAttendanceToSheet } = await import('../api/access/attendance.js');
+const { default: attendanceHandler, attendanceCellUpdate, attendanceMinutesForDate, attendanceRoundedMinutesForDate, attendanceSheetDayColumn, attendanceStartAllowed, attendanceTypesForFunctionIds, closeExpiredAttendanceEntries, sendHospitalAttendanceWebhook, writeAttendanceToSheet, writeDepartmentAttendanceToSheet } = await import('../api/access/attendance.js');
 const { attendanceMinimumMinutes } = await import('../lib/access/shared.js');
 
 async function callDirectory(requesterId, view) {
@@ -144,12 +150,12 @@ test('attendance cutoff uses Bucharest time and blocks starts from 23:35', () =>
   assert.equal(attendanceStartAllowed(Date.parse('2026-07-01T20:35:00Z')), false);
 });
 
-test('HR and PR attendance permissions follow assigned member functions', () => {
+test('only regular and H.R. attendance permissions follow assigned member functions', () => {
   assert.deepEqual(attendanceTypesForFunctionIds(['resurse-umane']), ['regular', 'hr']);
   assert.deepEqual(attendanceTypesForFunctionIds(['manager-hr']), ['regular', 'hr']);
-  assert.deepEqual(attendanceTypesForFunctionIds(['relatii-publice', 'adjunct-pr']), ['regular', 'pr']);
+  assert.deepEqual(attendanceTypesForFunctionIds(['relatii-publice', 'adjunct-pr']), ['regular']);
   assert.deepEqual(attendanceTypesForFunctionIds(['H.R. / H.R. AV']), ['regular', 'hr']);
-  assert.deepEqual(attendanceTypesForFunctionIds(['P.R.', 'Manager P.R.']), ['regular', 'pr']);
+  assert.deepEqual(attendanceTypesForFunctionIds(['P.R.', 'Manager P.R.']), ['regular']);
   assert.deepEqual(attendanceTypesForFunctionIds([]), ['regular']);
 });
 
@@ -198,17 +204,71 @@ test('individual attendance sync matches TEST PONTAJE names and writes daily min
       values: {
         get: async ({ range }) => {
           reads.push(range);
-          return { data: { values: [['Ana Vasilescu']] } };
+          return { data: { values: range.endsWith('!F1') ? [['']] : [['Ana Vasilescu']] } };
         },
         update: async request => updates.push(request)
       }
     }
   };
   await writeAttendanceToSheet(sheets, 'Ana Vasilescu', '2026-11-02', 135);
-  assert.deepEqual(reads, ["'TEST PONTAJE'!D1:D400", "'EVIDENTA ACTIVITATE'!D1:D400"]);
+  assert.deepEqual(reads, ["'TEST PONTAJE'!D1:D400", "'EVIDENTA ACTIVITATE'!D1:D400", "'EVIDENTA ACTIVITATE'!F1"]);
   assert.equal(updates.length, 1);
   assert.equal(updates[0].range, "'EVIDENTA ACTIVITATE'!F1");
   assert.deepEqual(updates[0].requestBody.values, [[135]]);
+  assert.equal(updates[0].valueInputOption, 'USER_ENTERED');
+});
+
+test('attendance sheet markers add or multiply the daily minutes without overwriting other values', () => {
+  assert.equal(attendanceCellUpdate('', 45), 45);
+  assert.equal(attendanceCellUpdate(null, 45), 45);
+  assert.equal(attendanceCellUpdate('120+', 45), '=120+45');
+  assert.equal(attendanceCellUpdate('3*', 45), '=3*45');
+  assert.equal(attendanceCellUpdate('120', 45), null);
+  assert.equal(attendanceCellUpdate('text+', 45), null);
+});
+
+test('department attendance sync applies plus and multiply markers to existing cells', async () => {
+  const batchUpdates = [];
+  const sheets = {
+    spreadsheets: {
+      values: {
+        get: async ({ range }) => {
+          if (range === "'TEST PONTAJE'!D1:D400") return { data: { values: [['Ana Vasilescu'], ['Mara Pop']] } };
+          if (range === "'EVIDENTA ACTIVITATE'!D1:D400") return { data: { values: [['Ana Vasilescu'], ['Mara Pop']] } };
+          if (range === "'EVIDENTA ACTIVITATE'!F1:F400") return { data: { values: [['10+'], ['3*']] } };
+          throw new Error(`Unexpected sheet range: ${range}`);
+        },
+        batchUpdate: async request => batchUpdates.push(request)
+      }
+    }
+  };
+  const updates = await writeDepartmentAttendanceToSheet(sheets, [
+    { discordId: 'ana-id', name: 'Ana Vasilescu' },
+    { discordId: 'mara-id', name: 'Mara Pop' }
+  ], {
+    'ana-id': [{ start: Date.parse('2026-11-02T10:00:00Z'), end: Date.parse('2026-11-02T10:30:00Z') }],
+    'mara-id': [{ start: Date.parse('2026-11-02T11:00:00Z'), end: Date.parse('2026-11-02T11:30:00Z') }]
+  }, '2026-11-02');
+  assert.equal(updates.length, 2);
+  assert.equal(batchUpdates[0].requestBody.valueInputOption, 'USER_ENTERED');
+  assert.deepEqual(batchUpdates[0].requestBody.data, [
+    { range: "'EVIDENTA ACTIVITATE'!F1", values: [['=10+30']] },
+    { range: "'EVIDENTA ACTIVITATE'!F2", values: [['=3*30']] }
+  ]);
+});
+
+test('hospital chat webhook sends the attendance update and allows only the intended mentions', async () => {
+  const initialCount = hospitalWebhookRequests.length;
+  await sendHospitalAttendanceWebhook({
+    requesterId: 'hr-id',
+    dateKey: '2026-11-02',
+    championId: 'member-id',
+    minutes: 135
+  });
+  const webhook = hospitalWebhookRequests[initialCount];
+  assert.match(webhook.content, /Pontajele din 02\/11\/2026 au fost actualizate/);
+  assert.match(webhook.content, /<@member-id>.*135 minute/s);
+  assert.deepEqual(webhook.allowed_mentions, { parse: [], users: ['hr-id', 'member-id'], roles: ['804382163536576616'] });
 });
 
 test('every department member can read only their own weekly attendance values from Sheets', async () => {
@@ -297,14 +357,14 @@ test('the separate live timer still supports start and stop without manual weekl
   assert.equal(manual.statusCode, 400);
 });
 
-test('HR and PR timers require assigned functions and keep their entry types', async () => {
+test('H.R. timer requires its assigned function and P.R. timers are unavailable', async () => {
   const memberKey = 'site-testeri-medici:attendance:member-id';
   sheetRows[2][10] = 'H.R. / H.R. AV';
   try {
     const ownAttendance = await callAttendance('GET', 'member-id', {}, { view: 'own' });
     assert.equal(ownAttendance.statusCode, 200);
     const deniedPr = await callAttendance('POST', 'member-id', { action: 'start', attendanceType: 'pr' });
-    assert.equal(deniedPr.statusCode, 403);
+    assert.equal(deniedPr.statusCode, 400);
 
     const startedHr = await callAttendance('POST', 'member-id', { action: 'start', attendanceType: 'hr' });
     assert.equal(startedHr.statusCode, 200);
@@ -320,10 +380,7 @@ test('HR and PR timers require assigned functions and keep their entry types', a
     const deniedHr = await callAttendance('POST', 'member-id', { action: 'start', attendanceType: 'hr' });
     assert.equal(deniedHr.statusCode, 403);
     const startedPr = await callAttendance('POST', 'member-id', { action: 'start', attendanceType: 'pr' });
-    assert.equal(startedPr.statusCode, 200);
-    assert.equal(startedPr.payload.entries.at(-1).type, 'pr');
-    const stoppedPr = await callAttendance('POST', 'member-id', { action: 'stop', attendanceType: 'pr' });
-    assert.equal(stoppedPr.statusCode, 200);
+    assert.equal(startedPr.statusCode, 400);
   } finally {
     sheetRows[2][10] = '';
     redisValues.delete(memberKey);
