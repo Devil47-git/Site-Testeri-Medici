@@ -48,6 +48,7 @@ const attendanceSheetRows = [
   attendanceRow('021', '30', '40', '50')
 ];
 const redisValues = new Map();
+const redisExpirations = new Map();
 const discordWebhookRequests = [];
 const hospitalWebhookRequests = [];
 let discordWebhookFailure = false;
@@ -65,7 +66,17 @@ globalThis.fetch = async (url, options = {}) => {
       }) };
     }
     if (commands[0] === 'GET') return { ok: true, json: async () => ({ result: redisValues.get(commands[1]) || null }) };
+    if (commands[0] === 'TTL') {
+      const expiresAt = redisExpirations.get(commands[1]);
+      return { ok: true, json: async () => ({ result: expiresAt ? Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)) : -2 }) };
+    }
     if (commands[0] === 'HMGET') return { ok: true, json: async () => ({ result: commands.slice(2).map(() => null) }) };
+    if (commands[0] === 'SET' && commands.includes('NX')) {
+      if (redisValues.has(commands[1])) return { ok: true, json: async () => ({ result: null }) };
+      redisValues.set(commands[1], commands[2]);
+      redisExpirations.set(commands[1], Date.now() + Number(commands[commands.indexOf('EX') + 1]) * 1000);
+      return { ok: true, json: async () => ({ result: 'OK' }) };
+    }
     if (commands[0] === 'SET') {
       redisValues.set(commands[1], commands[2]);
       return { ok: true, json: async () => ({ result: 'OK' }) };
@@ -89,6 +100,7 @@ globalThis.fetch = async (url, options = {}) => {
 
 const { default: directoryHandler, attendanceWeeksFromRows, attendanceWeeksByCallsign } = await import('../api/access/directory.js');
 const { default: attendanceHandler, attendanceCellUpdate, attendanceMinutesForDate, attendanceRoundedMinutesForDate, attendanceSheetDayColumn, attendanceStartAllowed, attendanceTypesForFunctionIds, closeExpiredAttendanceEntries, sendHospitalAttendanceWebhook, writeAttendanceToSheet, writeDepartmentAttendanceToSheet } = await import('../api/access/attendance.js');
+const { memberFunctionsDirectory, normalizeMemberFunctionLabels } = await import('../api/access/functions.js');
 const { attendanceMinimumMinutes } = await import('../lib/access/shared.js');
 
 async function callDirectory(requesterId, view) {
@@ -133,7 +145,11 @@ test('weekly attendance columns keep document labels and text values unchanged',
 });
 
 test('daily attendance minimums follow callsign leadership and member grade', () => {
+  assert.equal(attendanceMinimumMinutes('004', 'Director Adjunct'), 60);
   assert.equal(attendanceMinimumMinutes('020', 'Medic Chirurg'), 60);
+  for (const role of ['Helper', 'Moderator', 'Administrator', 'Supervizor']) {
+    assert.equal(attendanceMinimumMinutes('650', 'Medic Specialist', role), 60);
+  }
   assert.equal(attendanceMinimumMinutes('003', 'Director General'), null);
   assert.equal(attendanceMinimumMinutes('101', 'Brancardier'), 120);
   assert.equal(attendanceMinimumMinutes('201', 'Asistent-Medical'), 120);
@@ -151,12 +167,54 @@ test('attendance cutoff uses Bucharest time and blocks starts from 23:35', () =>
 });
 
 test('only regular and H.R. attendance permissions follow assigned member functions', () => {
-  assert.deepEqual(attendanceTypesForFunctionIds(['resurse-umane']), ['regular', 'hr']);
+  assert.deepEqual(attendanceTypesForFunctionIds(['resurse-umane']), ['regular']);
   assert.deepEqual(attendanceTypesForFunctionIds(['manager-hr']), ['regular', 'hr']);
   assert.deepEqual(attendanceTypesForFunctionIds(['relatii-publice', 'adjunct-pr']), ['regular']);
   assert.deepEqual(attendanceTypesForFunctionIds(['H.R. / H.R. AV']), ['regular', 'hr']);
   assert.deepEqual(attendanceTypesForFunctionIds(['P.R.', 'Manager P.R.']), ['regular']);
   assert.deepEqual(attendanceTypesForFunctionIds([]), ['regular']);
+});
+
+test('staff assignments receive leadership weekly-minimum treatment', async () => {
+  const member = row('650', 'Staff Member', 'staff-id', 'Medic Specialist', 'Moderator');
+  sheetRows.push(member);
+  try {
+    const result = await callDirectory('leadership-id', 'members');
+    const assigned = result.payload.members.find(item => item.discordId === 'staff-id');
+    assert.equal(assigned.attendanceMinimumMinutes, 60);
+    assert.equal(assigned.isTester, false);
+  } finally {
+    sheetRows.pop();
+  }
+});
+
+test('department function catalog adds staff roles, renames requested roles, and hides removed roles', () => {
+  const functions = [
+    'Adjunct I.S.U.L.S. - P.C.L.S.',
+    'PR',
+    'P.R.',
+    'Manager D.S.L.S.',
+    'Adjunct M.M.L.S.',
+    'Coordonator JAF',
+    'Resurse Umane',
+    'Relații cu publicul',
+    'Membru al departamentului special I.S.U.L.S.',
+    'Instructor Pilot',
+    'Instructor Moto',
+    'Instructor Smuls',
+    'Instructor ALS',
+    'Consilier psihologic'
+  ];
+  const result = memberFunctionsDirectory([headers, row('101', 'Membru', 'member-id', '', functions.join(' | '))]);
+  const assignment = result.assignments[0].functionIds;
+  assert.deepEqual(assignment, [
+    'Adjunct I.S.U.L.S. | S.M.U.L.S.',
+    'P.R.',
+    'Manager D.S.L.S. - P.C.L.S.',
+    'Adjunct M.M.L.S. - P.C.L.S.'
+  ]);
+  assert.deepEqual(normalizeMemberFunctionLabels(['PR', 'P.R.', 'Helper']), ['P.R.', 'Helper']);
+  assert.deepEqual(['Helper', 'Moderator', 'Administrator', 'Supervizor'].every(label => result.catalog.some(item => item.id === label)), true);
 });
 
 test('stale active entries close at Bucharest midnight and no longer count as open', () => {
@@ -221,6 +279,7 @@ test('individual attendance sync matches TEST PONTAJE names and writes daily min
 test('attendance sheet markers add or multiply the daily minutes without overwriting other values', () => {
   assert.equal(attendanceCellUpdate('', 45), 45);
   assert.equal(attendanceCellUpdate(null, 45), 45);
+  assert.equal(attendanceCellUpdate('—', 0), 0);
   assert.equal(attendanceCellUpdate('120+', 45), '=120+45');
   assert.equal(attendanceCellUpdate('3*', 45), '=3*45');
   assert.equal(attendanceCellUpdate('120', 45), null);
@@ -235,6 +294,7 @@ test('department attendance sync applies plus and multiply markers to existing c
         get: async ({ range }) => {
           if (range === "'TEST PONTAJE'!D1:D400") return { data: { values: [['Ana Vasilescu'], ['Mara Pop']] } };
           if (range === "'EVIDENTA ACTIVITATE'!D1:D400") return { data: { values: [['Ana Vasilescu'], ['Mara Pop']] } };
+          if (range === "'EVIDENTA ACTIVITATE'!B1:B400") return { data: { values: [['M-001'], ['M-002']] } };
           if (range === "'EVIDENTA ACTIVITATE'!F1:F400") return { data: { values: [['10+'], ['3*']] } };
           throw new Error(`Unexpected sheet range: ${range}`);
         },
@@ -254,6 +314,37 @@ test('department attendance sync applies plus and multiply markers to existing c
   assert.deepEqual(batchUpdates[0].requestBody.data, [
     { range: "'EVIDENTA ACTIVITATE'!F1", values: [['=10+30']] },
     { range: "'EVIDENTA ACTIVITATE'!F2", values: [['=3*30']] }
+  ]);
+});
+
+test('department attendance sync writes zero only to occupied rows and adds zero to plus markers', async () => {
+  const batchUpdates = [];
+  const sheets = {
+    spreadsheets: {
+      values: {
+        get: async ({ range }) => {
+          if (range === "'TEST PONTAJE'!D1:D400") return { data: { values: [['Ana Vasilescu'], ['Mara Pop'], ['Radu Ionescu']] } };
+          if (range === "'EVIDENTA ACTIVITATE'!D1:D400") return { data: { values: [['Ana Vasilescu'], ['Mara Pop'], ['Fără callsign'], ['Radu Ionescu']] } };
+          if (range === "'EVIDENTA ACTIVITATE'!B1:B400") return { data: { values: [['M-001'], ['M-002'], [''], ['M-004']] } };
+          if (range === "'EVIDENTA ACTIVITATE'!F1:F400") return { data: { values: [['45+'], [''], ['90+'], ['60+']] } };
+          throw new Error(`Unexpected sheet range: ${range}`);
+        },
+        batchUpdate: async request => batchUpdates.push(request)
+      }
+    }
+  };
+  const updates = await writeDepartmentAttendanceToSheet(sheets, [
+    { discordId: 'ana-id', name: 'Ana Vasilescu' },
+    { discordId: 'mara-id', name: 'Mara Pop' },
+    { discordId: 'radu-id', name: 'Radu Ionescu' }
+  ], {
+    'ana-id': [{ start: Date.parse('2026-11-02T10:00:00Z'), end: Date.parse('2026-11-02T10:30:00Z') }]
+  }, '2026-11-02');
+  assert.equal(updates.length, 3);
+  assert.deepEqual(batchUpdates[0].requestBody.data, [
+    { range: "'EVIDENTA ACTIVITATE'!F1", values: [['=45+30']] },
+    { range: "'EVIDENTA ACTIVITATE'!F2", values: [[0]] },
+    { range: "'EVIDENTA ACTIVITATE'!F4", values: [['=60+0']] }
   ]);
 });
 
@@ -540,6 +631,7 @@ test('H.R. validation and cancellation send Discord notifications, including can
   assert.equal(discordWebhookRequests[0].embeds[0].fields[0].value, '<@hr-id>');
   assert.equal(discordWebhookRequests[0].embeds[0].fields.find(field => field.name === 'Durată pontaj').value, '1 min');
 
+  const hospitalCount = hospitalWebhookRequests.length;
   const canceled = await callAttendance('POST', 'hr-id', {
     action: 'review-entry',
     targetDiscordId: 'member-id',
@@ -549,10 +641,11 @@ test('H.R. validation and cancellation send Discord notifications, including can
     reason: 'Pontaj deschis greșit'
   });
   assert.equal(canceled.statusCode, 200);
-  assert.equal(discordWebhookRequests.length, 2);
-  assert.equal(discordWebhookRequests[1].embeds[0].title, '❌ Pontaj anulat');
-  assert.equal(discordWebhookRequests[1].embeds[0].fields.find(field => field.name === 'Motiv').value, 'Pontaj deschis greșit');
-  assert.equal(discordWebhookRequests[1].embeds[0].fields.find(field => field.name === 'Durată pontaj').value, '1 min');
+  assert.equal(discordWebhookRequests.length, 1);
+  assert.equal(hospitalWebhookRequests.length, hospitalCount + 1);
+  assert.match(hospitalWebhookRequests.at(-1).content, /^De: <@hr-id> PONTAJ ANULAT :x: lui <@member-id>, Motiv: Pontaj deschis greșit/);
+  assert.match(hospitalWebhookRequests.at(-1).content, /Pontaj: de la ora \d{2}:\d{2} până la ora \d{2}:\d{2}/);
+  assert.deepEqual(hospitalWebhookRequests.at(-1).allowed_mentions, { parse: [], users: ['hr-id', 'member-id'] });
 });
 
 test('attendance cancellation requires a reason on both cancellation endpoints', async () => {
@@ -575,18 +668,17 @@ test('attendance cancellation requires a reason on both cancellation endpoints',
   assert.equal(review.statusCode, 400);
   assert.match(review.payload.error, /Motivul anulării este obligatoriu/);
 
-  discordWebhookRequests.length = 0;
+  hospitalWebhookRequests.length = 0;
   const canceled = await callAttendance('POST', 'hr-id', {
     action: 'cancel',
     targetDiscordId: 'member-id',
     reason: 'Pontaj deschis nejustificat'
   });
   assert.equal(canceled.statusCode, 200);
-  assert.equal(discordWebhookRequests.length, 1);
-  assert.equal(discordWebhookRequests[0].embeds[0].title, '❌ Pontaj anulat');
-  assert.equal(discordWebhookRequests[0].embeds[0].fields.find(field => field.name === 'Motiv').value, 'Pontaj deschis nejustificat');
-  assert.equal(discordWebhookRequests[0].embeds[0].fields.find(field => field.name === 'Durată pontaj').value, '1 min');
-  assert.equal(discordWebhookRequests[0].content, undefined);
+  assert.equal(hospitalWebhookRequests.length, 1);
+  assert.match(hospitalWebhookRequests[0].content, /^De: <@hr-id> PONTAJ ANULAT :x: lui <@member-id>, Motiv: Pontaj deschis nejustificat/);
+  assert.match(hospitalWebhookRequests[0].content, /Pontaj: de la ora \d{2}:\d{2} până la ora \d{2}:\d{2}/);
+  assert.deepEqual(hospitalWebhookRequests[0].allowed_mentions, { parse: [], users: ['hr-id', 'member-id'] });
 });
 
 test('H.R. attendance edits post the editor, changes, and reason to Discord', async () => {
@@ -677,6 +769,22 @@ test('only leadership and H.R. can request attendance document updates', async (
     targetDiscordId: 'member-id',
     dateKey: today,
     status: 'validated'
+  });
+
+  test('attendance document synchronization has a server-enforced cooldown', async () => {
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Bucharest', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+    const cooldownKey = 'site-testeri-medici:attendance-docs-sync:leadership-id';
+    redisValues.delete(cooldownKey);
+    redisExpirations.delete(cooldownKey);
+    const first = await callAttendance('POST', 'leadership-id', { action: 'sync-docs-all', dateKey: today });
+    assert.notEqual(first.statusCode, 429);
+    assert.equal(redisValues.has(cooldownKey), true);
+
+    const repeated = await callAttendance('POST', 'leadership-id', { action: 'sync-docs-all', dateKey: today });
+    assert.equal(repeated.statusCode, 429);
+    assert.ok(repeated.payload.cooldownSeconds > 0);
+    redisValues.delete(cooldownKey);
+    redisExpirations.delete(cooldownKey);
   });
   assert.equal(result.statusCode, 403);
 

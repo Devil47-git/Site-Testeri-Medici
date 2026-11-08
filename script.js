@@ -195,11 +195,38 @@ async function loadRemoteGrants() {
           : normalizeGrantBundle([...(member.grantedTests || []), ...docsAssignedTests(member), ...(grant?.grantedTests || [])]);
         return { ...base, grantMode: member.grantMode || '', grantedTests: granted };
       });
-    if (!testers.some(member => member.discordId === currentUser.discordId) && String(currentUser.name || '').trim()) {
+    if (!testers.some(member => member.discordId === currentUser.discordId) && String(currentUser.name || '').trim() && memberIsTester(currentUser)) {
       testers = [{ ...currentUser, grantedTests: currentUser.grantedTests }, ...testers];
     }
   }
   applyGrantsState();
+}
+function startAttendanceDocsCooldown(seconds) {
+  attendanceDocsCooldownUntil = Date.now() + Math.max(1, Number(seconds) || 60) * 1000;
+  if (attendanceDocsCooldownTimer) clearInterval(attendanceDocsCooldownTimer);
+  const updateButton = () => {
+    const button = viewContent.querySelector('#attendance-docs-sync');
+    if (!button) {
+      clearInterval(attendanceDocsCooldownTimer);
+      attendanceDocsCooldownTimer = null;
+      return;
+    }
+    const remaining = Math.max(0, Math.ceil((attendanceDocsCooldownUntil - Date.now()) / 1000));
+    if (!remaining) {
+      clearInterval(attendanceDocsCooldownTimer);
+      attendanceDocsCooldownTimer = null;
+      button.disabled = activeAttendanceBusy || attendanceLoadPending || Boolean(attendanceSyncError) || !sheetSyncAllowedForSelectedAttendance();
+      button.textContent = 'Sincronizează documentul';
+      return;
+    }
+    button.disabled = true;
+    button.textContent = `Sincronizează documentul (${remaining}s)`;
+  };
+  updateButton();
+  attendanceDocsCooldownTimer = setInterval(updateButton, 1000);
+}
+function sheetSyncAllowedForSelectedAttendance() {
+  return attendanceWeekStart(activeAttendanceDate) === attendanceWeekStart(attendanceDateKey(Date.now()));
 }
 async function saveRemoteGrant(callsign, grantedTests, remove = false, targetDiscordId = '', individualRemoval = false) {
   if (!currentUser?.discordId) throw new Error('Sesiunea nu conține Discord ID.');
@@ -240,7 +267,7 @@ function hasLeadershipCallsign(user) { const cs = callsignNumber(user?.csNum || 
 function canReviewAttendance(user) {
   if (hasLeadershipCallsign(user) || user?.canManageAttendance) return true;
   const functions = String(user?.functions || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  return functions.split('|').some(value => ['HR', 'HRAV', 'HRHRAV', 'RESURSEUMANE', 'MANAGERHR', 'RESPONSABILHR'].includes(value.replace(/[^A-Z0-9]/g, '')));
+  return functions.split('|').some(value => ['HR', 'HRAV', 'HRHRAV', 'MANAGERHR', 'RESPONSABILHR'].includes(value.replace(/[^A-Z0-9]/g, '')));
 }
 function attendanceCallsignNumber(user) {
   const callsigns = [user?.callsign, user?.callSign, user?.csNum].map(callsignNumber).filter(value => value > 0);
@@ -280,30 +307,15 @@ function isAdmissionChecklistReminder(value) {
   return normalize(value) === normalize('Verifică ținuta, tatuajele faciale, cazierul, minimum 50 de ore, controlul cu stetoscopul și drug-testul înainte de proba teoretică.');
 }
 function memberCanGiveTest(member, test) {
-  if (member?.grantMode === 'override') return (member.grantedTests || []).includes(test);
-  if ((member?.grantedTests || []).includes(test)) return true;
-  const functions = normalizeText(member?.functions);
-  if (test === 'Test SMULS') return /S\.?\s*M\.?\s*U\.?\s*L\.?\s*S\.?|\s*S\s*\|/.test(functions);
-  if (test === 'Test ALS') return /A\.?\s*L\.?\s*S\.?|\s*A\s*\|/.test(functions);
-  if (test === 'Test MOTO') return /MOTO|\s*M\s*\|/.test(functions);
-  if (test === 'Test PILOT') return /PILOT|\s*P\s*\|/.test(functions);
-  if (test === 'Test parașutiști') return (member?.grantedTests || []).includes(test);
-  return false;
+  return (member?.grantedTests || []).includes(test);
 }
 function docsAssignedTests(member) {
-  if (member?.grantMode === 'override') return [];
-  // Leadership holds general access: a rank like "Manager I.S.U.L.S." would
-  // otherwise leak a single specialisation badge (e.g. Test SMULS) instead of
-  // the one green "Acces general" badge every other leader gets.
-  if (isLeadershipUser(member)) return [];
-  const assigned = testSummaryDefinitions.map(([test]) => test).filter(test => memberCanGiveTest(member, test));
-  if (/\bTESTER\b/.test(normalizeText(member?.functions))) assigned.unshift(...coreTests);
-  return [...new Set(assigned)];
+  return [];
 }
 function normalizeGrantBundle(tests) {
   return [...new Set(tests)].filter(test => catalog.includes(test));
 }
-function memberIsTester(member) { const cs = callsignNumber(member?.csNum); const specialty = RESIDENT_TESTER_PATTERN.test(normalizeText(member?.functions)); return (member?.grantedTests || []).length > 0 || (cs >= 101 && cs <= 230) || (cs >= 301 && cs <= 340 && specialty) || /TESTER/.test(normalizeText(member?.functions)); }
+function memberIsTester(member) { return isLeadershipUser(member) || (member?.grantedTests || []).length > 0; }
 /** @param {any[]} members @returns {any[]} */
 function sortMembers(members) { return [...members].sort((a, b) => { const ca = callsignNumber(a?.csNum); const cb = callsignNumber(b?.csNum); return ca - cb; }); }
 function avatarUrlForMember(member, signedInUser) {
@@ -680,7 +692,7 @@ function renderGuideView() {
     const message = guideLoadError ? 'Ghidul nu s-a putut încărca. Reîncarcă pagina pentru a încerca din nou.' : 'Se încarcă ghidul spitalului…';
     return `<section class="panel guide-panel"><p class="muted">${message}</p></section>`;
   }
-  return `<section class="panel guide-panel"><div class="panel-head"><div><p class="eyebrow">GHID SPITAL · SECȚIUNE INTERNĂ</p><h2>${escapeHtml(title)}</h2><p class="muted">Informațiile și imaginile ghidului spitalului sunt integrate aici în Site Testeri.</p></div></div><article class="guide-official-content" data-guide-section-content="${section}">${content}</article></section>`;
+  return `<section class="panel guide-panel"><div class="panel-head"><div><p class="eyebrow">GHID SPITAL · SECȚIUNE INTERNĂ</p><h2>${escapeHtml(title)}</h2><p class="muted">Informațiile și imaginile ghidului spitalului sunt integrate aici în Panel Medici.</p></div></div><article class="guide-official-content" data-guide-section-content="${section}">${content}</article></section>`;
 }
 function renderCertificaTrusaView() {
   const content = GUIDE_CONTENT['certifica-trusa'];
@@ -1112,6 +1124,8 @@ let attendanceSyncError = '';
 let activeAttendanceDate = attendanceDateKey(Date.now());
 let activeAttendanceMessage = '';
 let activeAttendanceBusy = false;
+let attendanceDocsCooldownUntil = 0;
+let attendanceDocsCooldownTimer = null;
 let activityWeeksByDiscordId = {};
 let activityLoadError = '';
 let activityDataLoaded = false;
@@ -1383,7 +1397,8 @@ function renderActiveAttendanceView() {
   const openEntries = attendanceEntries.filter(({ entry }) => entry.end == null);
   const closedEntries = attendanceEntries.filter(({ entry }) => entry.end != null);
   const emptyMessage = attendanceLoadPending ? 'Se încarcă pontajele...' : attendanceSyncError ? escapeHtml(attendanceSyncError) : 'Nu există pontaje în ziua selectată.';
-  const disabled = !attendanceRecordsLoaded || attendanceLoadPending || activeAttendanceBusy || Boolean(attendanceSyncError) || !attendanceEntries.length;
+  const disabled = !attendanceRecordsLoaded || attendanceLoadPending || activeAttendanceBusy || Boolean(attendanceSyncError);
+  const cooldownRemaining = Math.max(0, Math.ceil((attendanceDocsCooldownUntil - Date.now()) / 1000));
   const dateLabel = `${ATTENDANCE_DAYS[selectedIndex]} ${new Intl.DateTimeFormat('ro-RO', { timeZone: 'Europe/Bucharest', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(`${activeAttendanceDate}T12:00:00Z`))}`;
   const weekLabel = attendanceWeekLabel(selectedWeekStart, attendanceAddDays(selectedWeekStart, 6));
   const dayTotal = roundAttendanceMinutes(members.reduce((total, member) => total + attendanceMinutesForDateClient(attendanceEntriesFor(member), activeAttendanceDate, now), 0));
@@ -1401,7 +1416,7 @@ function renderActiveAttendanceView() {
     return `<tr class="${entry.canceled ? 'is-canceled' : ''}"><td>${escapeHtml(normalizeCallsign(member.callsign))}</td><td>${escapeHtml(member.name || '—')}</td><td>${attendanceTypeLabel(attendanceTypeForEntry(entry))}</td><td>${attendanceTime(entry.start)}</td><td>${clockOut}${entry.autoClosed ? ' · Închis automat' : ''}</td><td>${duration}</td><td><span class="active-attendance-state${entry.canceled ? ' is-canceled' : validated ? ' is-validated' : ''}">${status}</span></td>${reviewControls}</tr>`;
   }).join('');
   const attendanceGroup = (title, entries) => `<section class="active-attendance-group"><h3>${title}</h3><div class="attendance-recent-table-wrap"><table class="attendance-recent-table active-attendance-table"><thead><tr><th>CALLSIGN</th><th>NUME</th><th>TIP</th><th>CLOCK-IN</th><th>CLOCK-OUT</th><th>DURATĂ</th><th>STARE</th>${actionHeaders}</tr></thead><tbody>${renderAttendanceRows(entries) || `<tr><td colspan="${canReview ? 9 : 7}" class="attendance-recent-empty">${attendanceLoadPending || attendanceSyncError ? emptyMessage : 'Nu există pontaje aici.'}</td></tr>`}</tbody></table></div></section>`;
-  const syncButton = canReview ? `<button class="primary" id="attendance-docs-sync" type="button" ${disabled || !sheetSyncAllowed ? 'disabled' : ''}>Sincronizează documentul</button>` : '';
+  const syncButton = canReview ? `<button class="primary" id="attendance-docs-sync" type="button" ${disabled || !sheetSyncAllowed || cooldownRemaining ? 'disabled' : ''}>${cooldownRemaining ? `Sincronizează documentul (${cooldownRemaining}s)` : 'Sincronizează documentul'}</button>` : '';
   return `<section class="panel active-attendance-panel"><div class="panel-head"><div><p class="eyebrow">PONTAJE PE ZILE</p><h2>Pontaje</h2><p class="muted">Fiecare pontaj deschis în ziua selectată este afișat separat, inclusiv sesiunile închise și anulate.</p></div>${syncButton}</div><div class="active-attendance-week-nav"><button type="button" class="outline" data-attendance-week="-1" ${activeAttendanceBusy || attendanceLoadPending ? 'disabled' : ''}>← Săptămâna anterioară</button><strong>${weekLabel}</strong><button type="button" class="outline" data-attendance-week="1" ${!canGoForward || activeAttendanceBusy || attendanceLoadPending ? 'disabled' : ''}>Săptămâna următoare →</button></div><div class="active-attendance-days" role="group" aria-label="Selectează ziua săptămânii">${dayTabs}</div><div class="active-attendance-day-summary"><strong>${escapeHtml(dateLabel)}</strong><span>Total neanulat: ${dayTotal} min</span></div><p class="active-attendance-message muted" id="active-attendance-message" role="status" aria-live="polite">${escapeHtml(activeAttendanceMessage || (attendanceLoadPending ? 'Se sincronizează pontajele...' : !sheetSyncAllowed ? 'Pontajele istorice pot fi consultate; sincronizarea documentului este disponibilă pentru săptămâna curentă.' : ''))}</p>${attendanceGroup('PONTAJE DESCHISE', openEntries)}${attendanceGroup('PONTAJE ÎNCHISE', closedEntries)}</section>`;
 }
 function refreshActiveAttendanceView() {
@@ -1458,7 +1473,11 @@ async function submitAttendanceDocs(action, details = {}) {
     body: JSON.stringify({ requesterId: currentUser.discordId, action, dateKey: details.dateKey || activeAttendanceDate, ...details })
   });
   const payload = await parseApiResponse(response);
-  if (!response.ok) throw new Error(payload.error || 'Pontajele nu au putut fi sincronizate în document.');
+  if (!response.ok) {
+    const error = new Error(payload.error || 'Pontajele nu au putut fi sincronizate în document.');
+    error.cooldownSeconds = payload.cooldownSeconds;
+    throw error;
+  }
   return payload;
 }
 async function updateAttendanceReview(targetDiscordId, entryStart, status, reason = '') {
@@ -1525,16 +1544,19 @@ function openAttendanceEditDialog(targetDiscordId, entryStart) {
   dialog.showModal();
 }
 async function syncSelectedAttendanceDay() {
-  if (activeAttendanceBusy) return;
+  if (activeAttendanceBusy || attendanceDocsCooldownUntil > Date.now()) return;
+  if (!window.confirm('Confirmi sincronizarea rândurilor completate din document? Rândurile fără pontaj vor primi 0, iar valorile de tip 60+ vor deveni 60+0.')) return;
   const dateKey = activeAttendanceDate;
   activeAttendanceBusy = true;
   activeAttendanceMessage = 'Se adaugă pontajele în document...';
   refreshActiveAttendanceView();
   try {
     const payload = await submitAttendanceDocs('sync-docs-all', { dateKey });
+    startAttendanceDocsCooldown(payload.cooldownSeconds || 60);
     activeAttendanceMessage = `Pontaje sincronizate în document pentru ${ATTENDANCE_DAYS[attendanceDayIndex(dateKey)]}: ${payload.updated}.${payload.warning ? ` ${payload.warning}` : ''}`;
   } catch (error) {
     console.error('Department attendance document sync failed:', error);
+    if (Number(error.cooldownSeconds) > 0) startAttendanceDocsCooldown(error.cooldownSeconds);
     activeAttendanceMessage = error.message || 'Pontajele nu au putut fi sincronizate în document.';
   } finally {
     activeAttendanceBusy = false;
@@ -1969,8 +1991,8 @@ function renderView(view) {
   viewContent.style.display = isOverview ? 'none' : 'block';
   overview.style.display = isOverview ? 'block' : 'none';
   if (isOverview) { renderProfileData(); return; }
-  const title = labels[view] || 'Site Testeri';
-  document.querySelector('#section-label').textContent = 'Site Testeri';
+  const title = labels[view] || 'Panel Medici';
+  document.querySelector('#section-label').textContent = 'Panel Medici';
   if (view === 'members') { viewContent.innerHTML = renderMembersView(); wireMembersView(); loadMembersRoom({ force: true }); }
   else if (view === 'testers') { viewContent.innerHTML = renderTestersView(); wireTestersEvents(); }
   else if (view === 'statistics') { viewContent.innerHTML = renderStatisticsView(); renderDashboardData(); }
@@ -2286,7 +2308,7 @@ function openTest(testName, { push = true, previousView: requestedPreviousView }
   viewContent.hidden = false;
   viewContent.style.display = 'block';
   renderAvailableTestsSubmenu();
-  document.querySelector('#section-label').textContent = 'Site Testeri';
+  document.querySelector('#section-label').textContent = 'Panel Medici';
   document.querySelector('#page-label').textContent = displayTestName(testName);
   document.querySelectorAll('.nav-item').forEach(item => item.classList.toggle('active', item.id === 'available-tests-toggle'));
   document.querySelectorAll('[data-available-test]').forEach(item => item.classList.toggle('active', item.dataset.availableTest === testName));
@@ -3894,7 +3916,7 @@ function navigateTo(view, { push = true } = {}) {
   renderAvailableTestsSubmenu();
   document.querySelectorAll('.nav-item').forEach(item => item.classList.toggle('active', item.dataset.view === view || (view === 'certifica-trusa' && item.id === 'available-tests-toggle')));
   document.querySelector('#page-label').textContent = labels[view];
-  document.querySelector('#section-label').textContent = 'Site Testeri';
+  document.querySelector('#section-label').textContent = 'Panel Medici';
   document.querySelector('.sidebar').classList.remove('open');
   renderView(view);
   if (view === 'overview') loadOwnActivityEntries();
@@ -4019,7 +4041,7 @@ function setVisibilityPermissions(user){
   if (profileSettingsButton) profileSettingsButton.hidden = callsign < 1 || callsign > 20;
   if (adminPanel) adminPanel.hidden = callsign < 1 || callsign > 20;
   const sectionLabel = document.querySelector('#section-label');
-  if (sectionLabel) sectionLabel.textContent = 'Site Testeri';
+  if (sectionLabel) sectionLabel.textContent = 'Panel Medici';
 }
 /** @param {Member} user @returns {void} */
 function setStats(user){

@@ -1,5 +1,5 @@
 import '../../lib/config.js';
-import { attendanceTypesForFunctions, callsignNumber, LEADERSHIP_MAX, normalize } from '../../lib/access/shared.js';
+import { attendanceTypesForFunctions, callsignNumber, LEADERSHIP_MAX, normalize, STAFF_FUNCTION_LABELS } from '../../lib/access/shared.js';
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:T400';
@@ -7,8 +7,34 @@ const COMPOUND_FUNCTION_LABELS = [
   'Manager I.S.U.L.S. | S.M.U.L.S.',
   'Adjunct I.S.U.L.S. | S.M.U.L.S.'
 ];
+const RENAMED_FUNCTIONS = new Map([
+  ['ADJUNCTISULS', 'Adjunct I.S.U.L.S. | S.M.U.L.S.'],
+  ['ADJUNCTISULSPCLS', 'Adjunct I.S.U.L.S. | S.M.U.L.S.'],
+  ['MANAGERDSLS', 'Manager D.S.L.S. - P.C.L.S.'],
+  ['ADJUNCTMMLS', 'Adjunct M.M.L.S. - P.C.L.S.']
+]);
+const HIDDEN_FUNCTIONS = new Set([
+  'COORDONATORJAF',
+  'RESURSEUMANE',
+  'RELATIICUPUBLICUL',
+  'MEMBRUALDEPARTAMENTULUISPECIALISULS',
+  'INSTRUCTORPILOT',
+  'INSTRUCTORMOTO',
+  'INSTRUCTORSMULS',
+  'INSTRUCTORALS',
+  'CONSILIERPSIHOLOGIC'
+]);
 
 function json(res, status, body) { return res.status(status).json(body); }
+function functionKey(value) { return normalize(value).replace(/[^A-Z0-9]/g, ''); }
+function canonicalFunctionLabel(value) {
+  const label = String(value || '').trim();
+  return RENAMED_FUNCTIONS.get(functionKey(label)) || label;
+}
+function isHiddenFunction(value) {
+  const label = normalize(value).replace(/\s/g, '');
+  return label === 'PR' || HIDDEN_FUNCTIONS.has(functionKey(value));
+}
 function validMemberFunctionLabel(value) {
   const label = String(value || '').trim();
   return Boolean(label && label.length <= 120 && !/[\r\n]/.test(label) && (!label.includes('|') || COMPOUND_FUNCTION_LABELS.some(item => normalize(item) === normalize(label))));
@@ -52,11 +78,13 @@ export function memberFunctionLabels(value = '') {
   return [...new Map(protectedValue.split('|')
     .map(label => label.replace(/\uE000(\d+)\uE001/g, (_, index) => COMPOUND_FUNCTION_LABELS[Number(index)]))
     .map(label => label.trim())
-    .filter(Boolean)
+    .map(canonicalFunctionLabel)
+    .filter(label => label && !isHiddenFunction(label))
     .map(label => [normalize(label), label])).values()];
 }
 export function memberFunctionsDirectory(rows) {
   const catalog = new Map();
+  for (const label of STAFF_FUNCTION_LABELS) catalog.set(normalize(label), { id: label, label, description: label });
   const memberRows = (Array.isArray(rows) ? rows.slice(1) : []).filter(Array.isArray);
   for (const row of memberRows) {
     for (const label of memberFunctionLabels(row[10] || '')) if (!catalog.has(normalize(label))) {
@@ -81,8 +109,9 @@ export function normalizeMemberFunctionLabels(values) {
   const labels = new Map();
   for (const value of values) {
     if (typeof value !== 'string') continue;
-    const label = value.trim();
+    const label = canonicalFunctionLabel(value);
     if (!validMemberFunctionLabel(label)) continue;
+    if (isHiddenFunction(label)) continue;
     if (!labels.has(normalize(label))) labels.set(normalize(label), label);
   }
   return [...labels.values()];

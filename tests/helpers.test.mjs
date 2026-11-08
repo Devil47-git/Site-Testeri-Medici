@@ -704,8 +704,8 @@ test('allowedForUser filters to known, defined tests only', () => {
 });
 
 test('leadership access lists include matching testers but exclude leadership', () => {
-  assert.equal(memberHasTestAccess({ functions: 'TESTER' }, 'Test admitere'), true);
-  assert.equal(memberHasTestAccess({ functions: 'A.L.S.' }, 'Test ALS'), true);
+  assert.equal(memberHasTestAccess({ functions: 'TESTER' }, 'Test admitere'), false);
+  assert.equal(memberHasTestAccess({ functions: 'A.L.S.' }, 'Test ALS'), false);
   assert.equal(memberHasTestAccess({ grantedTests: ['Test MOTO'] }, 'Test MOTO'), true);
   assert.equal(memberHasTestAccess({ functions: 'A.L.S.' }, 'Test SMULS'), false);
   assert.equal(memberHasTestAccess({ csNum: 2, isLeadership: true, grantedTests: ['Test ALS'] }, 'Test ALS'), false);
@@ -774,9 +774,9 @@ test('parachutism requirements, information cards, and jump photo slots are conf
 test('non-leadership users receive only explicitly granted tests', () => {
   const assigned = ['Test MOTO'];
   assert.deepEqual(allowedForUser({ allowedTests: accessCatalog, eligibleSpecializations: ['Test ALS'], grantedTests: assigned }), assigned);
-  assert.deepEqual(allowedForUser({ functions: 'S.M.U.L.S.', grantedTests: [] }), ['Test SMULS']);
+  assert.deepEqual(allowedForUser({ functions: 'S.M.U.L.S.', grantedTests: [] }), []);
   assert.deepEqual(accessFor(320, 'MOTO', 'Medic Rezident', '').allowedTests, []);
-  assert.deepEqual(accessFor(320, 'S.M.U.L.S. | A.L.S.', 'Medic Rezident', '').grantedTests, ['Test SMULS', 'Test ALS']);
+  assert.deepEqual(accessFor(320, 'S.M.U.L.S. | A.L.S.', 'Medic Rezident', '').grantedTests, []);
 });
 
 test('leadership alone receives general catalog access', () => {
@@ -790,43 +790,44 @@ test('leadership alone receives general catalog access', () => {
 });
 
 test('H.R. function enables attendance management without leadership test access', () => {
-  for (const label of ['H.R.', 'HR', 'Manager HR', 'Resurse Umane']) {
+  for (const label of ['H.R.', 'HR', 'Manager HR']) {
     assert.equal(canManageAttendance(label), true);
     assert.equal(accessFor(101, label, 'Medic Specialist', '').canManageAttendance, true);
   }
+  assert.equal(canManageAttendance('Resurse Umane'), false);
   assert.equal(canManageAttendance('P.R.'), false);
   assert.equal(accessFor(101, 'H.R.', 'Medic Specialist', '').allowedTests.length, 0);
   assert.equal(canReviewAttendance({ csNum: 101, canManageAttendance: true }), true);
   assert.equal(canReviewAttendance({ csNum: 101, functions: 'H.R.' }), true);
-  assert.equal(canReviewAttendance({ csNum: 101, functions: 'Resurse Umane' }), true);
+  assert.equal(canReviewAttendance({ csNum: 101, functions: 'Resurse Umane' }), false);
   assert.equal(canReviewAttendance({ csNum: 101 }), false);
 });
 
-test('Tester Docs role maps to the complete three-test bundle', () => {
-  assert.deepEqual(testsForFunctions('TESTER'), coreTests);
-  assert.deepEqual(testsForFunctions('TESTER | A.L.S.'), [...coreTests, 'Test ALS']);
+test('function labels never assign tests automatically', () => {
+  assert.deepEqual(testsForFunctions('TESTER'), []);
+  assert.deepEqual(testsForFunctions('TESTER | A.L.S.'), []);
   assert.deepEqual(normalizeTests(['Test transfer']), ['Test transfer']);
   assert.deepEqual(effectiveTestsForMember('TESTER', { grantMode: 'override', grantedTests: ['Test transfer'] }), ['Test transfer']);
 });
 
-test('promotion to specialist or primary automatically assigns Tester function', () => {
-  assert.equal(functionsForMember(101, ''), 'TESTER');
-  assert.equal(functionsForMember(230, 'A.L.S.'), 'A.L.S. | TESTER');
+test('tester access is no longer inferred from rank or specialization', () => {
+  assert.equal(functionsForMember(101, ''), '');
+  assert.equal(functionsForMember(230, 'A.L.S.'), 'A.L.S.');
   assert.equal(functionsForMember(205, 'TESTER | MOTO'), 'TESTER | MOTO');
   assert.equal(functionsForMember(300, ''), '');
-  assert.deepEqual(accessFor(105, '', 'Medic Primar', '').grantedTests, coreTests);
-  assert.deepEqual(accessFor(205, '', 'Medic Specialist', '').grantedTests, coreTests);
+  assert.deepEqual(accessFor(105, '', 'Medic Primar', '').grantedTests, []);
+  assert.deepEqual(accessFor(205, '', 'Medic Specialist', '').grantedTests, []);
 });
 
 test('eligible specializations do not override revoked grants', () => {
   assert.deepEqual(allowedForUser({ eligibleSpecializations: ['Test MOTO'], grantedTests: [] }), []);
 });
 
-test('explicit test grants override Docs defaults while legacy grants remain additive', () => {
+test('test access is granted only by explicit manual grants', () => {
   assert.deepEqual(effectiveTestsForMember('S.M.U.L.S.', { grantMode: 'override', grantedTests: [] }), []);
   assert.deepEqual(effectiveTestsForMember('S.M.U.L.S.', { grantMode: 'override', grantedTests: ['Test ALS'] }), ['Test ALS']);
-  assert.deepEqual(effectiveTestsForMember('S.M.U.L.S.', { grantedTests: ['Test ALS'] }), ['Test SMULS', 'Test ALS']);
-  assert.deepEqual(effectiveTestsForMember('S.M.U.L.S.', null), ['Test SMULS']);
+  assert.deepEqual(effectiveTestsForMember('S.M.U.L.S.', { grantedTests: ['Test ALS'] }), ['Test ALS']);
+  assert.deepEqual(effectiveTestsForMember('S.M.U.L.S.', null), []);
 });
 
 test('explicit grant overrides keep revoked Docs specializations hidden', () => {
@@ -842,31 +843,32 @@ test('explicit grant overrides keep revoked Docs specializations hidden', () => 
 test('memberIsTester handles missing csNum without NaN', () => {
   assert.equal(memberIsTester({ grantedTests: ['Test MOTO'] }), true);
   assert.equal(memberIsTester({ csNum: 250 }), false);
-  assert.equal(memberIsTester({ csNum: 205 }), true);
-  assert.equal(memberIsTester({ csNum: 101 }), true);
-  assert.equal(memberIsTester({ csNum: 115 }), true);
+  assert.equal(memberIsTester({ csNum: 205 }), false);
+  assert.equal(memberIsTester({ csNum: 101 }), false);
+  assert.equal(memberIsTester({ csNum: 115 }), false);
   assert.equal(memberIsTester({ csNum: 100 }), false);
   assert.equal(memberIsTester({ csNum: 50 }), false);
-  assert.equal(memberIsTester({ csNum: 320, functions: 'MOTO' }), true);
+  assert.equal(memberIsTester({ csNum: 320, functions: 'MOTO' }), false);
   assert.equal(memberIsTester({ csNum: 320, functions: 'AMBULANTA' }), false);
-  assert.equal(memberIsTester({ csNum: 340, functions: 'PILOT' }), true);
+  assert.equal(memberIsTester({ csNum: 340, functions: 'PILOT' }), false);
   assert.equal(memberIsTester({ csNum: 341, functions: 'PILOT' }), false);
-  assert.equal(memberIsTester({ functions: 'tester' }), true);
+  assert.equal(memberIsTester({ functions: 'tester' }), false);
   assert.equal(memberIsTester({}), false);
 });
 
-test('Docs-based dashboard filters match dotted SMULS and ALS functions', () => {
-  assert.equal(memberCanGiveTest({ functions: 'S.M.U.L.S.' }, 'Test SMULS'), true);
-  assert.equal(memberCanGiveTest({ functions: 'A.L.S.' }, 'Test ALS'), true);
-  assert.equal(memberCanGiveTest({ functions: 'MOTO' }, 'Test MOTO'), true);
-  assert.equal(memberCanGiveTest({ functions: 'PILOT' }, 'Test PILOT'), true);
+test('function names no longer grant tests without a leadership grant', () => {
+  assert.equal(memberCanGiveTest({ functions: 'Manager I.S.U.L.S. | S.M.U.L.S.' }, 'Test SMULS'), false);
+  assert.equal(memberCanGiveTest({ functions: 'S.M.U.L.S.' }, 'Test SMULS'), false);
+  assert.equal(memberCanGiveTest({ functions: 'A.L.S.' }, 'Test ALS'), false);
+  assert.equal(memberCanGiveTest({ functions: 'MOTO' }, 'Test MOTO'), false);
+  assert.equal(memberCanGiveTest({ functions: 'PILOT' }, 'Test PILOT'), false);
   assert.equal(memberCanGiveTest({ functions: 'PARASUTIST' }, 'Test parașutiști'), false);
   assert.equal(memberCanGiveTest({ functions: 'MOTO' }, 'Test ALS'), false);
   assert.equal(memberCanGiveTest({ grantedTests: ['Test parașutiști'] }, 'Test parașutiști'), true);
 });
 
 test('processed test badges show only assigned tests and aggregate the Tester bundle', () => {
-  const tester = { discordId: '105', functions: 'TESTER | A.L.S.', grantedTests: [] };
+  const tester = { discordId: '105', functions: 'TESTER | A.L.S.', grantedTests: [...coreTests, 'Test ALS'] };
   assert.deepEqual(processedTestGroups(tester), [
     { label: 'Tester', tests: coreTests },
     { label: 'Test ALS', tests: ['Test ALS'] }
@@ -1401,7 +1403,7 @@ test('non-leadership keeps the whole tester directory visible', () => {
   // Regression: the Testeri page showed a single member (the viewer) until a
   // refresh happened to re-render the previously loaded list.
   const viewer = { discordId: 'me', callsign: '208', csNum: 208, name: 'Marko Santana', functions: 'TESTER', grantedTests: coreTests };
-  const other = { discordId: 'other', callsign: '310', csNum: 310, name: 'Altfel Tester', functions: 'TESTER | MOTO', grantedTests: [] };
+  const other = { discordId: 'other', callsign: '310', csNum: 310, name: 'Altfel Tester', functions: 'TESTER | MOTO', grantedTests: ['Test MOTO'] };
   for (const member of [viewer, other]) {
     assert.ok(memberIsTester(member), `${member.callsign} must be listed as a tester`);
   }

@@ -785,7 +785,7 @@ body.dark-mode .nav-item.active{box-shadow:inset 2px 0 var(--purple)}
 .guide-official-content p,.guide-official-content li,.guide-official-content span,.guide-official-content small,.guide-official-content div{opacity:1}
 .guide-official-content [style*="color"]{color:#e5efff!important}
 .guide-official-content [style*="opacity"]{opacity:1!important}
-.guide-official-content div[style*="background"],.guide-official-content article[style*="background"],.guide-official-content section[style*="background"]{background:var(--surface-alt)!important;border-color:var(--surface-border)!important;box-shadow:none!important;color:var(--surface-text)!important}
+.guide-official-content [style*="background"]{background:var(--surface-alt)!important;border-color:var(--surface-border)!important;box-shadow:none!important;color:var(--surface-text)!important}
 .guide-official-content img,.guide-official-content video,.guide-official-content table{max-width:100%}
 .guide-official-content *{overflow-wrap:anywhere}
 @media(max-width:760px){.guide-panel{padding:16px}.guide-panel>.panel-head{align-items:flex-start;gap:12px;flex-wrap:wrap}.guide-content-grid{grid-template-columns:1fr}}

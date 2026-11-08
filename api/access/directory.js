@@ -140,7 +140,7 @@ export default async function handler(req, res) {
           name: String(attendanceMember[3] || '').trim(),
           callsign: String(attendanceMember[2] || '').trim(),
           rank: String(attendanceMember[4] || '').trim(),
-          attendanceMinimumMinutes: attendanceMinimumMinutes(attendanceMember[2], attendanceMember[4]),
+          attendanceMinimumMinutes: attendanceMinimumMinutes(attendanceMember[2], attendanceMember[4], attendanceMember[10]),
           attendanceWeeks: attendanceByCallsign.get(String(callsignNumber(attendanceMember[2])))?.weeks || [],
           attendanceDays: attendanceByCallsign.get(String(callsignNumber(attendanceMember[2])))?.days || []
         }] : [],
@@ -164,8 +164,8 @@ export default async function handler(req, res) {
         discordId, name: String(row[3] || '').trim(), callsign: String(row[2] || '').trim(), csNum: callsignNumber(row[2]), joinedAt: String(row[9] || '').trim(), rank: String(row[4] || '').trim(), dept: String(row[5] || '').trim(), functions, status, gradeGroup: groupLabel(row),
         isLeadership: isConducere, leadershipTitle: isConducere ? leadershipTitle(row) : '', avatar: avatarUrlForDiscordMember(discordId, row[20], avatarHashes),
         grantedTests, grantMode: storedGrant?.grantMode || '', updatedAt: storedGrant?.updatedAt || '', lastSeen: storedGrant?.lastSeen || '',
-        attendanceMinimumMinutes: attendanceMinimumMinutes(row[2], row[4]),
-        isTester: ['leadership', 'primar', 'specialist'].includes(gradeGroupFor(callsignNumber(row[2]))) || (callsignNumber(row[2]) >= 301 && callsignNumber(row[2]) <= 340 && RESIDENT_TESTER_PATTERN.test(normalize(functions))) || /TESTER/.test(normalize(functions)) || grantsByDiscord.has(discordId),
+        attendanceMinimumMinutes: attendanceMinimumMinutes(row[2], row[4], functions),
+        isTester: isConducere || grantedTests.length > 0,
         attendanceWeeks: activityView ? attendanceByCallsign.get(String(callsignNumber(row[2])))?.weeks || [] : undefined,
         attendanceDays: activityView ? attendanceByCallsign.get(String(callsignNumber(row[2])))?.days || [] : undefined
       };

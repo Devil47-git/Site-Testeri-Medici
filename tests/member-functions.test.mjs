@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import handler, { memberFunctionLabels, memberFunctionsDirectory, normalizeMemberFunctionLabels, saveDepartmentFunctionAssignment } from '../api/access/functions.js';
 
-test('function directory is derived from distinct values in department column K', () => {
+test('function directory includes assignable staff roles and distinct values from department column K', () => {
   const rows = [
     ['headers'],
     ['', '', '001', 'Director', '', '', '', '', '', '', 'H.R. / H.R. AV | P.R.', '', '', '', '', '', '', '', '', 'leader'],
@@ -15,6 +15,10 @@ test('function directory is derived from distinct values in department column K'
   assert.deepEqual(normalizeMemberFunctionLabels(['P.R.', 'p.r.', ' New Role ', 'bad|value', 'Manager I.S.U.L.S. | S.M.U.L.S.', '']), ['P.R.', 'New Role', 'Manager I.S.U.L.S. | S.M.U.L.S.']);
   assert.deepEqual(memberFunctionsDirectory(rows), {
     catalog: [
+      { id: 'Helper', label: 'Helper', description: 'Helper' },
+      { id: 'Moderator', label: 'Moderator', description: 'Moderator' },
+      { id: 'Administrator', label: 'Administrator', description: 'Administrator' },
+      { id: 'Supervizor', label: 'Supervizor', description: 'Supervizor' },
       { id: 'H.R. / H.R. AV', label: 'H.R. / H.R. AV', description: 'H.R. / H.R. AV' },
       { id: 'P.R.', label: 'P.R.', description: 'P.R.' },
       { id: 'PILOT / P', label: 'PILOT / P', description: 'PILOT / P' }
@@ -82,7 +86,7 @@ test('function directory reads live functions and requires a department member',
     const response = createResponse();
     await handler({ method: 'GET', query: { requesterId: 'requester' } }, response);
     assert.equal(response.statusCode, 200);
-    assert.deepEqual(response.body.catalog.map(item => item.label), ['H.R. / H.R. AV', 'C.J.', 'New Role']);
+    assert.deepEqual(response.body.catalog.map(item => item.label), ['Helper', 'Moderator', 'Administrator', 'Supervizor', 'H.R. / H.R. AV', 'C.J.', 'New Role']);
     assert.deepEqual(response.body.assignments.find(item => item.discordId === 'target').functionIds, ['C.J.', 'New Role']);
     assert.deepEqual(response.body.assignments.find(item => item.discordId === 'requester').attendanceTypes, ['regular', 'hr']);
 
