@@ -310,12 +310,14 @@ function memberCanGiveTest(member, test) {
   return (member?.grantedTests || []).includes(test);
 }
 function docsAssignedTests(member) {
-  return [];
+  if (member?.grantMode === 'override') return [];
+  const assigned = Array.isArray(member?.eligibleSpecializations) ? member.eligibleSpecializations : [];
+  return [...new Set(assigned)].filter(test => catalog.includes(test));
 }
 function normalizeGrantBundle(tests) {
   return [...new Set(tests)].filter(test => catalog.includes(test));
 }
-function memberIsTester(member) { return isLeadershipUser(member) || (member?.grantedTests || []).length > 0; }
+function memberIsTester(member) { return Boolean(member?.isTester) || isLeadershipUser(member) || (member?.grantedTests || []).length > 0 || docsAssignedTests(member).length > 0; }
 /** @param {any[]} members @returns {any[]} */
 function sortMembers(members) { return [...members].sort((a, b) => { const ca = callsignNumber(a?.csNum); const cb = callsignNumber(b?.csNum); return ca - cb; }); }
 function avatarUrlForMember(member, signedInUser) {
@@ -692,7 +694,10 @@ function renderGuideView() {
     const message = guideLoadError ? 'Ghidul nu s-a putut încărca. Reîncarcă pagina pentru a încerca din nou.' : 'Se încarcă ghidul spitalului…';
     return `<section class="panel guide-panel"><p class="muted">${message}</p></section>`;
   }
-  return `<section class="panel guide-panel"><div class="panel-head"><div><p class="eyebrow">GHID SPITAL · SECȚIUNE INTERNĂ</p><h2>${escapeHtml(title)}</h2><p class="muted">Informațiile și imaginile ghidului spitalului sunt integrate aici în Panel Medici.</p></div></div><article class="guide-official-content" data-guide-section-content="${section}">${content}</article></section>`;
+  const editor = hasLeadershipCallsign(currentUser)
+    ? '<div class="guide-editor-toolbar"><button type="button" class="outline" data-guide-edit-action="start">Editează secțiunea</button><button type="button" class="primary" data-guide-edit-action="save" hidden>Salvează modificările</button><button type="button" class="outline" data-guide-edit-action="cancel" hidden>Anulează</button><span class="guide-editor-status" role="status" aria-live="polite"></span></div>'
+    : '';
+  return `<section class="panel guide-panel"><div class="panel-head"><div><p class="eyebrow">GHID SPITAL · SECȚIUNE INTERNĂ</p><h2>${escapeHtml(title)}</h2><p class="muted">Informațiile și imaginile ghidului spitalului sunt integrate aici în Panel Medici.</p></div>${editor}</div><article class="guide-official-content" data-guide-section-content="${section}"><div class="section active" id="${section}">${content}</div></article></section>`;
 }
 function renderCertificaTrusaView() {
   const content = GUIDE_CONTENT['certifica-trusa'];
@@ -711,17 +716,57 @@ function openGuideSectionFromContent(sectionId) {
 }
 function wireGuideContentEvents() {
   const host = viewContent.querySelector('.guide-official-content');
-  if (!host || host.dataset.guideEventsWired) return;
-  host.dataset.guideEventsWired = 'true';
-  host.addEventListener('click', event => {
+  if (!host) return;
+  if (!host.dataset.guideCopyGuardWired) {
+    host.dataset.guideCopyGuardWired = 'true';
+    host.addEventListener('copy', event => { if (!host.isContentEditable) event.preventDefault(); });
+    host.addEventListener('cut', event => { if (!host.isContentEditable) event.preventDefault(); });
+    host.addEventListener('selectstart', event => { if (!host.isContentEditable) event.preventDefault(); });
+    host.addEventListener('contextmenu', event => { if (!host.isContentEditable) event.preventDefault(); });
+    host.addEventListener('keydown', event => {
+      if (!host.isContentEditable && (event.ctrlKey || event.metaKey) && ['a', 'c', 'x'].includes(event.key.toLocaleLowerCase())) event.preventDefault();
+    });
+  }
+  host.querySelectorAll('.section').forEach(section => {
+    const firstTab = section.querySelector('.jaf-btn[data-jaf]');
+    const firstPanel = firstTab && section.querySelector(`.jaf-content.${CSS.escape(firstTab.dataset.jaf)}`);
+    if (!firstTab || !firstPanel) return;
+    section.querySelectorAll('.jaf-btn').forEach(button => button.classList.toggle('active', button === firstTab));
+    section.querySelectorAll('.jaf-content').forEach(panel => { panel.style.display = panel === firstPanel ? 'block' : 'none'; });
+  });
+  if (viewContent.dataset.guideEventsWired) return;
+  viewContent.dataset.guideEventsWired = 'true';
+  viewContent.addEventListener('click', event => {
+    const activeHost = viewContent.querySelector('.guide-official-content');
+    const editorAction = event.target.closest('[data-guide-edit-action]');
+    if (editorAction) {
+      event.preventDefault();
+      if (editorAction.dataset.guideEditAction === 'start') {
+        activeHost.contentEditable = 'true';
+        activeHost.classList.add('guide-editing');
+        viewContent.querySelector('[data-guide-edit-action="start"]').hidden = true;
+        viewContent.querySelector('[data-guide-edit-action="save"]').hidden = false;
+        viewContent.querySelector('[data-guide-edit-action="cancel"]').hidden = false;
+        viewContent.querySelector('.guide-editor-status').textContent = 'Modifică textul direct în ghid, apoi salvează.';
+        activeHost.focus();
+      } else if (editorAction.dataset.guideEditAction === 'cancel') {
+        viewContent.innerHTML = renderGuideView();
+        wireGuideContentEvents();
+        renderGuideSubmenu();
+      } else if (editorAction.dataset.guideEditAction === 'save') {
+        saveGuideSection();
+      }
+      return;
+    }
+    if (!activeHost) return;
     const guideTarget = event.target.closest('[data-guide-target]');
-    if (guideTarget && host.contains(guideTarget)) {
+    if (guideTarget && activeHost.contains(guideTarget)) {
       event.preventDefault();
       openGuideSectionFromContent(guideTarget.dataset.guideTarget);
       return;
     }
     const jafTab = event.target.closest('[data-guide-jaf-tab]');
-    if (jafTab && host.contains(jafTab)) {
+    if (jafTab && activeHost.contains(jafTab)) {
       const section = jafTab.closest('.section');
       const targetId = jafTab.dataset.guideJafTab;
       const targetPanel = section?.querySelector(`.jaf-content.${CSS.escape(targetId)}`);
@@ -731,12 +776,38 @@ function wireGuideContentEvents() {
       return;
     }
     const jafOpen = event.target.closest('[data-guide-jaf-open]');
-    if (jafOpen && host.contains(jafOpen)) {
-      host.querySelectorAll('.section').forEach(section => section.classList.toggle('active', section.id === 'ghid-jaf'));
-      const tab = host.querySelector(`#ghid-jaf [data-guide-jaf-tab="${CSS.escape(jafOpen.dataset.guideJafOpen)}"]`);
+    if (jafOpen && activeHost.contains(jafOpen)) {
+      activeHost.querySelectorAll('.section').forEach(section => section.classList.toggle('active', section.id === 'ghid-jaf'));
+      const tab = activeHost.querySelector(`#ghid-jaf [data-guide-jaf-tab="${CSS.escape(jafOpen.dataset.guideJafOpen)}"]`);
       tab?.click();
     }
   });
+}
+async function saveGuideSection() {
+  const host = viewContent.querySelector('.guide-official-content');
+  const saveButton = viewContent.querySelector('[data-guide-edit-action="save"]');
+  const status = viewContent.querySelector('.guide-editor-status');
+  const section = host?.dataset.guideSectionContent;
+  if (!host || !section || !currentUser?.discordId || !saveButton || !status) return;
+  saveButton.disabled = true;
+  status.textContent = 'Se salvează…';
+  try {
+    const response = await fetch('/api/guide', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requesterId: currentUser.discordId, section, content: host.innerHTML })
+    });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload?.error || `HTTP ${response.status}`);
+    guideContent[section] = payload.content;
+    viewContent.innerHTML = renderGuideView();
+    wireGuideContentEvents();
+    renderGuideSubmenu();
+  } catch (error) {
+    console.error('Guide section save failed:', error);
+    status.textContent = error.message || 'Salvarea secțiunii a eșuat.';
+    saveButton.disabled = false;
+  }
 }
 async function loadGuideContent() {
   if (guideContentPromise) return guideContentPromise;
@@ -747,7 +818,6 @@ async function loadGuideContent() {
     const document = new DOMParser().parseFromString(source, 'text/html');
     const sections = [...document.querySelectorAll('.section[id]')];
     const sectionIds = new Set(sections.map(section => section.id));
-    const originalSections = Object.fromEntries(sections.map(section => [section.id, section.innerHTML]));
     const guideDocumentUrl = new URL('/assets/guide/index.html', window.location.origin);
     const localGuideAsset = value => {
       const resolved = new URL(value, guideDocumentUrl);
@@ -802,6 +872,11 @@ async function loadGuideContent() {
       const target = button.getAttribute('onclick').match(/openJafTab\(['"]([^'"]+)/)?.[1];
       if (target) button.dataset.guideJafOpen = target;
       button.removeAttribute('onclick');
+    });
+    const originalSections = Object.fromEntries(sections.map(section => [section.id, section.innerHTML]));
+    document.querySelectorAll('template[data-guide-override]').forEach(template => {
+      const sectionId = template.dataset.guideOverride;
+      if (sectionIds.has(sectionId)) originalSections[sectionId] = template.innerHTML;
     });
     if (!sections.length || !sectionIds.has('introducere')) throw new Error('Ghidul nu conține secțiunile așteptate.');
     sections.forEach(section => { guideContent[section.id] = originalSections[section.id]; });
@@ -920,14 +995,18 @@ async function loadMembersRoom({ force = false } = {}) {
       if (!Array.isArray(directoryPayload.members) || !Array.isArray(functionsPayload.catalog) || !Array.isArray(functionsPayload.assignments)) {
         throw new Error('Răspuns invalid de la lista membrilor.');
       }
-      const assignmentsByDiscordId = new Map(functionsPayload.assignments.filter(item => item.discordId).map(item => [item.discordId, item.functionIds]));
-      const assignmentsByCallsign = new Map(functionsPayload.assignments.filter(item => item.callsign).map(item => [normalizeCallsign(item.callsign), item.functionIds]));
+      const assignmentsByDiscordId = new Map(functionsPayload.assignments.filter(item => item.discordId).map(item => [item.discordId, item]));
+      const assignmentsByCallsign = new Map(functionsPayload.assignments.filter(item => item.callsign).map(item => [normalizeCallsign(item.callsign), item]));
       departmentMembers = directoryPayload.members
         .filter(member => String(member?.name || '').trim())
-        .map(member => ({
-          ...member,
-          functionIds: assignmentsByDiscordId.get(member.discordId) || assignmentsByCallsign.get(normalizeCallsign(member.callsign)) || []
-        }));
+        .map(member => {
+          const assignment = assignmentsByDiscordId.get(member.discordId) || assignmentsByCallsign.get(normalizeCallsign(member.callsign));
+          return {
+            ...member,
+            functionIds: assignment?.functionIds || [],
+            isFunctionOverride: Boolean(assignment?.isOverride)
+          };
+        });
       memberFunctionCatalog = functionsPayload.catalog;
       membersRoomLoaded = true;
       membersRoomError = '';
@@ -958,6 +1037,7 @@ function openMemberFunctionsModal(member) {
   const memberLabel = document.querySelector('#member-functions-member');
   const options = document.querySelector('#member-function-options');
   const saveButton = document.querySelector('#save-member-functions');
+  const useDocsButton = document.querySelector('#use-docs-functions');
   const status = document.querySelector('#member-functions-status');
   if (!modal || !member?.discordId) return;
   modal.dataset.targetDiscordId = member.discordId;
@@ -966,7 +1046,35 @@ function openMemberFunctionsModal(member) {
   options.insertAdjacentHTML('beforeend', '<label class="member-function-option member-function-add"><span>Adaugă element</span><input id="member-function-new" type="text" maxlength="120" autocomplete="off" placeholder="Scrie un element nou pentru acest membru"></label>');
   status.textContent = '';
   saveButton.disabled = false;
+  useDocsButton.hidden = !member.isFunctionOverride;
+  useDocsButton.disabled = false;
   modal.classList.add('open');
+}
+async function useDocsMemberFunctions() {
+  const modal = document.querySelector('#member-functions-modal');
+  const status = document.querySelector('#member-functions-status');
+  const button = document.querySelector('#use-docs-functions');
+  const targetDiscordId = modal?.dataset.targetDiscordId || '';
+  if (!targetDiscordId || !currentUser?.discordId || !hasLeadershipCallsign(currentUser)) return;
+  button.disabled = true;
+  status.textContent = 'Se restaurează funcțiile din Docs…';
+  try {
+    const response = await fetch('/api/access/functions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requesterId: currentUser.discordId, targetDiscordId, useDocs: true })
+    });
+    const payload = await parseApiResponse(response);
+    if (!response.ok) throw new Error(payload.error || 'Funcțiile din Docs nu au putut fi restaurate.');
+    if (!payload.assignment || !Array.isArray(payload.assignment.functionIds)) throw new Error('Răspuns invalid la restaurarea funcțiilor.');
+    await loadMembersRoom({ force: true });
+    if (membersRoomError) throw new Error(membersRoomError);
+    modal.classList.remove('open');
+  } catch (error) {
+    console.error('Restoring Docs member functions failed:', error);
+    status.textContent = error.message || 'Funcțiile din Docs nu au putut fi restaurate.';
+    button.disabled = false;
+  }
 }
 async function saveMemberFunctions() {
   const modal = document.querySelector('#member-functions-modal');
@@ -988,17 +1096,9 @@ async function saveMemberFunctions() {
     const payload = await parseApiResponse(response);
     if (!response.ok) throw new Error(payload.error || 'Funcțiile nu au putut fi salvate.');
     if (!payload.assignment || !Array.isArray(payload.assignment.functionIds) || !Array.isArray(payload.assignment.attendanceTypes)) throw new Error('Răspuns invalid la salvarea funcțiilor.');
-    const updatedFunctions = payload.assignment.functionIds.join(' | ');
-    departmentMembers = departmentMembers.map(member => member.discordId === targetDiscordId
-      ? { ...member, functions: updatedFunctions, functionIds: payload.assignment.functionIds }
-      : member);
-    const availableFunctions = new Map();
-    for (const member of departmentMembers) for (const label of member.functionIds || []) {
-      if (!availableFunctions.has(label.toLocaleLowerCase('ro'))) availableFunctions.set(label.toLocaleLowerCase('ro'), { id: label, label, description: label });
-    }
-    memberFunctionCatalog = [...availableFunctions.values()];
+    await loadMembersRoom({ force: true });
+    if (membersRoomError) throw new Error(membersRoomError);
     modal.classList.remove('open');
-    renderMemberCards();
     const count = document.querySelector('.member-room-count');
     if (count) count.textContent = departmentMembers.filter(memberHasGrade).length;
   } catch (error) {
@@ -3890,6 +3990,7 @@ document.querySelector('#member-functions-modal').addEventListener('click', even
   if (event.target === event.currentTarget) event.currentTarget.classList.remove('open');
 });
 document.querySelector('#save-member-functions').addEventListener('click', saveMemberFunctions);
+document.querySelector('#use-docs-functions').addEventListener('click', useDocsMemberFunctions);
 document.querySelector('#brand-settings').onclick = () => navigateTo('overview'); document.querySelector('#user-menu').onclick = () => navigateTo('overview'); document.querySelector('#profile-settings').onclick = () => navigateTo('settings');
 const labels = { overview: 'Profilul tău', testers: 'Testerii departamentului', members: 'Membri', statistics: 'Statistica Teste', cooldowns: 'Cooldown-uri', bonuses: 'Bonusuri', attendance: 'Pontaje', 'active-attendance': 'Pontaje active', activity: 'Evidență activitate', guide: 'Ghid Spital', 'certifica-trusa': 'Certificat Trusa', settings: 'Setări' };
 function navigateTo(view, { push = true } = {}) {

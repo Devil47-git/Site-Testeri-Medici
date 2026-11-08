@@ -92,7 +92,7 @@ export default async function handler(req, res) {
       const requester = memberRows.find(row => String(row[19] || '').trim() === requesterId.trim());
       if (!requester) return json(res, 403, { error: 'Requester is not a department member' });
       const grantRows = (await readPublicValues(GRANTS_RANGE).catch(() => [])).slice(1).filter(Array.isArray);
-      const grants = grantRows.map(row => ({ discordId: String(row[0] || '').trim(), callsign: String(row[1] || '').trim(), grantedTests: normalizeTests(String(row[2] || '').split('|')), updatedAt: String(row[3] || '').trim(), lastSeen: String(row[4] || '').trim() }));
+      const grants = grantRows.map(row => ({ discordId: String(row[0] || '').trim(), callsign: String(row[1] || '').trim(), grantedTests: normalizeTests(String(row[2] || '').split('|')), updatedAt: String(row[3] || '').trim(), lastSeen: String(row[4] || '').trim(), grantMode: String(row[5] || '').trim() }));
       const visibleGrants = isLeadership(requester) ? grants : grants.filter(grant => grant.discordId === requesterId.trim());
       return json(res, 200, { grants: visibleGrants });
     }

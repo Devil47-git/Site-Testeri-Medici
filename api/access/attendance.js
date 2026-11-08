@@ -1,6 +1,7 @@
 import '../../lib/config.js';
 import { attendanceTypesForFunctions, canManageAttendance, callsignNumber, normalize } from '../../lib/access/shared.js';
 import { UpstashRedis } from '../../lib/storage/upstash-redis.js';
+import { functionsForDepartmentRow, readFunctionOverrides } from '../../lib/access/function-overrides.js';
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:U400';
@@ -27,7 +28,7 @@ async function allowedAttendanceTypesForMember(discordId) {
   if (!response.ok || !Array.isArray(data.values)) throw new Error('Google Sheets member function read failed');
   const member = data.values.slice(1).find(row => String(row?.[19] || '').trim() === discordId);
   if (!member) throw new Error('Department member not found while checking attendance functions');
-  return attendanceTypesForFunctions(member[10] || '');
+  return attendanceTypesForFunctions(functionsForDepartmentRow(member, await readFunctionOverrides()));
 }
 function attendanceReviewKey(dateKey, discordId) { return `site-testeri-medici:attendance-review:${dateKey}:${discordId}`; }
 function reviewTime(value) {
@@ -480,8 +481,10 @@ export default async function handler(req, res) {
     const members = await readMembers();
     const requester = members.find(row => String(row[19] || '').trim() === requesterId);
     if (!requester) return json(res, 403, { error: 'Requester is not a department member' });
+    const functionOverrides = await readFunctionOverrides();
+    const requesterFunctions = functionsForDepartmentRow(requester, functionOverrides);
     const requesterCallsign = callsignNumber(requester[2]);
-    const canReviewAttendance = (requesterCallsign >= 1 && requesterCallsign <= 20) || canManageAttendance(requester[10] || '');
+    const canReviewAttendance = (requesterCallsign >= 1 && requesterCallsign <= 20) || canManageAttendance(requesterFunctions);
     const canViewAttendanceRooms = canReviewAttendance || (requesterCallsign >= 1 && requesterCallsign <= 650);
     const activeAttendanceView = req.method === 'GET' && req.query?.view === 'active';
     if (req.method === 'GET' && !canViewAttendanceRooms && req.query?.view !== 'own') return json(res, 403, { error: 'Only department members with callsigns 001-650 can view department attendance records' });

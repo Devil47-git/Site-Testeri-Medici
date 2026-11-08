@@ -71,6 +71,8 @@ globalThis.fetch = async (url, options = {}) => {
       return { ok: true, json: async () => ({ result: expiresAt ? Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)) : -2 }) };
     }
     if (commands[0] === 'HMGET') return { ok: true, json: async () => ({ result: commands.slice(2).map(() => null) }) };
+    if (commands[0] === 'HGETALL') return { ok: true, json: async () => ({ result: [] }) };
+    if (commands[0] === 'HSET' || commands[0] === 'HDEL') return { ok: true, json: async () => ({ result: 1 }) };
     if (commands[0] === 'SET' && commands.includes('NX')) {
       if (redisValues.has(commands[1])) return { ok: true, json: async () => ({ result: null }) };
       redisValues.set(commands[1], commands[2]);

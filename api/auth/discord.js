@@ -1,6 +1,7 @@
 import '../../lib/config.js';
 import { accessFor, normalizeTests } from '../../lib/access/shared.js';
 import { storeDiscordAvatarHash } from '../../lib/access/avatar-store.js';
+import { functionsForDepartmentRow, readFunctionOverrides } from '../../lib/access/function-overrides.js';
 import { UpstashRedis } from '../../lib/storage/upstash-redis.js';
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
@@ -50,7 +51,9 @@ export default async function handler(req, res) {
     const row = sheetData.values.slice(1).filter(item => Array.isArray(item)).find(item => String(item[19] || '').trim() === String(discordUser.id));
     if (!row) return res.status(404).json({ error: 'not_found' });
 
-    const user = mapSheetRowToUser(row, discordUser);
+    const effectiveRow = [...row];
+    effectiveRow[10] = functionsForDepartmentRow(row, await readFunctionOverrides());
+    const user = mapSheetRowToUser(effectiveRow, discordUser);
     await persistAvatarHash(user, discordUser);
     const grantsRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(GRANTS_RANGE)}?key=${GOOGLE_API_KEY}`);
     if (grantsRes.ok) {

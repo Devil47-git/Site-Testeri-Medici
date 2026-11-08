@@ -1,8 +1,9 @@
 import '../../lib/config.js';
-import { normalize, callsignNumber, candidateForCallsign, isLeadershipRow, canManageAttendance, gradeGroupFor, GRADE_GROUPS, LEADERSHIP_MAX, effectiveTestsForMember, normalizeTests, functionsForMember, attendanceMinimumMinutes } from '../../lib/access/shared.js';
+import { normalize, callsignNumber, candidateForCallsign, isLeadershipRow, canManageAttendance, gradeGroupFor, GRADE_GROUPS, LEADERSHIP_MAX, effectiveTestsForMember, normalizeTests, functionsForMember, attendanceMinimumMinutes, testsForFunctions } from '../../lib/access/shared.js';
 import { parseCooldownS } from '../../lib/access/cooldowns.js';
 import { avatarUrlForDiscordMember, discordAvatarHashFromUrl, readDiscordAvatarHashes, storeDiscordAvatarHash } from '../../lib/access/avatar-store.js';
 import { UpstashRedis } from '../../lib/storage/upstash-redis.js';
+import { functionsForDepartmentRow, readFunctionOverrides } from '../../lib/access/function-overrides.js';
 
 const RESIDENT_TESTER_PATTERN = /S\.?\s*M\.?\s*U\.?\s*L\.?\s*S\.?|MOTO|A\.?\s*L\.?\s*S\.?|PILOT/;
 
@@ -13,13 +14,13 @@ const GRANTS_RANGE = process.env.GOOGLE_GRANTS_RANGE || 'GRANTS!A1:F';
 const avatarRedis = new UpstashRedis();
 function isLeadership(row) { return isLeadershipRow(row); }
 function readTests(value = '') { return String(value).split('|').filter(Boolean); }
-function relevantMember(row) {
+function relevantMember(row, assignedFunctions = row[10]) {
   const number = callsignNumber(row[2]);
-  const functions = normalize(row[10]);
+  const functions = normalize(assignedFunctions);
   if (!number || number > 399 || !String(row[3] || '').trim()) return false;
   if (number >= 1 && number <= LEADERSHIP_MAX) return true;
   if (number >= GRADE_GROUPS.primar.min && number <= GRADE_GROUPS.specialist.max) return true;
-  if (number >= 301 && number <= 340) return RESIDENT_TESTER_PATTERN.test(normalize(row[10]));
+  if (number >= 301 && number <= 340) return RESIDENT_TESTER_PATTERN.test(functions);
   if (number >= 200 && number < 300) return Boolean(functions);
   return number >= 300 && /TESTER/.test(functions);
 }
@@ -110,11 +111,13 @@ export default async function handler(req, res) {
     const members = rows.slice(1).filter(Array.isArray);
     const requester = members.find(row => String(row[19] || '').trim() === requesterId);
     if (!requester) return json(res, 403, { error: 'Requester is not a department member' });
+    const functionOverrides = await readFunctionOverrides();
+    const requesterFunctions = functionsForDepartmentRow(requester, functionOverrides);
     const activityView = req.query?.view === 'activity';
     const attendanceView = req.query?.view === 'attendance';
     const allMembersView = req.query?.view === 'members';
     const requesterCallsign = callsignNumber(requester[2]);
-    const canReviewAttendance = (requesterCallsign >= 1 && requesterCallsign <= LEADERSHIP_MAX) || canManageAttendance(requester[10] || '');
+    const canReviewAttendance = (requesterCallsign >= 1 && requesterCallsign <= LEADERSHIP_MAX) || canManageAttendance(requesterFunctions);
     const canViewAttendanceRooms = canReviewAttendance || (requesterCallsign >= 1 && requesterCallsign <= 650);
     if (activityView && !canViewAttendanceRooms) return json(res, 403, { error: 'Only department members with callsigns 001-650 can view the activity directory' });
     const attendanceByCallsign = activityView || attendanceView
@@ -153,10 +156,11 @@ export default async function handler(req, res) {
       console.error('Discord avatar Redis read failed:', error);
       return new Map();
     });
-    const result = members.filter(row => String(row[3] || '').trim() && (!allMembersView || callsignNumber(row[2]) >= 1) && (allMembersView || relevantMember(row) || isLeadership(row) || (activityView && callsignNumber(row[2]) >= 1 && callsignNumber(row[2]) <= 650))).map(row => {
+    const result = members.filter(row => String(row[3] || '').trim() && (!allMembersView || callsignNumber(row[2]) >= 1) && (allMembersView || relevantMember(row, functionsForDepartmentRow(row, functionOverrides)) || isLeadership(row) || (activityView && callsignNumber(row[2]) >= 1 && callsignNumber(row[2]) <= 650))).map(row => {
       const discordId = String(row[19] || '').trim();
       const storedGrant = grantsByDiscord.get(discordId);
-      const functions = functionsForMember(callsignNumber(row[2]), row[10]);
+      const assignedFunctions = functionsForDepartmentRow(row, functionOverrides);
+      const functions = functionsForMember(callsignNumber(row[2]), assignedFunctions);
       const isConducere = isLeadership(row);
       const status = statusFromRow(row);
       const grantedTests = effectiveTestsForMember(functions, storedGrant, callsignNumber(row[2]), String(row[4] || '').trim(), String(row[5] || '').trim());
@@ -165,7 +169,8 @@ export default async function handler(req, res) {
         isLeadership: isConducere, leadershipTitle: isConducere ? leadershipTitle(row) : '', avatar: avatarUrlForDiscordMember(discordId, row[20], avatarHashes),
         grantedTests, grantMode: storedGrant?.grantMode || '', updatedAt: storedGrant?.updatedAt || '', lastSeen: storedGrant?.lastSeen || '',
         attendanceMinimumMinutes: attendanceMinimumMinutes(row[2], row[4], functions),
-        isTester: isConducere || grantedTests.length > 0,
+        eligibleSpecializations: testsForFunctions(functions),
+        isTester: isConducere || grantedTests.length > 0 || testsForFunctions(functions).length > 0,
         attendanceWeeks: activityView ? attendanceByCallsign.get(String(callsignNumber(row[2])))?.weeks || [] : undefined,
         attendanceDays: activityView ? attendanceByCallsign.get(String(callsignNumber(row[2])))?.days || [] : undefined
       };

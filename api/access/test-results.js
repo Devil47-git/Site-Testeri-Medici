@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { catalog, callsignNumber, candidateForCallsign, effectiveTestsForMember, functionsForMember, isLeadershipRow, normalizeTests } from '../../lib/access/shared.js';
 import { cooldownIsActive, failedTestCooldownExpiry, parseCooldownS } from '../../lib/access/cooldowns.js';
 import { UpstashRedis } from '../../lib/storage/upstash-redis.js';
+import { functionsForDepartmentRow, readFunctionOverrides } from '../../lib/access/function-overrides.js';
 import { addBonusEntries, BONUS_TEST_NAMES, clearBonusEntries, importLegacyBonusEntries, listBonusEntries } from '../../lib/access/bonus-store.js';
 import { LIFETIME_HISTORY_HEADER, lifetimeRowForNewResult, lifetimeRowsToAppend, lifetimeTestCounts } from '../../lib/access/lifetime-test-history.js';
 
@@ -156,7 +157,8 @@ async function canRecordTest(sheets, member, discordId, testName) {
   const grants = (await readValues(sheets, GRANTS_RANGE).catch(() => [])).slice(1);
   const grant = grants.find(row => String(row[0] || '').trim() === discordId);
   const storedGrant = grant ? { grantMode: String(grant[5] || '').trim(), grantedTests: normalizeTests(String(grant[2] || '').split('|')) } : null;
-  return effectiveTestsForMember(functionsForMember(callsignNumber(member[2]), member[10]), storedGrant, callsignNumber(member[2]), String(member[4] || '').trim(), String(member[5] || '').trim()).includes(testName);
+  const functions = functionsForDepartmentRow(member, await readFunctionOverrides());
+  return effectiveTestsForMember(functionsForMember(callsignNumber(member[2]), functions), storedGrant, callsignNumber(member[2]), String(member[4] || '').trim(), String(member[5] || '').trim()).includes(testName);
 }
 
 function webhookUrl(value) {

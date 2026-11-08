@@ -771,9 +771,9 @@ test('parachutism requirements, information cards, and jump photo slots are conf
   assert.match(source, /parachutismInformationHtml/);
 });
 
-test('non-leadership users receive only explicitly granted tests', () => {
+test('non-leadership users receive document specializations and manual grants', () => {
   const assigned = ['Test MOTO'];
-  assert.deepEqual(allowedForUser({ allowedTests: accessCatalog, eligibleSpecializations: ['Test ALS'], grantedTests: assigned }), assigned);
+  assert.deepEqual(allowedForUser({ allowedTests: accessCatalog, eligibleSpecializations: ['Test ALS'], grantedTests: assigned }), [...assigned, 'Test ALS']);
   assert.deepEqual(allowedForUser({ functions: 'S.M.U.L.S.', grantedTests: [] }), []);
   assert.deepEqual(accessFor(320, 'MOTO', 'Medic Rezident', '').allowedTests, []);
   assert.deepEqual(accessFor(320, 'S.M.U.L.S. | A.L.S.', 'Medic Rezident', '').grantedTests, []);
@@ -803,14 +803,16 @@ test('H.R. function enables attendance management without leadership test access
   assert.equal(canReviewAttendance({ csNum: 101 }), false);
 });
 
-test('function labels never assign tests automatically', () => {
+test('eligible specialization functions restore document-based tests without granting a generic tester role', () => {
   assert.deepEqual(testsForFunctions('TESTER'), []);
-  assert.deepEqual(testsForFunctions('TESTER | A.L.S.'), []);
+  assert.deepEqual(testsForFunctions('TESTER | A.L.S.'), ['Test ALS']);
+  assert.deepEqual(testsForFunctions('Manager I.S.U.L.S. | S.M.U.L.S.'), []);
+  assert.deepEqual(testsForFunctions('Adjunct I.S.U.L.S. | S.M.U.L.S.'), []);
   assert.deepEqual(normalizeTests(['Test transfer']), ['Test transfer']);
   assert.deepEqual(effectiveTestsForMember('TESTER', { grantMode: 'override', grantedTests: ['Test transfer'] }), ['Test transfer']);
 });
 
-test('tester access is no longer inferred from rank or specialization', () => {
+test('tester access is inferred from eligible document functions but not rank alone', () => {
   assert.equal(functionsForMember(101, ''), '');
   assert.equal(functionsForMember(230, 'A.L.S.'), 'A.L.S.');
   assert.equal(functionsForMember(205, 'TESTER | MOTO'), 'TESTER | MOTO');
@@ -819,15 +821,16 @@ test('tester access is no longer inferred from rank or specialization', () => {
   assert.deepEqual(accessFor(205, '', 'Medic Specialist', '').grantedTests, []);
 });
 
-test('eligible specializations do not override revoked grants', () => {
-  assert.deepEqual(allowedForUser({ eligibleSpecializations: ['Test MOTO'], grantedTests: [] }), []);
+test('eligible specializations remain suppressed by an explicit leadership override', () => {
+  assert.deepEqual(allowedForUser({ eligibleSpecializations: ['Test MOTO'], grantMode: 'override', grantedTests: [] }), []);
 });
 
-test('test access is granted only by explicit manual grants', () => {
+test('document specializations restore access unless leadership explicitly overrides them', () => {
   assert.deepEqual(effectiveTestsForMember('S.M.U.L.S.', { grantMode: 'override', grantedTests: [] }), []);
   assert.deepEqual(effectiveTestsForMember('S.M.U.L.S.', { grantMode: 'override', grantedTests: ['Test ALS'] }), ['Test ALS']);
-  assert.deepEqual(effectiveTestsForMember('S.M.U.L.S.', { grantedTests: ['Test ALS'] }), ['Test ALS']);
-  assert.deepEqual(effectiveTestsForMember('S.M.U.L.S.', null), []);
+  assert.deepEqual(effectiveTestsForMember('S.M.U.L.S.', { grantedTests: ['Test ALS'] }), ['Test SMULS', 'Test ALS']);
+  assert.deepEqual(effectiveTestsForMember('S.M.U.L.S.', null), ['Test SMULS']);
+  assert.deepEqual(effectiveTestsForMember('S.M.U.L.S.', null, 320, 'Medic Rezident'), ['Test SMULS']);
 });
 
 test('explicit grant overrides keep revoked Docs specializations hidden', () => {
@@ -838,6 +841,13 @@ test('explicit grant overrides keep revoked Docs specializations hidden', () => 
   const restored = { ...revoked, grantedTests: ['Test SMULS'] };
   assert.deepEqual(allowedForUser(restored), ['Test SMULS']);
   assert.equal(memberCanGiveTest(restored, 'Test SMULS'), true);
+});
+
+test('document tester specializations reappear in the roster without receiving automatic function assignments', () => {
+  assert.deepEqual(docsAssignedTests({ eligibleSpecializations: ['Test MOTO'] }), ['Test MOTO']);
+  assert.equal(memberIsTester({ eligibleSpecializations: ['Test MOTO'] }), true);
+  assert.equal(memberIsTester({ functions: 'TESTER', grantedTests: [] }), false);
+  assert.match(directorySource, /eligibleSpecializations: testsForFunctions\(functions\)/);
 });
 
 test('memberIsTester handles missing csNum without NaN', () => {

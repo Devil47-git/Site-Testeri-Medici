@@ -6,6 +6,12 @@ Weekly attendance on member profiles and the activity page is read directly from
 
 The profile's day-by-day chart, the live start/stop timer on `Pontaje`, and the Monday–Sunday daily table on `Evidență activitate` use Upstash Redis. The activity table shows each member's daily total and minimum: 120 minutes for Brancardier, Asistent-Medical, and Medic-Stagiar; 100 for Medic-Rezident; 80 for Medic-Specialist and Medic-Primar; and 60 for leadership callsigns 004–020. Members with callsigns 001–650 can view active timers; only leadership and H.R. can review, edit, or cancel them. New timers cannot be opened at or after 23:35 (Europe/Bucharest); running timers close at Bucharest midnight. Configure both `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` for online persistence and shared updates across devices.
 
+## Guide editing and member-function overrides
+
+The hospital guide can be edited in place by leadership callsigns 001–020. Edits are saved by section in Upstash Redis and sanitized before being shown to members; the original bundled guide remains the fallback for sections without saved changes. The guide disables ordinary text selection, copy shortcuts, and the context menu as a deterrent, but browser inspection, screenshots, and other extraction methods cannot be fully prevented. The Uniforme and Ghid Jaf tabs remain interactive in the embedded guide. The sanitizer requires Node.js 22.12 or newer.
+
+Member functions from Docs are the default. When leadership saves a member's function assignments in the Members page, that assignment is stored separately in Redis and takes precedence over later Docs changes. Use **Revino la funcțiile din Docs** in the editor to remove the override for that member. These guide and function overrides require `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`.
+
 Vercel schedules the midnight closure at 21:00 and 22:00 UTC to cover Romania's daylight-saving and standard-time offsets. Set a `CRON_SECRET` deployment variable so the scheduled closure endpoint accepts authenticated Vercel Cron requests. Reads and timer actions also close any stale timer if the scheduled request was delayed.
 
 ## Discord admission notifications
