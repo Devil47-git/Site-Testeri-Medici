@@ -6,7 +6,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { google } from 'googleapis';
-import { isLeadership, gradeGroupFor, catalog } from './lib/access/shared.js';
+import { isLeadership, gradeGroupFor, catalog, automaticCoreTestsForMember } from './lib/access/shared.js';
 import { readTestDefinitions, writeTestDefinitions } from './lib/test-definitions-store.js';
 
 const PORT = Number(process.env.PORT || 3000);
@@ -109,7 +109,8 @@ function roleAccess(functions, callsign = '', rank = '', dept = '') {
   const leader = isLeadership(g, rank, dept);
   const group = gradeGroupFor(g);
   const tests = leader ? catalog : [];
-  return { isLeadership: leader, isConducere: leader, accessLevel: leader ? 'leadership' : 'tester', gradeGroup: group, tests: [...new Set(tests)] };
+  const grantedTests = automaticCoreTestsForMember(g, rank, dept);
+  return { isLeadership: leader, isConducere: leader, accessLevel: leader ? 'leadership' : 'tester', gradeGroup: group, allowedTests: [...new Set([...tests, ...grantedTests])], grantedTests, tests: [...new Set(tests)] };
 }
 async function sheetMember(discordId) {
   if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON && !process.env.GOOGLE_APPLICATION_CREDENTIALS) throw new Error('Google Sheets is not configured');

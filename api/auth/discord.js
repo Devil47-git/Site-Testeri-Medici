@@ -1,5 +1,5 @@
 import '../../lib/config.js';
-import { accessFor, normalizeTests } from '../../lib/access/shared.js';
+import { accessFor, effectiveTestsForMember, normalizeTests } from '../../lib/access/shared.js';
 import { storeDiscordAvatarHash } from '../../lib/access/avatar-store.js';
 import { functionsForDepartmentRow, readFunctionOverrides } from '../../lib/access/function-overrides.js';
 import { UpstashRedis } from '../../lib/storage/upstash-redis.js';
@@ -59,11 +59,12 @@ export default async function handler(req, res) {
     if (grantsRes.ok) {
       const grantsData = await grantsRes.json();
       const grant = (Array.isArray(grantsData.values) ? grantsData.values : []).slice(1).filter(item => Array.isArray(item)).find(item => String(item[0] || '').trim() === String(discordUser.id));
-      if (grant) {
-        user.grantMode = String(grant[5] || '').trim();
-        const storedTests = normalizeTests(String(grant[2] || '').split('|'));
-        user.grantedTests = user.grantMode === 'override' ? storedTests : normalizeTests([...(user.grantedTests || []), ...storedTests]);
-      }
+      const storedGrant = grant ? {
+        grantMode: String(grant[5] || '').trim(),
+        grantedTests: normalizeTests(String(grant[2] || '').split('|'))
+      } : null;
+      user.grantMode = storedGrant?.grantMode || '';
+      user.grantedTests = effectiveTestsForMember(user.functions, storedGrant, user.csNum, user.rank, user.dept);
     }
     return res.status(200).json({ success: true, user });
   } catch (error) {

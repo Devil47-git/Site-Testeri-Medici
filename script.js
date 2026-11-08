@@ -169,18 +169,22 @@ async function loadRemoteGrants() {
       ? directoryMembers.filter(member => String(member.name || '').trim() && (member.isTester || memberIsTester(member))).map(member => {
           const grant = grants.find(item => item.discordId === member.discordId);
           const grantMode = grant?.grantMode || member.grantMode || '';
-          const grantedTests = grantMode === 'override'
-            ? (grant?.grantedTests || member.grantedTests || [])
-            : [...(member.grantedTests || []), ...docsAssignedTests(member), ...(grant?.grantedTests || [])];
+          const grantedTests = [
+            ...automaticTesterTests(member),
+            ...(grantMode === 'override'
+              ? (grant?.grantedTests || member.grantedTests || [])
+              : [...(member.grantedTests || []), ...docsAssignedTests(member), ...(grant?.grantedTests || [])])
+          ];
           return { ...member, ...grant, callsign: member.callsign, csNum: member.csNum, name: member.name, rank: member.rank, isLeadership: member.isLeadership, isConducere: member.isConducere, grantMode, grantedTests: normalizeGrantBundle(grantedTests) };
         })
       : grants.map(grant => ({ ...grant, grantedTests: normalizeGrantBundle(grant.grantedTests || []) }));
   } else {
     const ownGrant = grantsPayload.find(grant => grant.discordId === currentUser.discordId);
     currentUser.grantMode = ownGrant?.grantMode || currentUser.grantMode || '';
-    currentUser.grantedTests = currentUser.grantMode === 'override'
-      ? (ownGrant?.grantedTests || currentUser.grantedTests || [])
-      : normalizeGrantBundle([...(currentUser.grantedTests || []), ...(ownGrant?.grantedTests || [])]);
+    currentUser.grantedTests = normalizeGrantBundle([
+      ...automaticTesterTests(currentUser),
+      ...(currentUser.grantMode === 'override' ? (ownGrant?.grantedTests || currentUser.grantedTests || []) : [...(currentUser.grantedTests || []), ...(ownGrant?.grantedTests || [])])
+    ]);
     // Non-leadership keeps the directory populated: previously this replaced the
     // whole list with a single entry (the viewer themselves), so the Testeri page
     // showed one member until a refresh happened to re-render the old list.
@@ -190,9 +194,12 @@ async function loadRemoteGrants() {
         const grant = grantsPayload.find(item => item.discordId === member.discordId);
         const isSelf = member.discordId === currentUser.discordId;
         const base = isSelf ? { ...member, ...currentUser } : member;
-        const granted = member.grantMode === 'override'
-          ? (grant?.grantedTests || member.grantedTests || [])
-          : normalizeGrantBundle([...(member.grantedTests || []), ...docsAssignedTests(member), ...(grant?.grantedTests || [])]);
+        const granted = normalizeGrantBundle([
+          ...automaticTesterTests(member),
+          ...(member.grantMode === 'override'
+            ? (grant?.grantedTests || member.grantedTests || [])
+            : [...(member.grantedTests || []), ...docsAssignedTests(member), ...(grant?.grantedTests || [])])
+        ]);
         return { ...base, grantMode: member.grantMode || '', grantedTests: granted };
       });
     if (!testers.some(member => member.discordId === currentUser.discordId) && String(currentUser.name || '').trim() && memberIsTester(currentUser)) {
@@ -296,7 +303,8 @@ function gradeGroupFor(csNum) { const n = callsignNumber(csNum);
 }
 function gradeGroupForMember(member) { return member?.gradeGroup || gradeGroupFor(member?.csNum || member?.callsign); }
 /** @param {Member} user @returns {string[]} */
-function allowedForUser(user) { if (isLeadershipUser(user)) return catalog; return [...new Set([...(user?.grantedTests || []), ...docsAssignedTests(user)])].filter(test => catalog.includes(test) && testDefinitions[test]); }
+function automaticTesterTests(member) { const callsign = callsignNumber(member?.csNum || member?.callsign); return isLeadershipUser(member) || callsign < 100 || callsign > 299 ? [] : coreTests; }
+function allowedForUser(user) { if (isLeadershipUser(user)) return catalog; return [...new Set([...automaticTesterTests(user), ...(user?.grantedTests || []), ...docsAssignedTests(user)])].filter(test => catalog.includes(test) && testDefinitions[test]); }
 function memberHasTestAccess(member, test) { return !isLeadershipUser(member) && allowedForUser(member).includes(test); }
 /** @param {any} value @returns {string} */
 /** @param {any} member @returns {boolean} */
@@ -317,7 +325,7 @@ function docsAssignedTests(member) {
 function normalizeGrantBundle(tests) {
   return [...new Set(tests)].filter(test => catalog.includes(test));
 }
-function memberIsTester(member) { return Boolean(member?.isTester) || isLeadershipUser(member) || (member?.grantedTests || []).length > 0 || docsAssignedTests(member).length > 0; }
+function memberIsTester(member) { return Boolean(member?.isTester) || isLeadershipUser(member) || automaticTesterTests(member).length > 0 || (member?.grantedTests || []).length > 0 || docsAssignedTests(member).length > 0; }
 /** @param {any[]} members @returns {any[]} */
 function sortMembers(members) { return [...members].sort((a, b) => { const ca = callsignNumber(a?.csNum); const cb = callsignNumber(b?.csNum); return ca - cb; }); }
 function avatarUrlForMember(member, signedInUser) {
@@ -377,7 +385,7 @@ function memberAccessTests(member) {
   // in "Functii" or in an explicit grant is irrelevant for them, so it never
   // leaks a single specialisation badge next to it.
   if (isLeadershipUser(member)) return [];
-  const assignedTests = normalizeGrantBundle([...(member.grantedTests || []), ...docsAssignedTests(member)]);
+  const assignedTests = normalizeGrantBundle([...automaticTesterTests(member), ...(member.grantedTests || []), ...docsAssignedTests(member)]);
   const hasTesterBundle = coreTests.every(test => assignedTests.includes(test));
   return [...(hasTesterBundle ? ['Tester'] : []), ...assignedTests.filter(test => !hasTesterBundle || !coreTests.includes(test))];
 }
@@ -497,7 +505,7 @@ async function loadDirectory() {
       : normalizeGrantBundle([...(currentUser.grantedTests || []), ...(currentDirectoryMember.grantedTests || [])]);
   }
   await loadTestRunCounts();
-  testers = directoryMembers.filter(member => member.isTester || memberIsTester(member)).map(member => ({ ...member, grantedTests: normalizeGrantBundle([...(member.grantedTests || []), ...docsAssignedTests(member)]) }));
+  testers = directoryMembers.filter(member => member.isTester || memberIsTester(member)).map(member => ({ ...member, grantedTests: normalizeGrantBundle([...automaticTesterTests(member), ...(member.grantedTests || []), ...docsAssignedTests(member)]) }));
   applyGrantsState();
 }
 function renderDashboardData() {
@@ -518,9 +526,7 @@ function renderDashboardData() {
   if (overview) overview.dataset.updatedAt = new Date().toISOString();
 }
 function processedTestGroups(member) {
-  const grantedTests = member?.grantMode === 'override'
-    ? member.grantedTests || []
-    : [...(member?.grantedTests || []), ...docsAssignedTests(member)];
+  const grantedTests = [...automaticTesterTests(member), ...(member?.grantedTests || []), ...docsAssignedTests(member)];
   const assignedTests = [...new Set(grantedTests)].filter(test => catalog.includes(test));
   const hasTesterBundle = coreTests.every(test => assignedTests.includes(test));
   return [
@@ -593,7 +599,10 @@ function profileTestTagsHtml(member, canRemove = false) {
   const visibleTests = memberAccessTests(member);
   if (!visibleTests.length && isLeadershipUser(member)) return '<span class="profile-test-tag-item"><span class="tag green">Acces general</span></span>';
   return visibleTests.length
-    ? visibleTests.map(test => `<span class="profile-test-tag-item"><span class="tag test-tag ${testTagClass(test)}">${escapeHtml(displayTestName(test))}</span>${canRemove ? `<button class="profile-test-remove" type="button" data-remove-profile-test="${escapeHtml(test)}" aria-label="Scoate ${escapeHtml(displayTestName(test))}" title="Scoate ${escapeHtml(displayTestName(test))}">×</button>` : ''}</span>`).join('')
+    ? visibleTests.map(test => {
+      const canRemoveTest = canRemove && !(test === 'Tester' && automaticTesterTests(member).length === coreTests.length);
+      return `<span class="profile-test-tag-item"><span class="tag test-tag ${testTagClass(test)}">${escapeHtml(displayTestName(test))}</span>${canRemoveTest ? `<button class="profile-test-remove" type="button" data-remove-profile-test="${escapeHtml(test)}" aria-label="Scoate ${escapeHtml(displayTestName(test))}" title="Scoate ${escapeHtml(displayTestName(test))}">×</button>` : ''}</span>`;
+    }).join('')
     : '<span class="muted">Nu ai certificări sau teste alocate.</span>';
 }
 async function loadTestRunCounts() {
@@ -1069,6 +1078,8 @@ async function useDocsMemberFunctions() {
     if (!payload.assignment || !Array.isArray(payload.assignment.functionIds)) throw new Error('Răspuns invalid la restaurarea funcțiilor.');
     await loadMembersRoom({ force: true });
     if (membersRoomError) throw new Error(membersRoomError);
+    await loadDirectory();
+    await loadRemoteGrants();
     modal.classList.remove('open');
   } catch (error) {
     console.error('Restoring Docs member functions failed:', error);
@@ -1098,6 +1109,8 @@ async function saveMemberFunctions() {
     if (!payload.assignment || !Array.isArray(payload.assignment.functionIds) || !Array.isArray(payload.assignment.attendanceTypes)) throw new Error('Răspuns invalid la salvarea funcțiilor.');
     await loadMembersRoom({ force: true });
     if (membersRoomError) throw new Error(membersRoomError);
+    await loadDirectory();
+    await loadRemoteGrants();
     modal.classList.remove('open');
     const count = document.querySelector('.member-room-count');
     if (count) count.textContent = departmentMembers.filter(memberHasGrade).length;
@@ -3795,13 +3808,15 @@ const removeResult = document.querySelector('#remove-result');
 function renderRemoveTestChecks() {
   const member = testers.find(item => normalizeCallsign(item.callsign) === normalizeCallsign(removeMemberSelect?.value || ''));
   const granted = member?.grantedTests || [];
-  const hasTesterBundle = coreTests.every(test => granted.includes(test));
+  const automaticBundle = automaticTesterTests(member).length === coreTests.length;
+  const hasTesterBundle = !automaticBundle && coreTests.every(test => granted.includes(test));
   const otherTests = granted.filter(test => !coreTests.includes(test));
-  removeTestChecks.innerHTML = hasTesterBundle
-    ? `<label><input type="checkbox" value="${TESTER_BUNDLE_KEY}"> Tester (admitere, transfer, adeverință)</label>${otherTests.map(test => `<label><input type="checkbox" value="${escapeHtml(test)}"> ${escapeHtml(displayTestName(test))}</label>`).join('')}`
-    : granted.length
-      ? granted.map(test => `<label><input type="checkbox" value="${escapeHtml(test)}"> ${escapeHtml(displayTestName(test))}</label>`).join('')
-      : '<p class="muted">Acest tester nu are teste alocate.</p>';
+  const removableTests = automaticBundle ? otherTests : granted;
+  const testerOption = hasTesterBundle ? `<label><input type="checkbox" value="${TESTER_BUNDLE_KEY}"> Tester (admitere, transfer, adeverință)</label>` : '';
+  const testOptions = removableTests.map(test => `<label><input type="checkbox" value="${escapeHtml(test)}"> ${escapeHtml(displayTestName(test))}</label>`).join('');
+  removeTestChecks.innerHTML = automaticBundle && !otherTests.length
+    ? '<p class="muted">Accesul Tester este automat pentru callsign-urile 200+ și nu poate fi retras din acest meniu.</p>'
+    : `${testerOption}${testOptions}` || '<p class="muted">Acest tester nu are teste alocate.</p>';
   removeResult.textContent = member ? `Teste active: ${granted.length}` : '';
 }
 function openRemoveModal() {

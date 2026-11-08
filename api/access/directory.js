@@ -5,8 +5,6 @@ import { avatarUrlForDiscordMember, discordAvatarHashFromUrl, readDiscordAvatarH
 import { UpstashRedis } from '../../lib/storage/upstash-redis.js';
 import { functionsForDepartmentRow, readFunctionOverrides } from '../../lib/access/function-overrides.js';
 
-const RESIDENT_TESTER_PATTERN = /S\.?\s*M\.?\s*U\.?\s*L\.?\s*S\.?|MOTO|A\.?\s*L\.?\s*S\.?|PILOT/;
-
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:U1000';
 const ATTENDANCE_RANGE = process.env.GOOGLE_ATTENDANCE_RANGE || "'EVIDENTA ACTIVITATE'!A1:U1000";
@@ -20,9 +18,7 @@ function relevantMember(row, assignedFunctions = row[10]) {
   if (!number || number > 399 || !String(row[3] || '').trim()) return false;
   if (number >= 1 && number <= LEADERSHIP_MAX) return true;
   if (number >= GRADE_GROUPS.primar.min && number <= GRADE_GROUPS.specialist.max) return true;
-  if (number >= 301 && number <= 340) return RESIDENT_TESTER_PATTERN.test(functions);
-  if (number >= 200 && number < 300) return Boolean(functions);
-  return number >= 300 && /TESTER/.test(functions);
+  return number >= 100 && number <= 299;
 }
 function leadershipTitle(row) {
   const number = callsignNumber(row[2]);

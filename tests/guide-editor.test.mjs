@@ -49,6 +49,20 @@ test('guide editor strips scripts, event handlers, unsafe URLs, and dangerous in
   assert.match(sanitized, /color:#fff/i);
 });
 
+test('guide API rewrites raid-guide image paths to the bundled static-asset route', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({ result: [] }), { status: 200 });
+  try {
+    const response = createResponse();
+    await handler({ method: 'GET', query: {} }, response);
+    assert.equal(response.statusCode, 200);
+    assert.match(response.body, /src="\/assets\/guide\/jaf%20poze\/POV%20PACIFIC%20COMPLET\.jpg"/);
+    assert.doesNotMatch(response.body, /src="jaf poze\//);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('only leadership can save guide sections, and stored HTML is sanitized', async () => {
   const originalFetch = globalThis.fetch;
   redisWrites.length = 0;
