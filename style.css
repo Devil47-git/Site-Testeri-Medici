@@ -1282,7 +1282,7 @@ body.dark-mode .brand-with-logo small::before{width:15px;height:1px;background:l
 .activity-weeks-toggle.site-guide-frame:hover{filter:brightness(1.2);transform:translateY(-1px)}
 .activity-weeks-toggle.site-guide-frame[aria-pressed=true]{box-shadow:0 0 16px rgba(255,45,61,.45),0 0 16px rgba(43,140,255,.45)}
 
-.active-attendance-review{flex-direction:column;align-items:stretch;flex-wrap:nowrap}
+.active-attendance-review{flex-direction:row;align-items:center;flex-wrap:nowrap}
 .active-attendance-review-cell{width:1%;white-space:nowrap}
 .active-attendance-review .active-attendance-check{justify-content:flex-start}
 .active-attendance-edit-cell{width:1%;text-align:right;white-space:nowrap}
