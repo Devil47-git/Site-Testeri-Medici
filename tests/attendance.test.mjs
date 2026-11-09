@@ -2,8 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
 process.env.GOOGLE_API_KEY = 'test-key';
-process.env.UPSTASH_REDIS_REST_URL = 'https://attendance-redis.example';
-process.env.UPSTASH_REDIS_REST_TOKEN = 'test-token';
+process.env.SUPABASE_URL = 'https://attendance-supabase.example';
+process.env.SUPABASE_SECRET_KEY = 'test-secret';
 process.env.CRON_SECRET = 'test-cron-secret';
 process.env.DISCORD_ATTENDANCE_REVIEW_WEBHOOK = 'https://discord.com/api/webhooks/test/token';
 process.env.DISCORD_HOSPITAL_CHAT_WEBHOOK = 'https://discord.com/api/webhooks/hospital/token';
@@ -49,41 +49,70 @@ const attendanceSheetRows = [
 ];
 const redisValues = new Map();
 const redisExpirations = new Map();
+const redisHashes = new Map();
+const redisSets = new Map();
 const discordWebhookRequests = [];
 const hospitalWebhookRequests = [];
 let discordWebhookFailure = false;
 
+function executeStorageCommand([command, key, ...args]) {
+  if (command === 'GET') return redisValues.get(key) ?? null;
+  if (command === 'SET') {
+    if (args.includes('NX') && redisValues.has(key)) return null;
+    redisValues.set(key, args[0]);
+    const expiration = args.indexOf('EX');
+    if (expiration >= 0) redisExpirations.set(key, Date.now() + Number(args[expiration + 1]) * 1000);
+    else redisExpirations.delete(key);
+    return 'OK';
+  }
+  if (command === 'TTL') {
+    const exists = redisValues.has(key) || redisHashes.has(key) || redisSets.has(key);
+    if (!exists) return -2;
+    const expiresAt = redisExpirations.get(key);
+    return expiresAt ? Math.max(0, Math.floor((expiresAt - Date.now()) / 1000)) : -1;
+  }
+  if (command === 'HMGET') return args.map(field => redisHashes.get(key)?.get(field) ?? null);
+  if (command === 'HGETALL') return [...(redisHashes.get(key) || new Map())].flat();
+  if (command === 'HSET') {
+    const hash = redisHashes.get(key) || new Map();
+    const isNew = !hash.has(args[0]);
+    hash.set(args[0], args[1]);
+    redisHashes.set(key, hash);
+    return Number(isNew);
+  }
+  if (command === 'HDEL') {
+    const hash = redisHashes.get(key);
+    if (!hash) return 0;
+    let removed = 0;
+    for (const field of args) if (hash.delete(field)) removed += 1;
+    if (!hash.size) redisHashes.delete(key);
+    return removed;
+  }
+  if (command === 'SADD') {
+    const members = redisSets.get(key) || new Set();
+    let added = 0;
+    for (const member of args) {
+      if (!members.has(member)) added += 1;
+      members.add(member);
+    }
+    redisSets.set(key, members);
+    return added;
+  }
+  if (command === 'SMEMBERS') return [...(redisSets.get(key) || [])];
+  if (command === 'EXISTS') return Number(redisValues.has(key) || redisHashes.has(key) || redisSets.has(key));
+  if (command === 'DEL') {
+    return Number(redisValues.delete(key) || redisHashes.delete(key) || redisSets.delete(key));
+  }
+  throw new Error(`Unexpected storage command: ${command}`);
+}
+
 globalThis.fetch = async (url, options = {}) => {
-  if (String(url).startsWith('https://attendance-redis.example')) {
-    const commands = JSON.parse(options.body || '[]');
-    if (String(url).endsWith('/pipeline')) {
-      return { ok: true, json: async () => commands.map(([command, key, value]) => {
-        if (command === 'SET') {
-          redisValues.set(key, value);
-          return { result: 'OK' };
-        }
-        return { result: command === 'GET' ? redisValues.get(key) || null : null };
-      }) };
-    }
-    if (commands[0] === 'GET') return { ok: true, json: async () => ({ result: redisValues.get(commands[1]) || null }) };
-    if (commands[0] === 'TTL') {
-      const expiresAt = redisExpirations.get(commands[1]);
-      return { ok: true, json: async () => ({ result: expiresAt ? Math.max(0, Math.ceil((expiresAt - Date.now()) / 1000)) : -2 }) };
-    }
-    if (commands[0] === 'HMGET') return { ok: true, json: async () => ({ result: commands.slice(2).map(() => null) }) };
-    if (commands[0] === 'HGETALL') return { ok: true, json: async () => ({ result: [] }) };
-    if (commands[0] === 'HSET' || commands[0] === 'HDEL') return { ok: true, json: async () => ({ result: 1 }) };
-    if (commands[0] === 'SET' && commands.includes('NX')) {
-      if (redisValues.has(commands[1])) return { ok: true, json: async () => ({ result: null }) };
-      redisValues.set(commands[1], commands[2]);
-      redisExpirations.set(commands[1], Date.now() + Number(commands[commands.indexOf('EX') + 1]) * 1000);
-      return { ok: true, json: async () => ({ result: 'OK' }) };
-    }
-    if (commands[0] === 'SET') {
-      redisValues.set(commands[1], commands[2]);
-      return { ok: true, json: async () => ({ result: 'OK' }) };
-    }
-    throw new Error(`Unexpected Redis command: ${commands[0]}`);
+  if (String(url).startsWith('https://attendance-supabase.example/rest/v1/rpc/')) {
+    const request = JSON.parse(options.body || '{}');
+    const result = String(url).endsWith('/app_kv_pipeline')
+      ? request.p_commands.map(executeStorageCommand)
+      : executeStorageCommand([request.p_command, ...(request.p_args || [])]);
+    return { ok: true, status: 200, json: async () => result };
   }
   if (String(url) === process.env.DISCORD_ATTENDANCE_REVIEW_WEBHOOK) {
     discordWebhookRequests.push(JSON.parse(options.body));

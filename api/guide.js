@@ -3,13 +3,13 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import sanitizeHtml from 'sanitize-html';
 import { callsignNumber, LEADERSHIP_MAX } from '../lib/access/shared.js';
-import { UpstashRedis } from '../lib/storage/upstash-redis.js';
+import { SupabaseKV } from '../lib/storage/supabase-kv.js';
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:T400';
 const GUIDE_OVERRIDE_KEY = 'panel-medici:guide:overrides';
 const MAX_GUIDE_SECTION_LENGTH = 1000000;
-const guideRedis = new UpstashRedis();
+const guideRedis = new SupabaseKV();
 const safeStyleValue = /^(?!.*(?:url\s*\(|expression\s*\(|javascript:|@import|behavior\s*:|-moz-binding)).*$/i;
 const allowedStyleProperties = [
   'align-items', 'background', 'background-color', 'border', 'border-radius', 'box-shadow',

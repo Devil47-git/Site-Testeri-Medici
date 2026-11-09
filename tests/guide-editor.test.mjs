@@ -3,19 +3,20 @@ import assert from 'node:assert/strict';
 
 const previousEnvironment = {
   apiKey: process.env.GOOGLE_API_KEY,
-  redisUrl: process.env.UPSTASH_REDIS_REST_URL,
-  redisToken: process.env.UPSTASH_REDIS_REST_TOKEN
+  supabaseUrl: process.env.SUPABASE_URL,
+  supabaseKey: process.env.SUPABASE_SECRET_KEY
 };
 process.env.GOOGLE_API_KEY = 'test-key';
-process.env.UPSTASH_REDIS_REST_URL = 'https://redis.example.test';
-process.env.UPSTASH_REDIS_REST_TOKEN = 'test-token';
+process.env.SUPABASE_URL = 'https://project.supabase.co';
+process.env.SUPABASE_SECRET_KEY = 'test-secret';
 const importedFetch = globalThis.fetch;
 const redisWrites = [];
 let redisReadFailure = false;
-globalThis.fetch = async (_url, options = {}) => {
+globalThis.fetch = async (url, options = {}) => {
   if (redisReadFailure) throw new Error('Redis unavailable');
-  redisWrites.push(JSON.parse(options.body));
-  return new Response(JSON.stringify({ result: 1 }), { status: 200 });
+  const payload = JSON.parse(options.body);
+  redisWrites.push([payload.p_command, ...(payload.p_args || [])]);
+  return new Response(JSON.stringify(1), { status: 200 });
 };
 const { default: handler, sanitizeGuideSection } = await import('../api/guide.js');
 globalThis.fetch = importedFetch;
@@ -103,9 +104,9 @@ test('only leadership can save guide sections, and stored HTML is sanitized', as
     globalThis.fetch = originalFetch;
     if (previousEnvironment.apiKey === undefined) delete process.env.GOOGLE_API_KEY;
     else process.env.GOOGLE_API_KEY = previousEnvironment.apiKey;
-    if (previousEnvironment.redisUrl === undefined) delete process.env.UPSTASH_REDIS_REST_URL;
-    else process.env.UPSTASH_REDIS_REST_URL = previousEnvironment.redisUrl;
-    if (previousEnvironment.redisToken === undefined) delete process.env.UPSTASH_REDIS_REST_TOKEN;
-    else process.env.UPSTASH_REDIS_REST_TOKEN = previousEnvironment.redisToken;
+    if (previousEnvironment.supabaseUrl === undefined) delete process.env.SUPABASE_URL;
+    else process.env.SUPABASE_URL = previousEnvironment.supabaseUrl;
+    if (previousEnvironment.supabaseKey === undefined) delete process.env.SUPABASE_SECRET_KEY;
+    else process.env.SUPABASE_SECRET_KEY = previousEnvironment.supabaseKey;
   }
 });

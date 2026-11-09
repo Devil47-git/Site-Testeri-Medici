@@ -3,19 +3,20 @@ import assert from 'node:assert/strict';
 
 const previousEnvironment = {
   apiKey: process.env.GOOGLE_API_KEY,
-  redisUrl: process.env.UPSTASH_REDIS_REST_URL,
-  redisToken: process.env.UPSTASH_REDIS_REST_TOKEN
+  supabaseUrl: process.env.SUPABASE_URL,
+  supabaseKey: process.env.SUPABASE_SECRET_KEY
 };
 process.env.GOOGLE_API_KEY = 'test-key';
-process.env.UPSTASH_REDIS_REST_URL = 'https://redis.example.test';
-process.env.UPSTASH_REDIS_REST_TOKEN = 'test-token';
+process.env.SUPABASE_URL = 'https://project.supabase.co';
+process.env.SUPABASE_SECRET_KEY = 'test-secret';
 const importedFetch = globalThis.fetch;
 const redisCommands = [];
 globalThis.fetch = async (_url, options = {}) => {
-  const command = JSON.parse(options.body);
+  const payload = JSON.parse(options.body);
+  const command = [payload.p_command, ...(payload.p_args || [])];
   redisCommands.push(command);
-  if (command[0] === 'HGETALL') return new Response(JSON.stringify({ result: ['target-id', '["Moderator"]'] }), { status: 200 });
-  return new Response(JSON.stringify({ result: 1 }), { status: 200 });
+  if (command[0] === 'HGETALL') return new Response(JSON.stringify(['target-id', '["Moderator"]']), { status: 200 });
+  return new Response(JSON.stringify(1), { status: 200 });
 };
 const { default: handler } = await import('../api/access/functions.js');
 globalThis.fetch = importedFetch;
@@ -91,9 +92,9 @@ test('only leadership can save overrides or return a member to Docs functions', 
     globalThis.fetch = originalFetch;
     if (previousEnvironment.apiKey === undefined) delete process.env.GOOGLE_API_KEY;
     else process.env.GOOGLE_API_KEY = previousEnvironment.apiKey;
-    if (previousEnvironment.redisUrl === undefined) delete process.env.UPSTASH_REDIS_REST_URL;
-    else process.env.UPSTASH_REDIS_REST_URL = previousEnvironment.redisUrl;
-    if (previousEnvironment.redisToken === undefined) delete process.env.UPSTASH_REDIS_REST_TOKEN;
-    else process.env.UPSTASH_REDIS_REST_TOKEN = previousEnvironment.redisToken;
+    if (previousEnvironment.supabaseUrl === undefined) delete process.env.SUPABASE_URL;
+    else process.env.SUPABASE_URL = previousEnvironment.supabaseUrl;
+    if (previousEnvironment.supabaseKey === undefined) delete process.env.SUPABASE_SECRET_KEY;
+    else process.env.SUPABASE_SECRET_KEY = previousEnvironment.supabaseKey;
   }
 });

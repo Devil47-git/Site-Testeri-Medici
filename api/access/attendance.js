@@ -1,6 +1,6 @@
 import '../../lib/config.js';
 import { attendanceTypesForFunctions, canManageAttendance, callsignNumber, normalize } from '../../lib/access/shared.js';
-import { UpstashRedis } from '../../lib/storage/upstash-redis.js';
+import { SupabaseKV } from '../../lib/storage/supabase-kv.js';
 import { functionsForDepartmentRow, readFunctionOverrides } from '../../lib/access/function-overrides.js';
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
@@ -11,7 +11,7 @@ const ATTENDANCE_TIME_ZONE = 'Europe/Bucharest';
 const HOSPITAL_CHAT_ROLE_ID = '804382163536576616';
 const HR_TEAM_EMOJI = '<:HRTEAM:1467455378374787116>';
 const ATTENDANCE_DOCS_SYNC_COOLDOWN_SECONDS = 60;
-const attendanceRedis = new UpstashRedis();
+const attendanceRedis = new SupabaseKV();
 
 function json(res, status, body) { return res.status(status).json(body); }
 export function attendanceTypesForFunctionIds(functionIds) {

@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { catalog, callsignNumber, candidateForCallsign, effectiveTestsForMember, functionsForMember, isLeadershipRow, normalizeTests } from '../../lib/access/shared.js';
 import { cooldownIsActive, failedTestCooldownExpiry, parseCooldownS } from '../../lib/access/cooldowns.js';
-import { UpstashRedis } from '../../lib/storage/upstash-redis.js';
+import { SupabaseKV } from '../../lib/storage/supabase-kv.js';
 import { functionsForDepartmentRow, readFunctionOverrides } from '../../lib/access/function-overrides.js';
 import { addBonusEntries, BONUS_TEST_NAMES, clearBonusEntries, importLegacyBonusEntries, listBonusEntries } from '../../lib/access/bonus-store.js';
 import { LIFETIME_HISTORY_HEADER, lifetimeRowForNewResult, lifetimeRowsToAppend, lifetimeTestCounts } from '../../lib/access/lifetime-test-history.js';
@@ -22,7 +22,7 @@ const MEDICAL_CERTIFICATE_MAX_NUMBER = 30000;
 const MAX_IDENTITY_IMAGE_BYTES = 2 * 1024 * 1024;
 const SITE_BRAND_EMBED_COLOR = 0xCD363C;
 const RESULT_EMBED_COLORS = { Admis: 0x57F287, Respins: 0xED4245 };
-const bonusRedis = new UpstashRedis();
+const bonusRedis = new SupabaseKV();
 const SPECIALTY_WEBHOOKS = {
   'Test ALS': 'DISCORD_ALS_WEBHOOK',
   'Test SMULS': 'DISCORD_SMULS_WEBHOOK',

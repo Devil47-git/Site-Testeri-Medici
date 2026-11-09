@@ -2,14 +2,14 @@ import '../../lib/config.js';
 import { normalize, callsignNumber, candidateForCallsign, isLeadershipRow, canManageAttendance, gradeGroupFor, GRADE_GROUPS, LEADERSHIP_MAX, effectiveTestsForMember, normalizeTests, functionsForMember, attendanceMinimumMinutes, testsForFunctions } from '../../lib/access/shared.js';
 import { parseCooldownS } from '../../lib/access/cooldowns.js';
 import { avatarUrlForDiscordMember, discordAvatarHashFromUrl, readDiscordAvatarHashes, storeDiscordAvatarHash } from '../../lib/access/avatar-store.js';
-import { UpstashRedis } from '../../lib/storage/upstash-redis.js';
+import { SupabaseKV } from '../../lib/storage/supabase-kv.js';
 import { functionsForDepartmentRow, readFunctionOverrides } from '../../lib/access/function-overrides.js';
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:U1000';
 const ATTENDANCE_RANGE = process.env.GOOGLE_ATTENDANCE_RANGE || "'EVIDENTA ACTIVITATE'!A1:U1000";
 const GRANTS_RANGE = process.env.GOOGLE_GRANTS_RANGE || 'GRANTS!A1:F';
-const avatarRedis = new UpstashRedis();
+const avatarRedis = new SupabaseKV();
 function isLeadership(row) { return isLeadershipRow(row); }
 function readTests(value = '') { return String(value).split('|').filter(Boolean); }
 function relevantMember(row, assignedFunctions = row[10]) {

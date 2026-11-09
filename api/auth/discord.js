@@ -2,13 +2,13 @@ import '../../lib/config.js';
 import { accessFor, effectiveTestsForMember, normalizeTests } from '../../lib/access/shared.js';
 import { storeDiscordAvatarHash } from '../../lib/access/avatar-store.js';
 import { functionsForDepartmentRow, readFunctionOverrides } from '../../lib/access/function-overrides.js';
-import { UpstashRedis } from '../../lib/storage/upstash-redis.js';
+import { SupabaseKV } from '../../lib/storage/supabase-kv.js';
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const SHEET_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:T400';
 const GRANTS_RANGE = process.env.GOOGLE_GRANTS_RANGE || 'GRANTS!A1:F';
 const AVATAR_RANGE = process.env.GOOGLE_AVATAR_RANGE || 'LISTA DEPARTAMENT!T:U';
-const avatarRedis = new UpstashRedis();
+const avatarRedis = new SupabaseKV();
 
 export default async function handler(req, res) {
   const allowedOrigin = process.env.APP_ORIGIN || 'https://site-wheat-zeta-76.vercel.app';
