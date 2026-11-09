@@ -20,13 +20,13 @@ Configure `SUPABASE_URL` and `SUPABASE_SECRET_KEY` as Vercel server environment 
 
 To migrate the current application keys, first pause writes to the site, then create a private local backup and import it:
 
-1. Set `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` locally, then run `node scripts/migrate-upstash-to-supabase.js export upstash-backup.json`.
-2. Set `SUPABASE_URL` and `SUPABASE_SECRET_KEY` locally, review the backup file, then run `node scripts/migrate-upstash-to-supabase.js import upstash-backup.json --apply`.
+1. Export an RDB file from Upstash. If Upstash REST commands are rate-limited, start an isolated local Redis 8 container with the RDB mounted read-only and no network, then run `node scripts/export-rdb-to-supabase-backup.js upstash-export-from-rdb.json`.
+2. Set `SUPABASE_URL` and `SUPABASE_SECRET_KEY` locally, review the backup file, then run `node scripts/migrate-upstash-to-supabase.js import upstash-export-from-rdb.json --apply`.
 3. Check that the import count matches the backup's key count. Existing Supabase keys are intentionally left untouched so a repeated import cannot overwrite newer application writes.
 4. Configure the Supabase variables in Vercel, deploy, and verify attendance, guide edits, member-function overrides, avatars, and bonus history before resuming writes.
 5. Keep Upstash and the private export until production verification and rollback are complete. Then remove Upstash variables from Vercel and securely delete the local export.
 
-The migration exports only the application's known Redis key patterns. It preserves Redis strings, hashes, sets, and unexpired key TTLs. Google Sheets data and browser `localStorage` are not part of this migration.
+The migration exports only the application's known Redis key patterns. The local RDB converter preserves Redis strings, hashes, sets, and unexpired key TTLs. Google Sheets data and browser `localStorage` are not part of this migration.
 
 Vercel schedules the midnight closure at 21:00 and 22:00 UTC to cover Romania's daylight-saving and standard-time offsets. Set a `CRON_SECRET` deployment variable so the scheduled closure endpoint accepts authenticated Vercel Cron requests. Reads and timer actions also close any stale timer if the scheduled request was delayed.
 
