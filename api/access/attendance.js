@@ -283,11 +283,13 @@ function validDateKey(dateKey) {
   const [year, month, day] = dateKey.split('-').map(Number);
   return new Date(Date.UTC(year, month - 1, day)).toISOString().slice(0, 10) === dateKey;
 }
-function isCurrentWeekDate(dateKey, now = Date.now()) {
+export function isAttendanceSyncDateAllowed(dateKey, now = Date.now()) {
   if (!validDateKey(dateKey)) return false;
   const today = attendanceDateKey(now);
-  const currentWeekStart = addDays(today, -((new Date(`${today}T00:00:00Z`).getUTCDay() + 6) % 7));
-  return dateKey >= currentWeekStart && dateKey <= addDays(currentWeekStart, 6);
+  const weekday = new Date(`${today}T00:00:00Z`).getUTCDay();
+  const currentWeekStart = addDays(today, -((weekday + 6) % 7));
+  return (dateKey >= currentWeekStart && dateKey <= addDays(currentWeekStart, 6))
+    || (weekday === 1 && dateKey === addDays(today, -1));
 }
 function isPastOrCurrentDate(dateKey, now = Date.now()) {
   return validDateKey(dateKey) && dateKey <= attendanceDateKey(now);
@@ -506,7 +508,7 @@ export default async function handler(req, res) {
       if (action === 'sync-docs' || action === 'sync-docs-all') {
         if (!canReviewAttendance) return json(res, 403, { error: 'Only callsigns 001-020 or H.R. can update attendance in Google Sheets' });
         const dateKey = String(req.body?.dateKey || '');
-        if (!isCurrentWeekDate(dateKey, now)) return json(res, 400, { error: 'Alege o zi din săptămâna curentă.' });
+        if (!isAttendanceSyncDateAllowed(dateKey, now)) return json(res, 400, { error: 'Alege o zi din săptămâna curentă sau duminica precedentă, doar în ziua de luni.' });
         const cooldownSeconds = await claimAttendanceDocsSyncCooldown(requesterId);
         if (cooldownSeconds) return json(res, 429, {
           error: `Sincronizarea este în cooldown. Încearcă din nou peste ${cooldownSeconds} secunde.`,

@@ -130,7 +130,7 @@ globalThis.fetch = async (url, options = {}) => {
 };
 
 const { default: directoryHandler, attendanceWeeksFromRows, attendanceWeeksByCallsign } = await import('../api/access/directory.js');
-const { default: attendanceHandler, attendanceCellUpdate, attendanceMinutesForDate, attendanceRoundedMinutesForDate, attendanceSheetDayColumn, attendanceStartAllowed, attendanceTypesForFunctionIds, closeExpiredAttendanceEntries, sendHospitalAttendanceWebhook, writeAttendanceToSheet, writeDepartmentAttendanceToSheet } = await import('../api/access/attendance.js');
+const { default: attendanceHandler, attendanceCellUpdate, attendanceMinutesForDate, attendanceRoundedMinutesForDate, attendanceSheetDayColumn, attendanceStartAllowed, attendanceTypesForFunctionIds, closeExpiredAttendanceEntries, isAttendanceSyncDateAllowed, sendHospitalAttendanceWebhook, writeAttendanceToSheet, writeDepartmentAttendanceToSheet } = await import('../api/access/attendance.js');
 const { memberFunctionsDirectory, normalizeMemberFunctionLabels } = await import('../api/access/functions.js');
 const { attendanceMinimumMinutes } = await import('../lib/access/shared.js');
 
@@ -188,6 +188,15 @@ test('daily attendance minimums follow callsign leadership and member grade', ()
   assert.equal(attendanceMinimumMinutes('302', 'Medic-Rezident'), 100);
   assert.equal(attendanceMinimumMinutes('303', 'Medic-Specialist'), 80);
   assert.equal(attendanceMinimumMinutes('304', 'Medic-Primar'), 80);
+});
+
+test('attendance document sync permits only previous Sunday on Monday outside the current week', () => {
+  const monday = Date.parse('2026-03-02T10:00:00.000Z');
+  assert.equal(isAttendanceSyncDateAllowed('2026-03-01', monday), true);
+  assert.equal(isAttendanceSyncDateAllowed('2026-02-28', monday), false);
+  assert.equal(isAttendanceSyncDateAllowed('2026-03-09', monday), false);
+  assert.equal(isAttendanceSyncDateAllowed('2026-03-01', Date.parse('2026-03-03T10:00:00.000Z')), false);
+  assert.equal(isAttendanceSyncDateAllowed('2026-03-04', monday), true);
 });
 
 test('attendance cutoff uses Bucharest time and blocks starts from 23:35', () => {

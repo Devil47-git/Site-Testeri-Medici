@@ -256,6 +256,16 @@ test('member profiles and activity table show weekly values from the department 
   assert.match(attendanceApi, /req\.query\?\.view === 'own'/);
 });
 
+test('attendance sheet sync allows the previous Sunday only on Monday', () => {
+  const attendanceSheetSyncAllowed = new Function(
+    `${extract('attendanceDayIndex')}\n${extract('attendanceWeekStart')}\n${extract('attendanceAddDays')}\n${extract('attendanceSheetSyncAllowed')}\nreturn attendanceSheetSyncAllowed`
+  )();
+  assert.equal(attendanceSheetSyncAllowed('2026-03-01', '2026-03-02'), true);
+  assert.equal(attendanceSheetSyncAllowed('2026-02-28', '2026-03-02'), false);
+  assert.equal(attendanceSheetSyncAllowed('2026-03-01', '2026-03-03'), false);
+  assert.equal(attendanceSheetSyncAllowed('2026-03-04', '2026-03-02'), true);
+});
+
 test('attendance chart scale follows the member minimum while still fitting higher totals', () => {
   const { attendanceChartScale } = attendanceDisplay;
   assert.equal(attendanceChartScale({ minutes: [20, 0, 0, 0, 0, 0, 0] }, 80), 80);

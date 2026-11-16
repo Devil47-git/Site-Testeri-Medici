@@ -234,7 +234,7 @@ function startAttendanceDocsCooldown(seconds) {
   attendanceDocsCooldownTimer = setInterval(updateButton, 1000);
 }
 function sheetSyncAllowedForSelectedAttendance() {
-  return attendanceWeekStart(activeAttendanceDate) === attendanceWeekStart(attendanceDateKey(Date.now()));
+  return attendanceSheetSyncAllowed(activeAttendanceDate);
 }
 async function saveRemoteGrant(callsign, grantedTests, remove = false, targetDiscordId = '', individualRemoval = false) {
   if (!currentUser?.discordId) throw new Error('Sesiunea nu conține Discord ID.');
@@ -1286,6 +1286,10 @@ function attendanceWeekStart(dateKey) {
   date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() + 6) % 7));
   return date.toISOString().slice(0, 10);
 }
+function attendanceSheetSyncAllowed(dateKey, today = attendanceDateKey(Date.now())) {
+  return attendanceWeekStart(dateKey) === attendanceWeekStart(today)
+    || (attendanceDayIndex(today) === 0 && dateKey === attendanceAddDays(today, -1));
+}
 function attendanceAddDays(dateKey, days) {
   const [year, month, day] = dateKey.split('-').map(Number);
   const date = new Date(Date.UTC(year, month - 1, day));
@@ -1524,7 +1528,7 @@ function renderActiveAttendanceView() {
   const dateLabel = `${ATTENDANCE_DAYS[selectedIndex]} ${new Intl.DateTimeFormat('ro-RO', { timeZone: 'Europe/Bucharest', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(`${activeAttendanceDate}T12:00:00Z`))}`;
   const weekLabel = attendanceWeekLabel(selectedWeekStart, attendanceAddDays(selectedWeekStart, 6));
   const dayTotal = roundAttendanceMinutes(members.reduce((total, member) => total + attendanceMinutesForDateClient(attendanceEntriesFor(member), activeAttendanceDate, now), 0));
-  const sheetSyncAllowed = selectedWeekStart === currentWeekStart;
+  const sheetSyncAllowed = attendanceSheetSyncAllowed(activeAttendanceDate, today);
   const actionHeaders = canReview ? '<th>VALIDARE / ANULARE</th><th>EDITARE</th>' : '';
   const renderAttendanceRows = entries => entries.map(({ member, entry }) => {
     const validated = entry.validated === true && !entry.canceled;
@@ -1539,7 +1543,7 @@ function renderActiveAttendanceView() {
   }).join('');
   const attendanceGroup = (title, entries) => `<section class="active-attendance-group"><h3>${title}</h3><div class="attendance-recent-table-wrap"><table class="attendance-recent-table active-attendance-table"><thead><tr><th>CALLSIGN</th><th>NUME</th><th>TIP</th><th>CLOCK-IN</th><th>CLOCK-OUT</th><th>DURATĂ</th><th>STARE</th>${actionHeaders}</tr></thead><tbody>${renderAttendanceRows(entries) || `<tr><td colspan="${canReview ? 9 : 7}" class="attendance-recent-empty">${attendanceLoadPending || attendanceSyncError ? emptyMessage : 'Nu există pontaje aici.'}</td></tr>`}</tbody></table></div></section>`;
   const syncButton = canReview ? `<button class="primary" id="attendance-docs-sync" type="button" ${disabled || !sheetSyncAllowed || cooldownRemaining ? 'disabled' : ''}>${cooldownRemaining ? `Sincronizează documentul (${cooldownRemaining}s)` : 'Sincronizează documentul'}</button>` : '';
-  return `<section class="panel active-attendance-panel"><div class="panel-head"><div><p class="eyebrow">PONTAJE PE ZILE</p><h2>Pontaje</h2><p class="muted">Fiecare pontaj deschis în ziua selectată este afișat separat, inclusiv sesiunile închise și anulate.</p></div>${syncButton}</div><div class="active-attendance-week-nav"><button type="button" class="outline" data-attendance-week="-1" ${activeAttendanceBusy || attendanceLoadPending ? 'disabled' : ''}>← Săptămâna anterioară</button><strong>${weekLabel}</strong><button type="button" class="outline" data-attendance-week="1" ${!canGoForward || activeAttendanceBusy || attendanceLoadPending ? 'disabled' : ''}>Săptămâna următoare →</button></div><div class="active-attendance-days" role="group" aria-label="Selectează ziua săptămânii">${dayTabs}</div><div class="active-attendance-day-summary"><strong>${escapeHtml(dateLabel)}</strong><span>Total neanulat: ${dayTotal} min</span></div><p class="active-attendance-message muted" id="active-attendance-message" role="status" aria-live="polite">${escapeHtml(activeAttendanceMessage || (attendanceLoadPending ? 'Se sincronizează pontajele...' : !sheetSyncAllowed ? 'Pontajele istorice pot fi consultate; sincronizarea documentului este disponibilă pentru săptămâna curentă.' : ''))}</p>${attendanceGroup('PONTAJE DESCHISE', openEntries)}${attendanceGroup('PONTAJE ÎNCHISE', closedEntries)}</section>`;
+  return `<section class="panel active-attendance-panel"><div class="panel-head"><div><p class="eyebrow">PONTAJE PE ZILE</p><h2>Pontaje</h2><p class="muted">Fiecare pontaj deschis în ziua selectată este afișat separat, inclusiv sesiunile închise și anulate.</p></div>${syncButton}</div><div class="active-attendance-week-nav"><button type="button" class="outline" data-attendance-week="-1" ${activeAttendanceBusy || attendanceLoadPending ? 'disabled' : ''}>← Săptămâna anterioară</button><strong>${weekLabel}</strong><button type="button" class="outline" data-attendance-week="1" ${!canGoForward || activeAttendanceBusy || attendanceLoadPending ? 'disabled' : ''}>Săptămâna următoare →</button></div><div class="active-attendance-days" role="group" aria-label="Selectează ziua săptămânii">${dayTabs}</div><div class="active-attendance-day-summary"><strong>${escapeHtml(dateLabel)}</strong><span>Total neanulat: ${dayTotal} min</span></div><p class="active-attendance-message muted" id="active-attendance-message" role="status" aria-live="polite">${escapeHtml(activeAttendanceMessage || (attendanceLoadPending ? 'Se sincronizează pontajele...' : !sheetSyncAllowed ? 'Pontajele istorice pot fi consultate; sincronizarea documentului este disponibilă pentru săptămâna curentă și, lunea, pentru duminica precedentă.' : ''))}</p>${attendanceGroup('PONTAJE DESCHISE', openEntries)}${attendanceGroup('PONTAJE ÎNCHISE', closedEntries)}</section>`;
 }
 function refreshActiveAttendanceView() {
   if (window.history.state?.view !== 'active-attendance') return;
