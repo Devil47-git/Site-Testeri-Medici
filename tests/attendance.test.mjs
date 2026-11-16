@@ -6,6 +6,7 @@ process.env.SUPABASE_URL = 'https://attendance-supabase.example';
 process.env.SUPABASE_SECRET_KEY = 'test-secret';
 process.env.CRON_SECRET = 'test-cron-secret';
 process.env.DISCORD_ATTENDANCE_REVIEW_WEBHOOK = 'https://discord.com/api/webhooks/test/token';
+process.env.DISCORD_BONUS_LOG_WEBHOOK = 'https://discord.com/api/webhooks/bonus/token';
 process.env.DISCORD_HOSPITAL_CHAT_WEBHOOK = 'https://discord.com/api/webhooks/hospital/token';
 
 const row = (callsign, name, discordId, rank = '', functions = '') => {
@@ -52,6 +53,7 @@ const redisExpirations = new Map();
 const redisHashes = new Map();
 const redisSets = new Map();
 const discordWebhookRequests = [];
+const bonusWebhookRequests = [];
 const hospitalWebhookRequests = [];
 let discordWebhookFailure = false;
 
@@ -118,6 +120,10 @@ globalThis.fetch = async (url, options = {}) => {
     discordWebhookRequests.push(JSON.parse(options.body));
     return { ok: !discordWebhookFailure, status: discordWebhookFailure ? 500 : 204 };
   }
+  if (String(url) === process.env.DISCORD_BONUS_LOG_WEBHOOK) {
+    bonusWebhookRequests.push(JSON.parse(options.body));
+    return { ok: !discordWebhookFailure, status: discordWebhookFailure ? 500 : 204 };
+  }
   if (String(url) === process.env.DISCORD_HOSPITAL_CHAT_WEBHOOK) {
     hospitalWebhookRequests.push(JSON.parse(options.body));
     return { ok: !discordWebhookFailure, status: discordWebhookFailure ? 500 : 204 };
@@ -130,7 +136,7 @@ globalThis.fetch = async (url, options = {}) => {
 };
 
 const { default: directoryHandler, attendanceWeeksFromRows, attendanceWeeksByCallsign } = await import('../api/access/directory.js');
-const { default: attendanceHandler, attendanceCellUpdate, attendanceMinutesForDate, attendanceRoundedMinutesForDate, attendanceSheetDayColumn, attendanceStartAllowed, attendanceTypesForFunctionIds, closeExpiredAttendanceEntries, isAttendanceSyncDateAllowed, sendHospitalAttendanceWebhook, writeAttendanceToSheet, writeDepartmentAttendanceToSheet } = await import('../api/access/attendance.js');
+const { default: attendanceHandler, attendanceCellUpdate, attendanceMinutesForDate, attendanceRoundedMinutesForDate, attendanceSheetDayColumn, attendanceStartAllowed, attendanceTypesForFunctionIds, closeExpiredAttendanceEntries, isAttendanceSyncDateAllowed, sendBonusHrSyncLog, sendHospitalAttendanceWebhook, writeAttendanceToSheet, writeDepartmentAttendanceToSheet } = await import('../api/access/attendance.js');
 const { memberFunctionsDirectory, normalizeMemberFunctionLabels } = await import('../api/access/functions.js');
 const { attendanceMinimumMinutes } = await import('../lib/access/shared.js');
 
@@ -197,6 +203,40 @@ test('attendance document sync permits only previous Sunday on Monday outside th
   assert.equal(isAttendanceSyncDateAllowed('2026-03-09', monday), false);
   assert.equal(isAttendanceSyncDateAllowed('2026-03-01', Date.parse('2026-03-03T10:00:00.000Z')), false);
   assert.equal(isAttendanceSyncDateAllowed('2026-03-04', monday), true);
+});
+
+test('bonus sync logs show the selected date and summarize each H.R. after a completed two-week period', async () => {
+  const periodKey = 'site-testeri-medici:bonus-hr-sync:period:4';
+  const summaryKey = 'site-testeri-medici:bonus-hr-sync:summary:4';
+  redisSets.set(periodKey, new Set([
+    JSON.stringify({ discordId: 'hr-id', rank: 'Director Adjunct', name: 'Mihail Parvu', dateKey: '2026-11-16' }),
+    JSON.stringify({ discordId: 'hr-id', rank: 'Director Adjunct', name: 'Mihail Parvu', dateKey: '2026-11-18' }),
+    JSON.stringify({ discordId: 'leadership-id', rank: 'Director General', name: 'Conducere', dateKey: '2026-11-19' })
+  ]));
+  redisValues.delete(summaryKey);
+  bonusWebhookRequests.length = 0;
+  const syncTime = Date.parse('2026-11-30T12:00:00+02:00');
+  await sendBonusHrSyncLog({
+    requester: row('102', 'Mihail Parvu', 'hr-id', 'Director Adjunct', 'H.R.'),
+    dateKey: '2026-11-29',
+    now: syncTime
+  });
+
+  assert.equal(bonusWebhookRequests.length, 2);
+  assert.equal(bonusWebhookRequests[0].content, '📌 LOG BONUSURI LA HASERIME\n👤 HR: Director Adjunct, Mihail Parvu\n🗓️ Ziua calculată: DUMINICA (29/11/2026)');
+  assert.deepEqual(bonusWebhookRequests[0].allowed_mentions, { parse: [] });
+  assert.match(bonusWebhookRequests[1].content, /EVIDENȚA ULTIMELOR 2 SĂPTĂMÂNI/);
+  assert.match(bonusWebhookRequests[1].content, /Perioada: 16\/11\/2026 – 29\/11\/2026/);
+  assert.match(bonusWebhookRequests[1].content, /HR: Director Adjunct, Mihail Parvu — 3 sincronizări/);
+  assert.match(bonusWebhookRequests[1].content, /HR: Director General, Conducere — 1 sincronizare/);
+  assert.equal(redisValues.get(summaryKey), 'sent');
+
+  await sendBonusHrSyncLog({
+    requester: row('102', 'Mihail Parvu', 'hr-id', 'Director Adjunct', 'H.R.'),
+    dateKey: '2026-11-29',
+    now: syncTime
+  });
+  assert.equal(bonusWebhookRequests.length, 3);
 });
 
 test('attendance cutoff uses Bucharest time and blocks starts from 23:35', () => {
@@ -475,17 +515,44 @@ test('activity directory excludes non-member label and role rows', async () => {
 test('the separate live timer still supports start and stop without manual weekly edits', async () => {
   const key = 'site-testeri-medici:attendance:member-id';
   redisValues.set(key, JSON.stringify({ entries: [], manualEntries: [{ id: 'legacy', minutes: 90 }] }));
+  discordWebhookRequests.length = 0;
   const started = await callAttendance('POST', 'member-id', { action: 'start' });
-  assert.equal(started.statusCode, 200);
+  assert.equal(started.statusCode, 200, JSON.stringify(started.payload));
   assert.equal(started.payload.entries.length, 1);
   assert.equal(started.payload.entries[0].end, null);
+  assert.equal(started.payload.warning, '');
+  assert.equal(discordWebhookRequests.length, 1);
+  assert.match(discordWebhookRequests[0].content, /Pontaj deschis: <@member-id>/);
+  assert.match(discordWebhookRequests[0].content, /Ora deschiderii: \d{2}:\d{2}/);
+  assert.deepEqual(discordWebhookRequests[0].allowed_mentions, { parse: [], users: ['member-id'] });
 
   const stopped = await callAttendance('POST', 'member-id', { action: 'stop' });
   assert.equal(stopped.statusCode, 200);
   assert.equal(Number.isFinite(stopped.payload.entries[0].end), true);
+  assert.equal(stopped.payload.warning, '');
+  assert.equal(discordWebhookRequests.length, 2);
+  assert.match(discordWebhookRequests[1].content, /Pontaj închis: <@member-id>/);
+  assert.match(discordWebhookRequests[1].content, /Ora deschiderii: \d{2}:\d{2}/);
+  assert.match(discordWebhookRequests[1].content, /Ora închiderii: \d{2}:\d{2}/);
+  assert.match(discordWebhookRequests[1].content, /Durată: \d+ minute/);
 
   const manual = await callAttendance('POST', 'member-id', { action: 'manual-add' });
   assert.equal(manual.statusCode, 400);
+});
+
+test('live attendance clock reports Discord webhook failures without losing the saved entry', async () => {
+  const key = 'site-testeri-medici:attendance:member-id';
+  redisValues.set(key, JSON.stringify([]));
+  discordWebhookFailure = true;
+  try {
+    const started = await callAttendance('POST', 'member-id', { action: 'start' });
+    assert.equal(started.statusCode, 200);
+    assert.equal(started.payload.entries.length, 1);
+    assert.match(started.payload.warning, /notificarea Discord nu a putut fi trimisă: HTTP 500/);
+  } finally {
+    discordWebhookFailure = false;
+    redisValues.delete(key);
+  }
 });
 
 test('H.R. timer requires its assigned function and P.R. timers are unavailable', async () => {

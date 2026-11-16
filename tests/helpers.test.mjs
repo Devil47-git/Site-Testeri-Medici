@@ -281,6 +281,33 @@ test('attendance loading for the activity directory requests department-wide ent
   assert.match(source, /Anulează pontaj/);
 });
 
+test('sidebar follows the requested navigation order', () => {
+  const nav = indexSource.match(/<nav>([\s\S]*?)<\/nav>/)?.[1] || '';
+  const itemPositions = [
+    'data-view="overview"',
+    'data-view="members"',
+    'id="attendance-nav"',
+    'id="active-attendance-nav"',
+    'id="activity-nav"',
+    'id="available-tests-toggle"',
+    'data-view="testers"',
+    'data-view="statistics"',
+    'data-view="cooldowns"',
+    'id="bonuses-nav"',
+    'id="guide-nav"'
+  ].map(item => nav.indexOf(item));
+  assert.ok(itemPositions.every(position => position >= 0));
+  assert.deepEqual(itemPositions, [...itemPositions].sort((first, second) => first - second));
+});
+
+test('starting attendance uses the saved response without an extra read request', () => {
+  const attendanceEvents = extract('wireAttendanceEvents');
+  assert.match(attendanceEvents, /attendanceActionPending \|\| !attendanceRecordsLoaded/);
+  assert.match(attendanceEvents, /actionButtons\.forEach\(actionButton => \{ actionButton\.disabled = true; \}\)/);
+  assert.match(attendanceEvents, /action === 'start' \? 'Se pornește pontajul\.\.\.'/);
+  assert.match(attendanceEvents, /if \(action !== 'start'\) await loadAttendanceRecords\(false, \{ render: false \}\)/);
+});
+
 test('activity table uses the available page width without a forced horizontal minimum', () => {
   assert.match(source, /classList\.toggle\('activity-wide', view === 'activity'\)/);
   assert.match(source, /<colgroup><col style="width:19%"><col style="width:6%">/);

@@ -1,4 +1,5 @@
 import '../../lib/config.js';
+import { randomUUID } from 'node:crypto';
 import { attendanceTypesForFunctions, canManageAttendance, callsignNumber, normalize } from '../../lib/access/shared.js';
 import { SupabaseKV } from '../../lib/storage/supabase-kv.js';
 import { functionsForDepartmentRow, readFunctionOverrides } from '../../lib/access/function-overrides.js';
@@ -10,6 +11,9 @@ const TEST_PONTAJE_RANGE = process.env.GOOGLE_TEST_PONTAJE_RANGE || "'TEST PONTA
 const ATTENDANCE_TIME_ZONE = 'Europe/Bucharest';
 const HOSPITAL_CHAT_ROLE_ID = '804382163536576616';
 const HR_TEAM_EMOJI = '<:HRTEAM:1467455378374787116>';
+const BONUS_PERIOD_ANCHOR = Date.UTC(2026, 8, 21);
+const BONUS_PERIOD_LENGTH = 14 * 24 * 60 * 60 * 1000;
+const BONUS_SYNC_KEY_PREFIX = 'site-testeri-medici:bonus-hr-sync';
 const ATTENDANCE_DOCS_SYNC_COOLDOWN_SECONDS = 60;
 const attendanceRedis = new SupabaseKV();
 
@@ -35,6 +39,9 @@ function reviewTime(value) {
   const rounded = Math.round(Number(value) / 300000) * 300000;
   return new Intl.DateTimeFormat('ro-RO', { timeZone: 'Europe/Bucharest', hour: '2-digit', minute: '2-digit' }).format(new Date(rounded));
 }
+function attendanceClockTime(value) {
+  return new Intl.DateTimeFormat('ro-RO', { timeZone: ATTENDANCE_TIME_ZONE, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(new Date(value));
+}
 function reviewWebhookUrl() {
   try {
     const url = new URL(String(process.env.DISCORD_ATTENDANCE_REVIEW_WEBHOOK || '').trim());
@@ -47,6 +54,99 @@ function requiredReviewWebhookUrl() {
   const url = reviewWebhookUrl();
   if (!url) throw new Error('DISCORD_ATTENDANCE_REVIEW_WEBHOOK is missing or invalid');
   return url;
+}
+function bonusLogWebhookUrl() {
+  try {
+    const url = new URL(String(process.env.DISCORD_BONUS_LOG_WEBHOOK || '').trim());
+    return url.protocol === 'https:' && url.hostname === 'discord.com' && url.pathname.startsWith('/api/webhooks/') ? url.toString() : '';
+  } catch {
+    return '';
+  }
+}
+function requiredBonusLogWebhookUrl() {
+  const url = bonusLogWebhookUrl();
+  if (!url) throw new Error('DISCORD_BONUS_LOG_WEBHOOK is missing or invalid');
+  return url;
+}
+function bonusPeriodIndexForDate(dateKey) {
+  if (!validDateKey(dateKey)) throw new Error('Data calculată pentru bonusuri este invalidă.');
+  const [year, month, day] = dateKey.split('-').map(Number);
+  return Math.floor((Date.UTC(year, month - 1, day) - BONUS_PERIOD_ANCHOR) / BONUS_PERIOD_LENGTH);
+}
+function latestCompleteBonusPeriodIndex(now) {
+  const today = attendanceDateKey(now);
+  const [year, month, day] = today.split('-').map(Number);
+  return Math.floor((Date.UTC(year, month - 1, day) - BONUS_PERIOD_ANCHOR) / BONUS_PERIOD_LENGTH) - 1;
+}
+function bonusPeriodFor(index) {
+  const from = new Date(BONUS_PERIOD_ANCHOR + index * BONUS_PERIOD_LENGTH).toISOString().slice(0, 10);
+  const to = new Date(BONUS_PERIOD_ANCHOR + (index + 1) * BONUS_PERIOD_LENGTH - 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  return { from, to };
+}
+function bonusPeriodSyncKey(index) { return `${BONUS_SYNC_KEY_PREFIX}:period:${index}`; }
+function bonusPeriodSummaryKey(index) { return `${BONUS_SYNC_KEY_PREFIX}:summary:${index}`; }
+function bonusCalculatedDay(dateKey) {
+  const date = new Date(`${dateKey}T12:00:00Z`);
+  const weekday = new Intl.DateTimeFormat('ro-RO', { timeZone: ATTENDANCE_TIME_ZONE, weekday: 'long' }).format(date)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleUpperCase('ro-RO');
+  return `${weekday} (${formatAttendanceDate(dateKey)})`;
+}
+async function postBonusLog(content) {
+  const response = await fetch(requiredBonusLogWebhookUrl(), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: 'HR TEAM', allowed_mentions: { parse: [] }, content })
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+}
+async function sendBonusPeriodSummary(index) {
+  const lockKey = bonusPeriodSummaryKey(index);
+  const claimed = await attendanceRedis.command('SET', lockKey, 'sending', 'NX', 'EX', '120');
+  if (claimed !== 'OK') return;
+  try {
+    const events = await attendanceRedis.command('SMEMBERS', bonusPeriodSyncKey(index));
+    const counts = new Map();
+    for (const value of events) {
+      const event = JSON.parse(value);
+      if (!event.discordId) continue;
+      const current = counts.get(event.discordId) || { rank: event.rank, name: event.name, count: 0 };
+      current.count += 1;
+      counts.set(event.discordId, current);
+    }
+    const { from, to } = bonusPeriodFor(index);
+    const formatDate = dateKey => formatAttendanceDate(dateKey);
+    const rows = [...counts.values()]
+      .sort((first, second) => second.count - first.count || first.name.localeCompare(second.name, 'ro'))
+      .map(item => `👤 HR: ${item.rank}, ${item.name} — ${item.count} ${item.count === 1 ? 'sincronizare' : 'sincronizări'}`);
+    const content = [
+      '📌 EVIDENȚA ULTIMELOR 2 SĂPTĂMÂNI',
+      `🗓️ Perioada: ${formatDate(from)} – ${formatDate(to)}`,
+      ...(rows.length ? rows : ['Nu au fost înregistrate sincronizări în această perioadă.'])
+    ].join('\n');
+    await postBonusLog(content);
+    await attendanceRedis.command('SET', lockKey, 'sent');
+  } catch (error) {
+    try {
+      await attendanceRedis.delete(lockKey);
+    } catch (cleanupError) {
+      console.error('Bonus sync summary lock cleanup failed:', cleanupError);
+    }
+    throw error;
+  }
+}
+export async function sendBonusHrSyncLog({ requester, dateKey, now = Date.now() }) {
+  const discordId = String(requester?.[19] || '').trim();
+  if (!discordId) throw new Error('Membrul H.R. pentru logul de bonusuri nu este valid.');
+  const periodIndex = bonusPeriodIndexForDate(dateKey);
+  const rank = String(requester?.[4] || '').trim() || 'H.R.';
+  const name = String(requester?.[3] || '').trim() || 'Echipa HR';
+  const event = { id: randomUUID(), discordId, rank, name, dateKey, syncedAt: new Date(now).toISOString() };
+  await attendanceRedis.command('SADD', bonusPeriodSyncKey(periodIndex), JSON.stringify(event));
+  await postBonusLog(`📌 LOG BONUSURI LA HASERIME\n👤 HR: ${rank}, ${name}\n🗓️ Ziua calculată: ${bonusCalculatedDay(dateKey)}`);
+  const completedPeriodIndex = latestCompleteBonusPeriodIndex(now);
+  if (completedPeriodIndex >= 0) await sendBonusPeriodSummary(completedPeriodIndex);
 }
 export async function sendAttendanceReviewWebhook({ status, reviewerId, reviewer, targetId, target, entry, dateKey, minutes }) {
   const url = status === 'canceled' ? requiredHospitalChatWebhookUrl() : requiredReviewWebhookUrl();
@@ -80,6 +180,23 @@ export async function sendAttendanceReviewWebhook({ status, reviewerId, reviewer
       avatar_url: `${origin}/assets/hr-team.png`,
       allowed_mentions: status === 'canceled' ? { parse: [], users: [...new Set([reviewerId, targetId].filter(Boolean))] } : { parse: [] },
       ...(content ? { content } : { embeds: [embed] })
+    })
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+}
+export async function sendAttendanceClockWebhook({ action, discordId, entry }) {
+  const url = requiredReviewWebhookUrl();
+  const date = formatAttendanceDate(attendanceDateKey(entry.start));
+  const content = action === 'start'
+    ? `🟢 Pontaj deschis: <@${discordId}>\nOra deschiderii: ${attendanceClockTime(entry.start)}\nData: ${date}`
+    : `🔴 Pontaj închis: <@${discordId}>\nOra deschiderii: ${attendanceClockTime(entry.start)}\nOra închiderii: ${attendanceClockTime(entry.end)}\nDurată: ${Math.floor((entry.end - entry.start) / 60000)} minute\nData: ${date}`;
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      username: 'HR TEAM',
+      allowed_mentions: { parse: [], users: [discordId] },
+      content
     })
   });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -480,10 +597,9 @@ export default async function handler(req, res) {
   const requesterId = String(req.method === 'GET' ? req.query?.requesterId : req.body?.requesterId || '').trim();
   if (!requesterId) return json(res, 400, { error: 'Missing requesterId' });
   try {
-    const members = await readMembers();
+    const [members, functionOverrides] = await Promise.all([readMembers(), readFunctionOverrides()]);
     const requester = members.find(row => String(row[19] || '').trim() === requesterId);
     if (!requester) return json(res, 403, { error: 'Requester is not a department member' });
-    const functionOverrides = await readFunctionOverrides();
     const requesterFunctions = functionsForDepartmentRow(requester, functionOverrides);
     const requesterCallsign = callsignNumber(requester[2]);
     const canReviewAttendance = (requesterCallsign >= 1 && requesterCallsign <= 20) || canManageAttendance(requesterFunctions);
@@ -539,6 +655,12 @@ export default async function handler(req, res) {
               warning = `Evidența a fost actualizată, dar mesajul nu a putut fi trimis în chatul spitalului: ${error.message}`;
             }
           }
+          try {
+            await sendBonusHrSyncLog({ requester, dateKey, now });
+          } catch (error) {
+            console.error('Bonus HR sync webhook failed:', error);
+            warning = [warning, `Logul bonusurilor nu a putut fi trimis: ${error.message}`].filter(Boolean).join(' ');
+          }
           return json(res, 200, { success: true, review, sheetUpdated, warning, cooldownSeconds: ATTENDANCE_DOCS_SYNC_COOLDOWN_SECONDS });
         }
         const sheets = await sheetsClient();
@@ -561,6 +683,12 @@ export default async function handler(req, res) {
             console.error('Hospital attendance webhook failed:', error);
             warning = `Evidența a fost actualizată, dar mesajul nu a putut fi trimis în chatul spitalului: ${error.message}`;
           }
+        }
+        try {
+          await sendBonusHrSyncLog({ requester, dateKey, now });
+        } catch (error) {
+          console.error('Bonus HR sync webhook failed:', error);
+          warning = [warning, `Logul bonusurilor nu a putut fi trimis: ${error.message}`].filter(Boolean).join(' ');
         }
         return json(res, 200, { success: true, updated: updates.length, warning, cooldownSeconds: ATTENDANCE_DOCS_SYNC_COOLDOWN_SECONDS });
       }
@@ -695,6 +823,7 @@ export default async function handler(req, res) {
       const data = await readAttendanceData(requesterId);
       const normalized = closeExpiredAttendanceEntries(data, now);
       if (normalized.closed) await writeAttendanceData(requesterId, normalized.entries);
+      let clockEventEntry;
       if (action === 'start') {
         const attendanceType = req.body?.attendanceType || 'regular';
         if (!['regular', 'hr'].includes(attendanceType)) return json(res, 400, { error: 'Tipul de pontaj este invalid.' });
@@ -702,7 +831,8 @@ export default async function handler(req, res) {
         if (!allowedTypes.includes(attendanceType)) return json(res, 403, { error: 'Nu ai funcția necesară pentru acest tip de pontaj.' });
         if (!attendanceStartAllowed(now)) return json(res, 409, { error: 'Pontajul nu mai poate fi deschis după ora 23:35.' });
         if (normalized.entries.some(entry => entry.end == null)) return json(res, 409, { error: 'Există deja un pontaj activ.' });
-        normalized.entries.push({ start: now, end: null, ...(attendanceType !== 'regular' ? { type: attendanceType } : {}) });
+        clockEventEntry = { start: now, end: null, ...(attendanceType !== 'regular' ? { type: attendanceType } : {}) };
+        normalized.entries.push(clockEventEntry);
       } else if (action === 'stop') {
         const attendanceType = req.body?.attendanceType || 'regular';
         if (!['regular', 'hr'].includes(attendanceType)) return json(res, 400, { error: 'Tipul de pontaj este invalid.' });
@@ -711,9 +841,17 @@ export default async function handler(req, res) {
         const open = [...normalized.entries].reverse().find(entry => entry.end == null && attendanceTypeForEntry(entry) === attendanceType);
         if (!open) return json(res, 409, { error: 'Nu există un pontaj activ.' });
         open.end = now;
+        clockEventEntry = open;
       } else return json(res, 400, { error: 'Acțiune invalidă' });
       const saved = await writeAttendanceData(requesterId, normalized.entries);
-      return json(res, 200, { success: true, entries: saved });
+      let warning = '';
+      try {
+        await sendAttendanceClockWebhook({ action, discordId: requesterId, entry: clockEventEntry });
+      } catch (error) {
+        console.error('Attendance clock webhook failed:', error);
+        warning = `Pontajul a fost salvat, dar notificarea Discord nu a putut fi trimisă: ${error.message}`;
+      }
+      return json(res, 200, { success: true, entries: saved, warning });
     }
 
     if (!canReviewAttendance && !activeAttendanceView) {

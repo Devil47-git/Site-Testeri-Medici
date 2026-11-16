@@ -1691,30 +1691,38 @@ async function syncSelectedAttendanceDay() {
 }
 function wireAttendanceEvents() {
   if (attendanceTimer) clearInterval(attendanceTimer);
+  let attendanceActionPending = false;
   const refresh = () => {
     const status = document.querySelector('#attendance-status');
     const open = attendanceEntries().find(entry => !entry.end);
     if (status && open) status.textContent = `Pontaj activ de ${attendanceFormatMinutes(attendanceMinutes(open))}, început la ${attendanceTime(open.start)}.`;
   };
   const submitAction = async (action, button) => {
-    if (!attendanceRecordsLoaded || attendanceLoadPending || attendanceSyncError || button.disabled) return;
+    if (attendanceActionPending || !attendanceRecordsLoaded || attendanceLoadPending || attendanceSyncError || button.disabled) return;
     if (action === 'cancel' && !window.confirm('Sigur vrei să anulezi pontajul activ?')) return;
-    button.disabled = true;
+    attendanceActionPending = true;
+    const buttonText = button.textContent;
+    const actionButtons = [...document.querySelectorAll('[data-attendance-action]')];
+    const previousDisabledStates = actionButtons.map(actionButton => actionButton.disabled);
+    actionButtons.forEach(actionButton => { actionButton.disabled = true; });
+    if (action === 'start') button.textContent = 'Se pornește…';
     const status = document.querySelector('#attendance-status');
-    if (status) status.textContent = action === 'cancel' ? 'Se anulează pontajul...' : 'Se sincronizează pontajul...';
+    if (status) status.textContent = action === 'start' ? 'Se pornește pontajul...' : action === 'cancel' ? 'Se anulează pontajul...' : 'Se sincronizează pontajul...';
     const saved = action === 'cancel'
       ? await syncAttendanceRemote('cancel', currentUser.discordId, button.dataset.attendanceType || 'regular', 'Anulat de membru')
       : await syncAttendanceRemote(action, '', button.dataset.attendanceType || 'regular');
     if (saved) {
-      await loadAttendanceRecords(false, { render: false });
+      if (action !== 'start') await loadAttendanceRecords(false, { render: false });
       refreshAttendanceView();
       const refreshedStatus = document.querySelector('#attendance-status');
       if (refreshedStatus && saved.warning) refreshedStatus.textContent = saved.warning;
     }
     else {
       if (status) status.textContent = attendanceSyncError;
-      button.disabled = false;
+      actionButtons.forEach((actionButton, index) => { actionButton.disabled = previousDisabledStates[index]; });
+      button.textContent = buttonText;
     }
+    attendanceActionPending = false;
   };
   document.querySelectorAll('[data-attendance-action]').forEach(button => button.addEventListener('click', event => submitAction(event.currentTarget.dataset.attendanceAction, event.currentTarget)));
   document.querySelectorAll('[data-cancel-attendance]').forEach(button => button.addEventListener('click', async event => {

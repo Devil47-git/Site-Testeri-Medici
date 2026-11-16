@@ -40,6 +40,7 @@ Configure the server using one server-side deployment variable: `APP_CONFIG_JSON
 - `DISCORD_ALS_WEBHOOK`: webhook for ALS results with tester, candidate, callsign, and verdict.
 - `DISCORD_PILOT_WEBHOOK`, `DISCORD_SMULS_WEBHOOK`, `DISCORD_MOTO_WEBHOOK`, and `DISCORD_PARASUTIST_WEBHOOK`: webhooks for the matching test results, each with tester, candidate, callsign, and verdict.
 - `DISCORD_ATTENDANCE_REVIEW_WEBHOOK`: webhook for attendance review, cancellation, and edit events.
+- `DISCORD_BONUS_LOG_WEBHOOK`: webhook for H.R. attendance-document sync logs and two-week sync summaries. Configure its URL only in the server-side `APP_CONFIG_JSON` or ignored local `.env`; never share it in chat or browser code.
 - `DISCORD_HOSPITAL_CHAT_WEBHOOK`: webhook for the hospital chat message sent after attendance totals are synchronized to `EVIDENTA ACTIVITATE`.
 - The same JSON object also accepts `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `DISCORD_REDIRECT_URI`, `APP_ORIGIN`, `GOOGLE_API_KEY`, `GOOGLE_SHEETS_ID`, `GOOGLE_SHEETS_RANGE`, `GOOGLE_ATTENDANCE_RANGE`, `GOOGLE_TEST_PONTAJE_RANGE`, `GOOGLE_GRANTS_RANGE`, `GOOGLE_AVATAR_RANGE`, `GOOGLE_TEST_RESULTS_RANGE`, `GOOGLE_TEST_LIFETIME_RANGE`, `GOOGLE_MEDICAL_CERTIFICATES_RANGE`, `GOOGLE_SERVICE_ACCOUNT_JSON`, `GOOGLE_APPLICATION_CREDENTIALS`, `GOOGLE_SHEET_ID`, `GOOGLE_SHEET_RANGE`, `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `CRON_SECRET`, and `PORT`.
 
@@ -72,6 +73,8 @@ Specialty-test candidates are checked against column S in `LISTA DEPARTAMENT`. S
 When a candidate is marked `Respins` on a specialty test, the result flow automatically appends that test's cooldown expiry to column S and includes the date in its Discord result notification. ALS uses 3 calendar days; SMULS, Moto, Pilot, and Parasutism use 5 calendar days. Passing a test does not add a cooldown.
 
 The `Bonusuri` page is leadership-only. It shows the active 14-day period, anchored on 21 September 2026, plus a tester-callsign-sorted table of Pilot, Moto, combined admission/transfer, medical-certificate, ALS, and SMULS totals. Each row copies only those six tab-separated totals for pasting into the matching sheet columns.
+
+Each successful attendance-document sync also posts the H.R. member and the calculated date to `DISCORD_BONUS_LOG_WEBHOOK`. At the first successful sync after a 14-day bonus period closes, the same channel receives a count of the syncs performed by each H.R. member during that period. The calculated date is the date selected for synchronization, which may be the previous calendar day.
 
 The tester statistics list also includes lifetime `Teste Procesate` badges for each assigned test function. The API creates a separate `TEST_LIFETIME` sheet, imports existing `TEST_HISTORY` entries once, and appends each new result there. Resetting current test counts clears only `TEST_HISTORY`; lifetime totals remain intact.
 
