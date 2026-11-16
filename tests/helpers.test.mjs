@@ -420,7 +420,9 @@ test('attendance rooms are available to all department members but review action
   assert.match(activeAttendanceViewSource, /const actionHeaders = canReview \? '<th>VALIDARE \/ ANULARE<\/th><th>EDITARE<\/th>' : ''/);
   assert.match(activeAttendanceViewSource, /const syncButton = canReview \?/);
   assert.doesNotMatch(activeAttendanceViewSource, /Pontaje active în acest moment|START|Anulează/);
-  assert.match(source, /status === 'canceled' \? window\.prompt\('Scrie motivul anulării pontajului \(obligatoriu\):'\)/);
+  assert.match(source, /function openAttendanceCancellationDialog\(\{ description, requireReason \}\)/);
+  assert.match(source, /openAttendanceCancellationDialog\(\{ description: 'Scrie motivul anulării\./);
+  assert.doesNotMatch(source, /window\.prompt\('Scrie motivul anulării pontajului/);
   assert.match(source, /updateAttendanceReview\(targetDiscordId, entryStart, status, reason = ''\)/);
   assert.match(source, /\.\.\.\(action === 'cancel' \? \{ reason \} : \{\}\)/);
   assert.match(source, /function renderActiveAttendanceView\(\)/);

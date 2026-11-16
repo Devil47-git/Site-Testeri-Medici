@@ -1550,6 +1550,47 @@ function refreshActiveAttendanceView() {
   viewContent.innerHTML = renderActiveAttendanceView();
   wireActiveAttendanceEvents();
 }
+function openAttendanceCancellationDialog({ description, requireReason }) {
+  return new Promise(resolve => {
+    document.querySelector('#attendance-cancel-dialog')?.remove();
+    const dialog = document.createElement('dialog');
+    dialog.id = 'attendance-cancel-dialog';
+    dialog.className = 'attendance-edit-dialog attendance-cancel-dialog';
+    dialog.innerHTML = `<form class="attendance-edit-form" novalidate><p class="eyebrow">ANULARE PONTAJ</p><h3>Confirmi anularea?</h3><p class="attendance-cancel-description">${escapeHtml(description)}</p>${requireReason ? '<label for="attendance-cancel-reason">Motivul anulării (obligatoriu)<textarea id="attendance-cancel-reason" minlength="3" maxlength="500" rows="3" placeholder="Scrie motivul anulării"></textarea></label>' : ''}<p class="attendance-edit-error" role="alert"></p><div class="attendance-edit-actions"><button type="button" class="outline" data-cancel-dialog-close>Renunță</button><button type="submit" class="danger-button">Anulează pontajul</button></div></form>`;
+    document.body.append(dialog);
+    const form = dialog.querySelector('form');
+    const reasonInput = dialog.querySelector('#attendance-cancel-reason');
+    const errorBox = dialog.querySelector('.attendance-edit-error');
+    let settled = false;
+    const finish = value => {
+      if (settled) return;
+      settled = true;
+      dialog.close();
+      dialog.remove();
+      resolve(value);
+    };
+    dialog.addEventListener('close', () => {
+      dialog.remove();
+      if (!settled) {
+        settled = true;
+        resolve(null);
+      }
+    });
+    dialog.querySelector('[data-cancel-dialog-close]').addEventListener('click', () => finish(null));
+    form.addEventListener('submit', event => {
+      event.preventDefault();
+      const reason = reasonInput?.value.trim() || '';
+      if (requireReason && (reason.length < 3 || reason.length > 500)) {
+        errorBox.textContent = 'Motivul anulării trebuie să aibă între 3 și 500 de caractere.';
+        reasonInput.focus();
+        return;
+      }
+      finish(requireReason ? reason : 'Anulat de membru');
+    });
+    dialog.showModal();
+    reasonInput?.focus();
+  });
+}
 function wireActiveAttendanceEvents() {
   if (attendanceTimer) clearInterval(attendanceTimer);
   viewContent.querySelectorAll('[data-attendance-date]').forEach(button => button.addEventListener('click', event => {
@@ -1566,16 +1607,17 @@ function wireActiveAttendanceEvents() {
     loadAttendanceRecords(true, { view: 'active', dateKey: activeAttendanceDate });
     refreshActiveAttendanceView();
   }));
-  viewContent.querySelectorAll('[data-attendance-review]').forEach(input => input.addEventListener('change', event => {
+  viewContent.querySelectorAll('[data-attendance-review]').forEach(input => input.addEventListener('change', async event => {
     const target = event.currentTarget;
     const status = target.checked ? target.dataset.attendanceReview : 'unreviewed';
-    const reason = status === 'canceled' ? window.prompt('Scrie motivul anulării pontajului (obligatoriu):') : '';
-    if (status === 'canceled' && (reason == null || reason.trim().length < 3 || reason.trim().length > 500)) {
-      if (reason != null) window.alert('Motivul anulării trebuie să aibă între 3 și 500 de caractere.');
+    const reason = status === 'canceled'
+      ? await openAttendanceCancellationDialog({ description: 'Scrie motivul anulării. Acesta va fi salvat în evidența pontajului.', requireReason: true })
+      : '';
+    if (status === 'canceled' && reason == null) {
       refreshActiveAttendanceView();
       return;
     }
-    updateAttendanceReview(target.dataset.attendanceMember, Number(target.dataset.attendanceStart), status, reason?.trim() || '');
+    updateAttendanceReview(target.dataset.attendanceMember, Number(target.dataset.attendanceStart), status, reason || '');
   }));
   viewContent.querySelectorAll('[data-attendance-edit]').forEach(button => button.addEventListener('click', event => openAttendanceEditDialog(event.currentTarget.dataset.attendanceMember, Number(event.currentTarget.dataset.attendanceStart))));
   viewContent.querySelector('#attendance-docs-sync')?.addEventListener('click', syncSelectedAttendanceDay);
@@ -1699,7 +1741,10 @@ function wireAttendanceEvents() {
   };
   const submitAction = async (action, button) => {
     if (attendanceActionPending || !attendanceRecordsLoaded || attendanceLoadPending || attendanceSyncError || button.disabled) return;
-    if (action === 'cancel' && !window.confirm('Sigur vrei să anulezi pontajul activ?')) return;
+    const cancellationReason = action === 'cancel'
+      ? await openAttendanceCancellationDialog({ description: 'Pontajul activ va fi anulat.', requireReason: false })
+      : '';
+    if (action === 'cancel' && cancellationReason == null) return;
     attendanceActionPending = true;
     const buttonText = button.textContent;
     const actionButtons = [...document.querySelectorAll('[data-attendance-action]')];
@@ -1709,7 +1754,7 @@ function wireAttendanceEvents() {
     const status = document.querySelector('#attendance-status');
     if (status) status.textContent = action === 'start' ? 'Se pornește pontajul...' : action === 'cancel' ? 'Se anulează pontajul...' : 'Se sincronizează pontajul...';
     const saved = action === 'cancel'
-      ? await syncAttendanceRemote('cancel', currentUser.discordId, button.dataset.attendanceType || 'regular', 'Anulat de membru')
+      ? await syncAttendanceRemote('cancel', currentUser.discordId, button.dataset.attendanceType || 'regular', cancellationReason)
       : await syncAttendanceRemote(action, '', button.dataset.attendanceType || 'regular');
     if (saved) {
       if (action !== 'start') await loadAttendanceRecords(false, { render: false });
@@ -1727,14 +1772,10 @@ function wireAttendanceEvents() {
   document.querySelectorAll('[data-attendance-action]').forEach(button => button.addEventListener('click', event => submitAction(event.currentTarget.dataset.attendanceAction, event.currentTarget)));
   document.querySelectorAll('[data-cancel-attendance]').forEach(button => button.addEventListener('click', async event => {
     const targetDiscordId = event.currentTarget.dataset.cancelAttendance;
-    const reason = window.prompt('Scrie motivul anulării pontajului (obligatoriu):');
+    const reason = await openAttendanceCancellationDialog({ description: 'Motivul anulării va fi salvat în evidența pontajului.', requireReason: true });
     if (reason == null) return;
-    if (reason.trim().length < 3 || reason.trim().length > 500) {
-      window.alert('Motivul anulării trebuie să aibă între 3 și 500 de caractere.');
-      return;
-    }
     event.currentTarget.disabled = true;
-    const saved = await syncAttendanceRemote('cancel', targetDiscordId, 'regular', reason.trim());
+    const saved = await syncAttendanceRemote('cancel', targetDiscordId, 'regular', reason);
     if (saved) {
       await loadAttendanceRecords(false, { render: false });
       refreshAttendanceView();

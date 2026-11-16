@@ -727,7 +727,7 @@ body.dark-mode .nav-item.active{box-shadow:inset 2px 0 var(--purple)}
 .member-functions-edit{justify-self:auto;margin:0;padding:7px 10px;font-size:12px}
 .attendance-timers-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .attendance-timer-card{min-width:0;padding:14px;border:1px solid var(--surface-border);border-radius:8px;background:var(--surface-alt)}
-.attendance-timer-regular{grid-column:1/-1;width:calc((100% - 12px)/2);justify-self:center}
+.attendance-timer-regular,.attendance-timer-hr{grid-column:1/-1;width:calc((100% - 12px)/2);justify-self:center}
 .attendance-permissions-warning{margin:0 0 12px;color:#e5ad55;font-size:12px}
 .attendance-timer-card .attendance-card-heading{margin-bottom:10px}
 .attendance-timer-card .attendance-model{padding:11px 9px;font-size:13px}
@@ -735,7 +735,7 @@ body.dark-mode .nav-item.active{box-shadow:inset 2px 0 var(--purple)}
 .attendance-timer-card .attendance-actions button{min-width:0;flex:1;padding:9px 10px;font-size:12px}
 .attendance-timer-card .attendance-status{font-size:11px}
 @media(max-width:900px){.member-room-card{grid-template-columns:minmax(0,1fr) auto;gap:10px 14px}.member-room-detail{justify-self:end}.member-room-functions{grid-column:1/-1}}
-@media(max-width:600px){.member-room-card{grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:12px}.member-room-identity{grid-column:1/-1;padding-bottom:8px}.member-room-detail{justify-self:start}.member-room-functions{grid-column:1/-1}.attendance-timers-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.attendance-timer-regular{width:calc((100% - 8px)/2)}.attendance-timer-card{padding:10px}.attendance-timer-card .attendance-actions button{padding:8px 5px;font-size:10px}}
+@media(max-width:600px){.member-room-card{grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:12px}.member-room-identity{grid-column:1/-1;padding-bottom:8px}.member-room-detail{justify-self:start}.member-room-functions{grid-column:1/-1}.attendance-timers-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.attendance-timer-regular,.attendance-timer-hr{width:calc((100% - 8px)/2)}.attendance-timer-card{padding:10px}.attendance-timer-card .attendance-actions button{padding:8px 5px;font-size:10px}}
 .guide-panel{max-width:none;width:100%;margin:0 auto;padding:24px;background:linear-gradient(145deg,#07152f,#0c1e3d 58%,#10152d);border-color:#284a7b;box-shadow:0 12px 30px rgba(4,13,35,.28)}
 .guide-panel>.panel-head{align-items:center;margin-bottom:16px}
 .guide-panel>.panel-head h2{color:#f4f7ff}
@@ -1295,3 +1295,5 @@ body.dark-mode .brand-with-logo small::before{width:15px;height:1px;background:l
 .attendance-edit-form input,.attendance-edit-form textarea{padding:10px;border:1px solid rgba(43,140,255,.4);border-radius:8px;background:rgba(255,255,255,.05);color:var(--ink);font:inherit;resize:vertical}
 .attendance-edit-error{min-height:16px;margin:0;color:#e35662;font-size:12px}
 .attendance-edit-actions{display:flex;justify-content:flex-end;gap:10px}
+.attendance-cancel-description{margin:0;color:var(--muted);font-size:13px;line-height:1.55}
+.attendance-cancel-dialog .danger-button{min-width:140px;padding:9px 14px}
