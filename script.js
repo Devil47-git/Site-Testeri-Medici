@@ -1748,7 +1748,7 @@ function wireAttendanceEvents() {
   const submitAction = async (action, button) => {
     if (attendanceActionPending || !attendanceRecordsLoaded || attendanceLoadPending || attendanceSyncError || button.disabled) return;
     const cancellationReason = action === 'cancel'
-      ? await openAttendanceCancellationDialog({ description: 'Pontajul activ va fi anulat.', requireReason: false })
+      ? await openAttendanceCancellationDialog({ description: 'Scrie motivul anulării. Acesta va fi trimis în mesajul Discord.', requireReason: true })
       : '';
     if (action === 'cancel' && cancellationReason == null) return;
     attendanceActionPending = true;

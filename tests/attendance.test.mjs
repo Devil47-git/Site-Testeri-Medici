@@ -636,12 +636,12 @@ test('department attendance includes active member details and leadership can ca
   redisValues.set(memberKey, JSON.stringify([{ start: Date.now(), end: null }]));
   const memberCancelOther = await callAttendance('POST', 'member-id', { action: 'cancel', targetDiscordId: 'leadership-id' });
   assert.equal(memberCancelOther.statusCode, 403);
-  const member = await callAttendance('POST', 'member-id', { action: 'cancel', targetDiscordId: 'member-id' });
+  const member = await callAttendance('POST', 'member-id', { action: 'cancel', targetDiscordId: 'member-id', reason: 'Pontaj închis de membru' });
   assert.equal(member.statusCode, 200);
   const selfCanceledEntry = JSON.parse(redisValues.get(memberKey))[0];
   assert.equal(selfCanceledEntry.canceled, true);
   assert.equal(selfCanceledEntry.canceledBy, 'member-id');
-  assert.equal(selfCanceledEntry.cancelReason, 'Anulat de membru');
+  assert.equal(selfCanceledEntry.cancelReason, 'Pontaj închis de membru');
 });
 
 test('active attendance view returns member names and validation state for a selected weekday', async () => {
@@ -750,8 +750,7 @@ test('H.R. validation and cancellation send Discord notifications, including can
   assert.equal(canceled.statusCode, 200);
   assert.equal(discordWebhookRequests.length, 1);
   assert.equal(hospitalWebhookRequests.length, hospitalCount + 1);
-  assert.match(hospitalWebhookRequests.at(-1).content, /^De: <@hr-id> PONTAJ ANULAT :x: lui <@member-id>, Motiv: Pontaj deschis greșit/);
-  assert.match(hospitalWebhookRequests.at(-1).content, /Pontaj: de la ora \d{2}:\d{2} până la ora \d{2}:\d{2}/);
+  assert.match(hospitalWebhookRequests.at(-1).content, /^<@member-id>, pontajul din data \d{2}\.\d{2}\.\d{4} \(de la ora \d{2}:\d{2} până la ora \d{2}:\d{2}\) ți-a fost anulat de către <@hr-id>, motiv: Pontaj deschis greșit$/);
   assert.deepEqual(hospitalWebhookRequests.at(-1).allowed_mentions, { parse: [], users: ['hr-id', 'member-id'] });
 });
 
@@ -783,8 +782,7 @@ test('attendance cancellation requires a reason on both cancellation endpoints',
   });
   assert.equal(canceled.statusCode, 200);
   assert.equal(hospitalWebhookRequests.length, 1);
-  assert.match(hospitalWebhookRequests[0].content, /^De: <@hr-id> PONTAJ ANULAT :x: lui <@member-id>, Motiv: Pontaj deschis nejustificat/);
-  assert.match(hospitalWebhookRequests[0].content, /Pontaj: de la ora \d{2}:\d{2} până la ora \d{2}:\d{2}/);
+  assert.match(hospitalWebhookRequests[0].content, /^<@member-id>, pontajul din data \d{2}\.\d{2}\.\d{4} \(de la ora \d{2}:\d{2} până la ora \d{2}:\d{2}\) ți-a fost anulat de către <@hr-id>, motiv: Pontaj deschis nejustificat$/);
   assert.deepEqual(hospitalWebhookRequests[0].allowed_mentions, { parse: [], users: ['hr-id', 'member-id'] });
 });
 

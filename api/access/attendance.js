@@ -155,7 +155,7 @@ export async function sendAttendanceReviewWebhook({ status, reviewerId, reviewer
   const [year, month, day] = String(dateKey).split('-');
   const person = id => `<@${id}>`;
   const content = status === 'canceled'
-    ? `De: ${person(reviewerId)} PONTAJ ANULAT :x: lui ${person(targetId)}, Motiv: ${String(entry.cancelReason || '').slice(0, 500)}\nPontaj: de la ora ${reviewTime(entry.start)} până la ora ${entry.end == null ? 'În desfășurare' : reviewTime(entry.end)} (${day}.${month}.${year}).`
+    ? `${person(targetId)}, pontajul din data ${day}.${month}.${year} (de la ora ${reviewTime(entry.start)} până la ora ${entry.end == null ? 'În desfășurare' : reviewTime(entry.end)}) ți-a fost anulat de către ${person(reviewerId)}, motiv: ${String(entry.cancelReason || '').slice(0, 500)}`
     : undefined;
   const embed = {
     title: validated ? '✅ Pontaj validat' : '❌ Pontaj anulat',
@@ -696,7 +696,7 @@ export default async function handler(req, res) {
         const targetId = String(req.body?.targetDiscordId || '').trim();
         const isSelfCancellation = targetId === requesterId;
         if (!canReviewAttendance && !isSelfCancellation) return json(res, 403, { error: "Only callsigns 001-020 or H.R. can cancel another member's attendance records" });
-        const reason = String(req.body?.reason || '').trim() || (isSelfCancellation ? 'Anulat de membru' : '');
+        const reason = String(req.body?.reason || '').trim();
         if (reason.length < 3) return json(res, 400, { error: 'Motivul anulării este obligatoriu.' });
         if (reason.length > 500) return json(res, 400, { error: 'Motivul anulării nu poate depăși 500 de caractere.' });
         const target = members.find(row => String(row[19] || '').trim() === targetId);
