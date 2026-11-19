@@ -815,7 +815,7 @@ async function saveGuideSection() {
     const response = await fetch('/api/guide', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ requesterId: currentUser.discordId, section, content: host.innerHTML })
+      body: JSON.stringify({ section, content: host.innerHTML })
     });
     const payload = await response.json();
     if (!response.ok) throw new Error(payload?.error || `HTTP ${response.status}`);
@@ -4388,7 +4388,7 @@ const authError=document.querySelector('#auth-error');
 const AUTH_API_ENDPOINT='/api/auth/discord';
 const LOGIN_ENDPOINT='/api/auth/login';
 const AUTH_STORAGE_KEY='medici-auth';
-const AUTH_SCHEMA_VERSION=5;
+const AUTH_SCHEMA_VERSION=6;
 const AUTH_TTL=30*24*60*60*1000;
 // ===== BANDAL TEMPORAR PENTRU TESTARE =====
 // Set to true only for a local preview; production uses Discord authentication.
@@ -4397,7 +4397,7 @@ const DEV_LOGIN_USER={ id:'DEV-001', discordId:'0', name:'Tester Local', display
 // ===== SFÂRȘIT BANDAL =====
 const PRESENCE_KEY='medici-presence';
 function markPresence() { if (!currentUser?.discordId) return; const presence = readStored(PRESENCE_KEY, {}); presence[currentUser.discordId] = Date.now(); localStorage.setItem(PRESENCE_KEY, JSON.stringify(presence)); }
-async function sendPresence() { if (!currentUser?.discordId) return; await fetch('/api/access/presence', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ discordId: currentUser.discordId }) }).catch(() => {}); }
+async function sendPresence() { if (!currentUser?.discordId) return; try { const response = await fetch('/api/access/requester', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ discordId: currentUser.discordId }) }); const identity = await response.json(); if (!response.ok || identity.discordId !== currentUser.discordId) return; await fetch('/api/access/presence', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ discordId: identity.discordId }) }).catch(() => {}); } catch {} }
 window.addEventListener('storage', event => { if (event.key === PRESENCE_KEY) { renderRows(); refreshCurrentView(); } });
 function initialsFrom(name='User'){return name.split(/\s+/).map(x=>x[0]).join('').slice(0,2).toUpperCase()}
 /** @param {any} user @returns {{name:string, callsign:string}} */
@@ -4495,13 +4495,22 @@ async function exchangeCallbackCode(){
 function cachedUserWithinSession(cached, now = Date.now()) {
   return cached?.version === AUTH_SCHEMA_VERSION && cached?.user?.discordId && Number(cached.expiresAt) > now ? cached.user : null;
 }
+async function readConfirmedUser() {
+  const response = await fetch('/api/session', { credentials: 'same-origin', cache: 'no-store' });
+  const payload = await response.json().catch(() => null);
+  if (response.status === 401) return null;
+  if (!response.ok) throw new Error('Verificarea sesiunii nu este disponibilă momentan.');
+  if (!payload?.authorized || !payload.user?.discordId) return null;
+  const user = payload.user;
+  localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify({version:AUTH_SCHEMA_VERSION,user,expiresAt:Date.now()+AUTH_TTL}));
+  return user;
+}
 async function startSession(){
   if(DEV_LOGIN_ENABLED){ return enterApp({ ...DEV_LOGIN_USER }); }
   try{
     const callbackUser=await exchangeCallbackCode(); if(callbackUser) return enterApp(callbackUser);
-    const cached=readStored(AUTH_STORAGE_KEY, null);
-    const cachedUser=cachedUserWithinSession(cached);
-    if(cachedUser) return enterApp(cachedUser);
+    const user=await readConfirmedUser();
+    if(user) return enterApp(user);
     localStorage.removeItem(AUTH_STORAGE_KEY); throw new Error('not-authorized');
   }catch(error){appShell.classList.remove('ready');const message=error.message==='not-authorized'?'Conectează-te cu Discord pentru a verifica accesul.':error.message;showAuthError(message)}
 }
@@ -4522,6 +4531,7 @@ startSession();
 function clearLocalSession() {
   try {
     localStorage.removeItem(AUTH_STORAGE_KEY);
+    fetch('/api/auth/logout', { method: 'POST', headers: { 'Sec-Fetch-Site': 'same-origin' }, credentials: 'same-origin' }).catch(() => {});
     const presence = readStored(PRESENCE_KEY, {});
     if (currentUser?.discordId) {
       delete presence[currentUser.discordId];

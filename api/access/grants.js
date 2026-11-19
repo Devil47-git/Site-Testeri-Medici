@@ -1,4 +1,6 @@
 import '../../lib/config.js';
+import { requireRequester } from '../../lib/request-auth.js';
+import { sameOrigin } from '../../lib/http.js';
 import { normalize, callsignNumber, isLeadershipRow, LEADERSHIP_MAX, normalizeTests } from '../../lib/access/shared.js';
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
@@ -84,9 +86,12 @@ function json(res, status, body) { return res.status(status).json(body); }
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'GET' && req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
+  if (req.method === 'POST' && !sameOrigin(req)) return json(res, 403, { error: 'Cross-origin request rejected' });
   try {
-    const requesterId = req.method === 'GET' ? req.query?.requesterId : req.body?.requesterId;
-    if (typeof requesterId !== 'string' || !requesterId.trim()) return json(res, 400, { error: 'Missing requesterId' });
+    const requestedId = req.method === 'GET' ? req.query?.requesterId : req.body?.requesterId;
+    if (typeof requestedId !== 'string' || !requestedId.trim()) return json(res, 400, { error: 'Missing requesterId' });
+    const requesterId = requireRequester(req, res, requestedId);
+    if (!requesterId) return;
     if (req.method === 'GET') {
       const memberRows = (await readPublicValues(MEMBER_RANGE)).slice(1).filter(Array.isArray);
       const requester = memberRows.find(row => String(row[19] || '').trim() === requesterId.trim());
@@ -122,6 +127,6 @@ export default async function handler(req, res) {
     return json(res, 200, { success: true, grant: updated });
   } catch (error) {
     console.error('Grant storage failed:', error);
-    return json(res, 500, { error: `Grant storage failed: ${String(error?.message || error).slice(0, 200)}` });
+    return json(res, 500, { error: 'Grant storage failed' });
   }
 }

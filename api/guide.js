@@ -1,9 +1,11 @@
 import '../lib/config.js';
+import { fileURLToPath } from 'node:url';
 import fs from 'node:fs/promises';
-import path from 'node:path';
 import sanitizeHtml from 'sanitize-html';
 import { callsignNumber, LEADERSHIP_MAX } from '../lib/access/shared.js';
 import { SupabaseKV } from '../lib/storage/supabase-kv.js';
+import { authenticatedDiscordId } from '../lib/auth-session.js';
+import { sameOrigin } from '../lib/http.js';
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:T400';
@@ -52,7 +54,8 @@ function guideSectionIds(html) {
   return ids;
 }
 async function readGuideSource() {
-  return fs.readFile(path.join(process.cwd(), 'assets', 'guide', 'index.html'), 'utf8');
+  const sourcePath = fileURLToPath(new URL('../assets/guide/index.html', import.meta.url));
+  return fs.readFile(sourcePath, 'utf8');
 }
 async function readPublicMembers() {
   const key = process.env.GOOGLE_API_KEY;
@@ -102,10 +105,11 @@ export default async function handler(req, res) {
       return res.status(200).send(insertGuideOverrides(bundledGuide, overrides, validSections));
     }
 
-    const requesterId = typeof req.body?.requesterId === 'string' ? req.body.requesterId.trim() : '';
+    if (!sameOrigin(req)) return json(res, 403, { error: 'Cross-origin request rejected' });
+    const requesterId = authenticatedDiscordId(req);
+    if (!requesterId) return json(res, 401, { error: 'Authentication required' });
     const section = typeof req.body?.section === 'string' ? req.body.section.trim() : '';
     const content = req.body?.content;
-    if (!requesterId) return json(res, 400, { error: 'Missing requesterId' });
     if (!validSections.has(section)) return json(res, 400, { error: 'Invalid guide section' });
     if (typeof content !== 'string' || content.length > MAX_GUIDE_SECTION_LENGTH) {
       return json(res, 413, { error: 'Guide section content is invalid or too large' });

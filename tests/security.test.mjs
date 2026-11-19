@@ -6,6 +6,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import http from 'node:http';
 
+process.env.APP_SESSION_SECRET = 'test-session-secret';
+
 // --- stub Discord OAuth -------------------------------------------------
 const discord = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://x');
@@ -28,7 +30,7 @@ const dir = mkdtempSync(join(tmpdir(), 'medici-'));
 const PORT = 3220;
 const child = spawn(process.execPath, ['server.js'], {
   cwd: process.cwd(),
-  env: { ...process.env, PORT: String(PORT), DISCORD_CLIENT_ID: 'cid', DISCORD_CLIENT_SECRET: 'sec', DISCORD_REDIRECT_URI: `http://localhost:${PORT}/api/auth/callback`, DISCORD_API_BASE: `http://localhost:${discordPort}`, GOOGLE_SERVICE_ACCOUNT_JSON: 'x' },
+  env: { ...process.env, PORT: String(PORT), DISCORD_CLIENT_ID: 'cid', DISCORD_CLIENT_SECRET: 'sec', DISCORD_REDIRECT_URI: `http://localhost:${PORT}/api/auth/callback`, DISCORD_API_BASE: `http://localhost:${discordPort}`, GOOGLE_SERVICE_ACCOUNT_JSON: 'x', APP_SESSION_SECRET: 'test-session-secret' },
   stdio: ['ignore', 'pipe', 'pipe']
 });
 child.stdout.on('data', d => process.stdout.write(`[server] ${d}`));
@@ -67,7 +69,7 @@ try {
     const r = await fetch(base + p);
     check(`blocked ${p}`, r.status === 404, `got ${r.status}`);
   }
-  for (const p of ['/script.js', '/js/storage.js', '/tests.js', '/style.css']) {
+  for (const p of ['/script.js', '/js/storage.js', '/js/speed-insights.js', '/tests.js', '/style.css']) {
     const r = await fetch(base + p);
     check(`serves ${p}`, r.status === 200, `got ${r.status}`);
   }
@@ -75,6 +77,14 @@ try {
   // 3. session endpoint works unauthenticated
   const sess = await fetch(`${base}/api/session`);
   check('session 401 without cookie', sess.status === 401);
+  const noCookieDirectory = await fetch(`${base}/api/access/directory?requesterId=123456789`);
+  check('directory requires authenticated cookie', noCookieDirectory.status === 401, `got ${noCookieDirectory.status}`);
+  const signedSession = await import('../lib/auth-session.js');
+  const sessionCookie = `medici_auth=${encodeURIComponent(signedSession.createAuthCookieValue('123456789'))}`;
+  const authedSession = await fetch(`${base}/api/session`, { headers: { Cookie: sessionCookie } });
+  check('signed session fails closed when member verification is unavailable', authedSession.status === 503, `got ${authedSession.status}`);
+  const sessionPayload = await authedSession.json();
+  check('session verification failure exposes no user data', !sessionPayload.user && sessionPayload.error === 'Session verification unavailable');
 
   // 4. write APIs reject unauthenticated callers
   const put = await fetch(`${base}/api/test-definitions`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ definitions: {} }) });
@@ -133,12 +143,10 @@ try {
   const cb = await fetch(`${base}/api/auth/callback?state=${state2}&code=good-code`, { redirect: 'manual' });
   check('callback processes', cb.status === 302, `status ${cb.status}`);
   const setCookie = cb.headers.get('set-cookie') || '';
-  // Without Google Sheets credentials sheetMember() throws, so the login is
-  // refused; that path is covered by the redirect-to-error assertion above.
   if (/access=error/.test(cb.headers.get('location') || '')) {
     check('login refuses unknown user safely', true, 'sheets unavailable locally');
   } else {
-    check('session cookie issued', /session=[a-f0-9]{64}/.test(setCookie), setCookie.slice(0, 60));
+    check('signed session cookie issued', /medici_auth=/.test(setCookie), setCookie.slice(0, 60));
     check('cookie HttpOnly', /HttpOnly/i.test(setCookie));
     check('cookie SameSite=Strict', /SameSite=Strict/i.test(setCookie));
   }

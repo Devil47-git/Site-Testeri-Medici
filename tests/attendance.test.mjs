@@ -1,5 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+process.env.APP_SESSION_SECRET = 'test-session-secret';
+const { createAuthCookieValue } = await import('../lib/auth-session.js');
 
 process.env.GOOGLE_API_KEY = 'test-key';
 process.env.SUPABASE_URL = 'https://attendance-supabase.example';
@@ -148,7 +150,8 @@ async function callDirectory(requesterId, view) {
     status(code) { statusCode = code; return this; },
     json(value) { payload = value; return this; }
   };
-  await directoryHandler({ method: 'GET', query: { requesterId, view } }, response);
+  const cookie = createAuthCookieValue(requesterId);
+  await directoryHandler({ method: 'GET', query: { requesterId, view }, headers: { cookie: `medici_auth=${encodeURIComponent(cookie)}` } }, response);
   return { statusCode, payload };
 }
 async function callAttendance(method, requesterId, body = {}, extraQuery = {}, headers = {}) {
@@ -163,9 +166,18 @@ async function callAttendance(method, requesterId, body = {}, extraQuery = {}, h
     method,
     query: { requesterId, ...extraQuery },
     body: { requesterId, ...body },
-    headers
+    headers: { cookie: `medici_auth=${encodeURIComponent(createAuthCookieValue(requesterId))}`, ...headers }
   }, response);
   return { statusCode, payload };
+}
+async function withMockedNow(now, callback) {
+  const originalNow = Date.now;
+  Date.now = () => now;
+  try {
+    return await callback();
+  } finally {
+    Date.now = originalNow;
+  }
 }
 
 test('weekly attendance columns keep document labels and text values unchanged', () => {
@@ -205,6 +217,16 @@ test('attendance document sync permits only previous Sunday on Monday outside th
   assert.equal(isAttendanceSyncDateAllowed('2026-03-04', monday), true);
 });
 
+test('fortnightly HR summary waits until Monday after a complete Sunday-ending fortnight', async () => {
+  bonusWebhookRequests.length = 0;
+  const requester = row('102', 'Mihail Parvu', 'hr-id', 'Director Adjunct', 'H.R.');
+  await sendBonusHrSyncLog({ requester, dateKey: '2026-11-29', now: Date.parse('2026-11-29T12:00:00+02:00') });
+  assert.equal(bonusWebhookRequests.length, 1);
+  await sendBonusHrSyncLog({ requester, dateKey: '2026-11-29', now: Date.parse('2026-11-30T12:00:00+02:00') });
+  assert.equal(bonusWebhookRequests.length, 3);
+  assert.match(bonusWebhookRequests[2].content, /EVIDENȚA ULTIMELOR 2 SĂPTĂMÂNI/);
+});
+
 test('bonus sync logs show the selected date and summarize each H.R. after a completed two-week period', async () => {
   const periodKey = 'site-testeri-medici:bonus-hr-sync:period:4';
   const summaryKey = 'site-testeri-medici:bonus-hr-sync:summary:4';
@@ -234,9 +256,16 @@ test('bonus sync logs show the selected date and summarize each H.R. after a com
   await sendBonusHrSyncLog({
     requester: row('102', 'Mihail Parvu', 'hr-id', 'Director Adjunct', 'H.R.'),
     dateKey: '2026-11-29',
-    now: syncTime
+    now: Date.parse('2026-11-30T12:00:00+02:00')
   });
   assert.equal(bonusWebhookRequests.length, 3);
+
+  await sendBonusHrSyncLog({
+    requester: row('102', 'Mihail Parvu', 'hr-id', 'Director Adjunct', 'H.R.'),
+    dateKey: '2026-11-29',
+    now: syncTime
+  });
+  assert.equal(bonusWebhookRequests.length, 4);
 });
 
 test('attendance cutoff uses Bucharest time and blocks starts from 23:35', () => {
@@ -513,76 +542,83 @@ test('activity directory excludes non-member label and role rows', async () => {
 });
 
 test('the separate live timer still supports start and stop without manual weekly edits', async () => {
-  const key = 'site-testeri-medici:attendance:member-id';
-  redisValues.set(key, JSON.stringify({ entries: [], manualEntries: [{ id: 'legacy', minutes: 90 }] }));
-  discordWebhookRequests.length = 0;
-  const started = await callAttendance('POST', 'member-id', { action: 'start' });
-  assert.equal(started.statusCode, 200, JSON.stringify(started.payload));
-  assert.equal(started.payload.entries.length, 1);
-  assert.equal(started.payload.entries[0].end, null);
-  assert.equal(started.payload.warning, '');
-  assert.equal(discordWebhookRequests.length, 1);
-  assert.match(discordWebhookRequests[0].content, /Pontaj deschis: <@member-id>/);
-  assert.match(discordWebhookRequests[0].content, /Ora deschiderii: \d{2}:\d{2}/);
-  assert.deepEqual(discordWebhookRequests[0].allowed_mentions, { parse: [], users: ['member-id'] });
+  await withMockedNow(Date.parse('2026-11-19T12:00:00+02:00'), async () => {
+    const key = 'site-testeri-medici:attendance:member-id';
+    redisValues.set(key, JSON.stringify({ entries: [], manualEntries: [{ id: 'legacy', minutes: 90 }] }));
+    discordWebhookRequests.length = 0;
+    const started = await callAttendance('POST', 'member-id', { action: 'start' });
+    assert.equal(started.statusCode, 200, JSON.stringify(started.payload));
+    assert.equal(started.payload.entries.length, 1);
+    assert.equal(started.payload.entries[0].end, null);
+    assert.equal(started.payload.warning, '');
+    assert.equal(discordWebhookRequests.length, 1);
+    assert.match(discordWebhookRequests[0].content, /Pontaj deschis: <@member-id>/);
+    assert.match(discordWebhookRequests[0].content, /Ora deschiderii: \d{2}:\d{2}/);
+    assert.deepEqual(discordWebhookRequests[0].allowed_mentions, { parse: [], users: ['member-id'] });
 
-  const stopped = await callAttendance('POST', 'member-id', { action: 'stop' });
-  assert.equal(stopped.statusCode, 200);
-  assert.equal(Number.isFinite(stopped.payload.entries[0].end), true);
-  assert.equal(stopped.payload.warning, '');
-  assert.equal(discordWebhookRequests.length, 2);
-  assert.match(discordWebhookRequests[1].content, /Pontaj închis: <@member-id>/);
-  assert.match(discordWebhookRequests[1].content, /Ora deschiderii: \d{2}:\d{2}/);
-  assert.match(discordWebhookRequests[1].content, /Ora închiderii: \d{2}:\d{2}/);
-  assert.match(discordWebhookRequests[1].content, /Durată: \d+ minute/);
+    const stopped = await callAttendance('POST', 'member-id', { action: 'stop' });
+    assert.equal(stopped.statusCode, 200);
+    assert.equal(Number.isFinite(stopped.payload.entries[0].end), true);
+    assert.equal(stopped.payload.warning, '');
+    assert.equal(discordWebhookRequests.length, 2);
+    assert.match(discordWebhookRequests[1].content, /Pontaj închis: <@member-id>/);
+    assert.match(discordWebhookRequests[1].content, /Ora deschiderii: \d{2}:\d{2}/);
+    assert.match(discordWebhookRequests[1].content, /Ora închiderii: \d{2}:\d{2}/);
+    assert.match(discordWebhookRequests[1].content, /Durată: \d+ minute/);
 
-  const manual = await callAttendance('POST', 'member-id', { action: 'manual-add' });
-  assert.equal(manual.statusCode, 400);
+    const manual = await callAttendance('POST', 'member-id', { action: 'manual-add' });
+    assert.equal(manual.statusCode, 400);
+  });
 });
 
 test('live attendance clock reports Discord webhook failures without losing the saved entry', async () => {
-  const key = 'site-testeri-medici:attendance:member-id';
-  redisValues.set(key, JSON.stringify([]));
-  discordWebhookFailure = true;
-  try {
-    const started = await callAttendance('POST', 'member-id', { action: 'start' });
-    assert.equal(started.statusCode, 200);
-    assert.equal(started.payload.entries.length, 1);
-    assert.match(started.payload.warning, /notificarea Discord nu a putut fi trimisă: HTTP 500/);
-  } finally {
-    discordWebhookFailure = false;
-    redisValues.delete(key);
-  }
+  await withMockedNow(Date.parse('2026-11-19T12:00:00+02:00'), async () => {
+    const key = 'site-testeri-medici:attendance:member-id';
+    redisValues.set(key, JSON.stringify([]));
+    discordWebhookFailure = true;
+    try {
+      const started = await callAttendance('POST', 'member-id', { action: 'start' });
+      assert.equal(started.statusCode, 200);
+      assert.equal(started.payload.entries.length, 1);
+      assert.match(started.payload.warning, /notificarea Discord nu a putut fi trimisă\./);
+      assert.doesNotMatch(started.payload.warning, /HTTP 500/);
+    } finally {
+      discordWebhookFailure = false;
+      redisValues.delete(key);
+    }
+  });
 });
 
 test('H.R. timer requires its assigned function and P.R. timers are unavailable', async () => {
-  const memberKey = 'site-testeri-medici:attendance:member-id';
-  sheetRows[2][10] = 'H.R. / H.R. AV';
-  try {
-    const ownAttendance = await callAttendance('GET', 'member-id', {}, { view: 'own' });
-    assert.equal(ownAttendance.statusCode, 200);
-    const deniedPr = await callAttendance('POST', 'member-id', { action: 'start', attendanceType: 'pr' });
-    assert.equal(deniedPr.statusCode, 400);
+  await withMockedNow(Date.parse('2026-11-19T12:00:00+02:00'), async () => {
+    const memberKey = 'site-testeri-medici:attendance:member-id';
+    sheetRows[2][10] = 'H.R. / H.R. AV';
+    try {
+      const ownAttendance = await callAttendance('GET', 'member-id', {}, { view: 'own' });
+      assert.equal(ownAttendance.statusCode, 200);
+      const deniedPr = await callAttendance('POST', 'member-id', { action: 'start', attendanceType: 'pr' });
+      assert.equal(deniedPr.statusCode, 400);
 
-    const startedHr = await callAttendance('POST', 'member-id', { action: 'start', attendanceType: 'hr' });
-    assert.equal(startedHr.statusCode, 200);
-    assert.equal(startedHr.payload.entries.at(-1).type, 'hr');
-    const overlappingRegular = await callAttendance('POST', 'member-id', { action: 'start', attendanceType: 'regular' });
-    assert.equal(overlappingRegular.statusCode, 409);
-    const stoppedHr = await callAttendance('POST', 'member-id', { action: 'stop', attendanceType: 'hr' });
-    assert.equal(stoppedHr.statusCode, 200);
-    assert.equal(stoppedHr.payload.entries.at(-1).type, 'hr');
-    assert.equal(Number.isFinite(stoppedHr.payload.entries.at(-1).end), true);
+      const startedHr = await callAttendance('POST', 'member-id', { action: 'start', attendanceType: 'hr' });
+      assert.equal(startedHr.statusCode, 200);
+      assert.equal(startedHr.payload.entries.at(-1).type, 'hr');
+      const overlappingRegular = await callAttendance('POST', 'member-id', { action: 'start', attendanceType: 'regular' });
+      assert.equal(overlappingRegular.statusCode, 409);
+      const stoppedHr = await callAttendance('POST', 'member-id', { action: 'stop', attendanceType: 'hr' });
+      assert.equal(stoppedHr.statusCode, 200);
+      assert.equal(stoppedHr.payload.entries.at(-1).type, 'hr');
+      assert.equal(Number.isFinite(stoppedHr.payload.entries.at(-1).end), true);
 
-    sheetRows[2][10] = 'P.R.';
-    const deniedHr = await callAttendance('POST', 'member-id', { action: 'start', attendanceType: 'hr' });
-    assert.equal(deniedHr.statusCode, 403);
-    const startedPr = await callAttendance('POST', 'member-id', { action: 'start', attendanceType: 'pr' });
-    assert.equal(startedPr.statusCode, 400);
-  } finally {
-    sheetRows[2][10] = '';
-    redisValues.delete(memberKey);
-  }
+      sheetRows[2][10] = 'P.R.';
+      const deniedHr = await callAttendance('POST', 'member-id', { action: 'start', attendanceType: 'hr' });
+      assert.equal(deniedHr.statusCode, 403);
+      const startedPr = await callAttendance('POST', 'member-id', { action: 'start', attendanceType: 'pr' });
+      assert.equal(startedPr.statusCode, 400);
+    } finally {
+      sheetRows[2][10] = '';
+      redisValues.delete(memberKey);
+    }
+  });
 });
 
 test('members can read their own live attendance and callsigns 001-650 can view department attendance', async () => {
@@ -833,7 +869,8 @@ test('attendance edit reports Discord delivery failures instead of silently succ
       reason: 'Pontaj nedeschis'
     });
     assert.equal(edited.statusCode, 200);
-    assert.match(edited.payload.warning, /notificarea Discord nu a putut fi trimisă: HTTP 500/);
+    assert.match(edited.payload.warning, /notificarea Discord nu a putut fi trimisă\./);
+    assert.doesNotMatch(edited.payload.warning, /HTTP 500/);
 
     discordWebhookFailure = false;
     process.env.DISCORD_ATTENDANCE_REVIEW_WEBHOOK = '';
@@ -846,7 +883,8 @@ test('attendance edit reports Discord delivery failures instead of silently succ
       clockOut: '10:30',
       reason: 'Pontaj nedeschis'
     });
-    assert.match(missingWebhook.payload.warning, /DISCORD_ATTENDANCE_REVIEW_WEBHOOK is missing or invalid/);
+    assert.match(missingWebhook.payload.warning, /notificarea Discord nu a putut fi trimisă\./);
+    assert.doesNotMatch(missingWebhook.payload.warning, /DISCORD_ATTENDANCE_REVIEW_WEBHOOK/);
   } finally {
     discordWebhookFailure = false;
     process.env.DISCORD_ATTENDANCE_REVIEW_WEBHOOK = 'https://discord.com/api/webhooks/test/token';

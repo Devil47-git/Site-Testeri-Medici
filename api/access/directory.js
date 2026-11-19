@@ -1,4 +1,6 @@
 import '../../lib/config.js';
+import { requireRequester } from '../../lib/request-auth.js';
+import { sameOrigin } from '../../lib/http.js';
 import { normalize, callsignNumber, candidateForCallsign, isLeadershipRow, canManageAttendance, gradeGroupFor, GRADE_GROUPS, LEADERSHIP_MAX, effectiveTestsForMember, normalizeTests, functionsForMember, attendanceMinimumMinutes, testsForFunctions } from '../../lib/access/shared.js';
 import { parseCooldownS } from '../../lib/access/cooldowns.js';
 import { avatarUrlForDiscordMember, discordAvatarHashFromUrl, readDiscordAvatarHashes, storeDiscordAvatarHash } from '../../lib/access/avatar-store.js';
@@ -94,13 +96,16 @@ export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   const isAvatarSync = req.method === 'POST';
   if (req.method !== 'GET' && !isAvatarSync) return json(res, 405, { error: 'Method not allowed' });
+  if (isAvatarSync && !sameOrigin(req)) return json(res, 403, { error: 'Cross-origin request rejected' });
   const body = req.body && typeof req.body === 'object' ? req.body : {};
-  const requesterId = isAvatarSync
+  const requestedId = isAvatarSync
     ? typeof body.requesterId === 'string' ? body.requesterId.trim() : ''
     : typeof req.query?.requesterId === 'string' ? req.query.requesterId.trim() : '';
+  if (!requestedId) return json(res, 400, { error: 'Missing requesterId' });
+  const requesterId = requireRequester(req, res, requestedId);
+  if (!requesterId) return;
   const avatarHash = isAvatarSync ? discordAvatarHashFromUrl(body.avatarUrl, requesterId) : '';
   if (isAvatarSync && (!avatarHash || !avatarRedis.isConfigured)) return json(res, 400, { error: 'Invalid avatar sync request' });
-  if (!requesterId) return json(res, 400, { error: 'Missing requesterId' });
   try {
     const rows = await readPublic(MEMBER_RANGE);
     const headers = rows[0] || [];
@@ -120,6 +125,8 @@ export default async function handler(req, res) {
       ? attendanceWeeksByCallsign(await readPublic(ATTENDANCE_RANGE))
       : new Map();
     if (req.method === 'GET' && req.query?.view === 'cooldown-payers') {
+      const canReviewCooldowns = (requesterCallsign >= 1 && requesterCallsign <= LEADERSHIP_MAX) || canManageAttendance(requesterFunctions);
+      if (!canReviewCooldowns) return json(res, 403, { error: 'Only leadership or H.R. can view cooldown payers' });
       return json(res, 200, { members: cooldownPayersFromRows(members) });
     }
     if (isAvatarSync) {
@@ -127,6 +134,7 @@ export default async function handler(req, res) {
       return json(res, 200, { success: true });
     }
     if (typeof req.query?.callsign === 'string') {
+      if (requesterCallsign < 1 || requesterCallsign > 20) return json(res, 403, { error: 'Only leadership can search member cooldowns' });
       const candidate = candidateForCallsign(members, req.query.callsign);
       const row = candidate && members.find(item => callsignNumber(item[2]) === callsignNumber(req.query.callsign) && String(item[3] || '').trim());
       return json(res, 200, { candidate: candidate ? { ...candidate, cooldowns: parseCooldownS(row?.[18] || '') } : null });

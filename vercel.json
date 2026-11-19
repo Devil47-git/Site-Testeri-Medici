@@ -1,27 +1,45 @@
-{
-  "functions": { "api/**/*.js": { "maxDuration": 30 } },
-  "crons": [
-    { "path": "/api/access/attendance?task=close-expired", "schedule": "0 21 * * *" },
-    { "path": "/api/access/attendance?task=close-expired", "schedule": "0 22 * * *" }
-  ],
-  "headers": [
-    {
-      "source": "/(.*)\\.(js|css|html)",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "no-cache"
-        }
-      ]
-    },
-    {
-      "source": "/",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "no-cache"
-        }
-      ]
-    }
-  ]
+﻿{
+    "functions":  {
+                      "api/**/*.js":  {
+                                          "maxDuration":  30
+                                      },
+                      "api/guide.js":  {
+                                          "maxDuration":  30,
+                                          "includeFiles":  "assets/guide/**"
+                                      }
+                  },
+    "crons":  [
+                  {
+                      "path":  "/api/access/attendance?task=close-expired",
+                      "schedule":  "0 21 * * *"
+                  },
+                  {
+                      "path":  "/api/access/attendance?task=close-expired",
+                      "schedule":  "0 22 * * *"
+                  },
+                  {
+                      "path":  "/api/access/attendance?task=send-bonus-summary",
+                      "schedule":  "0 20 * * 1"
+                  }
+              ],
+    "headers":  [
+                    {
+                        "source":  "/(.*)\\.(js|css|html)",
+                        "headers":  [
+                                        {
+                                            "key":  "Cache-Control",
+                                            "value":  "no-cache"
+                                        }
+                                    ]
+                    },
+                    {
+                        "source":  "/",
+                        "headers":  [
+                                        {
+                                            "key":  "Cache-Control",
+                                            "value":  "no-cache"
+                                        }
+                                    ]
+                    }
+                ]
 }

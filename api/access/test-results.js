@@ -1,4 +1,6 @@
 import '../../lib/config.js';
+import { requireRequester } from '../../lib/request-auth.js';
+import { sameOrigin } from '../../lib/http.js';
 import { randomUUID } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -385,10 +387,12 @@ async function sendMedicalCertificateNotification(details, number, testerDiscord
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'GET' && req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
+  if (req.method === 'POST' && !sameOrigin(req)) return json(res, 403, { error: 'Cross-origin request rejected' });
 
-  const requesterId = req.method === 'GET' ? req.query?.requesterId : req.body?.requesterId;
-  const discordId = typeof requesterId === 'string' ? requesterId.trim() : '';
-  if (!discordId) return json(res, 400, { error: 'Missing requesterId' });
+  const requestedId = req.method === 'GET' ? req.query?.requesterId : req.body?.requesterId;
+  if (typeof requestedId !== 'string' || !requestedId.trim()) return json(res, 400, { error: 'Missing requesterId' });
+  const discordId = requireRequester(req, res, requestedId);
+  if (!discordId) return;
 
   try {
     const sheets = await sheetsClient();
@@ -580,7 +584,8 @@ export default async function handler(req, res) {
       count.count += 1;
       counts.set(key, count);
     }
-    return json(res, 200, { counts: [...counts.values()], processedCounts: lifetimeTestCounts(lifetimeRows) });
+    const ownCounts = [...counts.values()].filter(item => item.discordId === discordId);
+    return json(res, 200, { counts: ownCounts, processedCounts: lifetimeTestCounts(lifetimeRows).filter(item => item.discordId === discordId) });
   } catch (error) {
     console.error('Test history failed:', error);
     return json(res, 500, { error: 'Test history unavailable' });

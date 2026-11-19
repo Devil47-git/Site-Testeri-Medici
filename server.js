@@ -8,31 +8,19 @@ import path from 'node:path';
 import { google } from 'googleapis';
 import { isLeadership, gradeGroupFor, catalog, automaticCoreTestsForMember } from './lib/access/shared.js';
 import { readTestDefinitions, writeTestDefinitions } from './lib/test-definitions-store.js';
+import { authenticatedDiscordId, setAuthCookie as setSignedAuthCookie, clearAuthCookie } from './lib/auth-session.js';
+import { publicUserForDiscordId } from './lib/public-user.js';
 
 const PORT = Number(process.env.PORT || 3000);
-const SESSION_TTL = 30 * 24 * 60 * 60 * 1000;
 const ROOT = process.cwd();
 const SHEET_ID = process.env.GOOGLE_SHEET_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const SHEET_RANGE = process.env.GOOGLE_SHEET_RANGE || 'LISTA DEPARTAMENT!A:T';
-const sessions = new Map();
 const oauthState = new Map();
 const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.gif': 'image/gif', '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.svg': 'image/svg+xml' };
 
-function cookie(req, key) {
-  const raw = req.headers.cookie || '';
-  for (const part of raw.split(';')) {
-    const x = part.trim();
-    const eq = x.indexOf('=');
-    if (eq < 0 || x.slice(0, eq) !== key) continue;
-    const value = x.slice(eq + 1);
-    try { return decodeURIComponent(value); } catch { return value; }
-  }
-  return undefined;
-}
 const MAX_BODY_BYTES = 1e6;
-const SECURE_COOKIE = process.env.NODE_ENV === 'production' || process.env.HTTPS === 'true';
-function setSessionCookie(res, sid) {
-  res.setHeader('Set-Cookie', `session=${sid}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${Math.floor(SESSION_TTL / 1000)}${SECURE_COOKIE ? '; Secure' : ''}`);
+function setSessionCookie(res, discordId) {
+  setSignedAuthCookie(res, discordId);
 }
 function applySecurityHeaders(res) {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -96,12 +84,6 @@ async function readJsonBody(req, limit = MAX_BODY_BYTES) {
   try { return body ? JSON.parse(body) : {}; }
   catch { const error = new Error('Date invalide'); error.statusCode = 400; throw error; }
 }
-function requireSession(req) {
-  const sessionId = cookie(req, 'session');
-  const session = sessionId ? sessions.get(sessionId) : undefined;
-  if (!session || session.expires < Date.now()) return null;
-  return { sessionId, session };
-}
 function redirect(res, location) { res.writeHead(302, { Location: location }); res.end(); }
 function json(res, code, data) { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(data)); }
 function roleAccess(functions, callsign = '', rank = '', dept = '') {
@@ -148,23 +130,21 @@ async function handleAuth(req, res, url) {
   if (url.pathname === '/api/auth/callback') {
     const state = url.searchParams.get('state'); if (!oauthState.has(state) || oauthState.get(state) < Date.now()) return json(res, 400, { error: 'Invalid OAuth state' }); oauthState.delete(state);
     const code = url.searchParams.get('code'); if (!code || !code.trim()) return redirect(res, '/?access=denied');
-    try { const discord = await exchangeDiscord(code.trim()); const member = await sheetMember(discord.id); if (!member) return redirect(res, '/?access=denied'); const sid = crypto.randomBytes(32).toString('hex'); sessions.set(sid, { ...member, discordUsername: discord.username, expires: Date.now() + SESSION_TTL }); setSessionCookie(res, sid); return redirect(res, '/'); } catch (e) { return redirect(res, '/?access=error'); }
+    try { const discord = await exchangeDiscord(code.trim()); const member = await sheetMember(discord.id); if (!member) return redirect(res, '/?access=denied'); setSessionCookie(res, member.discordId); return redirect(res, '/'); } catch (e) { return redirect(res, '/?access=error'); }
   }
 }
 
 async function handleSession(req, res) {
-  const auth = requireSession(req);
-  if (!auth) return json(res, 401, { authorized: false });
-  const { sessionId, session } = auth;
+  const discordId = authenticatedDiscordId(req);
+  if (!discordId) return json(res, 401, { authorized: false });
   try {
-    const fresh = await sheetMember(session.discordId);
-    if (!fresh) return json(res, 403, { authorized: false });
-    const updated = { ...session, ...fresh, expires: Date.now() + SESSION_TTL };
-    sessions.set(sessionId, updated);
-    setSessionCookie(res, sessionId);
-    return json(res, 200, { authorized: true, ...updated });
-  } catch {
-    return json(res, 200, { authorized: true, ...session });
+    const user = await publicUserForDiscordId(discordId);
+    if (!user) { clearAuthCookie(res); return json(res, 401, { authorized: false }); }
+    setSessionCookie(res, discordId);
+    return json(res, 200, { authorized: true, user });
+  } catch (error) {
+    console.error('Session verification failed:', error);
+    return json(res, 503, { authorized: false, error: 'Session verification unavailable' });
   }
 }
 
@@ -172,9 +152,9 @@ async function handleIdentityOcr(req, res) {
   if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
   if (!sameOrigin(req)) return json(res, 403, { error: 'Cerere respinsă' });
   if (!applyRateLimit(req, res, 'identity-ocr', 20, 60 * 1000)) return;
-  const auth = requireSession(req);
-  if (!auth) return json(res, 401, { error: 'Autentificare necesară' });
-  const apiKey = process.env.OCRSPACE_API_KEY || 'K88652300388957';
+  if (!authenticatedDiscordId(req)) return json(res, 401, { error: 'Autentificare necesară' });
+  const apiKey = String(process.env.OCRSPACE_API_KEY || '').trim();
+  if (!apiKey) return json(res, 503, { error: 'Serviciul OCR nu este configurat.' });
   let payload;
   try { payload = await readJsonBody(req); } catch (e) { return json(res, e.statusCode || 400, { error: 'Date invalide' }); }
   const base64 = String(payload?.image || '');
@@ -201,6 +181,20 @@ async function handleIdentityOcr(req, res) {
 
 async function handleTestDefinitions(req, res) {
   {
+    if (req.method !== 'GET' && req.method !== 'PUT') return json(res, 405, { error: 'Method not allowed' });
+    const discordId = authenticatedDiscordId(req);
+    if (!discordId) return json(res, 401, { error: 'Autentificare necesară' });
+    let user;
+    try {
+      user = await publicUserForDiscordId(discordId);
+    } catch (error) {
+      console.error('Test definition authorization failed:', error);
+      return json(res, 503, { error: 'Verificarea accesului nu este disponibilă momentan.' });
+    }
+    if (!user) {
+      clearAuthCookie(res);
+      return json(res, 401, { error: 'Autentificare necesară' });
+    }
     if (req.method === 'GET') {
       const definitions = await readTestDefinitions();
       if (!definitions) return json(res, 500, { error: 'Nu am putut citi definițiile testelor' });
@@ -209,10 +203,7 @@ async function handleTestDefinitions(req, res) {
     if (req.method === 'PUT') {
       if (!sameOrigin(req)) return json(res, 403, { error: 'Cerere respinsă' });
       if (!applyRateLimit(req, res, 'test-definitions-put', 30, 60 * 1000)) return;
-      const auth = requireSession(req);
-      if (!auth) return json(res, 401, { error: 'Autentificare necesară' });
-      const { session } = auth;
-      if (!session.isLeadership) return json(res, 403, { error: 'Doar conducerea poate edita testele' });
+      if (!user.isLeadership) return json(res, 403, { error: 'Doar conducerea poate edita testele' });
       let payload; try { payload = await readJsonBody(req); } catch (e) { return json(res, e.statusCode || 400, { error: 'Date invalide' }); }
       if (!payload || typeof payload.definitions !== 'object' || Array.isArray(payload.definitions) || !payload.definitions) return json(res, 400, { error: 'Câmpul definitions lipsește' });
       try { await writeTestDefinitions(payload.definitions); return json(res, 200, { success: true }); }
@@ -223,7 +214,7 @@ async function handleTestDefinitions(req, res) {
 }
 
 async function handleGuide(req, res) {
-  if (req.method !== 'GET') return json(res, 405, { error: 'Method not allowed' });
+  if (req.method !== 'GET' && req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
   try {
     return await (await import('./api/guide.js')).default(req, {
       setHeader: (name, value) => res.setHeader(name, value),
@@ -286,8 +277,19 @@ async function route(req, res) {
   let url;
   try { url = new URL(req.url, `http://${req.headers.host || 'localhost'}`); }
   catch { return json(res, 400, { error: 'Invalid request URL' }); }
+  if (url.pathname === '/api/auth/logout') {
+    if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
+    const site = req.headers['sec-fetch-site'];
+    if ((site && site !== 'same-origin' && site !== 'none') || (!site && !sameOrigin(req))) return json(res, 403, { error: 'Cerere respinsă' });
+    clearAuthCookie(res);
+    return json(res, 200, { success: true });
+  }
   if (url.pathname === '/api/auth/login' || url.pathname === '/api/auth/discord' || url.pathname === '/api/auth/callback') return handleAuth(req, res, url);
   if (url.pathname === '/api/session') return handleSession(req, res);
+  if (url.pathname === '/api/access/requester') {
+    req.query = Object.fromEntries(url.searchParams);
+    return (await import('./api/access/requester.js')).default(req, res);
+  }
   if (url.pathname === '/api/test-definitions') return handleTestDefinitions(req, res);
   if (url.pathname === '/api/guide') return handleGuide(req, res);
   if (url.pathname === '/api/identity-ocr') return handleIdentityOcr(req, res);

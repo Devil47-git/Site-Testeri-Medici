@@ -9,6 +9,7 @@ const previousEnvironment = {
 process.env.GOOGLE_API_KEY = 'test-key';
 process.env.SUPABASE_URL = 'https://project.supabase.co';
 process.env.SUPABASE_SECRET_KEY = 'test-secret';
+process.env.APP_SESSION_SECRET = 'test-session-secret';
 const importedFetch = globalThis.fetch;
 const redisWrites = [];
 let redisReadFailure = false;
@@ -19,6 +20,7 @@ globalThis.fetch = async (url, options = {}) => {
   return new Response(JSON.stringify(1), { status: 200 });
 };
 const { default: handler, sanitizeGuideSection } = await import('../api/guide.js');
+const { createAuthCookieValue } = await import('../lib/auth-session.js');
 globalThis.fetch = importedFetch;
 
 function createResponse() {
@@ -42,6 +44,12 @@ function departmentRows() {
   member[3] = 'Medic';
   member[19] = 'member-id';
   return [['header'], leader, member];
+}
+function authHeaders(discordId) {
+  return {
+    cookie: `medici_auth=${encodeURIComponent(createAuthCookieValue(discordId))}`,
+    'sec-fetch-site': 'same-origin'
+  };
 }
 
 test('guide editor strips scripts, event handlers, unsafe URLs, and dangerous inline CSS', () => {
@@ -89,13 +97,17 @@ test('only leadership can save guide sections, and stored HTML is sanitized', as
     throw new Error(`Unexpected request: ${url}`);
   };
   try {
+    const impersonation = createResponse();
+    await handler({ method: 'POST', body: { requesterId: 'leader-id', section: 'uniforme', content: '<p>text</p>' } }, impersonation);
+    assert.equal(impersonation.statusCode, 401);
+
     const denied = createResponse();
-    await handler({ method: 'POST', body: { requesterId: 'member-id', section: 'uniforme', content: '<p>text</p>' } }, denied);
+    await handler({ method: 'POST', headers: authHeaders('member-id'), body: { requesterId: 'member-id', section: 'uniforme', content: '<p>text</p>' } }, denied);
     assert.equal(denied.statusCode, 403);
     assert.equal(redisWrites.length, 0);
 
     const saved = createResponse();
-    await handler({ method: 'POST', body: { requesterId: 'leader-id', section: 'uniforme', content: '<p onclick="alert(1)">Updated</p><script>alert(1)</script>' } }, saved);
+    await handler({ method: 'POST', headers: authHeaders('leader-id'), body: { requesterId: 'leader-id', section: 'uniforme', content: '<p onclick="alert(1)">Updated</p><script>alert(1)</script>' } }, saved);
     assert.equal(saved.statusCode, 200);
     assert.equal(redisWrites.length, 1);
     assert.deepEqual(redisWrites[0].slice(0, 3), ['HSET', 'panel-medici:guide:overrides', 'uniforme']);
