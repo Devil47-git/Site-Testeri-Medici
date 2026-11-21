@@ -46,7 +46,6 @@ const roleColors = ['cyan','orange','violet','green'];
 /** @type {string} */
 let activeTesterFilter = 'all';
 const GRANTS_KEY = 'medici-grants';
-const LEAVE_STORAGE_KEY = 'medici-leave-records-v1';
 /** @type {Member|null} */
 let currentUser = null;
 let navigationRevision = 0;
@@ -449,9 +448,6 @@ let membersRoomError = '';
 let cooldownPayerMembers = [];
 let cooldownPayersLoaded = false;
 let cooldownPayersRequest = null;
-let leaveRecords = [];
-let leaveMonth = new Date().getFullYear() + '-' + String(new Date().getMonth() + 1).padStart(2, '0');
-let leaveLoadRequest = null;
 async function loadCooldownPayers() {
   if (cooldownPayersLoaded) return;
   if (cooldownPayersRequest) return cooldownPayersRequest;
@@ -676,8 +672,6 @@ function renderAvailableTestsSubmenu() {
   if (activityNav) activityNav.hidden = !canViewAttendanceRooms(currentUser);
   const activeAttendanceNav = document.querySelector('#active-attendance-nav');
   if (activeAttendanceNav) activeAttendanceNav.hidden = !canViewAttendanceRooms(currentUser);
-  const leaveNav = document.querySelector('#leave-nav');
-  if (leaveNav) leaveNav.hidden = !hasLeadershipCallsign(currentUser);
   const guideNav = document.querySelector('#guide-nav');
   if (guideNav) guideNav.hidden = !hasLeadershipCallsign(currentUser);
   renderGuideSubmenu();
@@ -1905,7 +1899,7 @@ async function loadActivityEntries() {
   }
   activityDataLoaded = true;
   await loadAttendanceRecords(true, { render: false, view: 'active', dateKey: attendanceDateKey(Date.now()) });
-  if (window.history.state?.view === 'activity') { viewContent.innerHTML = renderActivityView(); applyActivitySearch(); }
+  if (window.history.state?.view === 'activity') renderActivityViewPreservingScroll();
   else if (window.history.state?.view === 'activity-member') {
     const member = directoryMembers.find(item => normalizeCallsign(item.callsign) === window.history.state.callsign);
     if (member) viewContent.innerHTML = renderActivityMemberView(member);
@@ -1926,7 +1920,7 @@ function scheduleActivityAttendanceRefresh() {
     }
     if (attendanceLoadPending) return;
     await loadAttendanceRecords(true, { render: false, view: 'active', dateKey: attendanceDateKey(Date.now()) });
-    if (window.history.state?.view === 'activity') { viewContent.innerHTML = renderActivityView(); applyActivitySearch(); }
+    if (window.history.state?.view === 'activity') renderActivityViewPreservingScroll();
   }, 30000);
 }
 async function loadOwnActivityEntries() {
@@ -2056,11 +2050,27 @@ function applyActivitySearch() {
     header.hidden = !visible;
   });
 }
+function renderActivityViewPreservingScroll() {
+  const currentTable = viewContent.querySelector('.activity-table-wrap');
+  const tableScrollTop = currentTable?.scrollTop || 0;
+  const tableScrollLeft = currentTable?.scrollLeft || 0;
+  const pageScrollX = window.scrollX;
+  const pageScrollY = window.scrollY;
+  viewContent.innerHTML = renderActivityView();
+  applyActivitySearch();
+  const nextTable = viewContent.querySelector('.activity-table-wrap');
+  if (nextTable) {
+    nextTable.scrollTop = tableScrollTop;
+    nextTable.scrollLeft = tableScrollLeft;
+  }
+  if (window.scrollX !== pageScrollX || window.scrollY !== pageScrollY) {
+    window.scrollTo({ top: pageScrollY, left: pageScrollX, behavior: 'instant' });
+  }
+}
 document.addEventListener('click', event => {
   if (!event.target.closest?.('#activity-weeks-toggle')) return;
   activityShowWeeks = !activityShowWeeks;
-  viewContent.innerHTML = renderActivityView();
-  applyActivitySearch();
+  renderActivityViewPreservingScroll();
 });
 document.addEventListener('input', event => {
   if (event.target?.id !== 'activity-search') return;
@@ -2164,194 +2174,6 @@ function wireSettingsEvents() {
   };
 }
 
-function leaveMonthLabel(monthKey) {
-  const [year, month] = String(monthKey).split('-').map(Number);
-  return new Intl.DateTimeFormat('ro-RO', { month: 'long', year: 'numeric' }).format(new Date(year, month - 1, 1));
-}
-function leaveDaysInMonth(monthKey) {
-  const [year, month] = String(monthKey).split('-').map(Number);
-  return new Date(year, month, 0).getDate();
-}
-function leaveMemberKey(member) {
-  return String(member?.discordId || '').trim() || String(member?.callsign || '').trim();
-}
-function leaveRecordsFor(member, monthKey = leaveMonth) {
-  const key = leaveMemberKey(member);
-  return leaveRecords.filter(record => String(record.discordId || record.memberId || '') === key && String(record.date || '').startsWith(`${monthKey}-`));
-}
-function leaveParseJoinDate(member) {
-  const raw = String(member?.joinedAt || '').trim();
-  if (!raw) return null;
-  let date = null;
-  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) date = new Date(`${raw.slice(0, 10)}T12:00:00`);
-  else {
-    const match = raw.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})/);
-    if (match) date = new Date(Number(match[3]), Number(match[2]) - 1, Number(match[1]));
-  }
-  return date && !Number.isNaN(date.getTime()) ? date : null;
-}
-function leaveCivilEntitlement(member, monthKey) {
-  const joined = leaveParseJoinDate(member);
-  if (!joined) return 0;
-  const [year, month] = String(monthKey).split('-').map(Number);
-  const elapsed = (year - joined.getFullYear()) * 12 + (month - 1 - joined.getMonth());
-  if (elapsed < 0) return 0;
-  return Math.floor(elapsed / 3) * 5;
-}
-function leaveCivilBalance(member, monthKey) {
-  const total = leaveCivilEntitlement(member, monthKey);
-  const used = leaveRecords.filter(record => {
-    if (String(record.discordId || record.memberId || '') !== leaveMemberKey(member) || record.type !== 'civil') return false;
-    return String(record.date || '') < `${monthKey}-32`;
-  }).reduce((count, record) => count + 1, 0);
-  return Math.max(0, total - used);
-}
-async function loadLeaveRecords() {
-  if (!currentUser?.discordId) return;
-  if (leaveLoadRequest) return leaveLoadRequest;
-  leaveLoadRequest = (async () => {
-    try {
-      const response = await fetch(`/api/access/leave?requesterId=${encodeURIComponent(currentUser.discordId)}`);
-      const payload = await parseApiResponse(response);
-      if (!response.ok) throw new Error(payload.error || 'Concediile nu au putut fi încărcate.');
-      leaveRecords = Array.isArray(payload.records) ? payload.records : [];
-    } catch (error) {
-      console.error('Leave records load failed:', error);
-      leaveRecords = readStored(LEAVE_STORAGE_KEY, []) || [];
-    } finally {
-      if (window.history.state?.view === 'leave') {
-        viewContent.innerHTML = renderLeaveView();
-        wireLeaveEvents();
-      }
-    }
-  })();
-  try { await leaveLoadRequest; } finally { leaveLoadRequest = null; }
-}
-async function saveLeaveRecord(member, dateKey, type) {
-  if (!currentUser?.discordId || !member) return;
-  const payload = { requesterId: currentUser.discordId, memberId: leaveMemberKey(member), date: dateKey, type };
-  try {
-    const response = await fetch('/api/access/leave', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    const data = await parseApiResponse(response);
-    if (!response.ok) throw new Error(data.error || 'Concediul nu a putut fi salvat.');
-    leaveRecords = Array.isArray(data.records) ? data.records : leaveRecords;
-  } catch (error) {
-    if (type) {
-      const existing = leaveRecords.findIndex(record => String(record.memberId || record.discordId || '') === leaveMemberKey(member) && record.date === dateKey);
-      if (existing >= 0) leaveRecords[existing] = { memberId: leaveMemberKey(member), discordId: leaveMemberKey(member), date: dateKey, type };
-      else leaveRecords.push({ memberId: leaveMemberKey(member), discordId: leaveMemberKey(member), date: dateKey, type });
-    } else {
-      leaveRecords = leaveRecords.filter(record => !(String(record.memberId || record.discordId || '') === leaveMemberKey(member) && record.date === dateKey));
-    }
-    try { localStorage.setItem(LEAVE_STORAGE_KEY, JSON.stringify(leaveRecords)); } catch {}
-  }
-  viewContent.innerHTML = renderLeaveView();
-  wireLeaveEvents();
-}
-function renderLeaveView() {
-  if (!hasLeadershipCallsign(currentUser)) return '<section class="panel view-panel"><p class="empty-state">Această pagină este disponibilă doar membrilor conducerii cu callsign 001–020.</p></section>';
-  const [year, month] = leaveMonth.split('-').map(Number);
-  const days = leaveDaysInMonth(leaveMonth);
-  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Bucharest', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-  const members = sortMembers(directoryMembers.filter(member => callsignNumber(member.callsign) >= 1 && callsignNumber(member.callsign) <= 650));
-  const dayHeaders = Array.from({ length: days }, (_, index) => {
-    const date = new Date(year, month - 1, index + 1);
-    const weekday = new Intl.DateTimeFormat('ro-RO', { weekday: 'short' }).format(date);
-    return `<th><span>${escapeHtml(weekday)}</span><b>${String(index + 1).padStart(2, '0')}</b></th>`;
-  }).join('');
-  const rows = members.map(member => {
-    const records = leaveRecordsFor(member);
-    const normalUsed = records.filter(record => record.type === 'normal').length;
-    const civilUsed = records.filter(record => record.type === 'civil').length;
-    const civilBalance = leaveCivilBalance(member, leaveMonth);
-    const status = leaveRecords.some(record => record.date === today && String(record.memberId || record.discordId || '') === leaveMemberKey(member))
-      ? leaveRecords.find(record => record.date === today && String(record.memberId || record.discordId || '') === leaveMemberKey(member))?.type === 'civil' ? 'Co Civil' : 'Concediu'
-      : memberStatus(member);
-    const dayCells = Array.from({ length: days }, (_, index) => {
-      const dateKey = `${leaveMonth}-${String(index + 1).padStart(2, '0')}`;
-      const record = records.find(item => item.date === dateKey);
-      const leaveIndex = record ? records.filter(item => item.date <= dateKey && item.type).length : 0;
-      const value = record ? `${leaveIndex}/7${record.type === 'civil' ? ' CIVIL' : ''}` : '';
-      const cls = record?.type === 'civil' ? 'is-civil' : record ? 'is-normal' : '';
-      return `<td><button type="button" class="leave-day ${cls}" data-leave-member="${escapeHtml(leaveMemberKey(member))}" data-leave-date="${dateKey}" aria-label="Concediu ${escapeHtml(memberNameFor(member))} pe ${dateKey}">${value}</button></td>`;
-    }).join('');
-    return `<tr><td class="leave-member"><strong>${escapeHtml(normalizeCallsign(member.callsign))}</strong><span>${escapeHtml(memberNameFor(member))}</span><em class="leave-status ${status === 'Activ' ? 'is-active' : 'is-leave'}">${escapeHtml(status)}</em></td><td class="leave-balance"><b>${normalUsed}/7</b><small>Normal</small></td><td class="leave-balance civil"><b>${civilBalance}</b><small>Civil</small></td>${dayCells}</tr>`;
-  }).join('');
-  return `<section class="panel view-panel leave-panel">
-    <div class="panel-head leave-head"><div><p class="eyebrow">CONCEDII DEPARTAMENT</p><h2>${escapeHtml(leaveMonthLabel(leaveMonth))}</h2></div><div class="leave-month-actions"><button type="button" class="outline" id="leave-prev-month" aria-label="Luna precedentă">‹</button><button type="button" class="primary" id="leave-next-month">Schimbă Luna →</button></div></div>
-    <div class="leave-table-wrap"><table class="leave-table"><thead><tr><th>Membri</th><th>CO Normal</th><th>CO Civil</th>${dayHeaders}</tr></thead><tbody>${rows || '<tr><td colspan="3">Nu există membri.</td></tr>'}</tbody></table></div>
-    <div class="leave-entry-modal" id="leave-entry-modal" hidden><div class="leave-entry-card"><button type="button" class="close" id="leave-entry-close" aria-label="Închide">×</button><p class="eyebrow">Alege tipul concediului</p><h3 id="leave-entry-title"></h3><div class="leave-entry-actions"><button type="button" class="primary" data-leave-type="normal">CO Normal</button><button type="button" class="outline" data-leave-type="civil">CO Civil</button></div><button type="button" class="leave-remove" id="leave-remove-day" hidden>Elimină concediul</button></div></div>
-    <div class="leave-alert" id="leave-alert" hidden><div class="leave-alert-card"><p class="eyebrow">Limită depășită</p><h3>Ai depășit limita pe luna respectivă.</h3><p>Limita este de 7 zile de concediu pe lună.</p><button type="button" class="primary" id="leave-alert-ok">OK</button></div></div>
-  </section>`;
-}
-function wireLeaveEvents() {
-  document.querySelector('#leave-prev-month')?.addEventListener('click', () => {
-    const [year, month] = leaveMonth.split('-').map(Number);
-    const date = new Date(year, month - 2, 1);
-    leaveMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-    viewContent.innerHTML = renderLeaveView();
-    wireLeaveEvents();
-  });
-  document.querySelector('#leave-next-month')?.addEventListener('click', () => {
-    const [year, month] = leaveMonth.split('-').map(Number);
-    const date = new Date(year, month, 1);
-    leaveMonth = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-    viewContent.innerHTML = renderLeaveView();
-    wireLeaveEvents();
-  });
-  viewContent.querySelectorAll('[data-leave-member]').forEach(button => {
-    button.addEventListener('click', () => {
-      const member = directoryMembers.find(item => leaveMemberKey(item) === button.dataset.leaveMember);
-      if (!member) return;
-      const modal = document.querySelector('#leave-entry-modal');
-      modal.hidden = false;
-      modal.dataset.memberId = leaveMemberKey(member);
-      modal.dataset.date = button.dataset.leaveDate;
-      document.querySelector('#leave-entry-title').textContent = `${normalizeCallsign(member.callsign)} · ${memberNameFor(member)} · ${button.dataset.leaveDate}`;
-      document.querySelector('#leave-remove-day').hidden = !leaveRecords.some(record => String(record.memberId || record.discordId || '') === leaveMemberKey(member) && record.date === button.dataset.leaveDate);
-    });
-  });
-  document.querySelector('#leave-entry-close')?.addEventListener('click', () => { document.querySelector('#leave-entry-modal').hidden = true; });
-  document.querySelector('#leave-remove-day')?.addEventListener('click', () => {
-    const modal = document.querySelector('#leave-entry-modal');
-    const member = directoryMembers.find(item => leaveMemberKey(item) === modal.dataset.memberId);
-    modal.hidden = true;
-    saveLeaveRecord(member, modal.dataset.date, '');
-  });
-  viewContent.querySelectorAll('[data-leave-type]').forEach(button => {
-    button.addEventListener('click', () => {
-      const modal = document.querySelector('#leave-entry-modal');
-      const member = directoryMembers.find(item => leaveMemberKey(item) === modal.dataset.memberId);
-      const dateKey = modal.dataset.date;
-      const monthKey = dateKey.slice(0, 7);
-      const monthCount = leaveRecordsFor(member, monthKey).length;
-      if (monthCount >= 7 && !leaveRecords.some(record => String(record.memberId || record.discordId || '') === leaveMemberKey(member) && record.date === dateKey)) {
-        modal.hidden = true;
-        const alert = document.querySelector('#leave-alert');
-        alert.hidden = false;
-        return;
-      }
-      if (button.dataset.leaveType === 'civil' && leaveCivilBalance(member, monthKey) < 1) {
-        modal.hidden = true;
-        const alert = document.querySelector('#leave-alert');
-        alert.querySelector('h3').textContent = 'Nu mai ai zile de concediu civil disponibile.';
-        alert.querySelector('p:last-of-type').textContent = 'Zilele se adaugă automat la fiecare 3 luni de la data intrării.';
-        alert.hidden = false;
-        return;
-      }
-      modal.hidden = true;
-      saveLeaveRecord(member, dateKey, button.dataset.leaveType);
-    });
-  });
-  document.querySelector('#leave-alert-ok')?.addEventListener('click', () => {
-    const alert = document.querySelector('#leave-alert');
-    alert.hidden = true;
-  });
-}
 
 function renderView(view) {
   const overview = document.querySelector('#overview-view');
@@ -2365,7 +2187,6 @@ function renderView(view) {
   const title = labels[view] || 'Panel Medici';
   document.querySelector('#section-label').textContent = 'Panel Medici';
   if (view === 'members') { viewContent.innerHTML = renderMembersView(); wireMembersView(); loadMembersRoom({ force: true }); }
-  else if (view === 'leave') { viewContent.innerHTML = renderLeaveView(); wireLeaveEvents(); loadLeaveRecords(); }
   else if (view === 'testers') { viewContent.innerHTML = renderTestersView(); wireTestersEvents(); }
   else if (view === 'statistics') { viewContent.innerHTML = renderStatisticsView(); renderDashboardData(); }
   else if (view === 'bonuses') { viewContent.innerHTML = renderBonusesView(); wireBonusesEvents(); }
@@ -4266,10 +4087,9 @@ document.querySelector('#member-functions-modal').addEventListener('click', even
 document.querySelector('#save-member-functions').addEventListener('click', saveMemberFunctions);
 document.querySelector('#use-docs-functions').addEventListener('click', useDocsMemberFunctions);
 document.querySelector('#brand-settings').onclick = () => navigateTo('overview'); document.querySelector('#profile-settings').onclick = () => navigateTo('settings');
-const labels = { overview: 'Profilul tău', testers: 'Testerii departamentului', members: 'Membri', leave: 'Concedii', statistics: 'Statistica Teste', cooldowns: 'Cooldown-uri', bonuses: 'Bonusuri', attendance: 'Pontaje', 'active-attendance': 'Pontaje active', activity: 'Evidență activitate', guide: 'Ghid Spital', 'certifica-trusa': 'Certificat Trusa', settings: 'Setări' };
+const labels = { overview: 'Profilul tău', testers: 'Testerii departamentului', members: 'Membri', statistics: 'Statistica Teste', cooldowns: 'Cooldown-uri', bonuses: 'Bonusuri', attendance: 'Pontaje', 'active-attendance': 'Pontaje active', activity: 'Evidență activitate', guide: 'Ghid Spital', 'certifica-trusa': 'Certificat Trusa', settings: 'Setări' };
 function navigateTo(view, { push = true } = {}) {
   if (view === 'bonuses' && !hasLeadershipCallsign(currentUser)) view = 'overview';
-  if (view === 'leave' && !hasLeadershipCallsign(currentUser)) view = 'overview';
   if (view === 'certifica-trusa' && !hasLeadershipCallsign(currentUser)) view = 'overview';
   if (view === 'attendance' && !currentUser?.discordId) view = 'overview';
   if (view === 'active-attendance' && !canViewAttendanceRooms(currentUser)) view = 'overview';

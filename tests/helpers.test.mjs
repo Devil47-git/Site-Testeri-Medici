@@ -319,6 +319,40 @@ test('activity table uses the available page width without a forced horizontal m
   assert.match(styleSource, /\.activity-wide \.activity-panel \.activity-table \.activity-history-value\{min-width:0/);
 });
 
+test('activity table refreshes preserve page and table scroll positions', () => {
+  const table = { scrollTop: 620, scrollLeft: 12 };
+  let pageScrollX = 0;
+  let pageScrollY = 480;
+  const nextTable = { scrollTop: 0, scrollLeft: 0 };
+  const viewContent = {
+    querySelector: () => table,
+    set innerHTML(value) {
+      this.rendered = value;
+      this.querySelector = () => nextTable;
+    }
+  };
+  const browser = {
+    get scrollX() { return pageScrollX; },
+    get scrollY() { return pageScrollY; },
+    scrollTo({ left, top }) { pageScrollX = left; pageScrollY = top; }
+  };
+  const render = () => '<section>activity</section>';
+  const refresh = new Function(
+    'viewContent',
+    'window',
+    'renderActivityView',
+    'applyActivitySearch',
+    `${extract('renderActivityViewPreservingScroll')}\nreturn renderActivityViewPreservingScroll;`,
+  )(viewContent, browser, render, () => { pageScrollY = 0; });
+
+  refresh();
+
+  assert.equal(viewContent.rendered, '<section>activity</section>');
+  assert.equal(nextTable.scrollTop, 620);
+  assert.equal(nextTable.scrollLeft, 12);
+  assert.equal(pageScrollY, 480);
+});
+
 test('member cards hide the entry date and keep the identity beside the avatar', () => {
   assert.match(directorySource, /joinedAt: String\(row\[9\] \|\| ''\)\.trim\(\)/);
   const memberCard = extract('memberCardHtml');
