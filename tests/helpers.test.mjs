@@ -16,10 +16,13 @@ const storageSource = readFileSync(join(here, '..', 'js', 'storage.js'), 'utf8')
 const source = scriptSource;
 const styleSource = readFileSync(join(here, '..', 'style.css'), 'utf8');
 const indexSource = readFileSync(join(here, '..', 'index.html'), 'utf8');
+const speedInsightsSource = readFileSync(join(here, '..', 'js', 'speed-insights.js'), 'utf8');
+const vercelConfig = JSON.parse(readFileSync(join(here, '..', 'vercel.json'), 'utf8').replace(/^\uFEFF/, ''));
 const directorySource = readFileSync(join(here, '..', 'api', 'access', 'directory.js'), 'utf8');
 const grantsSource = readFileSync(join(here, '..', 'api', 'access', 'grants.js'), 'utf8');
 const testResultsSource = readFileSync(join(here, '..', 'api', 'access', 'test-results.js'), 'utf8');
 const serverSource = readFileSync(join(here, '..', 'server.js'), 'utf8');
+const authSessionSource = readFileSync(join(here, '..', 'lib', 'auth-session.js'), 'utf8');
 const testCatalogSource = readFileSync(join(here, '..', 'tests.js'), 'utf8');
 const discordAuthSource = readFileSync(join(here, '..', 'api', 'auth', 'discord.js'), 'utf8');
 
@@ -52,7 +55,7 @@ const srcs = names.map(extract).join('\n');
 const pattern = source.match(/^const RESIDENT_TESTER_PATTERN = .*$/m)?.[0] || 'const RESIDENT_TESTER_PATTERN = /TESTER/;';
 const normalizeTextSrc = extract('normalizeText');
 const escapeHtmlSrc = extract('escapeHtml');
-const fullSrc = `${pattern}\nfunction callsignNumber(value) { return Number(String(value).replace(/\\D/g, '')) || 0; }\nfunction isLeadershipUser(user) { if (user?.forceNonLeadershipTest) return false; const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return Boolean(user?.accessLevel === 'leadership' || user?.isConducere || user?.isLeadership || (cs >= 1 && cs <= 20)); }\nfunction isLeadershipRow() { return false; }\nfunction hasLeadershipCallsign(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return cs >= 1 && cs <= 20; }\nconst AUTH_SCHEMA_VERSION = 5;\nconst coreTests = ['Test admitere', 'Test transfer', 'Adeverință medicală'];\nconst labels = { overview: 'Profilul tău', testers: 'Testeri', statistics: 'Statistica Teste', cooldowns: 'Cooldownuri preluate', bonuses: 'Bonusuri', settings: 'Setări' };\nconst COOLDOWN_PAYMENT_RATES = { RADIO: 25000, BLS: 30000, ALS: 30000, SMULS: 30000, PILOT: 30000, MOTO: 25000, REZIDENTIAT: 35000, PARASUTIST: 30000 };\nconst COOLDOWN_PAYMENT_LABELS = { RADIO: 'RADIO', BLS: 'BLS', ALS: 'ALS', SMULS: 'SMULS', PILOT: 'PILOT', MOTO: 'MOTO', REZIDENTIAT: 'REZIDENTIAT', PARASUTIST: 'PARAȘUTIST' };\nconst admissionRequirements = ['Verificarea ținutei', 'Verificarea tatuajelor faciale', 'Verificarea cazierului', 'Minimum 50 de ore jucate', 'Controlul cu stetoscopul (amănunțit, în salon)', 'Drug-testul'];\nconst BONUS_ANCHOR_UTC = Date.UTC(2026, 8, 21);\nconst BONUS_PERIOD_MS = 14 * 24 * 60 * 60 * 1000;\nconst motoRequirements = ['Grad Medic-Rezident', 'Certificat S.M.U.L.S.', 'Permis Categoria A'];\nconst alsRequirements = ['Verificare BLS', 'Verificare Radio', 'Au trecut minimum 3 zile de la promovarea ultimului test Radio sau BLS', 'Permis categoria B'];\n${normalizeTextSrc}\n${escapeHtmlSrc}\n${srcs}`;
+const fullSrc = `${pattern}\nfunction callsignNumber(value) { return Number(String(value).replace(/\\D/g, '')) || 0; }\nfunction isLeadershipUser(user) { if (user?.forceNonLeadershipTest) return false; const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return Boolean(user?.accessLevel === 'leadership' || user?.isConducere || user?.isLeadership || (cs >= 1 && cs <= 20)); }\nfunction isLeadershipRow() { return false; }\nfunction hasLeadershipCallsign(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return cs >= 1 && cs <= 20; }\nconst AUTH_SCHEMA_VERSION = 6;\nconst coreTests = ['Test admitere', 'Test transfer', 'Adeverință medicală'];\nconst labels = { overview: 'Profilul tău', testers: 'Testeri', statistics: 'Statistica Teste', cooldowns: 'Cooldownuri preluate', bonuses: 'Bonusuri', settings: 'Setări' };\nconst COOLDOWN_PAYMENT_RATES = { RADIO: 25000, BLS: 30000, ALS: 30000, SMULS: 30000, PILOT: 30000, MOTO: 25000, REZIDENTIAT: 35000, PARASUTIST: 30000 };\nconst COOLDOWN_PAYMENT_LABELS = { RADIO: 'RADIO', BLS: 'BLS', ALS: 'ALS', SMULS: 'SMULS', PILOT: 'PILOT', MOTO: 'MOTO', REZIDENTIAT: 'REZIDENTIAT', PARASUTIST: 'PARAȘUTIST' };\nconst admissionRequirements = ['Verificarea ținutei', 'Verificarea tatuajelor faciale', 'Verificarea cazierului', 'Minimum 50 de ore jucate', 'Controlul cu stetoscopul (amănunțit, în salon)', 'Drug-testul'];\nconst BONUS_ANCHOR_UTC = Date.UTC(2026, 8, 21);\nconst BONUS_PERIOD_MS = 14 * 24 * 60 * 60 * 1000;\nconst motoRequirements = ['Grad Medic-Rezident', 'Certificat S.M.U.L.S.', 'Permis Categoria A'];\nconst alsRequirements = ['Verificare BLS', 'Verificare Radio', 'Au trecut minimum 3 zile de la promovarea ultimului test Radio sau BLS', 'Permis categoria B'];\n${normalizeTextSrc}\n${escapeHtmlSrc}\n${srcs}`;
 const testSummaryDefinitions = [['Test SMULS'], ['Test MOTO'], ['Test PILOT'], ['Test ALS'], ['Test parașutiști']];
 const residentTesterPattern = /TESTER/i;
 const leadershipMax = 20;
@@ -81,10 +84,24 @@ test('guide loads from the bundled asset route with local media and an authorize
 
   assert.match(serverSource, /import\('\.\/api\/guide\.js'\)/);
   const guideApiSource = readFileSync(join(here, '..', 'api', 'guide.js'), 'utf8');
-  assert.match(guideApiSource, /path\.join\(process\.cwd\(\), 'assets', 'guide', 'index\.html'\)/);
+  assert.match(guideApiSource, /fileURLToPath\(new URL\('\.\.\/assets\/guide\/index\.html', import\.meta\.url\)\)/);
   const demoServer = readFileSync(join(here, '..', 'tests', 'dev-server.mjs'), 'utf8');
   assert.match(demoServer, /url\.pathname === '\/api\/guide'/);
   assert.match(demoServer, /import\('\.\.\/api\/guide\.js'\)/);
+});
+
+test('Vercel bundles guide files and schedules the two-week summary on Mondays', () => {
+  assert.equal(vercelConfig.functions['api/guide.js'].includeFiles, 'assets/guide/**');
+  assert.ok(vercelConfig.crons.some(cron =>
+    cron.path === '/api/access/attendance?task=send-bonus-summary' && cron.schedule === '0 20 * * 1'
+  ));
+});
+
+test('Vercel Speed Insights loads from the deployed built-in endpoint', () => {
+  assert.match(indexSource, /src="\/js\/speed-insights\.js"/);
+  assert.match(speedInsightsSource, /\/_vercel\/speed-insights\/script\.js/);
+  assert.match(speedInsightsSource, /dataSet\.sdkn|dataset\.sdkn/);
+  assert.match(speedInsightsSource, /dataSet\.sdkv|dataset\.sdkv/);
 });
 
 test('Discord auth preserves the Discord display name, username, and avatar', () => {
@@ -1356,12 +1373,12 @@ test('admitted verdicts enforce the mistake limit and verdict buttons cool down 
 
 test('Discord session and browser auth cache both last 30 days', () => {
   assert.match(source, /const AUTH_TTL=30\*24\*60\*60\*1000/);
-  assert.match(serverSource, /const SESSION_TTL = 30 \* 24 \* 60 \* 60 \* 1000/);
-  assert.match(serverSource, /Math\.floor\(SESSION_TTL \/ 1000\)/);
+  assert.match(authSessionSource, /const SESSION_TTL_SECONDS = 30 \* 24 \* 60 \* 60/);
+  assert.match(authSessionSource, /Max-Age=\$\{SESSION_TTL_SECONDS\}/);
   // The session cookie must stay HttpOnly and SameSite=Strict, with Secure added
   // whenever the app runs over HTTPS.
-  assert.match(serverSource, /HttpOnly; SameSite=Strict; Path=\//);
-  assert.match(serverSource, /SECURE_COOKIE \? '; Secure' : ''/);
+  assert.match(authSessionSource, /HttpOnly; SameSite=Strict; Path=\//);
+  assert.match(authSessionSource, /process\.env\.NODE_ENV === 'production' \|\| process\.env\.HTTPS === 'true'/);
 });
 
 test('auth screen no longer renders the preview card', () => {
@@ -1369,11 +1386,14 @@ test('auth screen no longer renders the preview card', () => {
   assert.doesNotMatch(readFileSync(join(here, '..', 'index.html'), 'utf8'), /auth-preview|Verificare automată|Discord ID \+ Google Sheets/);
 });
 
-test('an unexpired cached Discord user can reopen the app without a session API roundtrip', () => {
+test('browser auth cache expires correctly and app startup confirms the server session', () => {
   const user = { discordId: '123', name: 'Tester' };
-  assert.deepEqual(cachedUserWithinSession({ version: 5, user, expiresAt: 86400001 }, 86400000), user);
-  assert.equal(cachedUserWithinSession({ version: 4, user, expiresAt: 86400001 }, 86400000), null);
-  assert.equal(cachedUserWithinSession({ version: 5, user, expiresAt: 86400000 }, 86400000), null);
+  assert.deepEqual(cachedUserWithinSession({ version: 6, user, expiresAt: 86400001 }, 86400000), user);
+  assert.equal(cachedUserWithinSession({ version: 5, user, expiresAt: 86400001 }, 86400000), null);
+  assert.equal(cachedUserWithinSession({ version: 6, user, expiresAt: 86400000 }, 86400000), null);
+  const startSessionSource = source.match(/async function startSession\(\)\{[\s\S]*?\n\}/)?.[0] || '';
+  assert.match(startSessionSource, /await readConfirmedUser\(\)/);
+  assert.doesNotMatch(startSessionSource, /cachedUserWithinSession/);
 });
 
 test('app startup preserves the current hash route across reloads', () => {
@@ -1569,7 +1589,7 @@ test('identity card OCR is proxied through the server and never inlined in the c
   assert.match(serverSource, /\/api\/identity-ocr/);
   assert.match(serverSource, /OCRSPACE_API_KEY/);
   const ocrHandler = serverSource.match(/async function handleIdentityOcr\([\s\S]*?\n\}/)?.[0] || '';
-  assert.match(ocrHandler, /requireSession\(req\)/);
+  assert.match(ocrHandler, /authenticatedDiscordId\(req\)/);
   assert.match(ocrHandler, /sameOrigin\(req\)/);
   assert.match(ocrHandler, /applyRateLimit/);
   assert.match(ocrHandler, /api\.ocr\.space\/parse\/image/);

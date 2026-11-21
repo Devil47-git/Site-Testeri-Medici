@@ -1,4 +1,6 @@
 import '../../lib/config.js';
+import { requireRequester } from '../../lib/request-auth.js';
+import { sameOrigin } from '../../lib/http.js';
 import { attendanceTypesForFunctions, callsignNumber, LEADERSHIP_MAX, normalize, STAFF_FUNCTION_LABELS } from '../../lib/access/shared.js';
 import { functionOverridesConfigured, readFunctionOverrides, removeFunctionOverride, saveFunctionOverride } from '../../lib/access/function-overrides.js';
 
@@ -122,13 +124,17 @@ export function normalizeMemberFunctionLabels(values) {
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'GET' && req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
-  const requesterId = req.method === 'GET' ? req.query?.requesterId : req.body?.requesterId;
-  if (typeof requesterId !== 'string' || !requesterId.trim()) return json(res, 400, { error: 'Missing requesterId' });
+  if (req.method === 'POST' && !sameOrigin(req)) return json(res, 403, { error: 'Cross-origin request rejected' });
+  const requestedId = req.method === 'GET' ? req.query?.requesterId : req.body?.requesterId;
+  if (typeof requestedId !== 'string' || !requestedId.trim()) return json(res, 400, { error: 'Missing requesterId' });
+  const requesterId = requireRequester(req, res, requestedId);
+  if (!requesterId) return;
 
   try {
     if (req.method === 'GET') {
       const members = await readPublicValues(MEMBER_RANGE);
       const requester = findMemberByDiscordId(members, requesterId.trim());
+      if (callsignNumber(requester?.[2]) < 1 || callsignNumber(requester?.[2]) > LEADERSHIP_MAX) return json(res, 403, { error: 'Only leadership can view member function assignments' });
       if (!requester) return json(res, 403, { error: 'Requester is not a department member' });
       return json(res, 200, memberFunctionsDirectory(members, await readFunctionOverrides()));
     }
@@ -177,6 +183,6 @@ export default async function handler(req, res) {
     return json(res, 200, { success: true, assignment });
   } catch (error) {
     console.error('Member functions storage failed:', error);
-    return json(res, 500, { error: `Member functions storage failed: ${String(error?.message || error).slice(0, 200)}` });
+    return json(res, 500, { error: 'Member functions storage failed' });
   }
 }

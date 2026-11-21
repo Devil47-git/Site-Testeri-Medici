@@ -1,4 +1,5 @@
 import '../../lib/config.js';
+import { setAuthCookie } from '../../lib/auth-session.js';
 import { accessFor, effectiveTestsForMember, normalizeTests } from '../../lib/access/shared.js';
 import { storeDiscordAvatarHash } from '../../lib/access/avatar-store.js';
 import { functionsForDepartmentRow, readFunctionOverrides } from '../../lib/access/function-overrides.js';
@@ -65,6 +66,12 @@ export default async function handler(req, res) {
       } : null;
       user.grantMode = storedGrant?.grantMode || '';
       user.grantedTests = effectiveTestsForMember(user.functions, storedGrant, user.csNum, user.rank, user.dept);
+    }
+    try {
+      setAuthCookie(res, user.discordId);
+    } catch (error) {
+      console.error('Application session cookie could not be created:', error);
+      return res.status(503).json({ error: 'Session service is not configured' });
     }
     return res.status(200).json({ success: true, user });
   } catch (error) {

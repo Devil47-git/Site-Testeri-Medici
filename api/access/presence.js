@@ -1,4 +1,6 @@
 import '../../lib/config.js';
+import { requireRequester } from '../../lib/request-auth.js';
+import { sameOrigin } from '../../lib/http.js';
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:T400';
 const GRANTS_RANGE = process.env.GOOGLE_GRANTS_RANGE || 'GRANTS!A1:F';
@@ -37,9 +39,12 @@ async function client() {
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
+  if (!sameOrigin(req)) return json(res, 403, { error: 'Cross-origin request rejected' });
   try {
-    const discordId = typeof req.body?.discordId === 'string' ? req.body.discordId.trim() : '';
-    if (!discordId) return json(res, 400, { error: 'Missing Discord ID' });
+    const requestedId = typeof req.body?.discordId === 'string' ? req.body.discordId.trim() : '';
+    if (!requestedId) return json(res, 400, { error: 'Missing Discord ID' });
+    const discordId = requireRequester(req, res, requestedId);
+    if (!discordId) return;
     const sheets = await client();
     const memberResult = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: MEMBER_RANGE });
     const members = memberResult.data.values || [];

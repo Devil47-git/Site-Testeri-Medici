@@ -2,6 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import handler, { memberFunctionLabels, memberFunctionsDirectory, normalizeMemberFunctionLabels } from '../api/access/functions.js';
 
+process.env.APP_SESSION_SECRET = 'test-session-secret';
+const { createAuthCookieValue } = await import('../lib/auth-session.js');
+const authHeaders = discordId => ({ cookie: `medici_auth=${encodeURIComponent(createAuthCookieValue(discordId))}` });
+
 test('function directory includes assignable staff roles and distinct values from department column K', () => {
   const rows = [
     ['headers'],
@@ -82,7 +86,7 @@ test('function directory reads live functions and requires a department member',
   });
   try {
     const response = createResponse();
-    await handler({ method: 'GET', query: { requesterId: 'requester' } }, response);
+    await handler({ method: 'GET', query: { requesterId: 'requester' }, headers: authHeaders('requester') }, response);
     assert.equal(response.statusCode, 200);
     assert.deepEqual(response.body.catalog.map(item => item.label), ['H.R. / H.R. AV', 'C.J.', 'Helper', 'Moderator', 'Administrator', 'Supervizor', 'New Role']);
     assert.deepEqual(response.body.assignments.find(item => item.discordId === 'target').functionIds, ['C.J.', 'New Role']);
@@ -90,7 +94,7 @@ test('function directory reads live functions and requires a department member',
     assert.deepEqual(response.body.assignments.find(item => item.discordId === 'requester').attendanceTypes, ['regular', 'hr']);
 
     const denied = createResponse();
-    await handler({ method: 'GET', query: { requesterId: 'unknown' } }, denied);
+    await handler({ method: 'GET', query: { requesterId: 'unknown' }, headers: authHeaders('unknown') }, denied);
     assert.equal(denied.statusCode, 403);
   } finally {
     globalThis.fetch = originalFetch;

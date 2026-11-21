@@ -3,6 +3,8 @@ import { randomUUID } from 'node:crypto';
 import { attendanceTypesForFunctions, canManageAttendance, callsignNumber, normalize } from '../../lib/access/shared.js';
 import { SupabaseKV } from '../../lib/storage/supabase-kv.js';
 import { functionsForDepartmentRow, readFunctionOverrides } from '../../lib/access/function-overrides.js';
+import { requireRequester } from '../../lib/request-auth.js';
+import { sameOrigin } from '../../lib/http.js';
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:U400';
@@ -76,7 +78,15 @@ function bonusPeriodIndexForDate(dateKey) {
 function latestCompleteBonusPeriodIndex(now) {
   const today = attendanceDateKey(now);
   const [year, month, day] = today.split('-').map(Number);
-  return Math.floor((Date.UTC(year, month - 1, day) - BONUS_PERIOD_ANCHOR) / BONUS_PERIOD_LENGTH) - 1;
+  const todayUtc = Date.UTC(year, month - 1, day);
+  const weekday = new Date(todayUtc).getUTCDay();
+  const previousDay = addDays(today, -1);
+  const previousDayWeekday = new Date(`${previousDay}T00:00:00Z`).getUTCDay();
+  if (weekday !== 1 || previousDayWeekday !== 0) return -1;
+  const previousDayIndex = Math.floor((Date.UTC(year, month - 1, day - 1) - BONUS_PERIOD_ANCHOR) / BONUS_PERIOD_LENGTH);
+  if (previousDayIndex < 0) return -1;
+  const period = bonusPeriodFor(previousDayIndex);
+  return period.to === previousDay ? previousDayIndex : -1;
 }
 function bonusPeriodFor(index) {
   const from = new Date(BONUS_PERIOD_ANCHOR + index * BONUS_PERIOD_LENGTH).toISOString().slice(0, 10);
@@ -578,15 +588,23 @@ async function closeExpiredDepartmentEntries(members, now) {
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'GET' && req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
+  if (req.method === 'POST' && !sameOrigin(req)) return json(res, 403, { error: 'Cross-origin request rejected' });
 
-  if (req.method === 'GET' && req.query?.task === 'close-expired') {
+  if (req.method === 'GET' && (req.query?.task === 'close-expired' || req.query?.task === 'send-bonus-summary')) {
     const cronSecret = String(process.env.CRON_SECRET || '').trim();
     if (!cronSecret) return json(res, 503, { error: 'CRON_SECRET is not configured.' });
     if (req.headers?.authorization !== `Bearer ${cronSecret}`) return json(res, 401, { error: 'Unauthorized' });
     if (!attendanceRedis.isConfigured) return json(res, 503, { error: 'Pontajele online nu sunt configurate.' });
     try {
+      const now = Date.now();
+      if (req.query?.task === 'send-bonus-summary') {
+        const periodIndex = latestCompleteBonusPeriodIndex(now);
+        if (periodIndex < 0) return json(res, 200, { success: true, sent: false, reason: 'No completed Sunday-ending fortnight' });
+        await sendBonusPeriodSummary(periodIndex);
+        return json(res, 200, { success: true, sent: true, period: bonusPeriodFor(periodIndex) });
+      }
       const members = await readMembers();
-      const closed = await closeExpiredDepartmentEntries(members, Date.now());
+      const closed = await closeExpiredDepartmentEntries(members, now);
       return json(res, 200, { success: true, closed });
     } catch (error) {
       console.error('Automatic attendance closure failed:', error);
@@ -594,8 +612,10 @@ export default async function handler(req, res) {
     }
   }
 
-  const requesterId = String(req.method === 'GET' ? req.query?.requesterId : req.body?.requesterId || '').trim();
-  if (!requesterId) return json(res, 400, { error: 'Missing requesterId' });
+  const requestedId = String(req.method === 'GET' ? req.query?.requesterId : req.body?.requesterId || '').trim();
+  if (!requestedId) return json(res, 400, { error: 'Missing requesterId' });
+  const requesterId = requireRequester(req, res, requestedId);
+  if (!requesterId) return;
   try {
     const [members, functionOverrides] = await Promise.all([readMembers(), readFunctionOverrides()]);
     const requester = members.find(row => String(row[19] || '').trim() === requesterId);
@@ -652,14 +672,14 @@ export default async function handler(req, res) {
               await sendHospitalAttendanceWebhook({ requesterId, reviewer: members.find(row => String(row[19] || '').trim() === requesterId), dateKey, ...champion, minutes: Math.max(0, champion.minutes) });
             } catch (error) {
               console.error('Hospital attendance webhook failed:', error);
-              warning = `Evidența a fost actualizată, dar mesajul nu a putut fi trimis în chatul spitalului: ${error.message}`;
+              warning = 'Evidența a fost actualizată, dar mesajul nu a putut fi trimis în chatul spitalului.';
             }
           }
           try {
             await sendBonusHrSyncLog({ requester, dateKey, now });
           } catch (error) {
             console.error('Bonus HR sync webhook failed:', error);
-            warning = [warning, `Logul bonusurilor nu a putut fi trimis: ${error.message}`].filter(Boolean).join(' ');
+            warning = [warning, 'Logul bonusurilor nu a putut fi trimis.'].filter(Boolean).join(' ');
           }
           return json(res, 200, { success: true, review, sheetUpdated, warning, cooldownSeconds: ATTENDANCE_DOCS_SYNC_COOLDOWN_SECONDS });
         }
@@ -681,14 +701,14 @@ export default async function handler(req, res) {
             await sendHospitalAttendanceWebhook({ requesterId, reviewer: members.find(row => String(row[19] || '').trim() === requesterId), dateKey, ...champion, minutes: Math.max(0, champion.minutes) });
           } catch (error) {
             console.error('Hospital attendance webhook failed:', error);
-            warning = `Evidența a fost actualizată, dar mesajul nu a putut fi trimis în chatul spitalului: ${error.message}`;
+            warning = 'Evidența a fost actualizată, dar mesajul nu a putut fi trimis în chatul spitalului.';
           }
         }
         try {
           await sendBonusHrSyncLog({ requester, dateKey, now });
         } catch (error) {
           console.error('Bonus HR sync webhook failed:', error);
-          warning = [warning, `Logul bonusurilor nu a putut fi trimis: ${error.message}`].filter(Boolean).join(' ');
+          warning = [warning, 'Logul bonusurilor nu a putut fi trimis.'].filter(Boolean).join(' ');
         }
         return json(res, 200, { success: true, updated: updates.length, warning, cooldownSeconds: ATTENDANCE_DOCS_SYNC_COOLDOWN_SECONDS });
       }
@@ -720,7 +740,7 @@ export default async function handler(req, res) {
           await sendAttendanceReviewWebhook({ status: 'canceled', reviewerId: requesterId, reviewer, targetId, target, entry: savedEntry, dateKey, minutes });
         } catch (error) {
           console.error('Attendance cancellation webhook failed:', error);
-          warning = `Pontajul a fost anulat, dar notificarea Discord nu a putut fi trimisă: ${error.message}`;
+          warning = 'Pontajul a fost anulat, dar notificarea Discord nu a putut fi trimisă.';
         }
         return json(res, 200, { success: true, warning });
       }
@@ -763,7 +783,7 @@ export default async function handler(req, res) {
           await sendAttendanceEditWebhook({ editorId: requesterId, editor, targetId, target, before, entry: savedEntry || entry, dateKey, minutes, reason });
         } catch (error) {
           console.error('Attendance edit webhook failed:', error);
-          warning = [warning, `Pontajul a fost salvat, dar notificarea Discord nu a putut fi trimisă: ${error.message}`].filter(Boolean).join(' ');
+          warning = [warning, 'Pontajul a fost salvat, dar notificarea Discord nu a putut fi trimisă.'].filter(Boolean).join(' ');
         }
         return json(res, 200, { success: true, entry: savedEntry, minutes, warning });
       }
@@ -814,7 +834,7 @@ export default async function handler(req, res) {
             await sendAttendanceReviewWebhook({ status, reviewerId: requesterId, reviewer, targetId, target, entry: savedEntry, dateKey, minutes });
           } catch (error) {
             console.error('Attendance review webhook failed:', error);
-            warning = `Pontajul a fost actualizat, dar notificarea Discord nu a putut fi trimisă: ${error.message}`;
+            warning = 'Pontajul a fost actualizat, dar notificarea Discord nu a putut fi trimisă.';
           }
         }
         return json(res, 200, { success: true, entry: savedEntry, minutes, warning });
@@ -849,7 +869,7 @@ export default async function handler(req, res) {
         await sendAttendanceClockWebhook({ action, discordId: requesterId, entry: clockEventEntry });
       } catch (error) {
         console.error('Attendance clock webhook failed:', error);
-        warning = `Pontajul a fost salvat, dar notificarea Discord nu a putut fi trimisă: ${error.message}`;
+        warning = 'Pontajul a fost salvat, dar notificarea Discord nu a putut fi trimisă.';
       }
       return json(res, 200, { success: true, entries: saved, warning });
     }
