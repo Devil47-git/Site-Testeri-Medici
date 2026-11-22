@@ -1,9 +1,6 @@
 {
     "functions":  {
                       "api/**/*.js":  {
-                                          "maxDuration":  30
-                                      },
-                      "api/guide.js":  {
                                           "maxDuration":  30,
                                           "includeFiles":  "assets/guide/**"
                                       }
