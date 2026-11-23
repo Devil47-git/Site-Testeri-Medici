@@ -77,12 +77,16 @@ try {
   // 3. session endpoint works unauthenticated
   const sess = await fetch(`${base}/api/session`);
   check('session 401 without cookie', sess.status === 401);
+  const authRouteSession = await fetch(`${base}/api/auth/session`);
+  check('deployed session route 401 without cookie', authRouteSession.status === 401);
   const noCookieDirectory = await fetch(`${base}/api/access/directory?requesterId=123456789`);
   check('directory requires authenticated cookie', noCookieDirectory.status === 401, `got ${noCookieDirectory.status}`);
   const signedSession = await import('../lib/auth-session.js');
   const sessionCookie = `medici_auth=${encodeURIComponent(signedSession.createAuthCookieValue('123456789'))}`;
   const authedSession = await fetch(`${base}/api/session`, { headers: { Cookie: sessionCookie } });
   check('signed session fails closed when member verification is unavailable', authedSession.status === 503, `got ${authedSession.status}`);
+  const authedAuthRouteSession = await fetch(`${base}/api/auth/session`, { headers: { Cookie: sessionCookie } });
+  check('deployed session route verifies signed cookies', authedAuthRouteSession.status === 503, `got ${authedAuthRouteSession.status}`);
   const sessionPayload = await authedSession.json();
   check('session verification failure exposes no user data', !sessionPayload.user && sessionPayload.error === 'Session verification unavailable');
 

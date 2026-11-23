@@ -285,7 +285,7 @@ async function route(req, res) {
     return json(res, 200, { success: true });
   }
   if (url.pathname === '/api/auth/login' || url.pathname === '/api/auth/discord' || url.pathname === '/api/auth/callback') return handleAuth(req, res, url);
-  if (url.pathname === '/api/session') return handleSession(req, res);
+  if (url.pathname === '/api/auth/session' || url.pathname === '/api/session') return handleSession(req, res);
   if (url.pathname === '/api/access/requester') {
     req.query = Object.fromEntries(url.searchParams);
     return (await import('./api/access/requester.js')).default(req, res);

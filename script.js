@@ -4316,7 +4316,7 @@ function cachedUserWithinSession(cached, now = Date.now()) {
   return cached?.version === AUTH_SCHEMA_VERSION && cached?.user?.discordId && Number(cached.expiresAt) > now ? cached.user : null;
 }
 async function readConfirmedUser() {
-  const response = await fetch('/api/session', { credentials: 'same-origin', cache: 'no-store' });
+  const response = await fetch('/api/auth/session', { credentials: 'same-origin', cache: 'no-store' });
   const payload = await response.json().catch(() => null);
   if (response.status === 401) return null;
   if (!response.ok) throw new Error('Verificarea sesiunii nu este disponibilă momentan.');

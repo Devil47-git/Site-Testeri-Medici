@@ -1391,6 +1391,7 @@ test('browser auth cache expires correctly and app startup confirms the server s
   assert.deepEqual(cachedUserWithinSession({ version: 6, user, expiresAt: 86400001 }, 86400000), user);
   assert.equal(cachedUserWithinSession({ version: 5, user, expiresAt: 86400001 }, 86400000), null);
   assert.equal(cachedUserWithinSession({ version: 6, user, expiresAt: 86400000 }, 86400000), null);
+  assert.match(source, /fetch\('\/api\/auth\/session'/);
   const startSessionSource = source.match(/async function startSession\(\)\{[\s\S]*?\n\}/)?.[0] || '';
   assert.match(startSessionSource, /await readConfirmedUser\(\)/);
   assert.doesNotMatch(startSessionSource, /cachedUserWithinSession/);
