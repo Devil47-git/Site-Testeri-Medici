@@ -299,7 +299,6 @@ async function route(req, res) {
 }
 const sweepTimer = setInterval(() => {
   const now = Date.now();
-  for (const [id, session] of sessions) if (!session || session.expires < now) sessions.delete(id);
   for (const [key, expires] of oauthState) if (expires < now) oauthState.delete(key);
   for (const [key, stamps] of rateBuckets) if (!stamps.some(ts => ts > now - 24 * 60 * 60 * 1000)) rateBuckets.delete(key);
 }, 10 * 60 * 1000);

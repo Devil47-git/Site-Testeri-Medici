@@ -46,6 +46,10 @@ const roleColors = ['cyan','orange','violet','green'];
 /** @type {string} */
 let activeTesterFilter = 'all';
 const GRANTS_KEY = 'medici-grants';
+const THEME_STORAGE_PREFIX = 'medici-theme:';
+const STANDARD_THEME = 'standard';
+const ECLIPSE_THEME = 'eclipse';
+const CHRISTMAS_THEME = 'christmas';
 /** @type {Member|null} */
 let currentUser = null;
 let navigationRevision = 0;
@@ -579,6 +583,56 @@ function renderProfileData() {
   if (profileAttendance) profileAttendance.innerHTML = renderAttendanceProfilePanel(profile, {
     loaded: activityDataLoaded
   });
+}
+function themeStorageKey(user) {
+  return `${THEME_STORAGE_PREFIX}${String(user?.discordId || '')}`;
+}
+function ensureChristmasSnowfall() {
+  const snowfall = document.querySelector('#christmas-snowfall');
+  if (!snowfall || snowfall.childElementCount) return;
+  const symbols = ['❄', '❅', '❆'];
+  const flakes = document.createDocumentFragment();
+  for (let index = 0; index < 36; index += 1) {
+    const flake = document.createElement('span');
+    const duration = 9 + Math.random() * 12;
+    flake.className = 'christmas-snowflake';
+    flake.textContent = symbols[index % symbols.length];
+    flake.style.setProperty('--snow-x', `${Math.random() * 100}vw`);
+    flake.style.setProperty('--snow-y', `${Math.random() * 100}vh`);
+    flake.style.setProperty('--snow-size', `${14 + Math.random() * 10}px`);
+    flake.style.setProperty('--snow-opacity', `${0.22 + Math.random() * 0.42}`);
+    flake.style.setProperty('--snow-duration', `${duration}s`);
+    flake.style.setProperty('--snow-delay', `${-Math.random() * duration}s`);
+    flake.style.setProperty('--snow-drift', `${Math.round(Math.random() * 80 - 40)}px`);
+    flake.style.setProperty('--snow-rotation', `${Math.floor(Math.random() * 360)}deg`);
+    flakes.appendChild(flake);
+  }
+  snowfall.appendChild(flakes);
+}
+function applyUserTheme(user, theme = readStored(themeStorageKey(user), STANDARD_THEME)) {
+  const selectedTheme = [STANDARD_THEME, ECLIPSE_THEME, CHRISTMAS_THEME].includes(theme) ? theme : STANDARD_THEME;
+  const eclipseTheme = selectedTheme !== STANDARD_THEME;
+  document.body.classList.toggle('eclipse-theme', eclipseTheme);
+  document.body.classList.toggle('christmas-theme', selectedTheme === CHRISTMAS_THEME);
+  if (selectedTheme === CHRISTMAS_THEME) ensureChristmasSnowfall();
+  const button = document.querySelector('#profile-theme-toggle');
+  const footerTitle = document.querySelector('#sidebar-theme-title');
+  const footerSubtitle = document.querySelector('#sidebar-theme-subtitle');
+  const brandSubtitle = document.querySelector('#eclipse-brand-subtitle');
+  if (footerTitle) footerTitle.textContent = selectedTheme === CHRISTMAS_THEME ? 'Ediție de Crăciun' : 'Sistem medical';
+  if (footerSubtitle) footerSubtitle.textContent = selectedTheme === CHRISTMAS_THEME ? 'Sărbători fericite' : 'v2.0.0 – Eclipse';
+  if (brandSubtitle) brandSubtitle.textContent = selectedTheme === CHRISTMAS_THEME ? 'SPITAL DE CRĂCIUN' : 'MEDICAL SYSTEM';
+  document.querySelectorAll('#profile-theme-picker [data-theme-choice]').forEach(option => {
+    option.setAttribute('aria-pressed', String(option.dataset.themeChoice === selectedTheme));
+  });
+  if (button) {
+    const themeLabels = { [STANDARD_THEME]: 'standard', [ECLIPSE_THEME]: 'Eclipse', [CHRISTMAS_THEME]: 'Crăciun' };
+    const themeIcons = { [STANDARD_THEME]: '◐', [ECLIPSE_THEME]: '◉', [CHRISTMAS_THEME]: '❄' };
+    button.dataset.theme = selectedTheme;
+    button.title = `Tema ${themeLabels[selectedTheme]} este activă. Apasă pentru a selecta altă temă.`;
+    const icon = button.querySelector('span[aria-hidden="true"]');
+    if (icon) icon.textContent = themeIcons[selectedTheme];
+  }
 }
 const TEST_ICONS = { admission: '🎓', transfer: '⇄', certificate: '🩺', als: '✚', smuls: '✳', moto: '🏍', pilot: '🚁', parachutism: '🪂' };
 function testKindClass(test) {
@@ -2182,7 +2236,7 @@ function renderView(view) {
   viewContent.hidden = isOverview;
   overview.hidden = !isOverview;
   viewContent.style.display = isOverview ? 'none' : 'block';
-  overview.style.display = isOverview ? 'block' : 'none';
+  overview.style.display = isOverview ? '' : 'none';
   if (isOverview) { renderProfileData(); return; }
   const title = labels[view] || 'Panel Medici';
   document.querySelector('#section-label').textContent = 'Panel Medici';
@@ -4064,6 +4118,55 @@ document.addEventListener('paste', event => {
   fileInput.dispatchEvent(new Event('change', { bubbles: true }));
 });
 testerGroups?.addEventListener('click', event => { const button = event.target.closest('[data-member-menu]'); if (!button) return; const member = testers.find(item => normalizeCallsign(item.callsign) === button.dataset.memberMenu); if (member) { selectedMember = member; openAddModal(member); } }); rows?.addEventListener('click', event => { const button = event.target.closest('[data-member-menu]'); if (!button) return; const member = testers.find(item => normalizeCallsign(item.callsign) === button.dataset.memberMenu); if (member) { selectedMember = member; openAddModal(member); } }); document.querySelector('#brand-settings').onclick = () => navigateTo('overview'); document.querySelector('#profile-settings').onclick = () => navigateTo('settings');
+document.querySelector('#theme-nav-search').addEventListener('keydown', event => {
+  if (event.key !== 'Enter') return;
+  const query = event.currentTarget.value.trim().toLocaleLowerCase('ro-RO');
+  if (!query) return;
+  const destination = [...document.querySelectorAll('.sidebar .nav-item[data-view]')]
+    .find(button => !button.hidden && button.textContent.toLocaleLowerCase('ro-RO').includes(query));
+  if (destination) {
+    destination.click();
+    event.currentTarget.value = '';
+    event.currentTarget.blur();
+  }
+});
+const themePickerToggle = document.querySelector('#profile-theme-toggle');
+const themePicker = document.querySelector('#profile-theme-picker');
+themePickerToggle.addEventListener('click', () => {
+  if (!currentUser?.discordId) return;
+  const isOpening = themePicker.hidden;
+  themePicker.hidden = !isOpening;
+  themePickerToggle.setAttribute('aria-expanded', String(isOpening));
+});
+themePicker.addEventListener('click', event => {
+  const option = event.target.closest('[data-theme-choice]');
+  if (!option || !currentUser?.discordId) return;
+  const nextTheme = option.dataset.themeChoice;
+  if (![STANDARD_THEME, ECLIPSE_THEME, CHRISTMAS_THEME].includes(nextTheme)) return;
+  try {
+    localStorage.setItem(themeStorageKey(currentUser), JSON.stringify(nextTheme));
+    applyUserTheme(currentUser, nextTheme);
+    themePicker.hidden = true;
+    themePickerToggle.setAttribute('aria-expanded', 'false');
+    themePickerToggle.focus();
+    document.querySelector('#profile-theme-status').textContent = '';
+  } catch (error) {
+    console.error('Preferința pentru temă nu a putut fi salvată:', error);
+    const status = document.querySelector('#profile-theme-status');
+    if (status) status.textContent = 'Tema nu a putut fi salvată.';
+  }
+});
+document.addEventListener('click', event => {
+  if (themePicker.hidden || themePicker.contains(event.target) || themePickerToggle.contains(event.target)) return;
+  themePicker.hidden = true;
+  themePickerToggle.setAttribute('aria-expanded', 'false');
+});
+document.addEventListener('keydown', event => {
+  if (event.key !== 'Escape' || themePicker.hidden) return;
+  themePicker.hidden = true;
+  themePickerToggle.setAttribute('aria-expanded', 'false');
+  themePickerToggle.focus();
+});
 viewContent.addEventListener('click', event => {
   const button = event.target.closest('[data-member-profile]');
   if (!button || !hasLeadershipCallsign(currentUser)) return;
@@ -4235,6 +4338,7 @@ function setVisibilityPermissions(user){
   const profileSettingsButton = document.querySelector('#profile-settings');
   const callsign = callsignNumber(user?.csNum || user?.callsign || user?.callSign);
   const adminPanel = document.querySelector('#admin-panel');
+  document.querySelector('#overview-view')?.classList.toggle('admin-dashboard', callsign >= 1 && callsign <= 20);
   if (addBtn) addBtn.hidden = !leadership;
   if (removeBtn) removeBtn.hidden = !leadership;
   if (profileSettingsButton) profileSettingsButton.hidden = callsign < 1 || callsign > 20;
@@ -4250,6 +4354,7 @@ function setStats(user){
 /** @param {Member} user @returns {void} */
 function applyUser(user){
   currentUser = user;
+  applyUserTheme(user);
   setWelcomeHeader(user); setVisibilityPermissions(user); setStats(user); renderAvailableTestsSubmenu();
 }
 function showAuthError(message){authError.textContent=message;authError.classList.add('show')}
@@ -4365,6 +4470,8 @@ function clearLocalSession() {
 function signOutOfSite() {
   clearLocalSession();
   currentUser = null;
+  document.body.classList.remove('eclipse-theme');
+  document.body.classList.remove('christmas-theme');
   appShell.classList.remove('ready');
   viewContent.hidden = true;
   authError.classList.remove('show');

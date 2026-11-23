@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 620 180" fill="none">
+  <defs>
+    <linearGradient id="background" x1="24" y1="8" x2="592" y2="174" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#07140F"/>
+      <stop offset=".52" stop-color="#10231A"/>
+      <stop offset="1" stop-color="#0A1712"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="44" y1="55" x2="229" y2="143" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#276447"/>
+      <stop offset="1" stop-color="#10271E"/>
+    </linearGradient>
+    <linearGradient id="title" x1="280" y1="40" x2="534" y2="90" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF1DA"/>
+      <stop offset=".68" stop-color="#F6DDAE"/>
+      <stop offset="1" stop-color="#E9B9A7"/>
+    </linearGradient>
+  </defs>
+  <rect x="4" y="4" width="612" height="172" rx="17" fill="url(#background)" stroke="#B73D4B" stroke-opacity=".72" stroke-width="2"/>
+  <path d="M22 149h576" stroke="#315B43" stroke-opacity=".7"/>
+  <path d="M27 33c22 8 34 8 55 0s35-8 56 0 34 8 55 0 34-8 55 0" stroke="#D8B96E" stroke-opacity=".75" stroke-width="2"/>
+  <circle cx="42" cy="36" r="3" fill="#E45B66"/>
+  <circle cx="75" cy="33" r="3" fill="#4BC17E"/>
+  <circle cx="108" cy="34" r="3" fill="#E7C779"/>
+  <circle cx="141" cy="36" r="3" fill="#E45B66"/>
+  <circle cx="174" cy="34" r="3" fill="#4BC17E"/>
+  <circle cx="207" cy="33" r="3" fill="#E7C779"/>
+  <path d="M36 138V78l31-18v78M67 138V48l41-24 39 22v92M147 138V68l29-17 32 19v68M208 138V86l25-13v65" fill="url(#glass)" stroke="#64C58C" stroke-opacity=".75" stroke-width="2"/>
+  <path d="M79 54h57M77 72h61M77 90h61M77 108h61M79 126h57" stroke="#6EC994" stroke-opacity=".48"/>
+  <path d="M89 52v82M107 48v86M125 49v85M158 76h12v14h-12zM184 76h12v14h-12zM158 100h12v14h-12zM184 100h12v14h-12zM43 91h12v12H43zM43 113h12v12H43z" fill="#E7C779" fill-opacity=".72"/>
+  <path d="M99 24h18V11h15v13h14v14h-14v14h-15V38H99z" fill="#D94752" stroke="#FFE5B5" stroke-width="2"/>
+  <path d="M30 61c54-19 125-27 204-9" stroke="#F0E7D6" stroke-opacity=".8" stroke-width="4" stroke-linecap="round"/>
+  <path d="M31 61c54-19 125-27 204-9" stroke="#FFF8E8" stroke-opacity=".75" stroke-width="2" stroke-linecap="round"/>
+  <circle cx="50" cy="56" r="3.5" fill="#E45B66"/>
+  <circle cx="82" cy="49" r="3.5" fill="#E7C779"/>
+  <circle cx="116" cy="47" r="3.5" fill="#4BC17E"/>
+  <circle cx="151" cy="47" r="3.5" fill="#E45B66"/>
+  <circle cx="187" cy="51" r="3.5" fill="#E7C779"/>
+  <path d="M263 112h41l11-16 13 32 15-24 11 8h31" stroke="#4BC17E" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M385 112h29l11-17 13 32 15-24 11 8h147" stroke="#E45B66" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M271 129h335" stroke="#365441" stroke-opacity=".8"/>
+  <text x="270" y="75" fill="url(#title)" font-family="Arial,sans-serif" font-size="44" font-weight="700" letter-spacing="5">ECLIPSE</text>
+  <text x="274" y="98" fill="#AFC9AF" font-family="Arial,sans-serif" font-size="13" font-weight="700" letter-spacing="4">MEDICAL TOWER</text>
+  <text x="485" y="155" fill="#E7C779" font-family="Arial,sans-serif" font-size="9" font-weight="700" letter-spacing="2">WINTER EDITION</text>
+  <path d="m244 24 3 6 6 1-5 4 1 7-5-4-6 3 2-6-4-5 7 1 1-7ZM584 31l2 5 5 1-4 3 1 6-4-3-5 2 2-5-3-4 5 1 1-6Z" fill="#F4E7CB" fill-opacity=".82"/>
+  <circle cx="574" cy="68" r="2" fill="#E45B66"/>
+  <circle cx="598" cy="54" r="2" fill="#4BC17E"/>
+</svg>

@@ -10,7 +10,7 @@
     <link
         href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet"             href="style.css?v=20261107a">
+    <link rel="stylesheet"             href="style.css?v=20261123o">
     <script defer src="/js/speed-insights.js"></script>
 </head>
 
@@ -31,7 +31,7 @@
     </div>
     <div class="app-shell" id="app-shell">
         <aside class="sidebar">
-            <button class="brand brand-button brand-with-logo" id="brand-settings" type="button" title="Deschide profilul tău"><img class="brand-logo-image" src="/assets/eclipse-medical-banner.png" alt="Eclipse Medical Tower, clădirea departamentului medical"></button>
+            <button class="brand brand-button brand-with-logo" id="brand-settings" type="button" title="Deschide profilul tău"><img class="brand-logo-image" src="/assets/eclipse-medical-banner.png" alt="Eclipse Medical Tower, clădirea departamentului medical"><img class="christmas-brand-logo" src="/assets/eclipse-christmas-banner.svg" alt="Eclipse Medical Tower, ediție de Crăciun"><span class="eclipse-brand-mark" aria-hidden="true">✚</span><span class="eclipse-brand-copy" aria-hidden="true">ECLIPSE<small id="eclipse-brand-subtitle">MEDICAL SYSTEM</small></span></button>
             <div class="workspace-label">PANEL MEDICI</div>
             <nav>
                 <button class="nav-item active" data-view="overview"><span class="nav-ico">👤</span> Profilul tău</button>
@@ -48,9 +48,12 @@
                 <button class="nav-item" id="guide-nav" data-view="guide" type="button" hidden><span class="nav-ico">📖</span> Ghid Spital <span class="nav-chevron" aria-hidden="true">⌄</span></button>
                 <div class="nav-submenu" id="guide-submenu" hidden></div>
             </nav>
+            <div class="christmas-medic-mascot"><img src="/assets/christmas-medic-mascot.svg" alt="Spiriduș medical verde, îmbrăcat în roșu, cu trusă medicală"></div>
+            <div class="sidebar-theme-footer"><span aria-hidden="true">⌁</span><div><b id="sidebar-theme-title">Sistem medical</b><small id="sidebar-theme-subtitle">v2.0.0 – Eclipse</small></div></div>
         </aside>
         <main class="main-content">
             <header class="topbar"><button class="mobile-menu">☰</button>
+                <label class="theme-search"><span aria-hidden="true">⌕</span><input id="theme-nav-search" type="search" placeholder="Caută în panel..." autocomplete="off"></label>
                 <div class="crumb"><span class="site-tester-brand-mark" aria-hidden="true"><svg viewBox="0 0 40 40" focusable="false"><path class="brand-shield" d="M20 3.5 33 8v10.5c0 8.2-5.5 14.1-13 18-7.5-3.9-13-9.8-13-18V8l13-4.5Z"/><path class="brand-pulse" d="M9.5 21h6l2.5-5 4 10 3-6h5.5"/></svg></span><b id="section-label">Panel Medici</b> <span>&gt;</span> <b id="page-label">Profilul tău</b></div>
                 <div class="topbar-title" aria-hidden="true">Panel Medici</div>
                 <div class="top-actions"><span class="top-status" aria-hidden="true"><i></i>Online</span><button class="outline profile-logout-button" id="logout-button" type="button"><span aria-hidden="true">&#9211;</span> Deconectare</button></div>
@@ -59,7 +62,16 @@
                 <div id="overview-view">
                 <div class="profile-layout">
                     <section class="panel profile-card">
-                        <button class="profile-settings-button" id="profile-settings" type="button" aria-label="Setări" title="Setări" hidden><span aria-hidden="true">⚙</span></button>
+                        <div class="profile-header-actions">
+                            <button class="profile-theme-button" id="profile-theme-toggle" type="button" aria-expanded="false" aria-controls="profile-theme-picker" title="Alege tema site-ului"><span aria-hidden="true">◐</span> Tema</button>
+                            <div class="profile-theme-picker" id="profile-theme-picker" role="group" aria-label="Selectează tema" hidden>
+                                <button class="profile-theme-option" type="button" data-theme-choice="standard" aria-pressed="true"><span aria-hidden="true">◐</span> Standard</button>
+                                <button class="profile-theme-option" type="button" data-theme-choice="eclipse" aria-pressed="false"><span aria-hidden="true">◉</span> Eclipse</button>
+                                <button class="profile-theme-option" type="button" data-theme-choice="christmas" aria-pressed="false"><span aria-hidden="true">❄</span> Crăciun</button>
+                            </div>
+                            <button class="profile-settings-button" id="profile-settings" type="button" aria-label="Setări" title="Setări" hidden><span aria-hidden="true">⚙</span></button>
+                        </div>
+                        <span class="profile-theme-status" id="profile-theme-status" role="status" aria-live="polite"></span>
                         <p class="eyebrow profile-datetime"><span id="today-label"></span><time id="local-time" aria-label="Ora României"></time></p>
                         <div class="profile-identity"><div id="profile-avatar"></div><div><h1 id="profile-name">Profilul tău</h1></div></div>
 <dl class="profile-details"><div><dt>CALLSIGN</dt><dd id="profile-callsign">—</dd></div><div><dt>NUME</dt><dd id="profile-member-name">—</dd></div><div><dt>GRAD</dt><dd id="profile-member-rank">—</dd></div></dl>
@@ -130,9 +142,10 @@
         <button class="image-viewer-close" id="image-viewer-close" type="button" aria-label="Închide imaginea mărită">&times;</button>
         <img class="image-viewer-image" id="image-viewer-image" alt="Imagine mărită">
     </div>
+    <div class="christmas-snowfall" id="christmas-snowfall" aria-hidden="true"></div>
     <script src="tests.js"></script>
     <script src="js/storage.js?v=20261005a"></script>
-    <script src="script.js?v=20261107a"></script>
+    <script src="script.js?v=20261123h"></script>
 </body>
 
 </html>
