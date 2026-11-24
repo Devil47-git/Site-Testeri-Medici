@@ -904,6 +904,13 @@ async function loadGuideContent() {
   guideLoadWarning = '';
   guideContentPromise = fetch('/api/guide').then(async response => {
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+    return response;
+  }).catch(async apiError => {
+    const response = await fetch('/assets/guide/index.html');
+    if (!response.ok) throw new Error(`${apiError.message}; copia locală a răspuns cu HTTP ${response.status}`);
+    guideLoadWarning = 'Ghidul a fost încărcat din copia locală; modificările salvate online pot lipsi momentan.';
+    return response;
+  }).then(async response => {
     if (response.headers.get('X-Guide-Overrides-Status') === 'unavailable') {
       guideLoadWarning = 'Ghidul este disponibil, dar modificările salvate nu pot fi citite momentan.';
     }
