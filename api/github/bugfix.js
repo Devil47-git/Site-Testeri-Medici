@@ -49,8 +49,8 @@ export function verifyGitHubSignature(rawBody, signature, secret) {
 }
 export function resolvedCommitDrafts(payload) {
   const commits = Array.isArray(payload?.commits) ? payload.commits : [];
-  return commits.filter(commit => /\[resolved\]/i.test(String(commit?.message || ''))).map(commit => {
-    const message = String(commit.message || '').replace(/\[resolved\]/gi, '').trim();
+  return commits.filter(commit => /\bresolved\b/i.test(String(commit?.message || ''))).map(commit => {
+    const message = String(commit.message || '').replace(/\[resolved\]/gi, '').replace(/\bresolved\b/gi, '').replace(/^\s*[-:]\s*/, '').trim();
     const [titleLine, ...detailLines] = message.split(/\r?\n/);
     return {
       id: String(commit.id || crypto.randomUUID()),
@@ -62,6 +62,38 @@ export function resolvedCommitDrafts(payload) {
       receivedAt: new Date().toISOString(),
       status: 'pending'
     };
+  });
+}
+export function bugFixEmbed({ title, details = '', author = 'Necunoscut', pushedBy = 'Necunoscut', url = '' }) {
+  return {
+    color: 0x2D89F3,
+    title: String(title || 'Bug rezolvat').slice(0, 256),
+    ...(details ? { description: String(details).slice(0, 4096) } : {}),
+    fields: [
+      { name: 'Author', value: String(author).slice(0, 1024), inline: true },
+      { name: 'Pushed by', value: String(pushedBy).slice(0, 1024), inline: true }
+    ],
+    ...(url ? { url: String(url).slice(0, 512) } : {})
+  };
+}
+export async function importResolvedGitHubCommits(fetchImpl = globalThis.fetch) {
+  const repository = String(process.env.GITHUB_REPOSITORY || 'Devil47-git/Site-Testeri-Medici').trim();
+  const token = String(process.env.GITHUB_BUGFIX_TOKEN || '').trim();
+  if (!repository.includes('/')) throw new Error('GITHUB_REPOSITORY is invalid');
+  const headers = { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const response = await fetchImpl(`https://api.github.com/repos/${repository}/commits?per_page=100`, { headers });
+  const commits = await response.json().catch(() => []);
+  if (!response.ok) throw new Error(Array.isArray(commits) ? `GitHub API failed (${response.status})` : (commits.message || `GitHub API failed (${response.status})`));
+  return resolvedCommitDrafts({
+    commits: (Array.isArray(commits) ? commits : []).map(commit => ({
+      id: commit.sha,
+      message: commit.commit?.message || '',
+      url: commit.html_url || '',
+      author: {
+        name: commit.commit?.author?.name || commit.author?.login || 'Necunoscut'
+      }
+    }))
   });
 }
 async function readDrafts() {
@@ -106,7 +138,17 @@ export default async function handler(req, res) {
     const members = await readMembers();
     const requester = members.find(row => String(row[19] || '').trim() === authenticatedId);
     if (!requester || !isLeadershipRow(requester)) return json(res, 403, { error: 'Only leadership can manage Bug Fixer messages' });
-    if (req.method === 'GET') return json(res, 200, { drafts: await readDrafts() });
+    if (req.method === 'GET') {
+      if (req.query?.import === '1') {
+        const incoming = await importResolvedGitHubCommits();
+        const existing = await readDrafts();
+        const knownIds = new Set(existing.map(draft => draft.id));
+        const created = incoming.filter(draft => !knownIds.has(draft.id));
+        await writeDrafts([...existing, ...created]);
+        return json(res, 200, { drafts: await readDrafts(), imported: created.length });
+      }
+      return json(res, 200, { drafts: await readDrafts() });
+    }
     if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
 
     const action = String(body.action || '').trim();
@@ -131,8 +173,8 @@ export default async function handler(req, res) {
     }
 
     const requesterCallsign = String(requester[2] || '').replace(/\D/g, '').padStart(3, '0');
-    if (!['002', '004'].includes(requesterCallsign)) {
-      return json(res, 403, { error: 'Only callsigns 002 and 004 can approve or reject Bug Fixer messages' });
+    if (!['001', '002', '004'].includes(requesterCallsign)) {
+      return json(res, 403, { error: 'Only callsigns 001, 002 and 004 can approve or reject Bug Fixer messages' });
     }
     const draftId = String(body.draftId || '').trim();
     const drafts = await readDrafts();
@@ -151,14 +193,12 @@ export default async function handler(req, res) {
     const webhook = webhookUrl();
     if (!webhook) return json(res, 503, { error: 'DISCORD_HOSPITAL_CHAT_WEBHOOK is missing or invalid' });
 
-    const lines = ['✅ BUG FIXER', `Eroare rezolvată: ${title}`];
-    if (details) lines.push(`Detalii: ${details}`);
-    lines.push('Stare: Rezolvat', `Autor: ${draft.author || 'Necunoscut'}`);
-    if (url) lines.push(`Commit: ${url}`);
+    const pushedBy = String(requester[3] || 'Necunoscut').trim();
+    const embed = bugFixEmbed({ title, details, author: draft.author, pushedBy, url });
     const response = await fetch(webhook, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: 'BUG FIXER', content: lines.join('\n') })
+      body: JSON.stringify({ username: 'BUG FIXER', embeds: [embed] })
     });
     if (!response.ok) throw new Error(`Discord webhook failed (${response.status})`);
     await writeDrafts(drafts.filter(item => item.id !== draftId));
