@@ -97,6 +97,14 @@ test('Vercel bundles guide files and schedules the two-week summary on Mondays',
   ));
 });
 
+test('Advent Calendar tab and content are restricted to leadership', () => {
+  assert.match(indexSource, /id="advent-calendar-nav"[\s\S]*hidden/);
+  assert.match(source, /const adventCalendarNav = document\.querySelector\('#advent-calendar-nav'\)[\s\S]*adventCalendarNav\.hidden = !hasLeadershipCallsign\(currentUser\)/);
+  assert.match(source, /if \(adventCalendarNav\) adventCalendarNav\.hidden = !leadership/);
+  assert.match(source, /if \(view === 'advent-calendar' && !hasLeadershipCallsign\(currentUser\)\) view = 'overview'/);
+  assert.match(source, /function renderAdventCalendarView\(\)[\s\S]*if \(!hasLeadershipCallsign\(currentUser\)\)[\s\S]*Nu ai acces la această pagină/);
+});
+
 test('Vercel Speed Insights loads from the deployed built-in endpoint', () => {
   assert.match(indexSource, /src="\/js\/speed-insights\.js"/);
   assert.match(speedInsightsSource, /\/_vercel\/speed-insights\/script\.js/);

@@ -4502,6 +4502,8 @@ function setVisibilityPermissions(user){
   const addBtn = document.querySelector('#add-btn');
   const removeBtn = document.querySelector('#remove-btn');
   const profileSettingsButton = document.querySelector('#profile-settings');
+  const adventCalendarNav = document.querySelector('#advent-calendar-nav');
+  if (adventCalendarNav) adventCalendarNav.hidden = !leadership;
   const callsign = callsignNumber(user?.csNum || user?.callsign || user?.callSign);
   const adminPanel = document.querySelector('#admin-panel');
   document.querySelector('#overview-view')?.classList.toggle('admin-dashboard', callsign >= 1 && callsign <= 20);
