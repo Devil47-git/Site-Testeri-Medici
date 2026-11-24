@@ -276,6 +276,12 @@ function isLeadershipUser(user) { const cs = callsignNumber(user?.csNum || user?
 function canViewTestersRoom(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return cs >= 1 && cs <= 399; }
 function isExemptFromAttendance(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return cs >= 1 && cs <= 4; }
 function hasLeadershipCallsign(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return cs >= 1 && cs <= 20; }
+function isLeadershipAttendanceExempt(member) {
+  const callsign = callsignNumber(member?.csNum || member?.callsign || member?.callSign);
+  const rank = String(member?.rank || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toUpperCase();
+  return (callsign >= 1 && callsign <= 4)
+    || (callsign === 0 && ['DIRECTOR GENERAL', 'DIRECTOR ADJUNCT'].some(keyword => rank.includes(keyword)));
+}
 function canReviewAttendance(user) {
   if (hasLeadershipCallsign(user) || user?.canManageAttendance) return true;
   const functions = String(user?.functions || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -1466,7 +1472,7 @@ function activityWeeksFor(member) {
 }
 function renderAttendanceProfilePanel(member, { loaded = false } = {}) {
   if (!member?.discordId || (!canViewAttendanceRooms(currentUser) && member.discordId !== currentUser?.discordId)) return '';
-  if (callsignNumber(member.callsign) >= 1 && callsignNumber(member.callsign) <= 4) {
+  if (isLeadershipAttendanceExempt(member)) {
     return `<section class="panel attendance-profile-panel"><div class="panel-head"><div><p class="eyebrow">EVIDENȚA ACTIVITĂȚII</p><h2>Fără pontaj</h2><p class="muted">${escapeHtml(normalizeCallsign(member.callsign))} · ${escapeHtml(member.rank || 'Conducere')}</p></div></div><p class="attendance-profile-status muted">Acest membru al conducerii nu este inclus în evidența de pontaj și nu are minim de minute.</p></section>`;
   }
   const weeks = activityWeeksFor(member);
@@ -2011,15 +2017,16 @@ function attendanceLeaveCode(value) {
   return '';
 }
 function activityDayCells(member, today, target) {
-  if (callsignNumber(member?.callsign) >= 1 && callsignNumber(member?.callsign) <= 4) {
-    return ATTENDANCE_DAYS.map((_, index) => `<td class="activity-day-value${index === attendanceDayIndex(today) ? ' is-today' : ''}"><strong>—</strong></td>`).join('');
-  }
+  const leadershipExempt = isLeadershipAttendanceExempt(member);
   const docDays = Array.isArray(member.attendanceDays) ? member.attendanceDays : [];
   const live = attendanceWeekData(today, attendanceEntriesFor(member)).minutes;
   const todayIndex = attendanceDayIndex(today);
   return ATTENDANCE_DAYS.map((_, index) => {
     const raw = docDays.length === 7 ? String(docDays[index]?.value ?? '').trim() : '';
     const leaveCode = docDays.length === 7 ? attendanceLeaveCode(raw) : '';
+    if (leadershipExempt) {
+      return `<td class="activity-day-value ${leaveCode ? 'is-leave' : ''}${index === todayIndex ? ' is-today' : ''}"><strong>${leaveCode || '—'}</strong></td>`;
+    }
     const isLeave = Boolean(leaveCode);
     const parsed = parseFloat(raw.replace(',', '.'));
     const hasDoc = docDays.length === 7;
@@ -2097,7 +2104,7 @@ function renderActivityView() {
   const rows = [...rankGroups.values()].map(group => `<tr class="activity-group-row"><th colspan="${columnCount}">${escapeHtml(group.rank)} <span>${group.members.length}</span></th></tr>` + group.members.map(member => {
     const values = activityWeeksFor(member);
     const target = Number(member.attendanceMinimumMinutes) || 0;
-    const exemptFromAttendance = callsignNumber(member.callsign) >= 1 && callsignNumber(member.callsign) <= 4;
+    const exemptFromAttendance = isLeadershipAttendanceExempt(member);
     const search = normalizeCallsign(member.callsign) + ' ' + member.name + ' ' + (member.rank || '');
     return `<tr data-activity-search="${escapeHtml(search.toLowerCase())}"><td class="activity-member"><button class="activity-member-link" type="button" data-activity-member="${escapeHtml(normalizeCallsign(member.callsign))}" aria-label="Vezi pontajele pentru ${escapeHtml(member.name)}">${avatarFor(member)}<span><small><b class="activity-callsign">${escapeHtml(normalizeCallsign(member.callsign))}</b></small><strong>${escapeHtml(member.name)}</strong></span></button></td><td class="activity-minimum">${target ? `${target} min` : '—'}</td>${activityDayCells(member, today, target)}${visibleWeeks.map((week, index) => exemptFromAttendance ? '<td class="activity-history-value"><strong>—</strong></td>' : activityWeekCell(values[index]?.value || '—', target)).join('')}</tr>`;
   }).join('')).join('');
