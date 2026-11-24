@@ -472,9 +472,10 @@ export function attendanceCellUpdate(currentValue, minutes) {
   return `=${match[1]}${match[2]}${minutes}`;
 }
 export async function writeAttendanceToSheet(sheets, memberName, dateKey, minutes) {
-  const [sourceResult, targetResult] = await Promise.all([
+  const [sourceResult, targetResult, callsignResult] = await Promise.all([
     sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: TEST_PONTAJE_RANGE }),
-    sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: attendanceSheetNamesRange() })
+    sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: attendanceSheetNamesRange() }),
+    sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: `'${attendanceSheetTitle()}'!B1:B400` })
   ]);
   const wantedName = normalizedName(memberName);
   const sourceNames = (sourceResult.data.values || []).flatMap((row, index) => normalizedName(row[0]) === wantedName ? [index + 1] : []);
@@ -482,6 +483,8 @@ export async function writeAttendanceToSheet(sheets, memberName, dateKey, minute
   const targetRows = (targetResult.data.values || []).flatMap((row, index) => normalizedName(row[0]) === wantedName ? [index + 1] : []);
   if (!targetRows.length) throw new Error(`Persoana ${memberName} nu a fost găsită în coloana D din EVIDENTA ACTIVITATE.`);
   if (targetRows.length > 1) throw new Error(`Numele ${memberName} apare de mai multe ori în EVIDENTA ACTIVITATE.`);
+  const callsign = callsignNumber(callsignResult.data.values?.[targetRows[0] - 1]?.[0]);
+  if (callsign >= 1 && callsign <= 4) return true;
   const cellRange = attendanceSheetCell(attendanceSheetDayColumn(dateKey), targetRows[0]);
   const cellResult = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: cellRange });
   const value = attendanceCellUpdate(cellResult.data.values?.[0]?.[0], minutes);
@@ -523,6 +526,8 @@ export async function writeDepartmentAttendanceToSheet(sheets, members, entries,
       return [];
     }
     const memberName = String(targetNames[rowNumber - 1]?.[0] || '').trim();
+    const callsign = callsignNumber(callsigns[rowNumber - 1]?.[0]);
+    if (callsign >= 1 && callsign <= 4) return [];
     const memberEntries = member ? entries[member.discordId] : [];
     const hasEntry = attendanceHasEntryOnDate(memberEntries, dateKey);
     if (hasEntry && !sourceNames.has(name)) throw new Error(`Persoana ${memberName} nu a fost găsită în fila TEST PONTAJE, coloana D.`);

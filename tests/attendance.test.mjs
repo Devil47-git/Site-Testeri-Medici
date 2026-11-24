@@ -373,18 +373,40 @@ test('individual attendance sync matches TEST PONTAJE names and writes daily min
       values: {
         get: async ({ range }) => {
           reads.push(range);
-          return { data: { values: range.endsWith('!F1') ? [['']] : [['Ana Vasilescu']] } };
+          if (range.endsWith('!B1:B400')) return { data: { values: [['M-101']] } };
+          if (range.endsWith('!F1')) return { data: { values: [['']] } };
+          return { data: { values: [['Ana Vasilescu']] } };
         },
         update: async request => updates.push(request)
       }
     }
   };
   await writeAttendanceToSheet(sheets, 'Ana Vasilescu', '2026-11-02', 135);
-  assert.deepEqual(reads, ["'TEST PONTAJE'!D1:D400", "'EVIDENTA ACTIVITATE'!D1:D400", "'EVIDENTA ACTIVITATE'!F1"]);
+  assert.deepEqual(reads, ["'TEST PONTAJE'!D1:D400", "'EVIDENTA ACTIVITATE'!D1:D400", "'EVIDENTA ACTIVITATE'!B1:B400", "'EVIDENTA ACTIVITATE'!F1"]);
   assert.equal(updates.length, 1);
   assert.equal(updates[0].range, "'EVIDENTA ACTIVITATE'!F1");
   assert.deepEqual(updates[0].requestBody.values, [[135]]);
   assert.equal(updates[0].valueInputOption, 'USER_ENTERED');
+});
+
+test('individual attendance sync leaves leadership callsigns 001-004 unchanged', async () => {
+  const updates = [];
+  const sheets = {
+    spreadsheets: {
+      values: {
+        get: async ({ range }) => {
+          if (range === "'TEST PONTAJE'!D1:D400") return { data: { values: [['Director Adjunct']] } };
+          if (range === "'EVIDENTA ACTIVITATE'!D1:D400") return { data: { values: [['Director Adjunct']] } };
+          if (range === "'EVIDENTA ACTIVITATE'!B1:B400") return { data: { values: [['M-004']] } };
+          throw new Error(`Unexpected sheet range: ${range}`);
+        },
+        update: async request => updates.push(request)
+      }
+    }
+  };
+  const updated = await writeAttendanceToSheet(sheets, 'Director Adjunct', '2026-11-02', 45);
+  assert.equal(updated, true);
+  assert.equal(updates.length, 0);
 });
 
 test('attendance sheet markers add or multiply the daily minutes without overwriting other values', () => {
@@ -397,6 +419,31 @@ test('attendance sheet markers add or multiply the daily minutes without overwri
   assert.equal(attendanceCellUpdate('text+', 45), null);
 });
 
+test('department attendance sync preserves cells for leadership callsigns 001-004', async () => {
+  let batchUpdates = [];
+  const sheets = {
+    spreadsheets: {
+      values: {
+        get: async ({ range }) => {
+          if (range === "'TEST PONTAJE'!D1:D400") return { data: { values: [['Director General']] } };
+          if (range === "'EVIDENTA ACTIVITATE'!D1:D400") return { data: { values: [['Director General']] } };
+          if (range === "'EVIDENTA ACTIVITATE'!B1:B400") return { data: { values: [['M-001']] } };
+          if (range === "'EVIDENTA ACTIVITATE'!F1:F400") return { data: { values: [['—']] } };
+          throw new Error(`Unexpected sheet range: ${range}`);
+        },
+        batchUpdate: async request => { batchUpdates.push(request); }
+      }
+    }
+  };
+  const updates = await writeDepartmentAttendanceToSheet(sheets, [
+    { discordId: 'director-id', name: 'Director General' }
+  ], {
+    'director-id': [{ start: Date.parse('2026-11-02T10:00:00Z'), end: Date.parse('2026-11-02T10:30:00Z') }]
+  }, '2026-11-02');
+  assert.equal(updates.length, 0);
+  assert.equal(batchUpdates.length, 0);
+});
+
 test('department attendance sync applies plus and multiply markers to existing cells', async () => {
   const batchUpdates = [];
   const sheets = {
@@ -405,7 +452,7 @@ test('department attendance sync applies plus and multiply markers to existing c
         get: async ({ range }) => {
           if (range === "'TEST PONTAJE'!D1:D400") return { data: { values: [['Ana Vasilescu'], ['Mara Pop']] } };
           if (range === "'EVIDENTA ACTIVITATE'!D1:D400") return { data: { values: [['Ana Vasilescu'], ['Mara Pop']] } };
-          if (range === "'EVIDENTA ACTIVITATE'!B1:B400") return { data: { values: [['M-001'], ['M-002']] } };
+          if (range === "'EVIDENTA ACTIVITATE'!B1:B400") return { data: { values: [['M-101'], ['M-102']] } };
           if (range === "'EVIDENTA ACTIVITATE'!F1:F400") return { data: { values: [['10+'], ['3*']] } };
           throw new Error(`Unexpected sheet range: ${range}`);
         },
@@ -436,7 +483,7 @@ test('department attendance sync writes zero only to occupied rows and adds zero
         get: async ({ range }) => {
           if (range === "'TEST PONTAJE'!D1:D400") return { data: { values: [['Ana Vasilescu'], ['Mara Pop'], ['Radu Ionescu']] } };
           if (range === "'EVIDENTA ACTIVITATE'!D1:D400") return { data: { values: [['Ana Vasilescu'], ['Mara Pop'], ['Fără callsign'], ['Radu Ionescu']] } };
-          if (range === "'EVIDENTA ACTIVITATE'!B1:B400") return { data: { values: [['M-001'], ['M-002'], [''], ['M-004']] } };
+          if (range === "'EVIDENTA ACTIVITATE'!B1:B400") return { data: { values: [['M-101'], ['M-102'], [''], ['M-104']] } };
           if (range === "'EVIDENTA ACTIVITATE'!F1:F400") return { data: { values: [['45+'], [''], ['90+'], ['60+']] } };
           throw new Error(`Unexpected sheet range: ${range}`);
         },
