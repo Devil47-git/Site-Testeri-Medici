@@ -1492,6 +1492,9 @@ body.christmas-theme .sidebar-theme-footer small{color:#91a995}
 .christmas-medic-mascot{display:none}
 body.christmas-theme .christmas-medic-mascot{display:grid;flex:none;width:100%;height:132px;margin-top:auto;place-items:center}
 body.christmas-theme .christmas-medic-mascot img{display:block;width:112px;height:124px;object-fit:contain;filter:drop-shadow(0 5px 12px rgba(0,0,0,.32))}
+body.christmas-theme .christmas-medic-mascot img{animation:christmas-medic-sway 1.6s ease-in-out infinite alternate;transform-origin:50% 85%}
+@keyframes christmas-medic-sway{from{transform:translateX(-16px) rotate(-6deg)}to{transform:translateX(16px) rotate(6deg)}}
+@media(prefers-reduced-motion:reduce){body.christmas-theme .christmas-medic-mascot img{animation:none}}
 body.christmas-theme .sidebar-theme-footer{margin-top:0;border-color:rgba(228,91,102,.48);background:linear-gradient(145deg,rgba(88,31,37,.58),rgba(17,29,21,.96))}
 body.christmas-theme .sidebar-theme-footer>span{background:rgba(228,91,102,.2);color:#ff8790}
 body.christmas-theme .sidebar-theme-footer b{color:#ffe0e1}
