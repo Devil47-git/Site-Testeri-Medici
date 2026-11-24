@@ -134,7 +134,6 @@ export default async function handler(req, res) {
       return json(res, 200, { success: true });
     }
     if (typeof req.query?.callsign === 'string') {
-      if (requesterCallsign < 1 || requesterCallsign > 20) return json(res, 403, { error: 'Only leadership can search member cooldowns' });
       const candidate = candidateForCallsign(members, req.query.callsign);
       const row = candidate && members.find(item => callsignNumber(item[2]) === callsignNumber(req.query.callsign) && String(item[3] || '').trim());
       return json(res, 200, { candidate: candidate ? { ...candidate, cooldowns: parseCooldownS(row?.[18] || '') } : null });

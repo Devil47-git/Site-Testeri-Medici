@@ -93,6 +93,11 @@ test('function directory reads live functions and requires a department member',
     assert.equal(response.body.assignments.find(item => item.discordId === 'target').isOverride, false);
     assert.deepEqual(response.body.assignments.find(item => item.discordId === 'requester').attendanceTypes, ['regular', 'hr']);
 
+    const memberResponse = createResponse();
+    await handler({ method: 'GET', query: { requesterId: 'target' }, headers: authHeaders('target') }, memberResponse);
+    assert.equal(memberResponse.statusCode, 200);
+    assert.ok(memberResponse.body.assignments.find(item => item.discordId === 'target'));
+
     const denied = createResponse();
     await handler({ method: 'GET', query: { requesterId: 'unknown' }, headers: authHeaders('unknown') }, denied);
     assert.equal(denied.statusCode, 403);

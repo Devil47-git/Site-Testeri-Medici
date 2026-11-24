@@ -142,7 +142,7 @@ const { default: attendanceHandler, attendanceCellUpdate, attendanceMinutesForDa
 const { memberFunctionsDirectory, normalizeMemberFunctionLabels } = await import('../api/access/functions.js');
 const { attendanceMinimumMinutes } = await import('../lib/access/shared.js');
 
-async function callDirectory(requesterId, view) {
+async function callDirectory(requesterId, view, extraQuery = {}) {
   let statusCode = 200;
   let payload;
   const response = {
@@ -151,7 +151,7 @@ async function callDirectory(requesterId, view) {
     json(value) { payload = value; return this; }
   };
   const cookie = createAuthCookieValue(requesterId);
-  await directoryHandler({ method: 'GET', query: { requesterId, view }, headers: { cookie: `medici_auth=${encodeURIComponent(cookie)}` } }, response);
+  await directoryHandler({ method: 'GET', query: { requesterId, view, ...extraQuery }, headers: { cookie: `medici_auth=${encodeURIComponent(cookie)}` } }, response);
   return { statusCode, payload };
 }
 async function callAttendance(method, requesterId, body = {}, extraQuery = {}, headers = {}) {
@@ -195,7 +195,9 @@ test('weekly attendance columns keep document labels and text values unchanged',
 
 test('daily attendance minimums follow callsign leadership and member grade', () => {
   assert.equal(attendanceMinimumMinutes('004', 'Director Adjunct'), null);
-  assert.equal(attendanceMinimumMinutes('020', 'Medic Chirurg'), 60);
+  assert.equal(attendanceMinimumMinutes('020', 'Medic Chirurg'), null);
+  assert.equal(attendanceMinimumMinutes('102', 'Director Adjunct', 'Moderator'), null);
+  assert.equal(attendanceMinimumMinutes('205', 'Medic Chirurg', 'Administrator'), null);
   for (const role of ['Helper', 'Moderator', 'Administrator', 'Supervizor']) {
     assert.equal(attendanceMinimumMinutes('650', 'Medic Specialist', role), 60);
   }
@@ -507,6 +509,23 @@ test('members directory excludes header rows without a valid callsign', async ()
     const response = await callDirectory('leadership-id', 'members');
     assert.equal(response.statusCode, 200);
     assert.equal(response.payload.members.some(member => member.name === 'NUME'), false);
+  } finally {
+    sheetRows.pop();
+  }
+});
+
+test('department members can look up candidates by callsign for specialty tests', async () => {
+  const candidate = row('201', 'Antonio Shades', 'candidate-id', 'Medic Specialist');
+  sheetRows.push(candidate);
+  try {
+    const response = await callDirectory('member-id', '', { callsign: 'M-201' });
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(response.payload.candidate, {
+      callsign: '201',
+      name: 'Antonio Shades',
+      discordId: 'candidate-id',
+      cooldowns: {}
+    });
   } finally {
     sheetRows.pop();
   }

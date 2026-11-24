@@ -134,7 +134,6 @@ export default async function handler(req, res) {
     if (req.method === 'GET') {
       const members = await readPublicValues(MEMBER_RANGE);
       const requester = findMemberByDiscordId(members, requesterId.trim());
-      if (callsignNumber(requester?.[2]) < 1 || callsignNumber(requester?.[2]) > LEADERSHIP_MAX) return json(res, 403, { error: 'Only leadership can view member function assignments' });
       if (!requester) return json(res, 403, { error: 'Requester is not a department member' });
       return json(res, 200, memberFunctionsDirectory(members, await readFunctionOverrides()));
     }

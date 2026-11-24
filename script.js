@@ -1466,6 +1466,9 @@ function activityWeeksFor(member) {
 }
 function renderAttendanceProfilePanel(member, { loaded = false } = {}) {
   if (!member?.discordId || (!canViewAttendanceRooms(currentUser) && member.discordId !== currentUser?.discordId)) return '';
+  if (callsignNumber(member.callsign) >= 1 && callsignNumber(member.callsign) <= 4) {
+    return `<section class="panel attendance-profile-panel"><div class="panel-head"><div><p class="eyebrow">EVIDENȚA ACTIVITĂȚII</p><h2>Fără pontaj</h2><p class="muted">${escapeHtml(normalizeCallsign(member.callsign))} · ${escapeHtml(member.rank || 'Conducere')}</p></div></div><p class="attendance-profile-status muted">Acest membru al conducerii nu este inclus în evidența de pontaj și nu are minim de minute.</p></section>`;
+  }
   const weeks = activityWeeksFor(member);
   const memberLoaded = Object.hasOwn(activityWeeksByDiscordId, member.discordId) || Array.isArray(member.attendanceWeeks);
   const today = attendanceDateKey(Date.now());
@@ -1891,7 +1894,10 @@ async function loadAttendancePermissions() {
     attendanceAllowedTypes = assignment.attendanceTypes;
   } catch (error) {
     console.error('Attendance function permissions could not be loaded:', error);
-    attendancePermissionsError = error.message || 'Funcțiile membrului nu au putut fi verificate.';
+    const fallbackFunctions = String(currentUser?.functions || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const fallbackHasHr = fallbackFunctions.split('|').some(value => ['HR', 'HRAV', 'HRHRAV', 'MANAGERHR', 'RESPONSABILHR'].includes(value.replace(/[^A-Z0-9]/g, '')));
+    attendanceAllowedTypes = fallbackHasHr ? ['regular', 'hr'] : ['regular'];
+    attendancePermissionsError = fallbackHasHr ? '' : (error.message || 'Funcțiile membrului nu au putut fi verificate.');
   }
   if (window.history.state?.view === 'attendance') refreshAttendanceView();
 }
@@ -2005,6 +2011,9 @@ function attendanceLeaveCode(value) {
   return '';
 }
 function activityDayCells(member, today, target) {
+  if (callsignNumber(member?.callsign) >= 1 && callsignNumber(member?.callsign) <= 4) {
+    return ATTENDANCE_DAYS.map((_, index) => `<td class="activity-day-value${index === attendanceDayIndex(today) ? ' is-today' : ''}"><strong>—</strong></td>`).join('');
+  }
   const docDays = Array.isArray(member.attendanceDays) ? member.attendanceDays : [];
   const live = attendanceWeekData(today, attendanceEntriesFor(member)).minutes;
   const todayIndex = attendanceDayIndex(today);
@@ -2088,8 +2097,9 @@ function renderActivityView() {
   const rows = [...rankGroups.values()].map(group => `<tr class="activity-group-row"><th colspan="${columnCount}">${escapeHtml(group.rank)} <span>${group.members.length}</span></th></tr>` + group.members.map(member => {
     const values = activityWeeksFor(member);
     const target = Number(member.attendanceMinimumMinutes) || 0;
+    const exemptFromAttendance = callsignNumber(member.callsign) >= 1 && callsignNumber(member.callsign) <= 4;
     const search = normalizeCallsign(member.callsign) + ' ' + member.name + ' ' + (member.rank || '');
-    return `<tr data-activity-search="${escapeHtml(search.toLowerCase())}"><td class="activity-member"><button class="activity-member-link" type="button" data-activity-member="${escapeHtml(normalizeCallsign(member.callsign))}" aria-label="Vezi pontajele pentru ${escapeHtml(member.name)}">${avatarFor(member)}<span><small><b class="activity-callsign">${escapeHtml(normalizeCallsign(member.callsign))}</b></small><strong>${escapeHtml(member.name)}</strong></span></button></td><td class="activity-minimum">${target ? `${target} min` : '—'}</td>${activityDayCells(member, today, target)}${visibleWeeks.map((week, index) => activityWeekCell(values[index]?.value || '—', target)).join('')}</tr>`;
+    return `<tr data-activity-search="${escapeHtml(search.toLowerCase())}"><td class="activity-member"><button class="activity-member-link" type="button" data-activity-member="${escapeHtml(normalizeCallsign(member.callsign))}" aria-label="Vezi pontajele pentru ${escapeHtml(member.name)}">${avatarFor(member)}<span><small><b class="activity-callsign">${escapeHtml(normalizeCallsign(member.callsign))}</b></small><strong>${escapeHtml(member.name)}</strong></span></button></td><td class="activity-minimum">${target ? `${target} min` : '—'}</td>${activityDayCells(member, today, target)}${visibleWeeks.map((week, index) => exemptFromAttendance ? '<td class="activity-history-value"><strong>—</strong></td>' : activityWeekCell(values[index]?.value || '—', target)).join('')}</tr>`;
   }).join('')).join('');
   const statusText = activityLoadError ? `Nu s-au putut încărca datele: ${activityLoadError}` : attendanceSyncError ? `Pontajele live nu s-au putut actualiza: ${attendanceSyncError}` : members.length ? `${members.length} membri afișați (001–650).` : 'Lista departamentului se încarcă...';
   return `<section class="panel activity-panel"><div class="panel-head activity-head"><div><p class="eyebrow">LISTA DEPARTAMENT</p><h2>Evidență activitate</h2><p class="muted">Minutele pe zile și totalurile săptămânale sunt preluate din documentul departamentului.</p></div><div class="activity-tools"><button class="outline site-guide-frame activity-weeks-toggle" id="activity-weeks-toggle" type="button" aria-pressed="${activityShowWeeks}">${activityShowWeeks ? 'Ascunde totalurile săptămânale' : 'Arată totalurile săptămânale'}</button><input class="activity-search" id="activity-search" type="search" placeholder="Caută după nume, callsign sau grad" value="${escapeHtml(activitySearch)}" aria-label="Caută membru"></div></div><p class="activity-status muted" id="activity-status" role="status" aria-live="polite">${escapeHtml(statusText)}</p><div class="activity-table-wrap"><table class="activity-table">${tableColumns}<thead><tr><th>MEMBRU</th><th>MINIM</th>${dayHeaders}${headers}</tr></thead><tbody>${rows || `<tr><td colspan="${weeks.length + 9}">Nu există membri disponibili.</td></tr>`}</tbody></table></div></section>`;
