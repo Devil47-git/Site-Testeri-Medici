@@ -769,15 +769,16 @@ function renderGuideView() {
     const message = guideLoadError
       ? `<p class="muted">Ghidul nu s-a putut încărca: ${escapeHtml(guideLoadError)}</p><button type="button" class="outline" data-guide-retry>Încearcă din nou</button>`
       : '<p class="muted">Se încarcă ghidul spitalului…</p>';
-    return `<section class="panel guide-panel">${message}</section>`;
+    return `<section class="panel guide-panel"><div class="guide-empty-state"><span class="guide-empty-icon" aria-hidden="true">${guideLoadError ? '⚠️' : '📖'}</span><div>${message}</div></div></section>`;
   }
   const editor = hasLeadershipCallsign(currentUser)
     ? '<div class="guide-editor-toolbar"><button type="button" class="outline" data-guide-edit-action="start">Editează secțiunea</button><button type="button" class="primary" data-guide-edit-action="save" hidden>Salvează modificările</button><button type="button" class="outline" data-guide-edit-action="cancel" hidden>Anulează</button><span class="guide-editor-status" role="status" aria-live="polite"></span></div>'
     : '';
   const warning = guideLoadWarning
-    ? `<p class="guide-load-warning" role="status">${escapeHtml(guideLoadWarning)}</p>`
+    ? `<p class="guide-load-warning" role="status"><span class="guide-load-warning-icon" aria-hidden="true">ⓘ</span><span>${escapeHtml(guideLoadWarning)}</span></p>`
     : '';
-  return `<section class="panel guide-panel">${warning}<div class="panel-head"><div><p class="eyebrow">GHID SPITAL · SECȚIUNE INTERNĂ</p><h2>${escapeHtml(title)}</h2><p class="muted">Informațiile și imaginile ghidului spitalului sunt integrate aici în Panel Medici.</p></div>${editor}</div><article class="guide-official-content" data-guide-section-content="${section}"><div class="section active" id="${section}">${content}</div></article></section>`;
+  const theme = document.body.classList.contains('christmas-theme') ? 'christmas' : document.body.classList.contains('eclipse-theme') ? 'eclipse' : 'standard';
+  return `<section class="panel guide-panel guide-theme-${theme}">${warning}<div class="panel-head"><div class="guide-heading"><p class="eyebrow"><span aria-hidden="true">✚</span> GHID SPITAL · SECȚIUNE INTERNĂ</p><h2>${escapeHtml(title)}</h2><p class="muted">Informațiile și imaginile ghidului spitalului sunt integrate aici în Panel Medici.</p></div>${editor}</div><article class="guide-official-content" data-guide-section-content="${section}"><div class="section active" id="${section}">${content}</div></article></section>`;
 }
 function renderCertificaTrusaView() {
   const content = GUIDE_CONTENT['certifica-trusa'];
@@ -908,7 +909,7 @@ async function loadGuideContent() {
   }).catch(async apiError => {
     const response = await fetch('/assets/guide/index.html');
     if (!response.ok) throw new Error(`${apiError.message}; copia locală a răspuns cu HTTP ${response.status}`);
-    guideLoadWarning = 'Ghidul a fost încărcat din copia locală; modificările salvate online pot lipsi momentan.';
+    guideLoadWarning = 'Serverul ghidului a răspuns cu o eroare. Îți afișăm copia ghidului inclusă în site ca să poți citi informațiile; editările salvate recent online pot lipsi, iar salvarea modificărilor va funcționa din nou când serviciul își revine.';
     return response;
   }).then(async response => {
     if (response.headers.get('X-Guide-Overrides-Status') === 'unavailable') {
@@ -4338,6 +4339,7 @@ themePicker.addEventListener('click', event => {
   try {
     localStorage.setItem(themeStorageKey(currentUser), JSON.stringify(nextTheme));
     applyUserTheme(currentUser, nextTheme);
+    refreshCurrentView();
     themePicker.hidden = true;
     themePickerToggle.setAttribute('aria-expanded', 'false');
     themePickerToggle.focus();

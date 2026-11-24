@@ -1617,3 +1617,107 @@ body.christmas-theme .christmas-snowfall{visibility:visible;opacity:1}
 .bugfix-create-form input,.bugfix-create-form textarea{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);font:500 12px 'DM Sans'}
 .bugfix-create-form button{justify-self:start;grid-column:1/-1}
 @media(max-width:620px){.bugfix-create-form{grid-template-columns:1fr}.bugfix-create-form label:nth-child(2){grid-column:1;grid-row:auto}}
+
+/* Ghidul spitalului se adaptează automat la tema activă din panel. */
+.guide-panel{position:relative;overflow:hidden;border-radius:20px;background:linear-gradient(145deg,#fff 0%,#f6f8ff 55%,#f0f4ff 100%);border-color:#dce4f2;box-shadow:0 14px 38px rgba(31,54,94,.09);color:#17213b}
+.guide-panel::before{position:absolute;top:0;left:0;width:100%;height:3px;background:linear-gradient(90deg,#635bff,#42c7e9,#ed5965);content:""}
+.guide-panel>.panel-head{position:relative;gap:20px;margin:0 0 20px;padding-bottom:18px;border-bottom:1px solid #e1e7f1}
+.guide-panel>.panel-head>div:first-child{min-width:0}
+.guide-panel .guide-heading .eyebrow{display:flex;align-items:center;gap:7px;margin:0 0 9px;color:#625ee1;font-size:10px;font-weight:800;letter-spacing:1.35px}
+.guide-panel .guide-heading .eyebrow span{color:#45a7c8}
+.guide-panel>.panel-head h2{margin:0 0 6px;color:#17213b;font-size:clamp(21px,2.2vw,28px);letter-spacing:-.035em}
+.guide-panel>.panel-head .muted{max-width:580px;margin:0;color:#69758a;font-size:12px;line-height:1.55}
+.guide-editor-toolbar{flex:0 0 auto}
+.guide-load-warning{display:flex;align-items:flex-start;gap:11px;margin:0 0 18px;padding:13px 16px;border:1px solid #d7e5f3;border-left:3px solid #408bd3;border-radius:12px;background:linear-gradient(110deg,#eff7ff,#f7fbff);color:#31536f;font-size:12px;line-height:1.6;box-shadow:0 5px 14px rgba(48,106,158,.06)}
+.guide-load-warning-icon{display:grid;flex:0 0 23px;width:23px;height:23px;place-items:center;border-radius:50%;background:#dceeff;color:#2877bb;font-weight:800}
+.guide-empty-state{display:grid;min-height:210px;place-content:center;justify-items:center;gap:12px;padding:28px;text-align:center}
+.guide-empty-state>div{max-width:530px}
+.guide-empty-state p{margin:0 0 12px;color:#69758a;line-height:1.65}
+.guide-empty-icon{display:grid;width:55px;height:55px;place-items:center;border:1px solid #dce4f2;border-radius:18px;background:#f1f4ff;font-size:25px}
+.guide-official-content{max-width:1200px;max-height:calc(100vh - 290px);min-height:360px;margin:0 auto;padding:clamp(18px,3vw,34px);border:1px solid #dce4ef;border-radius:16px;background:linear-gradient(145deg,#fff,#fbfcff 70%,#f6f9ff);color:#27354a;box-shadow:0 10px 28px rgba(31,54,94,.075);scrollbar-color:#aab9cf transparent;scrollbar-width:thin}
+.guide-official-content::-webkit-scrollbar{width:9px;height:9px}
+.guide-official-content::-webkit-scrollbar-thumb{border:2px solid transparent;border-radius:999px;background:#aab9cf;background-clip:padding-box}
+.guide-official-content h1,.guide-official-content h2,.guide-official-content h3,.guide-official-content h4{color:#334f88!important;font-family:'Space Grotesk',sans-serif}
+.guide-official-content h1{font-size:clamp(23px,3vw,34px);letter-spacing:-.025em}
+.guide-official-content h2{margin:25px 0 15px;font-size:clamp(19px,2vw,24px)}
+.guide-official-content h3{margin:20px 0 10px;font-size:16px}
+.guide-official-content p,.guide-official-content li,.guide-official-content span{color:#3d4b60;font-size:13px;line-height:1.75}
+.guide-official-content strong,.guide-official-content b{color:#273d67}
+.guide-official-content li::marker{color:#5b77c4}
+.guide-official-content .card,.guide-official-content .info-card,.guide-official-content .content-card,.guide-official-content table{border:1px solid #e1e7f0;border-radius:14px;background:#fff;box-shadow:0 6px 18px rgba(35,54,87,.055)}
+.guide-official-content .card,.guide-official-content .info-card,.guide-official-content .content-card{padding:20px;margin:16px 0}
+.guide-official-content table{overflow:hidden;background:#fff}
+.guide-official-content th,.guide-official-content td{border-color:#e3e8f1;color:#3d4b60;font-size:12px}
+.guide-official-content th{background:#f0f4fa;color:#304664}
+.guide-official-content .jaf-btn{border:1px solid #d7e0ef;border-radius:11px;background:linear-gradient(145deg,#fff,#f1f5fb);color:#344968!important;box-shadow:0 4px 12px rgba(32,55,89,.07)}
+.guide-official-content .jaf-btn:hover,.guide-official-content .jaf-btn:focus-visible{border-color:#a9c3ed;background:linear-gradient(145deg,#fff,#eaf1ff);box-shadow:0 7px 18px rgba(60,107,184,.14)}
+.guide-official-content .jaf-btn.active{border-color:#dca5aa;background:linear-gradient(135deg,#fff0f0,#fae7e9);color:#963d49!important;box-shadow:0 0 0 2px rgba(204,91,105,.08),0 5px 14px rgba(161,62,77,.1)}
+.guide-official-content [style*="background"]{background:var(--surface-alt,#f6f8fc)!important;border-color:var(--surface-border,#e1e7f0)!important;box-shadow:none!important;color:var(--surface-text,#3d4b60)!important}
+.guide-panel.guide-theme-eclipse{border-color:#273853;background:linear-gradient(145deg,#0d192b,#101e33 58%,#111a30);box-shadow:0 16px 42px rgba(0,0,0,.2);color:#e7edf9}
+.guide-theme-eclipse>.panel-head{border-color:#22324a}
+.guide-theme-eclipse .guide-heading .eyebrow{color:#7eaeff}
+.guide-theme-eclipse .guide-heading .eyebrow span{color:#48c0e6}
+.guide-theme-eclipse>.panel-head h2{color:#e7edf9}
+.guide-theme-eclipse>.panel-head .muted,.guide-theme-eclipse .guide-editor-status{color:#98a9c4}
+.guide-theme-eclipse .guide-load-warning{border-color:#304966;border-left-color:#54a9ee;background:linear-gradient(110deg,#132a43,#132239);color:#c8d9ef;box-shadow:none}
+.guide-theme-eclipse .guide-load-warning-icon{background:#1d3a5b;color:#75baff}
+.guide-theme-eclipse .guide-empty-state p{color:#aabbd4}
+.guide-theme-eclipse .guide-empty-icon{border-color:#30425f;background:#15253b}
+.guide-theme-eclipse .guide-official-content{border-color:#2a4263;background:radial-gradient(ellipse at 85% 0%,rgba(42,94,165,.13),transparent 45%),linear-gradient(145deg,#0a1628,#101e33 70%,#111a30);color:#d8e4f5;box-shadow:inset 0 1px rgba(255,255,255,.025),0 14px 34px rgba(0,0,0,.2)}
+.guide-theme-eclipse .guide-official-content h1,.guide-theme-eclipse .guide-official-content h2,.guide-theme-eclipse .guide-official-content h3,.guide-theme-eclipse .guide-official-content h4{color:#8ec5ff!important}
+.guide-theme-eclipse .guide-official-content p,.guide-theme-eclipse .guide-official-content li,.guide-theme-eclipse .guide-official-content span,.guide-theme-eclipse .guide-official-content td{color:#cfdbec}
+.guide-theme-eclipse .guide-official-content strong,.guide-theme-eclipse .guide-official-content b{color:#a8d0ff}
+.guide-theme-eclipse .guide-official-content li::marker{color:#50a2ef}
+.guide-theme-eclipse .guide-official-content .card,.guide-theme-eclipse .guide-official-content .info-card,.guide-theme-eclipse .guide-official-content .content-card,.guide-theme-eclipse .guide-official-content table{border-color:#2d4968;background:linear-gradient(145deg,#13253b,#101e32);box-shadow:0 8px 20px rgba(0,0,0,.15)}
+.guide-theme-eclipse .guide-official-content th{background:#1b3551;color:#e3edfb}
+.guide-theme-eclipse .guide-official-content .jaf-btn{border-color:#345578;background:linear-gradient(135deg,#1b3555,#172742);color:#d7e9ff!important}
+.guide-theme-eclipse .guide-official-content .jaf-btn:hover,.guide-theme-eclipse .guide-official-content .jaf-btn:focus-visible{border-color:#63afff;background:linear-gradient(135deg,#20558b,#273b68)}
+.guide-theme-eclipse .guide-official-content .jaf-btn.active{border-color:#d95e74;background:linear-gradient(135deg,#9a394d,#582a40);color:#fff!important}
+.guide-theme-christmas{border-color:#345541;background:radial-gradient(ellipse at 90% 0%,rgba(61,130,78,.14),transparent 38%),linear-gradient(145deg,#102219,#0d1b13 60%,#181b16);box-shadow:0 16px 42px rgba(2,13,6,.28);color:#e9f0e4}
+.guide-theme-christmas>.panel-head{border-color:rgba(114,156,116,.22)}
+.guide-theme-christmas .guide-heading .eyebrow{color:#e7c779}
+.guide-theme-christmas .guide-heading .eyebrow span{color:#59c17e}
+.guide-theme-christmas>.panel-head h2{color:#f1f4e8}
+.guide-theme-christmas>.panel-head .muted,.guide-theme-christmas .guide-editor-status{color:#a9baa6}
+.guide-theme-christmas .guide-load-warning{border-color:rgba(91,152,104,.38);border-left-color:#e45b66;background:linear-gradient(110deg,rgba(32,75,46,.58),rgba(59,35,36,.35));color:#e0e8db;box-shadow:none}
+.guide-theme-christmas .guide-load-warning-icon{background:rgba(228,91,102,.17);color:#f18b82}
+.guide-theme-christmas .guide-empty-state p{color:#b7c6b2}
+.guide-theme-christmas .guide-empty-icon{border-color:#3d6147;background:linear-gradient(145deg,#1d3a29,#2b2520);box-shadow:0 0 18px rgba(80,180,108,.09)}
+.guide-theme-christmas .guide-official-content{position:relative;border-color:#395b43;background:radial-gradient(ellipse at 12% 0%,rgba(66,135,79,.12),transparent 42%),radial-gradient(ellipse at 100% 100%,rgba(152,62,68,.09),transparent 40%),linear-gradient(145deg,#111f16,#14231a 63%,#171e18);color:#e3ecdf;box-shadow:inset 0 1px rgba(255,255,255,.025),0 14px 34px rgba(0,0,0,.2);scrollbar-color:#567b5c transparent}
+.guide-theme-christmas .guide-official-content::-webkit-scrollbar-thumb{background:#567b5c;background-clip:padding-box}
+.guide-theme-christmas .guide-official-content h1,.guide-theme-christmas .guide-official-content h2,.guide-theme-christmas .guide-official-content h3,.guide-theme-christmas .guide-official-content h4{color:#b9d9af!important}
+.guide-theme-christmas .guide-official-content h1::after{content:"  ❄";color:#e7c779;font-size:.64em}
+.guide-theme-christmas .guide-official-content p,.guide-theme-christmas .guide-official-content li,.guide-theme-christmas .guide-official-content span,.guide-theme-christmas .guide-official-content td{color:#d5e2d2}
+.guide-theme-christmas .guide-official-content strong,.guide-theme-christmas .guide-official-content b{color:#f0d79a}
+.guide-theme-christmas .guide-official-content li::marker{color:#65c48b}
+.guide-theme-christmas .guide-official-content .card,.guide-theme-christmas .guide-official-content .info-card,.guide-theme-christmas .guide-official-content .content-card,.guide-theme-christmas .guide-official-content table{border-color:#3b5942;background:linear-gradient(145deg,rgba(28,53,34,.94),rgba(23,39,28,.94));box-shadow:0 8px 20px rgba(0,0,0,.16)}
+.guide-theme-christmas .guide-official-content th{background:#264932;color:#eef5e9}
+.guide-theme-christmas .guide-official-content .jaf-btn{border-color:rgba(91,159,105,.45);background:linear-gradient(135deg,#234b33,#183725);color:#dcead8!important}
+.guide-theme-christmas .guide-official-content .jaf-btn:hover,.guide-theme-christmas .guide-official-content .jaf-btn:focus-visible{border-color:#e4bc6d;background:linear-gradient(135deg,#34643e,#473529);color:#fff6df!important}
+.guide-theme-christmas .guide-official-content .jaf-btn.active{border-color:#e45b66;background:linear-gradient(135deg,#aa3f4c,#63343b);color:#fff1df!important;box-shadow:0 0 0 2px rgba(228,91,102,.14),0 8px 18px rgba(120,38,49,.22)}
+.guide-theme-christmas .guide-official-content [style*="background"]{background:var(--surface-alt,#17281f)!important;border-color:var(--surface-border,#2b4939)!important;box-shadow:none!important;color:var(--surface-text,#d4e4d3)!important}
+body:not(.dark-mode):not(.eclipse-theme):not(.christmas-theme) .guide-theme-standard .guide-official-content [style*="background"]{background:#f3f6fb!important;border-color:#e1e7f0!important;color:#3d4b60!important}
+body:not(.dark-mode):not(.eclipse-theme):not(.christmas-theme) .guide-theme-standard .guide-official-content [style*="color"]{color:#3d4b60!important}
+@media(max-width:760px){.guide-panel{padding:17px}.guide-panel>.panel-head{align-items:flex-start}.guide-official-content{max-height:calc(100vh - 340px);min-height:300px;padding:18px 16px}.guide-editor-toolbar{justify-content:flex-start}.guide-editor-status{text-align:left}}
+@media(prefers-reduced-motion:no-preference){body.christmas-theme .guide-theme-christmas::after{position:absolute;top:14px;right:18px;color:rgba(231,199,121,.7);font-size:15px;letter-spacing:8px;pointer-events:none;content:"✦ ❄ ✦"}}
+
+/* Standard theme follows the panel's regular dark-mode palette when dark mode is enabled. */
+body.dark-mode:not(.eclipse-theme):not(.christmas-theme) .guide-panel.guide-theme-standard{border-color:#30374a;background:linear-gradient(145deg,#1d2332,#202738 62%,#1a2232);box-shadow:0 14px 38px rgba(0,0,0,.2);color:#edf0fa}
+body.dark-mode:not(.eclipse-theme):not(.christmas-theme) .guide-theme-standard>.panel-head{border-color:#343d52}
+body.dark-mode:not(.eclipse-theme):not(.christmas-theme) .guide-theme-standard .guide-heading .eyebrow{color:#aaa5ff}
+body.dark-mode:not(.eclipse-theme):not(.christmas-theme) .guide-theme-standard .guide-heading .eyebrow span{color:#67cfe4}
+body.dark-mode:not(.eclipse-theme):not(.christmas-theme) .guide-theme-standard>.panel-head h2{color:#edf0fa}
+body.dark-mode:not(.eclipse-theme):not(.christmas-theme) .guide-theme-standard>.panel-head .muted,body.dark-mode:not(.eclipse-theme):not(.christmas-theme) .guide-theme-standard .guide-editor-status{color:#a5aec3}
+body.dark-mode:not(.eclipse-theme):not(.christmas-theme) .guide-theme-standard .guide-load-warning{border-color:#37445d;border-left-color:#7684ff;background:linear-gradient(110deg,#252b43,#222b3e);color:#d7dcf4;box-shadow:none}
+body.dark-mode:not(.eclipse-theme):not(.christmas-theme) .guide-theme-standard .guide-load-warning-icon{background:#34345b;color:#b7adff}
+body.dark-mode:not(.eclipse-theme):not(.christmas-theme) .guide-theme-standard .guide-official-content{border-color:#39445e;background:linear-gradient(145deg,#171e2c,#20283a 70%,#202235);color:#dbe2f2;box-shadow:0 12px 30px rgba(0,0,0,.2);scrollbar-color:#596680 transparent}
+body.dark-mode:not(.eclipse-theme):not(.christmas-theme) .guide-theme-standard .guide-official-content h1,body.dark-mode:not(.eclipse-theme):not(.christmas-theme) .guide-theme-standard .guide-official-content h2,body.dark-mode:not(.eclipse-theme):not(.christmas-theme) .guide-theme-standard .guide-official-content h3,body.dark-mode:not(.eclipse-theme):not(.christmas-theme) .guide-theme-standard .guide-official-content h4{color:#aebaff!important}
+body.dark-mode:not(.eclipse-theme):not(.christmas-theme) .guide-theme-standard .guide-official-content p,body.dark-mode:not(.eclipse-theme):not(.christmas-theme) .guide-theme-standard .guide-official-content li,body.dark-mode:not(.eclipse-theme):not(.christmas-theme) .guide-theme-standard .guide-official-content span,body.dark-mode:not(.eclipse-theme):not(.christmas-theme) .guide-theme-standard .guide-official-content td{color:#d3dced}
+body.dark-mode:not(.eclipse-theme):not(.christmas-theme) .guide-theme-standard .guide-official-content [style*="color"]{color:#d3dced!important}
+body.dark-mode:not(.eclipse-theme):not(.christmas-theme) .guide-theme-standard .guide-official-content strong,body.dark-mode:not(.eclipse-theme):not(.christmas-theme) .guide-theme-standard .guide-official-content b{color:#c5ccff}
+body.dark-mode:not(.eclipse-theme):not(.christmas-theme) .guide-theme-standard .guide-official-content .card,body.dark-mode:not(.eclipse-theme):not(.christmas-theme) .guide-theme-standard .guide-official-content .info-card,body.dark-mode:not(.eclipse-theme):not(.christmas-theme) .guide-theme-standard .guide-official-content .content-card,body.dark-mode:not(.eclipse-theme):not(.christmas-theme) .guide-theme-standard .guide-official-content table{border-color:#39445e;background:linear-gradient(145deg,#232c3e,#1d2636);box-shadow:0 7px 20px rgba(0,0,0,.16)}
+body.dark-mode:not(.eclipse-theme):not(.christmas-theme) .guide-theme-standard .guide-official-content th{background:#303a53;color:#edf0fa}
+body.dark-mode:not(.eclipse-theme):not(.christmas-theme) .guide-theme-standard .guide-official-content .jaf-btn{border-color:#465273;background:linear-gradient(135deg,#343b5b,#292f48);color:#e0e4ff!important}
+body.dark-mode:not(.eclipse-theme):not(.christmas-theme) .guide-theme-standard .guide-official-content .jaf-btn:hover,body.dark-mode:not(.eclipse-theme):not(.christmas-theme) .guide-theme-standard .guide-official-content .jaf-btn:focus-visible{border-color:#8a8cff;background:linear-gradient(135deg,#474b78,#363d64)}
+body.dark-mode:not(.eclipse-theme):not(.christmas-theme) .guide-theme-standard .guide-official-content .jaf-btn.active{border-color:#df7580;background:linear-gradient(135deg,#9e4658,#633746);color:#fff!important}
+body.dark-mode:not(.eclipse-theme):not(.christmas-theme) .guide-theme-standard .guide-official-content [style*="background"]{background:var(--surface-alt,#242c3d)!important;border-color:var(--surface-border,#3a455d)!important;box-shadow:none!important;color:var(--surface-text,#d3dced)!important}
