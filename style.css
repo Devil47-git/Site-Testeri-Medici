@@ -1586,3 +1586,11 @@ body.christmas-theme .christmas-snowfall{visibility:visible;opacity:1}
 .christmas-snowflake{position:absolute;top:var(--snow-y);left:var(--snow-x);color:rgba(245,250,255,var(--snow-opacity));font-size:var(--snow-size);line-height:1;text-shadow:0 0 7px rgba(220,241,255,.55);animation:christmas-snowfall var(--snow-duration) linear var(--snow-delay) infinite;will-change:transform}
 @keyframes christmas-snowfall{to{transform:translate3d(var(--snow-drift),110vh,0) rotate(var(--snow-rotation))}}
 @media(prefers-reduced-motion:reduce){.christmas-snowflake{animation-duration:45s;opacity:.35;will-change:auto}}
+
+.bugfix-review{display:grid;gap:12px}
+.bugfix-review h3{margin:0}
+.bugfix-draft{display:grid;gap:10px;padding:14px;border:1px solid var(--surface-border);border-radius:8px;background:var(--surface-alt)}
+.bugfix-draft label{display:grid;gap:6px;color:var(--ink);font-size:12px;font-weight:700}
+.bugfix-draft input,.bugfix-draft textarea{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);font:500 12px 'DM Sans';resize:vertical}
+.bugfix-draft p{margin:0}
+.bugfix-actions{display:flex;flex-wrap:wrap;gap:8px}

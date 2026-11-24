@@ -1284,7 +1284,7 @@ function wireProfileTestRemoval(member) {
   });
 }
 function renderSettingsView(title) {
-  return `<div class="panel view-panel"><h2>${title}</h2><p class="muted">Gestionează preferințele și sesiunea contului tău.</p><div class="settings-list"><p><b>Identitate:</b> ${currentUser?.name || '—'}</p><p><b>Callsign:</b> ${normalizeCallsign(currentUser?.callsign || currentUser?.callSign)}</p><p><b>Nivel acces:</b> ${isLeadershipUser(currentUser) ? 'Conducere' : 'Tester'}</p>${isLeadershipUser(currentUser) ? `<hr><section class="test-editor"><h3>Configurare teste</h3><div class="test-editor-controls"><label>Test<select id="test-editor-select">${catalog.map(test => `<option value="${test}">${displayTestName(test)}</option>`).join('')}</select></label><label>Titlu afișat<input id="test-editor-title" type="text"></label><label>Conținut card<textarea id="test-editor-description" rows="3"></textarea></label><label>Instrucțiuni<textarea id="test-editor-instructions" rows="3"></textarea></label><label>Greșeli permise<input id="test-editor-max-wrong" type="number" min="0" step="1"></label></div><div class="test-editor-question-header"><h4>Întrebări și răspunsuri</h4><button class="outline" id="add-test-question" type="button">＋ Adaugă întrebare</button></div><div id="test-editor-questions" class="test-editor-questions"></div><button class="primary" id="save-test-definition">Salvează testul</button><span id="test-editor-status" class="muted" role="status"></span></section>` : ''}</div></div>`;
+  return `<div class="panel view-panel"><h2>${title}</h2><p class="muted">Gestionează preferințele și sesiunea contului tău.</p><div class="settings-list"><p><b>Identitate:</b> ${currentUser?.name || '—'}</p><p><b>Callsign:</b> ${normalizeCallsign(currentUser?.callsign || currentUser?.callSign)}</p><p><b>Nivel acces:</b> ${isLeadershipUser(currentUser) ? 'Conducere' : 'Tester'}</p>${isLeadershipUser(currentUser) ? `<hr><section class="test-editor"><h3>Configurare teste</h3><div class="test-editor-controls"><label>Test<select id="test-editor-select">${catalog.map(test => `<option value="${test}">${displayTestName(test)}</option>`).join('')}</select></label><label>Titlu afișat<input id="test-editor-title" type="text"></label><label>Conținut card<textarea id="test-editor-description" rows="3"></textarea></label><label>Instrucțiuni<textarea id="test-editor-instructions" rows="3"></textarea></label><label>Greșeli permise<input id="test-editor-max-wrong" type="number" min="0" step="1"></label></div><div class="test-editor-question-header"><h4>Întrebări și răspunsuri</h4><button class="outline" id="add-test-question" type="button">＋ Adaugă întrebare</button></div><div id="test-editor-questions" class="test-editor-questions"></div><button class="primary" id="save-test-definition">Salvează testul</button><span id="test-editor-status" class="muted" role="status"></span></section><hr><section class="bugfix-review"><h3>BUG FIXER — erori rezolvate</h3><p class="muted">Commiturile marcate <b>[resolved]</b> apar aici. Verifică și aprobi înainte ca mesajul să fie trimis în chatul spitalului.</p><div id="bugfix-drafts"><p class="muted">Se încarcă previzualizările…</p></div><span id="bugfix-status" class="muted" role="status"></span></section>` : ''}</div></div>`;
 }
 const ATTENDANCE_DAYS = ['Luni', 'Marți', 'Miercuri', 'Joi', 'Vineri', 'Sâmbătă', 'Duminică'];
 const ATTENDANCE_DAY_SHORT = ['LUN', 'MAR', 'MIE', 'JOI', 'VIN', 'SÂM', 'DUM'];
@@ -2175,6 +2175,58 @@ function wireTestersEvents() {
   const remove = document.querySelector('#view-remove'); if (remove) remove.onclick = () => openRemoveModal();
 }
 function wireSettingsEvents() {
+  const bugFixList = document.querySelector('#bugfix-drafts');
+  const bugFixStatus = document.querySelector('#bugfix-status');
+  if (bugFixList && currentUser?.discordId) {
+    const loadBugFixDrafts = async () => {
+      try {
+        const response = await fetch(`/api/github/bugfix?requesterId=${encodeURIComponent(currentUser.discordId)}`);
+        const payload = await parseApiResponse(response);
+        if (!response.ok) throw new Error(payload.error || 'Previzualizările BUG FIXER nu au putut fi încărcate.');
+        const drafts = Array.isArray(payload.drafts) ? payload.drafts : [];
+        bugFixList.innerHTML = drafts.length ? drafts.map((draft, index) => `
+          <article class="bugfix-draft" data-bugfix-draft="${escapeHtml(draft.id)}">
+            <label>Titlu<input data-bugfix-title type="text" maxlength="120" value="${escapeHtml(draft.title || '')}"></label>
+            <label>Detalii<textarea data-bugfix-details rows="3" maxlength="1000">${escapeHtml(draft.details || '')}</textarea></label>
+            <p class="muted">Autor: ${escapeHtml(draft.author || 'Necunoscut')} · Commit: ${escapeHtml(draft.sha || '—')}</p>
+            <div class="bugfix-actions"><button class="primary" type="button" data-bugfix-approve>✅ Trimite „Rezolvat”</button><button class="outline" type="button" data-bugfix-reject>Șterge draftul</button></div>
+          </article>`).join('') : '<p class="muted">Nu există commituri rezolvate în așteptare.</p>';
+      } catch (error) {
+        bugFixList.innerHTML = `<p class="error-text">${escapeHtml(error.message)}</p>`;
+      }
+    };
+    loadBugFixDrafts();
+    bugFixList.addEventListener('click', async event => {
+      const button = event.target.closest('[data-bugfix-approve], [data-bugfix-reject]');
+      if (!button) return;
+      const card = button.closest('[data-bugfix-draft]');
+      if (!card) return;
+      const draftId = card.dataset.bugfixDraft;
+      const action = button.hasAttribute('data-bugfix-approve') ? 'approve' : 'reject';
+      button.disabled = true;
+      bugFixStatus.textContent = action === 'approve' ? 'Se trimite mesajul BUG FIXER…' : 'Se șterge draftul…';
+      try {
+        const response = await fetch('/api/github/bugfix', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            requesterId: currentUser.discordId,
+            draftId,
+            action,
+            title: card.querySelector('[data-bugfix-title]')?.value || '',
+            details: card.querySelector('[data-bugfix-details]')?.value || ''
+          })
+        });
+        const payload = await parseApiResponse(response);
+        if (!response.ok) throw new Error(payload.error || 'Operațiunea BUG FIXER a eșuat.');
+        bugFixStatus.textContent = action === 'approve' ? 'Mesajul BUG FIXER a fost trimis.' : 'Draftul a fost șters.';
+        await loadBugFixDrafts();
+      } catch (error) {
+        bugFixStatus.textContent = error.message || 'Operațiunea BUG FIXER a eșuat.';
+        button.disabled = false;
+      }
+    });
+  }
   const editor = document.querySelector('#test-editor-select');
   const editorTitle = document.querySelector('#test-editor-title');
   const editorDescription = document.querySelector('#test-editor-description');

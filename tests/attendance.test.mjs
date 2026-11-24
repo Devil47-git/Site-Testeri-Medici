@@ -194,7 +194,7 @@ test('weekly attendance columns keep document labels and text values unchanged',
 });
 
 test('daily attendance minimums follow callsign leadership and member grade', () => {
-  assert.equal(attendanceMinimumMinutes('004', 'Director Adjunct'), null);
+  assert.equal(attendanceMinimumMinutes('004', 'Director Adjunct'), nullzi );
   assert.equal(attendanceMinimumMinutes('020', 'Medic Chirurg'), null);
   assert.equal(attendanceMinimumMinutes('102', 'Director Adjunct', 'Moderator'), null);
   assert.equal(attendanceMinimumMinutes('205', 'Medic Chirurg', 'Administrator'), null);

@@ -84,6 +84,18 @@ async function readJsonBody(req, limit = MAX_BODY_BYTES) {
   try { return body ? JSON.parse(body) : {}; }
   catch { const error = new Error('Date invalide'); error.statusCode = 400; throw error; }
 }
+async function readRawBody(req, limit = MAX_BODY_BYTES) {
+  let size = 0;
+  let body = '';
+  let overflow = false;
+  for await (const chunk of req) {
+    size += chunk.length;
+    if (size > limit) { overflow = true; continue; }
+    body += chunk;
+  }
+  if (overflow) { const error = new Error('Payload prea mare'); error.statusCode = 413; throw error; }
+  return body;
+}
 function redirect(res, location) { res.writeHead(302, { Location: location }); res.end(); }
 function json(res, code, data) { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(data)); }
 function roleAccess(functions, callsign = '', rank = '', dept = '') {
@@ -235,6 +247,28 @@ async function handleGuide(req, res) {
   }
 }
 
+async function handleBugFix(req, res, url) {
+  try {
+    req.rawBody = await readRawBody(req);
+  } catch (error) {
+    return json(res, error.statusCode || 400, { error: error.message });
+  }
+  req.query = Object.fromEntries(url.searchParams);
+  try {
+    req.body = req.rawBody ? JSON.parse(req.rawBody) : {};
+  } catch {
+    return json(res, 400, { error: 'Date invalide' });
+  }
+  res.status = code => { res.statusCode = code; return res; };
+  res.json = data => { if (!res.headersSent) res.setHeader('Content-Type', 'application/json; charset=utf-8'); res.end(JSON.stringify(data)); return res; };
+  try {
+    return await (await import('./api/github/bugfix.js')).default(req, res);
+  } catch (error) {
+    console.error('Bug Fixer could not be handled:', error);
+    return json(res, 500, { error: 'Bug Fixer request failed' });
+  }
+}
+
 async function handleAccess(req, res, url) {
   const accessRoute = url.pathname.match(/^\/api\/access\/([a-z-]+)$/);
   if (accessRoute) {
@@ -292,6 +326,7 @@ async function route(req, res) {
   }
   if (url.pathname === '/api/test-definitions') return handleTestDefinitions(req, res);
   if (url.pathname === '/api/guide') return handleGuide(req, res);
+  if (url.pathname === '/api/github/bugfix') return handleBugFix(req, res, url);
   if (url.pathname === '/api/identity-ocr') return handleIdentityOcr(req, res);
   if (url.pathname.startsWith('/api/access/')) return handleAccess(req, res, url);
   if (url.pathname.startsWith('/api/')) return json(res, 404, { error: 'Not found' });
