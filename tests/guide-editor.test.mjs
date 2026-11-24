@@ -69,6 +69,9 @@ test('guide API rewrites raid-guide image paths to the bundled static-asset rout
     assert.equal(response.statusCode, 200);
     assert.match(response.body, /src="\/assets\/guide\/jaf%20poze\/POV%20PACIFIC%20COMPLET\.jpg"/);
     assert.doesNotMatch(response.body, /src="jaf poze\//);
+    const repartitionSection = response.body.split('id="repartizare-zone" class="section">')[1]?.split('<div id="ghid-jaf" class="section">')[0] || '';
+    assert.match(repartitionSection, /alt="Harta de repartizare a zonelor medicale"/);
+    assert.doesNotMatch(repartitionSection, /rpLoginContainer|rpDashboard|rpLoginDiscord|rpZonesGrid|rpAdminPanel|rpMapModal/);
   } finally {
     globalThis.fetch = originalFetch;
   }

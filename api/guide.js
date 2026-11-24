@@ -57,6 +57,12 @@ async function readGuideSource() {
   const sourcePath = fileURLToPath(new URL('../assets/guide/index.html', import.meta.url));
   return fs.readFile(sourcePath, 'utf8');
 }
+function removeRepartitionSystem(html) {
+  return html.replace(
+    /<div id="repartizare-zone" class="section">[\s\S]*?(?=<div id="ghid-jaf" class="section">)/i,
+    '<div id="repartizare-zone" class="section">\n<div style="max-width:1100px;margin:0 auto;padding:24px;border-radius:24px;background:#f3f7ff"><h2 style="margin:0 0 16px;text-align:center;color:#245ab1">Repartizare Zone</h2><img src="img_repartizare_noua.png" alt="Harta de repartizare a zonelor medicale" style="display:block;width:100%;height:auto;max-height:78vh;object-fit:contain;margin:0 auto;border-radius:16px"></div>\n</div>\n                '
+  );
+}
 async function readPublicMembers() {
   const key = process.env.GOOGLE_API_KEY;
   if (!key) throw new Error('GOOGLE_API_KEY is not configured');
@@ -87,7 +93,7 @@ export default async function handler(req, res) {
   if (req.method !== 'GET' && req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
 
   try {
-    const html = await readGuideSource();
+    const html = removeRepartitionSystem(await readGuideSource());
     const validSections = guideSectionIds(html);
     if (req.method === 'GET') {
       let overrides = {};

@@ -860,7 +860,16 @@ function wireGuideContentEvents() {
       activeHost.querySelectorAll('.section').forEach(section => section.classList.toggle('active', section.id === 'ghid-jaf'));
       const tab = activeHost.querySelector(`#ghid-jaf [data-guide-jaf-tab="${CSS.escape(jafOpen.dataset.guideJafOpen)}"]`);
       tab?.click();
+      return;
     }
+    const mapAction = event.target.closest('[data-guide-map-action]');
+    if (mapAction && activeHost.contains(mapAction)) {
+      const mapModal = activeHost.querySelector('#rpMapModal');
+      if (mapModal) mapModal.style.display = mapAction.dataset.guideMapAction === 'open' ? 'flex' : 'none';
+      return;
+    }
+    const mapModal = event.target.closest('#rpMapModal');
+    if (mapModal && event.target === mapModal) mapModal.style.display = 'none';
   });
 }
 async function saveGuideSection() {
@@ -902,6 +911,10 @@ async function loadGuideContent() {
     const document = new DOMParser().parseFromString(source, 'text/html');
     const sections = [...document.querySelectorAll('.section[id]')];
     const sectionIds = new Set(sections.map(section => section.id));
+    const repartitionSection = document.querySelector('#repartizare-zone.section');
+    if (repartitionSection) {
+      repartitionSection.innerHTML = '<div style="max-width:1100px;margin:0 auto;padding:24px;border-radius:24px;background:#f3f7ff"><h2 style="margin:0 0 16px;text-align:center;color:#245ab1">Repartizare Zone</h2><img src="img_repartizare_noua.png" alt="Harta de repartizare a zonelor medicale" style="display:block;width:100%;height:auto;max-height:78vh;object-fit:contain;margin:0 auto;border-radius:16px"></div>';
+    }
     const guideDocumentUrl = new URL('/assets/guide/index.html', window.location.origin);
     const localGuideAsset = value => {
       const resolved = new URL(value, guideDocumentUrl);
@@ -912,6 +925,11 @@ async function loadGuideContent() {
       const key = button.getAttribute('onclick').match(/showSection\(['"]([^'"]+)/)?.[1];
       return key && sectionIds.has(key) ? [key, button.textContent.trim().split(/\s+/).join(' ')] : null;
     }).filter(Boolean);
+    document.querySelectorAll('[onclick*="rpOpenMapModal("], [onclick*="rpCloseMapModal("]').forEach(element => {
+      const action = element.getAttribute('onclick') || '';
+      if (action.includes('rpOpenMapModal(')) element.dataset.guideMapAction = 'open';
+      else if (action.includes('rpCloseMapModal(')) element.dataset.guideMapAction = 'close';
+    });
     document.querySelectorAll('link[rel="stylesheet"]').forEach(link => {
       const href = link.getAttribute('href') || '';
       const localUrl = localGuideAsset(href);
