@@ -1594,3 +1594,4 @@ body.christmas-theme .christmas-snowfall{visibility:visible;opacity:1}
 .bugfix-draft input,.bugfix-draft textarea{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);font:500 12px 'DM Sans';resize:vertical}
 .bugfix-draft p{margin:0}
 .bugfix-actions{display:flex;flex-wrap:wrap;gap:8px}
+.admin-action-bugfix{background:#5e2d91;border-color:#8355b4}
