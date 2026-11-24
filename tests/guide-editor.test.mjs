@@ -43,7 +43,11 @@ function departmentRows() {
   member[2] = '105';
   member[3] = 'Medic';
   member[19] = 'member-id';
-  return [['header'], leader, member];
+  const outsider = Array(20).fill('');
+  outsider[2] = '651';
+  outsider[3] = 'Outsider';
+  outsider[19] = 'outsider-id';
+  return [['header'], leader, member, outsider];
 }
 function authHeaders(discordId) {
   return {
@@ -60,16 +64,26 @@ test('guide editor strips scripts, event handlers, unsafe URLs, and dangerous in
   assert.match(sanitized, /color:#fff/i);
 });
 
-test('guide API rewrites raid-guide image paths to the bundled static-asset route', async () => {
+test('guide API requires a department membership session before serving the guide', async () => {
   const originalFetch = globalThis.fetch;
-  globalThis.fetch = async () => new Response(JSON.stringify({ result: [] }), { status: 200 });
+  globalThis.fetch = async url => String(url).startsWith('https://sheets.googleapis.com/')
+    ? new Response(JSON.stringify({ values: departmentRows() }), { status: 200 })
+    : new Response(JSON.stringify([]), { status: 200 });
   try {
-    const response = createResponse();
-    await handler({ method: 'GET', query: {} }, response);
-    assert.equal(response.statusCode, 200);
-    assert.match(response.body, /src="\/assets\/guide\/jaf%20poze\/POV%20PACIFIC%20COMPLET\.jpg"/);
-    assert.doesNotMatch(response.body, /src="jaf poze\//);
-    const repartitionSection = response.body.split('id="repartizare-zone" class="section">')[1]?.split('<div id="ghid-jaf" class="section">')[0] || '';
+    const anonymous = createResponse();
+    await handler({ method: 'GET', headers: {}, query: {} }, anonymous);
+    assert.equal(anonymous.statusCode, 401);
+
+    const outsider = createResponse();
+    await handler({ method: 'GET', headers: authHeaders('outsider-id'), query: {} }, outsider);
+    assert.equal(outsider.statusCode, 403);
+
+    const member = createResponse();
+    await handler({ method: 'GET', headers: authHeaders('member-id'), query: {} }, member);
+    assert.equal(member.statusCode, 200);
+    assert.match(member.body, /src="\/assets\/guide\/jaf%20poze\/POV%20PACIFIC%20COMPLET\.jpg"/);
+    assert.doesNotMatch(member.body, /src="jaf poze\//);
+    const repartitionSection = member.body.split('id="repartizare-zone" class="section">')[1]?.split('<div id="ghid-jaf" class="section">')[0] || '';
     assert.match(repartitionSection, /alt="Harta de repartizare a zonelor medicale"/);
     assert.doesNotMatch(repartitionSection, /rpLoginContainer|rpDashboard|rpLoginDiscord|rpZonesGrid|rpAdminPanel|rpMapModal/);
   } finally {
@@ -79,13 +93,18 @@ test('guide API rewrites raid-guide image paths to the bundled static-asset rout
 
 test('guide API serves the bundled guide when saved overrides cannot be read', async () => {
   redisReadFailure = true;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async url => String(url).startsWith('https://sheets.googleapis.com/')
+    ? new Response(JSON.stringify({ values: departmentRows() }), { status: 200 })
+    : new Response(JSON.stringify([]), { status: 200 });
   try {
     const response = createResponse();
-    await handler({ method: 'GET', query: {} }, response);
+    await handler({ method: 'GET', headers: authHeaders('member-id'), query: {} }, response);
     assert.equal(response.statusCode, 200);
     assert.equal(response.headers['X-Guide-Overrides-Status'], 'unavailable');
     assert.match(response.body, /id="introducere"/);
   } finally {
+    globalThis.fetch = originalFetch;
     redisReadFailure = false;
   }
 });

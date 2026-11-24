@@ -71,6 +71,17 @@ async function readPublicMembers() {
   if (!response.ok || !Array.isArray(data.values)) throw new Error('Google Sheets member lookup failed');
   return data.values.slice(1).filter(Array.isArray);
 }
+async function authorizedDepartmentMember(req) {
+  const discordId = authenticatedDiscordId(req);
+  if (!discordId) return { errorStatus: 401, error: 'Authentication required' };
+  const members = await readPublicMembers();
+  const member = members.find(row => String(row[19] || '').trim() === discordId);
+  const memberCallsign = callsignNumber(member?.[2]);
+  if (!memberCallsign || memberCallsign > 650) {
+    return { errorStatus: 403, error: 'Requester is not a department member with callsign 001-650' };
+  }
+  return { member };
+}
 async function readGuideOverrides() {
   if (!guideRedis.isConfigured) return {};
   const result = await guideRedis.command('HGETALL', GUIDE_OVERRIDE_KEY);
@@ -96,6 +107,8 @@ export default async function handler(req, res) {
     const html = removeRepartitionSystem(await readGuideSource());
     const validSections = guideSectionIds(html);
     if (req.method === 'GET') {
+      const access = await authorizedDepartmentMember(req);
+      if (access.errorStatus) return json(res, access.errorStatus, { error: access.error });
       let overrides = {};
       try {
         overrides = await readGuideOverrides();
@@ -112,8 +125,8 @@ export default async function handler(req, res) {
     }
 
     if (!sameOrigin(req)) return json(res, 403, { error: 'Cross-origin request rejected' });
-    const requesterId = authenticatedDiscordId(req);
-    if (!requesterId) return json(res, 401, { error: 'Authentication required' });
+    const access = await authorizedDepartmentMember(req);
+    if (access.errorStatus) return json(res, access.errorStatus, { error: access.error });
     const section = typeof req.body?.section === 'string' ? req.body.section.trim() : '';
     const content = req.body?.content;
     if (!validSections.has(section)) return json(res, 400, { error: 'Invalid guide section' });
@@ -122,10 +135,7 @@ export default async function handler(req, res) {
     }
     if (!guideRedis.isConfigured) return json(res, 503, { error: 'Guide editing storage is not configured' });
 
-    const members = await readPublicMembers();
-    const requester = members.find(row => String(row[19] || '').trim() === requesterId);
-    if (!requester) return json(res, 403, { error: 'Requester is not a department member' });
-    const requesterCallsign = callsignNumber(requester[2]);
+    const requesterCallsign = callsignNumber(access.member[2]);
     if (requesterCallsign < 1 || requesterCallsign > LEADERSHIP_MAX) {
       return json(res, 403, { error: 'Only leadership can edit the hospital guide' });
     }

@@ -136,6 +136,10 @@ function refreshCurrentView() {
     if (!hasLeadershipCallsign(currentUser)) navigateTo('overview', { push: false });
     return;
   }
+  if (window.history.state?.view === 'guide' && !canViewGuide(currentUser)) {
+    navigateTo('overview', { push: false });
+    return;
+  }
   if (window.history.state?.view === 'activity-member') {
     if (!canViewAttendanceRooms(currentUser)) { navigateTo('overview', { push: false }); return; }
     const callsign = window.history.state.callsign;
@@ -278,6 +282,7 @@ function bonusTesterCallsign(value) {
 /** @param {Member} user @returns {boolean} */
 function isLeadershipUser(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return Boolean(user?.accessLevel === 'leadership' || user?.isConducere || user?.isLeadership || (cs >= 1 && cs <= 20)); }
 function canViewTestersRoom(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return cs >= 1 && cs <= 399; }
+function canViewGuide(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return cs >= 1 && cs <= 650; }
 function isExemptFromAttendance(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return cs >= 1 && cs <= 4; }
 function hasLeadershipCallsign(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return cs >= 1 && cs <= 20; }
 function isLeadershipAttendanceExempt(member) {
@@ -739,7 +744,7 @@ function renderAvailableTestsSubmenu() {
   const activeAttendanceNav = document.querySelector('#active-attendance-nav');
   if (activeAttendanceNav) activeAttendanceNav.hidden = !canViewAttendanceRooms(currentUser);
   const guideNav = document.querySelector('#guide-nav');
-  if (guideNav) guideNav.hidden = !hasLeadershipCallsign(currentUser);
+  if (guideNav) guideNav.hidden = !canViewGuide(currentUser);
   renderGuideSubmenu();
   const testersNav = document.querySelector('.nav-item[data-view="testers"]');
   if (testersNav) testersNav.hidden = !canViewTestersRoom(currentUser);
@@ -4394,7 +4399,7 @@ function navigateTo(view, { push = true } = {}) {
   if (view === 'attendance' && !currentUser?.discordId) view = 'overview';
   if (view === 'active-attendance' && !canViewAttendanceRooms(currentUser)) view = 'overview';
   if (view === 'activity' && !canViewAttendanceRooms(currentUser)) view = 'overview';
-  if (view === 'guide' && !hasLeadershipCallsign(currentUser)) view = 'overview';
+  if (view === 'guide' && !canViewGuide(currentUser)) view = 'overview';
   if (view === 'testers' && !canViewTestersRoom(currentUser)) view = 'overview';
   if (!labels[view]) return;
   navigationRevision += 1;
