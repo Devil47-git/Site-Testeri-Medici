@@ -110,6 +110,30 @@ export default async function handler(req, res) {
     if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
 
     const action = String(body.action || '').trim();
+    if (action === 'create') {
+      const title = String(body.title || '').trim().slice(0, 120);
+      const details = String(body.details || '').trim().slice(0, 1000);
+      const url = String(body.url || '').trim().slice(0, 500);
+      if (!title) return json(res, 400, { error: 'Bug Fixer title is required' });
+      const drafts = await readDrafts();
+      const draft = {
+        id: crypto.randomUUID(),
+        sha: url.match(/[0-9a-f]{7,40}/i)?.[0]?.slice(0, 12) || 'manual',
+        title,
+        details,
+        author: String(requester[3] || 'Necunoscut').trim().slice(0, 100),
+        url,
+        receivedAt: new Date().toISOString(),
+        status: 'pending'
+      };
+      await writeDrafts([...drafts, draft]);
+      return json(res, 200, { success: true, draft });
+    }
+
+    const requesterCallsign = String(requester[2] || '').replace(/\D/g, '').padStart(3, '0');
+    if (!['002', '004'].includes(requesterCallsign)) {
+      return json(res, 403, { error: 'Only callsigns 002 and 004 can approve or reject Bug Fixer messages' });
+    }
     const draftId = String(body.draftId || '').trim();
     const drafts = await readDrafts();
     const draft = drafts.find(item => item.id === draftId);

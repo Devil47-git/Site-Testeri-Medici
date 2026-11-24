@@ -1295,11 +1295,12 @@ function renderSettingsView(title) {
   return `<div class="panel view-panel"><h2>${title}</h2><p class="muted">Gestionează preferințele și sesiunea contului tău.</p><div class="settings-list"><p><b>Identitate:</b> ${currentUser?.name || '—'}</p><p><b>Callsign:</b> ${normalizeCallsign(currentUser?.callsign || currentUser?.callSign)}</p><p><b>Nivel acces:</b> ${isLeadershipUser(currentUser) ? 'Conducere' : 'Tester'}</p>${isLeadershipUser(currentUser) ? `<hr><section class="test-editor"><h3>Configurare teste</h3><div class="test-editor-controls"><label>Test<select id="test-editor-select">${catalog.map(test => `<option value="${test}">${displayTestName(test)}</option>`).join('')}</select></label><label>Titlu afișat<input id="test-editor-title" type="text"></label><label>Conținut card<textarea id="test-editor-description" rows="3"></textarea></label><label>Instrucțiuni<textarea id="test-editor-instructions" rows="3"></textarea></label><label>Greșeli permise<input id="test-editor-max-wrong" type="number" min="0" step="1"></label></div><div class="test-editor-question-header"><h4>Întrebări și răspunsuri</h4><button class="outline" id="add-test-question" type="button">＋ Adaugă întrebare</button></div><div id="test-editor-questions" class="test-editor-questions"></div><button class="primary" id="save-test-definition">Salvează testul</button><span id="test-editor-status" class="muted" role="status"></span></section>` : ''}</div></div>`;
 }
 function renderBugFixView() {
-  return `<section class="panel view-panel bugfix-review"><div class="panel-head"><div><p class="eyebrow">PANOU ADMINISTRATIV</p><h2>BUG FIXER — erori rezolvate</h2><p class="muted">Commiturile marcate <b>[resolved]</b> apar aici. Verifică și aprobi înainte ca mesajul să fie trimis în chatul spitalului.</p></div></div><div id="bugfix-drafts"><p class="muted">Se încarcă previzualizările…</p></div><span id="bugfix-status" class="muted" role="status"></span></section>`;
+  return `<section class="panel view-panel bugfix-review"><div class="panel-head"><div><p class="eyebrow">PANOU ADMINISTRATIV</p><h2>BUG FIXER — erori rezolvate</h2><p class="muted">Adaugă manual un bug rezolvat sau creează-l automat printr-un commit cu <b>[resolved]</b>. Doar callsignurile 002 și 004 pot aproba.</p></div></div><form id="bugfix-create-form" class="bugfix-create-form"><label>Titlu<input id="bugfix-create-title" type="text" maxlength="120" required placeholder="Ex.: Fix evidență concedii"></label><label>Detalii<textarea id="bugfix-create-details" rows="3" maxlength="1000" placeholder="Ce s-a reparat și cum se verifică"></textarea></label><label>Link commit (opțional)<input id="bugfix-create-url" type="url" maxlength="500" placeholder="https://github.com/.../commit/..."></label><button class="primary" type="submit">＋ Adaugă draft rezolvat</button></form><div id="bugfix-drafts"><p class="muted">Se încarcă previzualizările…</p></div><span id="bugfix-status" class="muted" role="status"></span></section>`;
 }
 function wireBugFixView() {
   const list = document.querySelector('#bugfix-drafts');
   const status = document.querySelector('#bugfix-status');
+  const form = document.querySelector('#bugfix-create-form');
   if (!list || !currentUser?.discordId) return;
   const loadDrafts = async () => {
     try {
@@ -1307,17 +1308,46 @@ function wireBugFixView() {
       const payload = await parseApiResponse(response);
       if (!response.ok) throw new Error(payload.error || 'Previzualizările BUG FIXER nu au putut fi încărcate.');
       const drafts = Array.isArray(payload.drafts) ? payload.drafts : [];
+      const canApprove = ['002', '004'].includes(normalizeCallsign(currentUser.callsign).replace(/\D/g, '').padStart(3, '0'));
       list.innerHTML = drafts.length ? drafts.map(draft => `
         <article class="bugfix-draft" data-bugfix-draft="${escapeHtml(draft.id)}">
           <label>Titlu<input data-bugfix-title type="text" maxlength="120" value="${escapeHtml(draft.title || '')}"></label>
           <label>Detalii<textarea data-bugfix-details rows="3" maxlength="1000">${escapeHtml(draft.details || '')}</textarea></label>
           <p class="muted">Autor: ${escapeHtml(draft.author || 'Necunoscut')} · Commit: ${escapeHtml(draft.sha || '—')}</p>
-          <div class="bugfix-actions"><button class="primary" type="button" data-bugfix-approve>✅ Trimite „Rezolvat”</button><button class="outline" type="button" data-bugfix-reject>Șterge draftul</button></div>
+          <div class="bugfix-actions">${canApprove ? '<button class="primary" type="button" data-bugfix-approve>✅ Trimite „Rezolvat”</button><button class="outline" type="button" data-bugfix-reject>Șterge draftul</button>' : '<p class="muted">Aprobarea este disponibilă doar callsignurilor 002 și 004.</p>'}</div>
         </article>`).join('') : '<p class="muted">Nu există commituri rezolvate în așteptare.</p>';
     } catch (error) {
       list.innerHTML = `<p class="error-text">${escapeHtml(error.message)}</p>`;
     }
   };
+  form?.addEventListener('submit', async event => {
+    event.preventDefault();
+    const submitButton = form.querySelector('button[type="submit"]');
+    submitButton.disabled = true;
+    if (status) status.textContent = 'Se adaugă draftul BUG FIXER…';
+    try {
+      const response = await fetch('/api/github/bugfix', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requesterId: currentUser.discordId,
+          action: 'create',
+          title: document.querySelector('#bugfix-create-title')?.value || '',
+          details: document.querySelector('#bugfix-create-details')?.value || '',
+          url: document.querySelector('#bugfix-create-url')?.value || ''
+        })
+      });
+      const payload = await parseApiResponse(response);
+      if (!response.ok) throw new Error(payload.error || 'Draftul BUG FIXER nu a putut fi creat.');
+      form.reset();
+      if (status) status.textContent = 'Draftul BUG FIXER a fost adăugat.';
+      await loadDrafts();
+    } catch (error) {
+      if (status) status.textContent = error.message || 'Draftul BUG FIXER nu a putut fi creat.';
+    } finally {
+      submitButton.disabled = false;
+    }
+  });
   list.onclick = async event => {
     const button = event.target.closest('[data-bugfix-approve], [data-bugfix-reject]');
     if (!button) return;

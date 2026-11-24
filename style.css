@@ -1611,3 +1611,9 @@ body.christmas-theme .christmas-snowfall{visibility:visible;opacity:1}
 .bugfix-draft p{margin:0}
 .bugfix-actions{display:flex;flex-wrap:wrap;gap:8px}
 .admin-action-bugfix{background:#5e2d91;border-color:#8355b4}
+.bugfix-create-form{display:grid;grid-template-columns:minmax(180px,.8fr) minmax(260px,1.2fr);gap:12px;padding:14px;border:1px solid var(--surface-border);border-radius:8px;background:var(--surface-alt)}
+.bugfix-create-form label{display:grid;gap:6px;color:var(--ink);font-size:12px;font-weight:700}
+.bugfix-create-form label:nth-child(2){grid-column:1/-1;grid-row:2}
+.bugfix-create-form input,.bugfix-create-form textarea{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);font:500 12px 'DM Sans'}
+.bugfix-create-form button{justify-self:start;grid-column:1/-1}
+@media(max-width:620px){.bugfix-create-form{grid-template-columns:1fr}.bugfix-create-form label:nth-child(2){grid-column:1;grid-row:auto}}
