@@ -133,9 +133,7 @@ function refreshCurrentView() {
   renderAvailableTestsSubmenu();
   if (window.history.state?.view === 'test') return;
   if (window.history.state?.view === 'bugfix') {
-    if (!hasLeadershipCallsign(currentUser)) { navigateTo('overview', { push: false }); return; }
-    viewContent.innerHTML = renderBugFixView();
-    wireBugFixView();
+    if (!hasLeadershipCallsign(currentUser)) navigateTo('overview', { push: false });
     return;
   }
   if (window.history.state?.view === 'activity-member') {

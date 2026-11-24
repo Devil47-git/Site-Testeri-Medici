@@ -60,9 +60,9 @@ test('plain resolved text creates a review draft', () => {
 });
 
 test('GitHub author aliases map to the requested names', () => {
-  assert.equal(bugFixDisplayName('d22tiny'), 'Mihail Parvu - Devil');
-  assert.equal(bugFixDisplayName('Devil'), 'Mihail Parvu - Devil');
-  assert.equal(bugFixDisplayName('AntonioShade'), 'Antonio Shades - AntonioShade');
+  assert.equal(bugFixDisplayName('d22tiny'), 'Devil');
+  assert.equal(bugFixDisplayName('Devil'), 'Devil');
+  assert.equal(bugFixDisplayName('AntonioShade'), 'AntonioShade');
 });
 
 test('GitHub webhook signatures are verified with HMAC SHA-256', () => {

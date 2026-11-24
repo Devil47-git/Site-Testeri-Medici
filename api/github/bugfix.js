@@ -81,8 +81,8 @@ export function bugFixEmbed({ title, details = '', author = 'Necunoscut', pushed
 export function bugFixDisplayName(value = '') {
   const normalized = String(value || '').trim();
   const key = normalized.toLowerCase();
-  if (/devil|mihail|d22tiny|o22tiny/.test(key)) return 'Mihail Parvu - Devil';
-  if (/antonio|antonioshade|antonio shade/.test(key)) return 'Antonio Shades - AntonioShade';
+  if (/devil|mihail|d22tiny|o22tiny/.test(key)) return 'Devil';
+  if (/antonio|antonioshade|antonio shade/.test(key)) return 'AntonioShade';
   return normalized || 'Unknown';
 }
 async function postAutomaticResolvedCommit(draft) {
