@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 
-const { resolvedCommitDrafts, verifyGitHubSignature, bugFixEmbed } = await import('../api/github/bugfix.js');
+const { resolvedCommitDrafts, verifyGitHubSignature, bugFixEmbed, bugFixDisplayName } = await import('../api/github/bugfix.js');
 
 test('Bug Fixer Discord payload matches the blue embed model', () => {
   const embed = bugFixEmbed({
@@ -57,6 +57,12 @@ test('plain resolved text creates a review draft', () => {
   });
   assert.equal(drafts.length, 1);
   assert.equal(drafts[0].title, 'Advent Calendar restriction');
+});
+
+test('GitHub author aliases map to the requested names', () => {
+  assert.equal(bugFixDisplayName('d22tiny'), 'Mihail Parvu - Devil');
+  assert.equal(bugFixDisplayName('Devil'), 'Mihail Parvu - Devil');
+  assert.equal(bugFixDisplayName('AntonioShade'), 'Antonio Shades - AntonioShade');
 });
 
 test('GitHub webhook signatures are verified with HMAC SHA-256', () => {

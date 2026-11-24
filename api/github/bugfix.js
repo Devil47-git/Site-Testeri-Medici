@@ -8,6 +8,7 @@ import { isLeadershipRow } from '../../lib/access/shared.js';
 export const config = { api: { bodyParser: false } };
 
 const DRAFTS_KEY = 'site-testeri-medici:bugfix:drafts';
+const POSTED_KEY = 'site-testeri-medici:bugfix:posted';
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:T400';
 const kv = new SupabaseKV();
@@ -58,6 +59,7 @@ export function resolvedCommitDrafts(payload) {
       title: titleLine.trim().slice(0, 120) || 'Bug rezolvat',
       details: detailLines.join('\n').trim().slice(0, 1000),
       author: String(commit.author?.name || commit.author?.username || payload?.pusher?.name || 'Necunoscut').slice(0, 100),
+      pushedBy: String(payload?.pusher?.name || commit.author?.username || commit.author?.name || 'Necunoscut').slice(0, 100),
       url: String(commit.url || '').slice(0, 500),
       receivedAt: new Date().toISOString(),
       status: 'pending'
@@ -75,6 +77,38 @@ export function bugFixEmbed({ title, details = '', author = 'Necunoscut', pushed
     ],
     ...(url ? { url: String(url).slice(0, 512) } : {})
   };
+}
+export function bugFixDisplayName(value = '') {
+  const normalized = String(value || '').trim();
+  const key = normalized.toLowerCase();
+  if (/devil|mihail|d22tiny|o22tiny/.test(key)) return 'Mihail Parvu - Devil';
+  if (/antonio|antonioshade|antonio shade/.test(key)) return 'Antonio Shades - AntonioShade';
+  return normalized || 'Unknown';
+}
+async function postAutomaticResolvedCommit(draft) {
+  const webhook = webhookUrl();
+  if (!webhook) throw new Error('DISCORD_HOSPITAL_CHAT_WEBHOOK is missing or invalid');
+  const embed = bugFixEmbed({
+    title: draft.title,
+    details: '',
+    author: bugFixDisplayName(draft.author),
+    pushedBy: bugFixDisplayName(draft.pushedBy || draft.author),
+    url: draft.url
+  });
+  const response = await fetch(webhook, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: 'BUG FIXER', embeds: [embed] })
+  });
+  if (!response.ok) throw new Error(`Discord webhook failed (${response.status})`);
+}
+async function readPostedIds() {
+  if (!kv.isConfigured) return new Set();
+  const posted = await kv.getJson(POSTED_KEY);
+  return new Set(Array.isArray(posted) ? posted : []);
+}
+async function writePostedIds(posted) {
+  await kv.setJson(POSTED_KEY, [...posted].slice(-500), { expirationSeconds: 60 * 60 * 24 * 400 });
 }
 export async function importResolvedGitHubCommits(fetchImpl = globalThis.fetch) {
   const repository = String(process.env.GITHUB_REPOSITORY || 'Devil47-git/Site-Testeri-Medici').trim();
@@ -119,11 +153,16 @@ export default async function handler(req, res) {
     if (!kv.isConfigured) return json(res, 503, { error: 'Supabase storage is not configured' });
     const incoming = resolvedCommitDrafts(body);
     if (!incoming.length) return json(res, 200, { draftsCreated: 0 });
-    const existing = await readDrafts();
-    const knownIds = new Set(existing.map(draft => draft.id));
-    const created = incoming.filter(draft => !knownIds.has(draft.id));
-    await writeDrafts([...existing, ...created]);
-    return json(res, 200, { draftsCreated: created.length });
+    const posted = await readPostedIds();
+    let postedCount = 0;
+    for (const draft of incoming) {
+      if (posted.has(draft.id)) continue;
+      await postAutomaticResolvedCommit(draft);
+      posted.add(draft.id);
+      postedCount += 1;
+    }
+    await writePostedIds(posted);
+    return json(res, 200, { posted: postedCount });
   }
 
   if (!sameOrigin(req) && req.method !== 'GET') return json(res, 403, { error: 'Cross-origin request rejected' });
@@ -163,7 +202,7 @@ export default async function handler(req, res) {
         sha: url.match(/[0-9a-f]{7,40}/i)?.[0]?.slice(0, 12) || 'manual',
         title,
         details,
-        author: String(requester[3] || 'Necunoscut').trim().slice(0, 100),
+        author: bugFixDisplayName(requester[3] || 'Unknown'),
         url,
         receivedAt: new Date().toISOString(),
         status: 'pending'
@@ -193,8 +232,8 @@ export default async function handler(req, res) {
     const webhook = webhookUrl();
     if (!webhook) return json(res, 503, { error: 'DISCORD_HOSPITAL_CHAT_WEBHOOK is missing or invalid' });
 
-    const pushedBy = String(requester[3] || 'Necunoscut').trim();
-    const embed = bugFixEmbed({ title, details, author: draft.author, pushedBy, url });
+    const pushedBy = bugFixDisplayName(requester[3] || 'Unknown');
+    const embed = bugFixEmbed({ title, details, author: bugFixDisplayName(draft.author), pushedBy, url });
     const response = await fetch(webhook, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

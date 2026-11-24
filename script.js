@@ -132,6 +132,12 @@ function applyGrantsState() {
 function refreshCurrentView() {
   renderAvailableTestsSubmenu();
   if (window.history.state?.view === 'test') return;
+  if (window.history.state?.view === 'bugfix') {
+    if (!hasLeadershipCallsign(currentUser)) { navigateTo('overview', { push: false }); return; }
+    viewContent.innerHTML = renderBugFixView();
+    wireBugFixView();
+    return;
+  }
   if (window.history.state?.view === 'activity-member') {
     if (!canViewAttendanceRooms(currentUser)) { navigateTo('overview', { push: false }); return; }
     const callsign = window.history.state.callsign;
@@ -1314,7 +1320,7 @@ function wireBugFixView() {
           <label>Titlu<input data-bugfix-title type="text" maxlength="120" value="${escapeHtml(draft.title || '')}"></label>
           <label>Detalii<textarea data-bugfix-details rows="3" maxlength="1000">${escapeHtml(draft.details || '')}</textarea></label>
           <p class="muted">Autor: ${escapeHtml(draft.author || 'Necunoscut')} · Commit: ${escapeHtml(draft.sha || '—')}</p>
-          <div class="bugfix-actions">${canApprove ? '<button class="primary" type="button" data-bugfix-approve>✅ Trimite „Rezolvat”</button><button class="outline" type="button" data-bugfix-reject>Șterge draftul</button>' : '<p class="muted">Aprobarea este disponibilă doar callsignurilor 002 și 004.</p>'}</div>
+          <div class="bugfix-actions">${canApprove ? '<button class="primary" type="button" data-bugfix-approve>✅ Trimite „Rezolvat”</button><button class="outline" type="button" data-bugfix-reject>Șterge draftul</button>' : '<p class="muted">Aprobarea este disponibilă doar callsignurile 001, 002 și 004.</p>'}</div>
         </article>`).join('') : '<p class="muted">Nu există commituri rezolvate în așteptare.</p>';
     } catch (error) {
       list.innerHTML = `<p class="error-text">${escapeHtml(error.message)}</p>`;
