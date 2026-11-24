@@ -726,6 +726,8 @@ function renderAvailableTestsSubmenu() {
   const submenu = document.querySelector('#available-tests-submenu');
   const bonusNav = document.querySelector('#bonuses-nav');
   if (bonusNav) bonusNav.hidden = !hasLeadershipCallsign(currentUser);
+  const adventCalendarNav = document.querySelector('#advent-calendar-nav');
+  if (adventCalendarNav) adventCalendarNav.hidden = !hasLeadershipCallsign(currentUser);
   const attendanceNav = document.querySelector('#attendance-nav');
   if (attendanceNav) attendanceNav.hidden = !currentUser?.discordId || !canViewAttendanceRooms(currentUser);
   const activityNav = document.querySelector('#activity-nav');
@@ -2301,6 +2303,63 @@ function wireSettingsEvents() {
 }
 
 
+const ADVENT_MEDICAL_ITEMS = [
+  ['Stetoscop', '🩺'],
+  ['Tensiometru', '🩸'],
+  ['Termometru', '🌡️'],
+  ['Oximetru', '💓'],
+  ['Trusă medicală', '🧰'],
+  ['Sticluță de perfuzie', '💧'],
+  ['Seringă', '💉'],
+  ['Tavă chirurgicală', '🧪'],
+  ['Mască de oxigen', '😷'],
+  ['Sutură', '🪡'],
+  ['Vată medicală', '☁️'],
+  ['Bandaj elastic', '🩹'],
+  ['Placă defibrilator', '⚡'],
+  ['Ambulance kit', '🚑'],
+  ['Lumină de examinare', '🔦'],
+  ['Cutie cu medicamente', '💊'],
+  ['Lămpi chirurgicale', '🔆'],
+  ['Stativ perfuzie', '🧷'],
+  ['Vaselină medicală', '🧴'],
+  ['Foarfecă medicală', '✂️'],
+  ['Lupă medicală', '🔬'],
+  ['Scaun cu role', '♿'],
+  ['Mască de reanimare', '🫁'],
+  ['Cadou medical', '🎁']
+];
+
+function renderAdventCalendarView() {
+  if (!hasLeadershipCallsign(currentUser)) {
+    return '<section class="panel advent-calendar-panel"><p class="empty-state">Nu ai acces la această pagină.</p></section>';
+  }
+  const cards = ADVENT_MEDICAL_ITEMS.map(([name, icon], index) => {
+    const day = index + 1;
+    return `<article class="advent-calendar-card">
+      <div class="advent-calendar-day" aria-label="Ziua ${day}">${day}</div>
+      <div class="advent-calendar-object" role="img" aria-label="${escapeHtml(name)}"><span aria-hidden="true">${icon}</span></div>
+      <button type="button" class="advent-calendar-register" data-advent-day="${day}">Înscriere</button>
+    </article>`;
+  }).join('');
+  return `<section class="panel advent-calendar-panel">
+    <div class="panel-head advent-calendar-head">
+      <div><p class="eyebrow">CALENDAR DE CRĂCIUN</p><h2>Advent Calendar</h2><p class="muted">24 de surprize medicale pentru departament.</p></div>
+      <span class="advent-calendar-status" id="advent-calendar-status" role="status" aria-live="polite"></span>
+    </div>
+    <div class="advent-calendar-grid">${cards}</div>
+  </section>`;
+}
+
+function wireAdventCalendarEvents() {
+  const status = document.querySelector('#advent-calendar-status');
+  document.querySelectorAll('[data-advent-day]').forEach(button => {
+    button.addEventListener('click', () => {
+      if (status) status.textContent = `Înscrierile pentru ziua ${button.dataset.adventDay} se deschid în curând.`;
+    });
+  });
+}
+
 function renderView(view) {
   const overview = document.querySelector('#overview-view');
   const isOverview = view === 'overview';
@@ -2316,6 +2375,7 @@ function renderView(view) {
   else if (view === 'testers') { viewContent.innerHTML = renderTestersView(); wireTestersEvents(); }
   else if (view === 'statistics') { viewContent.innerHTML = renderStatisticsView(); renderDashboardData(); }
   else if (view === 'bonuses') { viewContent.innerHTML = renderBonusesView(); wireBonusesEvents(); }
+  else if (view === 'advent-calendar') { viewContent.innerHTML = renderAdventCalendarView(); wireAdventCalendarEvents(); }
   else if (view === 'attendance') { attendanceAllowedTypes = ['regular']; attendancePermissionsError = ''; attendanceRecordsLoaded = false; viewContent.innerHTML = renderAttendanceView(); wireAttendanceEvents(); loadAttendanceRecords(false); loadAttendancePermissions(); }
   else if (view === 'active-attendance') { activeAttendanceMessage = ''; viewContent.innerHTML = renderActiveAttendanceView(); wireActiveAttendanceEvents(); loadAttendanceRecords(true, { view: 'active', dateKey: activeAttendanceDate }); }
   else if (view === 'activity') { viewContent.innerHTML = renderActivityView(); loadActivityEntries(); }
@@ -4264,9 +4324,10 @@ document.querySelector('#member-functions-modal').addEventListener('click', even
 document.querySelector('#save-member-functions').addEventListener('click', saveMemberFunctions);
 document.querySelector('#use-docs-functions').addEventListener('click', useDocsMemberFunctions);
 document.querySelector('#brand-settings').onclick = () => navigateTo('overview'); document.querySelector('#profile-settings').onclick = () => navigateTo('settings');
-const labels = { overview: 'Profilul tău', testers: 'Testerii departamentului', members: 'Membri', statistics: 'Statistica Teste', cooldowns: 'Cooldown-uri', bonuses: 'Bonusuri', attendance: 'Pontaje', 'active-attendance': 'Pontaje active', activity: 'Evidență activitate', guide: 'Ghid Spital', 'certifica-trusa': 'Certificat Trusa', settings: 'Setări', bugfix: 'BUG FIXER' };
+const labels = { overview: 'Profilul tău', testers: 'Testerii departamentului', members: 'Membri', statistics: 'Statistica Teste', cooldowns: 'Cooldown-uri', bonuses: 'Bonusuri', 'advent-calendar': 'Advent Calendar', attendance: 'Pontaje', 'active-attendance': 'Pontaje active', activity: 'Evidență activitate', guide: 'Ghid Spital', 'certifica-trusa': 'Certificat Trusa', settings: 'Setări', bugfix: 'BUG FIXER' };
 function navigateTo(view, { push = true } = {}) {
   if (view === 'bonuses' && !hasLeadershipCallsign(currentUser)) view = 'overview';
+  if (view === 'advent-calendar' && !hasLeadershipCallsign(currentUser)) view = 'overview';
   if (view === 'certifica-trusa' && !hasLeadershipCallsign(currentUser)) view = 'overview';
   if (view === 'bugfix' && !hasLeadershipCallsign(currentUser)) view = 'overview';
   if (view === 'attendance' && !currentUser?.discordId) view = 'overview';
