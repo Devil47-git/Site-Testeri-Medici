@@ -339,6 +339,16 @@ const sweepTimer = setInterval(() => {
 }, 10 * 60 * 1000);
 sweepTimer.unref?.();
 
+const adventTimer = setInterval(async () => {
+  try {
+    const { sweepAdventDraws } = await import('./api/access/advent-calendar.js');
+    await sweepAdventDraws();
+  } catch (error) {
+    console.error('Advent Calendar automatic draw failed:', error);
+  }
+}, 60 * 1000);
+adventTimer.unref?.();
+
 http.createServer((req, res) => route(req, res).catch(e => {
   if (res.headersSent || res.writableEnded) return;
   json(res, e.statusCode || 500, { error: e.statusCode ? e.message : 'Internal server error' });

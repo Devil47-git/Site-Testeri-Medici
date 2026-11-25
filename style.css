@@ -1513,6 +1513,10 @@ body.christmas-theme .topbar .profile-logout-button:hover{border-color:#e45b66;b
 .advent-calendar-card h3{min-height:38px;display:flex;align-items:center;justify-content:center;font-size:13px;line-height:1.25;margin:0 0 10px}
 .advent-calendar-register{width:100%;border:1px solid #d64c58;background:linear-gradient(135deg,#e45b66,#be3e4b);color:#fff;border-radius:7px;padding:9px 8px;font:700 12px 'DM Sans';cursor:pointer;box-shadow:0 5px 12px rgba(228,91,102,.18)}
 .advent-calendar-register:hover{filter:brightness(1.08);transform:translateY(-1px)}
+.advent-calendar-register:disabled{opacity:.48;cursor:not-allowed;filter:none;transform:none}
+.advent-calendar-participants,.advent-calendar-winner{min-height:22px;margin:-4px 0 8px;font-size:11px;font-weight:700;color:var(--muted)}
+.advent-calendar-winner{color:#52a577}
+.advent-calendar-timing{min-height:32px;margin:-2px 0 8px;font-size:10px;font-weight:700;line-height:1.35;color:#6d7a70}
 body.dark-mode .advent-calendar-card,body.christmas-theme .advent-calendar-card{background:linear-gradient(145deg,#1a2a20,#17201b);border-color:#375140}
 body.dark-mode .advent-calendar-object,body.christmas-theme .advent-calendar-object{background:linear-gradient(145deg,rgba(228,91,102,.12),rgba(81,169,112,.12))}
 @media(max-width:1200px){.advent-calendar-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}

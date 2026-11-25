@@ -736,7 +736,7 @@ function renderAvailableTestsSubmenu() {
   const bonusNav = document.querySelector('#bonuses-nav');
   if (bonusNav) bonusNav.hidden = !hasLeadershipCallsign(currentUser);
   const adventCalendarNav = document.querySelector('#advent-calendar-nav');
-  if (adventCalendarNav) adventCalendarNav.hidden = !hasLeadershipCallsign(currentUser);
+  if (adventCalendarNav) adventCalendarNav.hidden = !currentUser?.discordId;
   const attendanceNav = document.querySelector('#attendance-nav');
   if (attendanceNav) attendanceNav.hidden = !currentUser?.discordId || !canViewAttendanceRooms(currentUser);
   const activityNav = document.querySelector('#activity-nav');
@@ -2394,22 +2394,62 @@ const ADVENT_MEDICAL_ITEMS = [
   ['Mască de reanimare', '🫁'],
   ['Cadou medical', '🎁']
 ];
+let adventCalendarData = null;
+let adventCalendarLoading = false;
+
+function adventCountdownForDay(year, day) {
+  const now = new Date();
+  const openTime = new Date(`${year}-12-${String(day).padStart(2, '0')}T21:01:00+02:00`).getTime();
+  const nowTime = now.getTime();
+
+  if (nowTime < openTime) {
+    const remaining = openTime - nowTime;
+    return `Ziua ${day}.12 · deschidere 21:01 · ${adventDurationText(remaining)}`;
+  }
+  return `Ziua ${day}.12 · înscrieri închise · extragere 21:00`;
+}
+
+function adventDurationText(milliseconds) {
+  let seconds = Math.max(0, Math.floor(milliseconds / 1000));
+  const hours = Math.floor(seconds / 3600);
+  seconds %= 3600;
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = seconds % 60;
+  if (hours > 0) return `${hours}h ${String(minutes).padStart(2, '0')}m ${String(remainingSeconds).padStart(2, '0')}s`;
+  return `${String(minutes).padStart(2, '0')}m ${String(remainingSeconds).padStart(2, '0')}s`;
+}
 
 function renderAdventCalendarView() {
-  if (!hasLeadershipCallsign(currentUser)) {
-    return '<section class="panel advent-calendar-panel"><p class="empty-state">Nu ai acces la această pagină.</p></section>';
-  }
+  const calendarYear = adventCalendarData?.year || new Date().getFullYear();
   const cards = ADVENT_MEDICAL_ITEMS.map(([name, icon], index) => {
     const day = index + 1;
+    const data = adventCalendarData?.days?.find(item => item.day === day);
+    const registered = Boolean(data?.registered);
+    const winner = data?.winner;
+    const participantCount = data?.participantCount || 0;
+    const currentDate = adventCalendarData?.date ? adventCalendarData.date.slice(-2).replace(/^0/, '') : '';
+    const isToday = Number(currentDate) === day;
+    const isDecember = String(adventCalendarData?.date || '').slice(5, 7) === '12';
+    const currentHour = String(adventCalendarData?.hour || '00:00');
+    const registrationOpen = currentHour < '21:00';
+    const canRegister = isDecember && isToday && registrationOpen && !registered && !winner;
+    const meta = winner
+      ? `<div class="advent-calendar-winner">🏆 ${escapeHtml(winner.callsign)} · ${escapeHtml(winner.name)}</div>`
+      : `<div class="advent-calendar-participants">${participantCount} înscris${participantCount === 1 ? '' : 'i'}</div>`;
+    const timing = winner
+      ? '<div class="advent-calendar-timing">Extragere 21:00 · finalizată</div>'
+      : `<div class="advent-calendar-timing">${escapeHtml(adventCountdownForDay(calendarYear, day))}</div>`;
     return `<article class="advent-calendar-card">
       <div class="advent-calendar-day" aria-label="Ziua ${day}">${day}</div>
       <div class="advent-calendar-object" role="img" aria-label="${escapeHtml(name)}"><span aria-hidden="true">${icon}</span></div>
-      <button type="button" class="advent-calendar-register" data-advent-day="${day}">Înscriere</button>
+      ${meta}
+      ${timing}
+      <button type="button" class="advent-calendar-register" data-advent-day="${day}" ${canRegister ? '' : 'disabled'}>${registered ? 'Înscris' : winner ? 'Închis' : 'Înscriere'}</button>
     </article>`;
   }).join('');
   return `<section class="panel advent-calendar-panel">
     <div class="panel-head advent-calendar-head">
-      <div><p class="eyebrow">CALENDAR DE CRĂCIUN</p><h2>Advent Calendar</h2><p class="muted">24 de surprize medicale pentru departament.</p></div>
+      <div><p class="eyebrow">CALENDAR DE CRĂCIUN</p><h2>Advent Calendar</h2><p class="muted">1-24 decembrie · înscriere în ziua premiului · extragere egală la 21:00.</p></div>
       <span class="advent-calendar-status" id="advent-calendar-status" role="status" aria-live="polite"></span>
     </div>
     <div class="advent-calendar-grid">${cards}</div>
@@ -2419,10 +2459,61 @@ function renderAdventCalendarView() {
 function wireAdventCalendarEvents() {
   const status = document.querySelector('#advent-calendar-status');
   document.querySelectorAll('[data-advent-day]').forEach(button => {
-    button.addEventListener('click', () => {
-      if (status) status.textContent = `Înscrierile pentru ziua ${button.dataset.adventDay} se deschid în curând.`;
-    });
+    button.addEventListener('click', () => registerForAdventDay(Number(button.dataset.adventDay), status));
   });
+}
+
+setInterval(() => {
+  if (window.history.state?.view !== 'advent-calendar' || !adventCalendarData) return;
+  document.querySelectorAll('[data-advent-day]').forEach(button => {
+    const day = Number(button.dataset.adventDay);
+    const card = button.closest('.advent-calendar-card');
+    const timing = card?.querySelector('.advent-calendar-timing');
+    const winner = adventCalendarData.days?.find(item => item.day === day)?.winner;
+    if (timing && !winner) {
+      timing.textContent = adventCountdownForDay(adventCalendarData.year, day);
+    }
+  });
+}, 1000);
+
+async function loadAdventCalendar() {
+  if (adventCalendarLoading) return;
+  adventCalendarLoading = true;
+  try {
+    const response = await fetch(`/api/access/advent-calendar?requesterId=${encodeURIComponent(currentUser.discordId)}`, { credentials: 'same-origin' });
+    const payload = await parseApiResponse(response);
+    if (!response.ok) throw new Error(payload.error || 'Advent Calendar nu a putut fi încărcat.');
+    adventCalendarData = payload;
+  } catch (error) {
+    if (!adventCalendarData) adventCalendarData = { days: [] };
+    const status = document.querySelector('#advent-calendar-status');
+    if (status) status.textContent = error.message || 'Advent Calendar nu este disponibil.';
+  } finally {
+    adventCalendarLoading = false;
+  }
+  if (window.history.state?.view === 'advent-calendar') {
+    viewContent.innerHTML = renderAdventCalendarView();
+    wireAdventCalendarEvents();
+  }
+}
+
+async function registerForAdventDay(day, status) {
+  if (!currentUser?.discordId) return;
+  if (status) status.textContent = 'Se înregistrează înscrierea...';
+  try {
+    const response = await fetch('/api/access/advent-calendar', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ requesterId: currentUser.discordId, day })
+    });
+    const payload = await parseApiResponse(response);
+    if (!response.ok) throw new Error(payload.error || 'Înscrierea nu a putut fi efectuată.');
+    await loadAdventCalendar();
+    if (status) status.textContent = `Te-ai înscris la premiul din ziua ${day}.`;
+  } catch (error) {
+    if (status) status.textContent = error.message || 'Înscrierea nu a putut fi efectuată.';
+  }
 }
 
 function renderView(view) {
@@ -2440,7 +2531,7 @@ function renderView(view) {
   else if (view === 'testers') { viewContent.innerHTML = renderTestersView(); wireTestersEvents(); }
   else if (view === 'statistics') { viewContent.innerHTML = renderStatisticsView(); renderDashboardData(); }
   else if (view === 'bonuses') { viewContent.innerHTML = renderBonusesView(); wireBonusesEvents(); }
-  else if (view === 'advent-calendar') { viewContent.innerHTML = renderAdventCalendarView(); wireAdventCalendarEvents(); }
+  else if (view === 'advent-calendar') { viewContent.innerHTML = renderAdventCalendarView(); wireAdventCalendarEvents(); loadAdventCalendar(); }
   else if (view === 'attendance') { attendanceAllowedTypes = ['regular']; attendancePermissionsError = ''; attendanceRecordsLoaded = false; viewContent.innerHTML = renderAttendanceView(); wireAttendanceEvents(); loadAttendanceRecords(false); loadAttendancePermissions(); }
   else if (view === 'active-attendance') { activeAttendanceMessage = ''; viewContent.innerHTML = renderActiveAttendanceView(); wireActiveAttendanceEvents(); loadAttendanceRecords(true, { view: 'active', dateKey: activeAttendanceDate }); }
   else if (view === 'activity') { viewContent.innerHTML = renderActivityView(); loadActivityEntries(); }
@@ -4393,7 +4484,7 @@ document.querySelector('#brand-settings').onclick = () => navigateTo('overview')
 const labels = { overview: 'Profilul tău', testers: 'Testerii departamentului', members: 'Membri', statistics: 'Statistica Teste', cooldowns: 'Cooldown-uri', bonuses: 'Bonusuri', 'advent-calendar': 'Advent Calendar', attendance: 'Pontaje', 'active-attendance': 'Pontaje active', activity: 'Evidență activitate', guide: 'Ghid Spital', 'certifica-trusa': 'Certificat Trusa', settings: 'Setări', bugfix: 'BUG FIXER' };
 function navigateTo(view, { push = true } = {}) {
   if (view === 'bonuses' && !hasLeadershipCallsign(currentUser)) view = 'overview';
-  if (view === 'advent-calendar' && !hasLeadershipCallsign(currentUser)) view = 'overview';
+  if (view === 'advent-calendar' && !currentUser?.discordId) view = 'overview';
   if (view === 'certifica-trusa' && !hasLeadershipCallsign(currentUser)) view = 'overview';
   if (view === 'bugfix' && !hasLeadershipCallsign(currentUser)) view = 'overview';
   if (view === 'attendance' && !currentUser?.discordId) view = 'overview';
@@ -4539,7 +4630,7 @@ function setVisibilityPermissions(user){
   const removeBtn = document.querySelector('#remove-btn');
   const profileSettingsButton = document.querySelector('#profile-settings');
   const adventCalendarNav = document.querySelector('#advent-calendar-nav');
-  if (adventCalendarNav) adventCalendarNav.hidden = !leadership;
+  if (adventCalendarNav) adventCalendarNav.hidden = !currentUser?.discordId;
   const callsign = callsignNumber(user?.csNum || user?.callsign || user?.callSign);
   const adminPanel = document.querySelector('#admin-panel');
   document.querySelector('#overview-view')?.classList.toggle('admin-dashboard', callsign >= 1 && callsign <= 20);
