@@ -1330,7 +1330,7 @@ function renderSettingsView(title) {
   return `<div class="panel view-panel"><h2>${title}</h2><p class="muted">Gestionează preferințele și sesiunea contului tău.</p><div class="settings-list"><p><b>Identitate:</b> ${currentUser?.name || '—'}</p><p><b>Callsign:</b> ${normalizeCallsign(currentUser?.callsign || currentUser?.callSign)}</p><p><b>Nivel acces:</b> ${isLeadershipUser(currentUser) ? 'Conducere' : 'Tester'}</p>${isLeadershipUser(currentUser) ? `<hr><section class="test-editor"><h3>Configurare teste</h3><div class="test-editor-controls"><label>Test<select id="test-editor-select">${catalog.map(test => `<option value="${test}">${displayTestName(test)}</option>`).join('')}</select></label><label>Titlu afișat<input id="test-editor-title" type="text"></label><label>Conținut card<textarea id="test-editor-description" rows="3"></textarea></label><label>Instrucțiuni<textarea id="test-editor-instructions" rows="3"></textarea></label><label>Greșeli permise<input id="test-editor-max-wrong" type="number" min="0" step="1"></label></div><div class="test-editor-question-header"><h4>Întrebări și răspunsuri</h4><button class="outline" id="add-test-question" type="button">＋ Adaugă întrebare</button></div><div id="test-editor-questions" class="test-editor-questions"></div><button class="primary" id="save-test-definition">Salvează testul</button><span id="test-editor-status" class="muted" role="status"></span></section>` : ''}</div></div>`;
 }
 function renderBugFixView() {
-  return `<section class="panel view-panel bugfix-review"><div class="panel-head"><div><p class="eyebrow">PANOU ADMINISTRATIV</p><h2>BUG FIXER — erori rezolvate</h2><p class="muted">Adaugă manual un bug rezolvat sau creează-l automat printr-un commit care conține <b>resolved</b>. Callsignurile 001, 002 și 004 pot aproba.</p></div></div><form id="bugfix-create-form" class="bugfix-create-form"><label>Titlu<input id="bugfix-create-title" type="text" maxlength="120" required placeholder="Ex.: Fix evidență concedii"></label><label>Detalii<textarea id="bugfix-create-details" rows="3" maxlength="1000" placeholder="Ce s-a reparat și cum se verifică"></textarea></label><label>Link commit (opțional)<input id="bugfix-create-url" type="url" maxlength="500" placeholder="https://github.com/.../commit/..."></label><button class="primary" type="submit">＋ Adaugă draft rezolvat</button></form><div id="bugfix-drafts"><p class="muted">Se încarcă previzualizările…</p></div><span id="bugfix-status" class="muted" role="status"></span></section>`;
+  return `<section class="panel view-panel bugfix-review"><div class="panel-head"><div><p class="eyebrow">PANOU ADMINISTRATIV</p><h2>BUG FIXER — erori rezolvate</h2><p class="muted">Adaugă manual un bug rezolvat. Callsignurile 001, 002 și 004 pot aproba.</p></div></div><form id="bugfix-create-form" class="bugfix-create-form"><label>Titlu<input id="bugfix-create-title" type="text" maxlength="120" required placeholder="Ex.: Fix evidență concedii"></label><label>Detalii<textarea id="bugfix-create-details" rows="3" maxlength="1000" placeholder="Ce s-a reparat și cum se verifică"></textarea></label><button class="primary" type="submit">＋ Adaugă draft rezolvat</button></form><div id="bugfix-drafts"><p class="muted">Se încarcă previzualizările…</p></div><span id="bugfix-status" class="muted" role="status"></span></section>`;
 }
 function wireBugFixView() {
   const list = document.querySelector('#bugfix-drafts');
@@ -1339,7 +1339,7 @@ function wireBugFixView() {
   if (!list || !currentUser?.discordId) return;
   const loadDrafts = async () => {
     try {
-      const response = await fetch(`/api/github/bugfix?requesterId=${encodeURIComponent(currentUser.discordId)}&import=1`);
+      const response = await fetch(`/api/github/bugfix?requesterId=${encodeURIComponent(currentUser.discordId)}`);
       const payload = await parseApiResponse(response);
       if (!response.ok) throw new Error(payload.error || 'Previzualizările BUG FIXER nu au putut fi încărcate.');
       const drafts = Array.isArray(payload.drafts) ? payload.drafts : [];
@@ -1348,7 +1348,6 @@ function wireBugFixView() {
         <article class="bugfix-draft" data-bugfix-draft="${escapeHtml(draft.id)}">
           <label>Titlu<input data-bugfix-title type="text" maxlength="120" value="${escapeHtml(draft.title || '')}"></label>
           <label>Detalii<textarea data-bugfix-details rows="3" maxlength="1000">${escapeHtml(draft.details || '')}</textarea></label>
-          <p class="muted">Autor: ${escapeHtml(draft.author || 'Necunoscut')} · Commit: ${escapeHtml(draft.sha || '—')}</p>
           <div class="bugfix-actions">${canApprove ? '<button class="primary" type="button" data-bugfix-approve>✅ Trimite „Rezolvat”</button><button class="outline" type="button" data-bugfix-reject>Șterge draftul</button>' : '<p class="muted">Aprobarea este disponibilă doar callsignurile 001, 002 și 004.</p>'}</div>
         </article>`).join('') : '<p class="muted">Nu există commituri rezolvate în așteptare.</p>';
     } catch (error) {
@@ -1368,8 +1367,7 @@ function wireBugFixView() {
           requesterId: currentUser.discordId,
           action: 'create',
           title: document.querySelector('#bugfix-create-title')?.value || '',
-          details: document.querySelector('#bugfix-create-details')?.value || '',
-          url: document.querySelector('#bugfix-create-url')?.value || ''
+          details: document.querySelector('#bugfix-create-details')?.value || ''
         })
       });
       const payload = await parseApiResponse(response);
@@ -1641,10 +1639,14 @@ function renderAttendanceView() {
     return `<tr><td>${date}</td><td>${attendanceTypeLabel(attendanceTypeForEntry(entry))}</td><td>${attendanceTime(entry.start)}</td><td>${clockOut}${entry.autoClosed ? ' · Închis automat' : ''}</td><td>${duration}</td></tr>`;
   }).join('');
   const startAllowed = attendanceStartAllowed(now);
+  const excludedAttendanceCallsign = Number(callsignNumber(currentUser?.callsign || currentUser?.callSign)) >= 1
+    && Number(callsignNumber(currentUser?.callsign || currentUser?.callSign)) <= 4;
   const statusText = attendanceLoadPending
     ? 'Se sincronizează pontajele...'
+    : excludedAttendanceCallsign
+      ? 'Callsignurile 001-004 nu au pontaj.'
     : attendanceSyncError || (open ? `Pontaj ${attendanceTypeLabel(attendanceTypeForEntry(open))} activ de ${attendanceFormatMinutes(attendanceMinutes(open))}, început la ${attendanceTime(open.start)}.` : startAllowed ? 'Niciun pontaj activ.' : 'Pontajul nu mai poate fi deschis după ora 23:35.');
-  const controlsDisabled = attendanceLoadPending || !attendanceRecordsLoaded || Boolean(attendanceSyncError);
+  const controlsDisabled = excludedAttendanceCallsign || attendanceLoadPending || !attendanceRecordsLoaded || Boolean(attendanceSyncError);
   const permissionsMessage = attendancePermissionsError
     ? `<p class="attendance-permissions-warning muted" role="status">${escapeHtml(attendancePermissionsError)}</p>`
     : '';
@@ -2400,7 +2402,7 @@ let adventCalendarLoading = false;
 function adventCountdownForDay(year, day) {
   const now = new Date();
   const openTime = day === 1
-    ? new Date(`${year}-12-01T00:00:00+02:00`).getTime()
+    ? new Date(`${year}-11-30T21:01:00+02:00`).getTime()
     : new Date(`${year}-12-${String(day - 1).padStart(2, '0')}T21:01:00+02:00`).getTime();
   const closeTime = new Date(`${year}-12-${String(day).padStart(2, '0')}T20:59:00+02:00`).getTime();
   const drawTime = new Date(`${year}-12-${String(day).padStart(2, '0')}T21:00:00+02:00`).getTime();
@@ -2408,7 +2410,7 @@ function adventCountdownForDay(year, day) {
 
   if (nowTime < openTime) {
     const remaining = openTime - nowTime;
-    const label = day === 1 ? '00:00' : '21:01';
+    const label = '21:01';
     return `Ziua ${day}.12 · deschidere ${label} · ${adventDurationText(remaining)}`;
   }
   if (nowTime < closeTime) {
@@ -2459,12 +2461,35 @@ function renderAdventCalendarView() {
       <button type="button" class="advent-calendar-register" data-advent-day="${day}" ${canRegister ? '' : 'disabled'}>${registered ? 'Înscris' : winner ? 'Închis' : 'Înscriere'}</button>
     </article>`;
   }).join('');
+  const testPanel = isLeadershipUser(currentUser) ? `
+    <section class="advent-test-panel">
+      <h3>Test mesaj extragere</h3>
+      <p class="muted">Trimite mesajul test în chatul spitalului și va menționa rolul și membrul selectat.</p>
+      <div class="advent-test-controls">
+        <label>Ziua
+          <select id="advent-test-day">${ADVENT_MEDICAL_ITEMS.map((_, index) => `<option value="${index + 1}">Ziua ${index + 1}</option>`).join('')}</select>
+        </label>
+        <label>Premiu fictiv (doar pentru test)
+          <input id="advent-test-prize" type="text" maxlength="120" value="Premiu fictiv de test 🎁" autocomplete="off">
+        </label>
+        <label>Callsign câștigător
+          <input id="advent-test-callsign" type="text" inputmode="numeric" placeholder="M-001" autocomplete="off">
+        </label>
+        <label>Nume membru
+          <input id="advent-test-name" type="text" readonly placeholder="Se completează după callsign">
+        </label>
+        <button class="outline" id="advent-test-preview" type="button">Trimite mesaj test în chat</button>
+      </div>
+      <p id="advent-test-status" class="muted" role="status" aria-live="polite"></p>
+      <pre id="advent-test-message" class="advent-test-message" hidden></pre>
+    </section>` : '';
   return `<section class="panel advent-calendar-panel">
     <div class="panel-head advent-calendar-head">
       <div><p class="eyebrow">CALENDAR DE CRĂCIUN</p><h2>Advent Calendar</h2><p class="muted">1-24 decembrie · înscriere în ziua premiului · extragere egală la 21:00.</p></div>
       <span class="advent-calendar-status" id="advent-calendar-status" role="status" aria-live="polite"></span>
     </div>
     <div class="advent-calendar-grid">${cards}</div>
+    ${testPanel}
   </section>`;
 }
 
@@ -2472,6 +2497,80 @@ function wireAdventCalendarEvents() {
   const status = document.querySelector('#advent-calendar-status');
   document.querySelectorAll('[data-advent-day]').forEach(button => {
     button.addEventListener('click', () => registerForAdventDay(Number(button.dataset.adventDay), status));
+  });
+  wireAdventPreviewEvents();
+}
+
+function wireAdventPreviewEvents() {
+  const callsignInput = document.querySelector('#advent-test-callsign');
+  const nameInput = document.querySelector('#advent-test-name');
+  const prizeInput = document.querySelector('#advent-test-prize');
+  const status = document.querySelector('#advent-test-status');
+  const preview = document.querySelector('#advent-test-message');
+  const button = document.querySelector('#advent-test-preview');
+  if (!callsignInput || !nameInput || !prizeInput || !status || !preview || !button) return;
+  let lookupTimer;
+  const lookupMember = async () => {
+    const callsign = callsignInput.value.trim();
+    nameInput.value = '';
+    preview.hidden = true;
+    if (!callsign) { status.textContent = ''; return null; }
+    const testPrize = prizeInput.value.trim();
+    if (!testPrize) { status.textContent = 'Introdu premiul fictiv pentru test.'; return null; }
+    status.textContent = 'Se caută membrul...';
+    try {
+      const response = await fetch('/api/access/advent-calendar', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requesterId: currentUser.discordId, action: 'preview-winner', callsign, day: Number(document.querySelector('#advent-test-day').value), testPrize })
+      });
+      const payload = await parseApiResponse(response);
+      if (!response.ok) throw new Error(payload.error || 'Membrul nu a putut fi găsit.');
+      nameInput.value = payload.winner.name;
+      status.textContent = `Membru găsit: ${payload.winner.callsign} · ${payload.winner.name}`;
+      return payload;
+    } catch (error) {
+      status.textContent = error.message || 'Membrul nu a putut fi găsit.';
+      return null;
+    }
+  };
+  callsignInput.addEventListener('input', () => {
+    clearTimeout(lookupTimer);
+    lookupTimer = setTimeout(lookupMember, 350);
+  });
+  button.addEventListener('click', async () => {
+    clearTimeout(lookupTimer);
+    const payload = await lookupMember();
+    if (!payload) return;
+    if (!window.confirm(`Trimiți mesajul test pentru ${payload.winner.callsign} · ${payload.winner.name}, cu premiul „${payload.prize}”, în chatul spitalului? Va fi menționat rolul Advent și membrul.`)) return;
+    button.disabled = true;
+    const originalText = button.textContent;
+    button.textContent = 'Se trimite testul...';
+    try {
+      const response = await fetch('/api/access/advent-calendar', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          requesterId: currentUser.discordId,
+          action: 'send-test',
+          callsign: callsignInput.value.trim(),
+          day: Number(document.querySelector('#advent-test-day').value),
+          testPrize: prizeInput.value.trim()
+        })
+      });
+      const result = await parseApiResponse(response);
+      if (!response.ok) throw new Error(result.error || 'Mesajul test nu a putut fi trimis.');
+      preview.textContent = result.preview;
+      preview.hidden = false;
+      status.textContent = 'Mesajul test a fost trimis în chatul spitalului.';
+    } catch (error) {
+      status.textContent = error.message || 'Previzualizarea nu a putut fi generată.';
+    } finally {
+      button.disabled = false;
+      button.textContent = originalText;
+    }
   });
 }
 

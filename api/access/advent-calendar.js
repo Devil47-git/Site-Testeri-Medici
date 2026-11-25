@@ -4,6 +4,7 @@ import path from 'node:path';
 import { requireRequester } from '../../lib/request-auth.js';
 import { sameOrigin } from '../../lib/http.js';
 import { SupabaseKV } from '../../lib/storage/supabase-kv.js';
+import { callsignNumber, isLeadershipRow } from '../../lib/access/shared.js';
 
 const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
 const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:T400';
@@ -11,6 +12,7 @@ const adventRedis = new SupabaseKV();
 const localFile = path.join(process.cwd(), '.data', 'advent-calendar.json');
 let localCache = null;
 let localReady = false;
+const ADVENT_ROLE_ID = '804382163536576616';
 
 export const ADVENT_PRIZES = [
   'ISU',
@@ -69,12 +71,13 @@ function bucharestTimeText(now = new Date()) {
 function adventWindow(day) {
   const date = bucharestDate();
   const targetYear = date.year;
-  const openDay = day === 1 ? day : day - 1;
-  const openHour = day === 1 ? '00:00:00' : '21:01:00';
+  const openDay = day === 1 ? 30 : day - 1;
+  const openMonth = day === 1 ? 11 : 12;
+  const openHour = day === 1 ? '21:01:00' : '21:01:00';
   const closeHour = '20:59:00';
   const drawHour = '21:00:00';
   return {
-    openAt: `${targetYear}-12-${String(openDay).padStart(2, '0')}T${openHour}+02:00`,
+    openAt: `${targetYear}-${String(openMonth).padStart(2, '0')}-${String(openDay).padStart(2, '0')}T${openHour}+02:00`,
     closeAt: `${targetYear}-12-${String(day).padStart(2, '0')}T${closeHour}+02:00`,
     drawAt: `${targetYear}-12-${String(day).padStart(2, '0')}T${drawHour}+02:00`
   };
@@ -136,6 +139,52 @@ async function writeState(state) {
   }
 }
 
+function hospitalChatWebhookUrl() {
+  try {
+    const url = new URL(String(process.env.DISCORD_HOSPITAL_CHAT_WEBHOOK || '').trim());
+    return url.protocol === 'https:' && url.hostname === 'discord.com' && url.pathname.startsWith('/api/webhooks/') ? url.toString() : '';
+  } catch {
+    return '';
+  }
+}
+
+async function sendAdventWinnerWebhook(state) {
+  if (state.notified) return false;
+  const webhookUrl = hospitalChatWebhookUrl();
+  if (!webhookUrl) throw new Error('DISCORD_HOSPITAL_CHAT_WEBHOOK is missing or invalid');
+  const winner = state.winner;
+  if (!winner?.discordId) return false;
+  const content = adventWinnerMessage(state.day, winner);
+  const response = await fetch(webhookUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      username: 'Advent Calendar',
+      content,
+      allowed_mentions: { parse: [], users: [winner.discordId], roles: [ADVENT_ROLE_ID] }
+    })
+  });
+  if (!response.ok) throw new Error(`Advent winner webhook failed (${response.status})`);
+  state.notified = true;
+  await writeState(state);
+  return true;
+}
+
+export function adventWinnerMessage(day, winner, prizeOverride) {
+  const prize = typeof prizeOverride === 'string' && prizeOverride.trim()
+    ? prizeOverride.trim()
+    : ADVENT_PRIZES[day - 1];
+  return (
+    `<@&${ADVENT_ROLE_ID}>\n\n` +
+    `✨🎄 **ADVENT CALENDAR · ZIUA ${day}.12** 🎄✨\n` +
+    `━━━━━━━━━━━━━━━━━━━━\n` +
+    `🎉 **Felicitări câștigătorului!** 🎉\n` +
+    `🏆 <@${winner.discordId}> · **${String(winner.callsign || '').trim()} — ${String(winner.name || '').trim()}**\n\n` +
+    `🎁 **Premiul zilei:** ${prize}\n` +
+    `🌟 Felicitări și mulțumim tuturor pentru participare! 🍀`
+  );
+}
+
 export async function sweepAdventDraws(now = new Date()) {
   const date = bucharestDate(now);
   if (date.month !== 12 || date.day < 1 || date.day > 24) return [];
@@ -149,6 +198,9 @@ export async function sweepAdventDraws(now = new Date()) {
       state.winner = { ...winner };
       state.drawnAt = now.toISOString();
       await writeState(state);
+    }
+    if (state.winner && !state.notified) {
+      await sendAdventWinnerWebhook(state);
     }
     results.push(state);
   }
@@ -165,17 +217,72 @@ export default async function handler(req, res) {
   if (req.method !== 'GET' && req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
   if (req.method === 'POST' && !sameOrigin(req)) return json(res, 403, { error: 'Cerere respinsă' });
 
+  if (req.method === 'GET' && req.query?.cron === 'draw') {
+    const cronSecret = String(process.env.CRON_SECRET || '').trim();
+    if (!cronSecret) return json(res, 503, { error: 'CRON_SECRET is not configured.' });
+    if (req.headers?.authorization !== `Bearer ${cronSecret}`) return json(res, 401, { error: 'Unauthorized' });
+    try {
+      const drawn = await sweepAdventDraws();
+      return json(res, 200, { success: true, drawn: drawn.length });
+    } catch (error) {
+      console.error('Advent Calendar cron draw failed:', error);
+      return json(res, 500, { error: 'Extragerea Advent Calendar nu a putut fi efectuată.' });
+    }
+  }
+
   const requesterId = String(req.method === 'GET' ? req.query?.requesterId : req.body?.requesterId || '').trim();
   if (!requesterId) return json(res, 400, { error: 'Lipsește identificatorul utilizatorului.' });
   if (!requireRequester(req, res, requesterId)) return;
 
   try {
-    await sweepAdventDraws();
     const member = await memberForRequester(requesterId);
     if (!member) return json(res, 403, { error: 'Contul nu este membru al departamentului.' });
 
     const date = bucharestDate();
+    const action = req.method === 'POST' ? String(req.body?.action || '') : '';
+    if (action === 'preview-winner' || action === 'send-test') {
+      if (!isLeadershipRow(member)) return json(res, 403, { error: 'Doar conducerea poate testa mesajul Advent Calendar.' });
+      const day = Number(req.body?.day);
+      const callsign = callsignNumber(req.body?.callsign);
+      const testPrize = String(req.body?.testPrize || '').trim();
+      if (!Number.isInteger(day) || day < 1 || day > ADVENT_PRIZES.length) return json(res, 400, { error: 'Alege o zi validă.' });
+      if (!callsign) return json(res, 400, { error: 'Introdu un callsign valid.' });
+      if (!testPrize) return json(res, 400, { error: 'Introdu un premiu fictiv pentru mesajul de test.' });
+      if (testPrize.length > 120) return json(res, 400, { error: 'Premiul fictiv nu poate depăși 120 de caractere.' });
+      const matchingMembers = (await readMembers()).filter(row => callsignNumber(row[2]) === callsign);
+      if (!matchingMembers.length) return json(res, 404, { error: `Nu am găsit membrul cu callsign M-${String(callsign).padStart(3, '0')}.` });
+      if (matchingMembers.length > 1) return json(res, 409, { error: 'Callsign-ul apare de mai multe ori în lista membrilor.' });
+      const [winnerRow] = matchingMembers;
+      const winner = {
+        discordId: String(winnerRow[19] || '').trim(),
+        callsign: String(winnerRow[2] || '').trim(),
+        name: String(winnerRow[3] || '').trim()
+      };
+      const preview = adventWinnerMessage(day, winner, testPrize);
+      if (action === 'send-test') {
+        if (!winner.discordId) return json(res, 400, { error: 'Membrul nu are un Discord ID asociat, deci nu poate fi menționat în mesaj.' });
+        const webhookUrl = hospitalChatWebhookUrl();
+        if (!webhookUrl) return json(res, 503, { error: 'Webhook-ul chatului spitalului nu este configurat.' });
+        const response = await fetch(webhookUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            username: 'Advent Calendar — TEST',
+            content: preview,
+            allowed_mentions: { parse: [], users: [winner.discordId], roles: [ADVENT_ROLE_ID] }
+          })
+        });
+        if (!response.ok) {
+          console.error('Advent Calendar test webhook failed:', response.status);
+          return json(res, 502, { error: 'Mesajul test nu a putut fi trimis în chatul spitalului.' });
+        }
+        return json(res, 200, { success: true, sent: true, preview, winner, day, prize: testPrize });
+      }
+      return json(res, 200, { preview, winner, day, prize: testPrize });
+    }
+
     if (req.method === 'GET') {
+      await sweepAdventDraws();
       const days = [];
       for (let day = 1; day <= 24; day++) {
         const state = await readState(date.year, day);
@@ -184,6 +291,7 @@ export default async function handler(req, res) {
           day,
           registered,
           participantCount: state.participants.length,
+          chance: state.participants.length ? (1 / state.participants.length) : null,
           winner: state.winner,
           drawnAt: state.drawnAt,
           ...adventWindow(day)
@@ -200,12 +308,12 @@ export default async function handler(req, res) {
 
     const day = Number(req.body?.day);
     if (!Number.isInteger(day) || day < 1 || day > 24) return json(res, 400, { error: 'Zi invalidă.' });
-    if (date.month !== 12) return json(res, 400, { error: 'Înscrierile sunt disponibile în perioada 1-24 decembrie.' });
     const window = adventWindow(day);
     const nowMs = Date.now();
     if (nowMs < new Date(window.openAt).getTime()) return json(res, 400, { error: `Înscrierile pentru ziua ${day} nu au început încă.` });
     if (nowMs >= new Date(window.closeAt).getTime()) return json(res, 400, { error: `Înscrierile pentru ziua ${day} s-au închis la 20:59.` });
 
+    await sweepAdventDraws();
     const state = await readState(date.year, day);
     if (state.winner) return json(res, 409, { error: 'Extragerea pentru această zi a fost deja efectuată.' });
     if (state.participants.some(participant => participant.discordId === requesterId)) {

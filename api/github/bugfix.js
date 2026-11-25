@@ -133,7 +133,7 @@ export async function importResolvedGitHubCommits(fetchImpl = globalThis.fetch) 
 async function readDrafts() {
   if (!kv.isConfigured) throw new Error('Supabase storage is not configured');
   const drafts = await kv.getJson(DRAFTS_KEY);
-  return Array.isArray(drafts) ? drafts : [];
+  return Array.isArray(drafts) ? drafts.filter(draft => String(draft?.sha || '').trim() === 'manual') : [];
 }
 async function writeDrafts(drafts) {
   await kv.setJson(DRAFTS_KEY, drafts.slice(-100), { expirationSeconds: 60 * 60 * 24 * 400 });
@@ -145,24 +145,7 @@ export default async function handler(req, res) {
   try { body = rawBody ? JSON.parse(rawBody) : {}; } catch { body = {}; }
 
   if (req.method === 'POST' && req.headers?.['x-github-event']) {
-    const event = String(req.headers['x-github-event']);
-    if (event !== 'push') return json(res, 200, { ignored: true });
-    const secret = String(process.env.GITHUB_BUGFIX_WEBHOOK_SECRET || '').trim();
-    const signature = req.headers['x-hub-signature-256'];
-    if (!verifyGitHubSignature(rawBody, signature, secret)) return json(res, 401, { error: 'Invalid GitHub webhook signature' });
-    if (!kv.isConfigured) return json(res, 503, { error: 'Supabase storage is not configured' });
-    const incoming = resolvedCommitDrafts(body);
-    if (!incoming.length) return json(res, 200, { draftsCreated: 0 });
-    const posted = await readPostedIds();
-    let postedCount = 0;
-    for (const draft of incoming) {
-      if (posted.has(draft.id)) continue;
-      await postAutomaticResolvedCommit(draft);
-      posted.add(draft.id);
-      postedCount += 1;
-    }
-    await writePostedIds(posted);
-    return json(res, 200, { posted: postedCount });
+    return json(res, 200, { ignored: true });
   }
 
   if (!sameOrigin(req) && req.method !== 'GET') return json(res, 403, { error: 'Cross-origin request rejected' });
@@ -178,14 +161,6 @@ export default async function handler(req, res) {
     const requester = members.find(row => String(row[19] || '').trim() === authenticatedId);
     if (!requester || !isLeadershipRow(requester)) return json(res, 403, { error: 'Only leadership can manage Bug Fixer messages' });
     if (req.method === 'GET') {
-      if (req.query?.import === '1') {
-        const incoming = await importResolvedGitHubCommits();
-        const existing = await readDrafts();
-        const knownIds = new Set(existing.map(draft => draft.id));
-        const created = incoming.filter(draft => !knownIds.has(draft.id));
-        await writeDrafts([...existing, ...created]);
-        return json(res, 200, { drafts: await readDrafts(), imported: created.length });
-      }
       return json(res, 200, { drafts: await readDrafts() });
     }
     if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });

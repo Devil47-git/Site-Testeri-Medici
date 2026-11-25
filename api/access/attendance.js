@@ -464,6 +464,10 @@ function attendanceSheetColumnRange(column, startRow, endRow) { return `'${atten
 function normalizedName(value) {
   return normalize(value).replace(/[^\p{L}\p{N}]+/gu, ' ').trim().replace(/\s+/g, ' ');
 }
+function hasExcludedAttendanceCallsign(callsign) {
+  const number = callsignNumber(callsign);
+  return number >= 1 && number <= 4;
+}
 export function attendanceCellUpdate(currentValue, minutes) {
   if (currentValue == null || ['', '-', '—'].includes(String(currentValue).trim())) return minutes;
   const current = String(currentValue).trim();
@@ -484,7 +488,16 @@ export async function writeAttendanceToSheet(sheets, memberName, dateKey, minute
   if (!targetRows.length) throw new Error(`Persoana ${memberName} nu a fost găsită în coloana D din EVIDENTA ACTIVITATE.`);
   if (targetRows.length > 1) throw new Error(`Numele ${memberName} apare de mai multe ori în EVIDENTA ACTIVITATE.`);
   const callsign = callsignNumber(callsignResult.data.values?.[targetRows[0] - 1]?.[0]);
-  if (callsign >= 1 && callsign <= 4) return true;
+  if (hasExcludedAttendanceCallsign(callsign)) {
+    const cellRange = attendanceSheetCell(attendanceSheetDayColumn(dateKey), targetRows[0]);
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: SHEET_ID,
+      range: cellRange,
+      valueInputOption: 'USER_ENTERED',
+      requestBody: { values: [['-']] }
+    });
+    return true;
+  }
   const cellRange = attendanceSheetCell(attendanceSheetDayColumn(dateKey), targetRows[0]);
   const cellResult = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range: cellRange });
   const value = attendanceCellUpdate(cellResult.data.values?.[0]?.[0], minutes);
@@ -527,7 +540,9 @@ export async function writeDepartmentAttendanceToSheet(sheets, members, entries,
     }
     const memberName = String(targetNames[rowNumber - 1]?.[0] || '').trim();
     const callsign = callsignNumber(callsigns[rowNumber - 1]?.[0]);
-    if (callsign >= 1 && callsign <= 4) return [];
+    if (hasExcludedAttendanceCallsign(callsign)) {
+      return [{ range: attendanceSheetCell(dayColumn, rowNumber), values: [['-']] }];
+    }
     const memberEntries = member ? entries[member.discordId] : [];
     const hasEntry = attendanceHasEntryOnDate(memberEntries, dateKey);
     if (hasEntry && !sourceNames.has(name)) throw new Error(`Persoana ${memberName} nu a fost găsită în fila TEST PONTAJE, coloana D.`);
@@ -661,6 +676,13 @@ export default async function handler(req, res) {
           if (!['validated', 'unvalidated'].includes(status)) return json(res, 400, { error: 'Starea de validare este invalidă.' });
           const target = members.find(row => String(row[19] || '').trim() === targetId);
           if (!targetId || !target) return json(res, 404, { error: 'Membrul pentru sincronizarea pontajului nu a fost găsit.' });
+          if (hasExcludedAttendanceCallsign(target[2])) {
+            const sheets = await sheetsClient();
+            const sheetUpdated = await writeAttendanceToSheet(sheets, String(target[3] || '').trim(), dateKey, 0);
+            const review = { status, minutes: null, updatedAt: new Date(now).toISOString(), updatedBy: requesterId };
+            await attendanceRedis.setJson(attendanceReviewKey(dateKey, targetId), review, { expirationSeconds: 60 * 60 * 24 * 400 });
+            return json(res, 200, { success: true, review, sheetUpdated, warning: '', cooldownSeconds: ATTENDANCE_DOCS_SYNC_COOLDOWN_SECONDS });
+          }
           const targetData = await readAttendanceData(targetId);
           const normalized = closeExpiredAttendanceEntries(targetData, now);
           if (normalized.closed) await writeAttendanceData(targetId, normalized.entries);
@@ -850,6 +872,9 @@ export default async function handler(req, res) {
       if (normalized.closed) await writeAttendanceData(requesterId, normalized.entries);
       let clockEventEntry;
       if (action === 'start') {
+        if (hasExcludedAttendanceCallsign(requesterCallsign)) {
+          return json(res, 403, { error: 'Callsignurile 001-004 nu au pontaj și nu pot deschide o sesiune.' });
+        }
         const attendanceType = req.body?.attendanceType || 'regular';
         if (!['regular', 'hr'].includes(attendanceType)) return json(res, 400, { error: 'Tipul de pontaj este invalid.' });
         const allowedTypes = attendanceType === 'regular' ? ['regular'] : await allowedAttendanceTypesForMember(requesterId);

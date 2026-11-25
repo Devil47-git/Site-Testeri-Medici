@@ -17,6 +17,14 @@
                   {
                       "path":  "/api/access/attendance?task=send-bonus-summary",
                       "schedule":  "0 20 * * 1"
+                  },
+                  {
+                      "path": "/api/access/advent-calendar?cron=draw",
+                      "schedule": "0 19 * * *"
+                  },
+                  {
+                      "path": "/api/access/advent-calendar?cron=draw",
+                      "schedule": "0 18 * * *"
                   }
               ],
     "headers":  [
