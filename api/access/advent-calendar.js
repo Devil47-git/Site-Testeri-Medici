@@ -66,6 +66,20 @@ function bucharestTimeText(now = new Date()) {
   return `${String(date.hour).padStart(2, '0')}:${String(date.minute).padStart(2, '0')}`;
 }
 
+function adventWindow(day) {
+  const date = bucharestDate();
+  const targetYear = date.year;
+  const openDay = day === 1 ? day : day - 1;
+  const openHour = day === 1 ? '00:00:00' : '21:01:00';
+  const closeHour = '20:59:00';
+  const drawHour = '21:00:00';
+  return {
+    openAt: `${targetYear}-12-${String(openDay).padStart(2, '0')}T${openHour}+02:00`,
+    closeAt: `${targetYear}-12-${String(day).padStart(2, '0')}T${closeHour}+02:00`,
+    drawAt: `${targetYear}-12-${String(day).padStart(2, '0')}T${drawHour}+02:00`
+  };
+}
+
 function stateKey(year, day) {
   return `advent-calendar:${year}:${String(day).padStart(2, '0')}`;
 }
@@ -171,7 +185,8 @@ export default async function handler(req, res) {
           registered,
           participantCount: state.participants.length,
           winner: state.winner,
-          drawnAt: state.drawnAt
+          drawnAt: state.drawnAt,
+          ...adventWindow(day)
         });
       }
       return json(res, 200, {
@@ -186,8 +201,10 @@ export default async function handler(req, res) {
     const day = Number(req.body?.day);
     if (!Number.isInteger(day) || day < 1 || day > 24) return json(res, 400, { error: 'Zi invalidă.' });
     if (date.month !== 12) return json(res, 400, { error: 'Înscrierile sunt disponibile în perioada 1-24 decembrie.' });
-    if (day !== date.day) return json(res, 400, { error: `Poți merge la înscriere doar în ziua ${day}.` });
-    if ((date.hour === 20 && date.minute >= 59) || date.hour >= 21) return json(res, 400, { error: 'Înscrierile pentru această zi s-au închis la 20:59.' });
+    const window = adventWindow(day);
+    const nowMs = Date.now();
+    if (nowMs < new Date(window.openAt).getTime()) return json(res, 400, { error: `Înscrierile pentru ziua ${day} nu au început încă.` });
+    if (nowMs >= new Date(window.closeAt).getTime()) return json(res, 400, { error: `Înscrierile pentru ziua ${day} s-au închis la 20:59.` });
 
     const state = await readState(date.year, day);
     if (state.winner) return json(res, 409, { error: 'Extragerea pentru această zi a fost deja efectuată.' });

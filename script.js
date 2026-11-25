@@ -2399,12 +2399,23 @@ let adventCalendarLoading = false;
 
 function adventCountdownForDay(year, day) {
   const now = new Date();
-  const openTime = new Date(`${year}-12-${String(day).padStart(2, '0')}T21:01:00+02:00`).getTime();
+  const openTime = day === 1
+    ? new Date(`${year}-12-01T00:00:00+02:00`).getTime()
+    : new Date(`${year}-12-${String(day - 1).padStart(2, '0')}T21:01:00+02:00`).getTime();
+  const closeTime = new Date(`${year}-12-${String(day).padStart(2, '0')}T20:59:00+02:00`).getTime();
+  const drawTime = new Date(`${year}-12-${String(day).padStart(2, '0')}T21:00:00+02:00`).getTime();
   const nowTime = now.getTime();
 
   if (nowTime < openTime) {
     const remaining = openTime - nowTime;
-    return `Ziua ${day}.12 · deschidere 21:01 · ${adventDurationText(remaining)}`;
+    const label = day === 1 ? '00:00' : '21:01';
+    return `Ziua ${day}.12 · deschidere ${label} · ${adventDurationText(remaining)}`;
+  }
+  if (nowTime < closeTime) {
+    return `Ziua ${day}.12 · rămâne ${adventDurationText(closeTime - nowTime)} · închidere 20:59`;
+  }
+  if (nowTime < drawTime) {
+    return `Ziua ${day}.12 · extragere în ${adventDurationText(drawTime - nowTime)}`;
   }
   return `Ziua ${day}.12 · înscrieri închise · extragere 21:00`;
 }
@@ -2430,9 +2441,10 @@ function renderAdventCalendarView() {
     const currentDate = adventCalendarData?.date ? adventCalendarData.date.slice(-2).replace(/^0/, '') : '';
     const isToday = Number(currentDate) === day;
     const isDecember = String(adventCalendarData?.date || '').slice(5, 7) === '12';
-    const currentHour = String(adventCalendarData?.hour || '00:00');
-    const registrationOpen = currentHour < '21:00';
-    const canRegister = isDecember && isToday && registrationOpen && !registered && !winner;
+    const openAt = data?.openAt ? new Date(data.openAt).getTime() : Number.POSITIVE_INFINITY;
+    const closeAt = data?.closeAt ? new Date(data.closeAt).getTime() : 0;
+    const registrationOpen = Date.now() >= openAt && Date.now() < closeAt;
+    const canRegister = registrationOpen && !registered && !winner;
     const meta = winner
       ? `<div class="advent-calendar-winner">🏆 ${escapeHtml(winner.callsign)} · ${escapeHtml(winner.name)}</div>`
       : `<div class="advent-calendar-participants">${participantCount} înscris${participantCount === 1 ? '' : 'i'}</div>`;
@@ -2469,9 +2481,16 @@ setInterval(() => {
     const day = Number(button.dataset.adventDay);
     const card = button.closest('.advent-calendar-card');
     const timing = card?.querySelector('.advent-calendar-timing');
-    const winner = adventCalendarData.days?.find(item => item.day === day)?.winner;
+    const data = adventCalendarData.days?.find(item => item.day === day);
+    const winner = data?.winner;
+    const registered = Boolean(data?.registered);
+    const openAt = data?.openAt ? new Date(data.openAt).getTime() : Number.POSITIVE_INFINITY;
+    const closeAt = data?.closeAt ? new Date(data.closeAt).getTime() : 0;
     if (timing && !winner) {
       timing.textContent = adventCountdownForDay(adventCalendarData.year, day);
+    }
+    if (!winner && !registered) {
+      button.disabled = !(Date.now() >= openAt && Date.now() < closeAt);
     }
   });
 }, 1000);
