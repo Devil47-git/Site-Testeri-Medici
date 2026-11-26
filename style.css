@@ -1735,3 +1735,38 @@ body.dark-mode:not(.eclipse-theme):not(.christmas-theme) .guide-theme-standard .
 body.dark-mode:not(.eclipse-theme):not(.christmas-theme) .guide-theme-standard .guide-official-content .jaf-btn:hover,body.dark-mode:not(.eclipse-theme):not(.christmas-theme) .guide-theme-standard .guide-official-content .jaf-btn:focus-visible{border-color:#8a8cff;background:linear-gradient(135deg,#474b78,#363d64)}
 body.dark-mode:not(.eclipse-theme):not(.christmas-theme) .guide-theme-standard .guide-official-content .jaf-btn.active{border-color:#df7580;background:linear-gradient(135deg,#9e4658,#633746);color:#fff!important}
 body.dark-mode:not(.eclipse-theme):not(.christmas-theme) .guide-theme-standard .guide-official-content [style*="background"]{background:var(--surface-alt,#242c3d)!important;border-color:var(--surface-border,#3a455d)!important;box-shadow:none!important;color:var(--surface-text,#d3dced)!important}
+
+/* Certificat Trusa: textul este obligatoriu vizibil în toate temele. */
+.certifica-trusa-panel .certifica-trusa-content{
+  user-select:text;
+  -webkit-user-select:text;
+}
+.certifica-trusa-panel .certifica-trusa-content .content-card{
+  display:block;
+  min-height:130px;
+  visibility:visible;
+  opacity:1;
+}
+.certifica-trusa-panel .certifica-trusa-content .content-card h3,
+.certifica-trusa-panel .certifica-trusa-content .content-card p{
+  display:block;
+  visibility:visible;
+  opacity:1;
+}
+.certifica-trusa-panel .certifica-trusa-content .content-card h3{
+  color:#f4f7ff!important;
+  font-size:20px;
+  line-height:1.4;
+}
+.certifica-trusa-panel .certifica-trusa-content .content-card p{
+  color:#edf4ff!important;
+  font-size:16px;
+  font-weight:700;
+  line-height:1.65;
+}
+body:not(.dark-mode):not(.eclipse-theme):not(.christmas-theme) .certifica-trusa-panel .certifica-trusa-content .content-card h3{
+  color:#334f88!important;
+}
+body:not(.dark-mode):not(.eclipse-theme):not(.christmas-theme) .certifica-trusa-panel .certifica-trusa-content .content-card p{
+  color:#3d4b60!important;
+}

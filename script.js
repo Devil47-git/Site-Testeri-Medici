@@ -795,7 +795,8 @@ function renderGuideView() {
 function renderCertificaTrusaView() {
   const content = GUIDE_CONTENT['certifica-trusa'];
   const sections = content.sections.map(([title, paragraphs]) => `<section class="content-card"><h3>${escapeHtml(title)}</h3>${paragraphs.map(paragraph => `<p>${escapeHtml(paragraph)}</p>`).join('')}</section>`).join('');
-  return `<section class="panel guide-panel certifica-trusa-panel"><div class="panel-head"><div><p class="eyebrow">MATERIAL DE STUDIU</p><h2>Certificat Trusa</h2><p class="muted">${escapeHtml(content.intro)}</p></div></div><article class="guide-official-content certifica-trusa-content">${sections}</article></section>`;
+  const theme = document.body.classList.contains('christmas-theme') ? 'christmas' : document.body.classList.contains('eclipse-theme') ? 'eclipse' : 'standard';
+  return `<section class="panel guide-panel guide-theme-${theme} certifica-trusa-panel"><div class="panel-head"><div><p class="eyebrow">MATERIAL DE STUDIU</p><h2>Certificat Trusa</h2><p class="muted">${escapeHtml(content.intro)}</p></div></div><article class="guide-official-content certifica-trusa-content">${sections}</article></section>`;
 }
 function openGuideSectionFromContent(sectionId) {
   const sections = guideSections.length ? guideSections : GUIDE_SECTIONS;
