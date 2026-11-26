@@ -125,8 +125,8 @@ export default async function handler(req, res) {
       ? attendanceWeeksByCallsign(await readPublic(ATTENDANCE_RANGE))
       : new Map();
     if (req.method === 'GET' && req.query?.view === 'cooldown-payers') {
-      const canReviewCooldowns = (requesterCallsign >= 1 && requesterCallsign <= LEADERSHIP_MAX) || canManageAttendance(requesterFunctions);
-      if (!canReviewCooldowns) return json(res, 403, { error: 'Only leadership or H.R. can view cooldown payers' });
+      const canReviewCooldowns = (requesterCallsign >= 1 && requesterCallsign <= 299) || canManageAttendance(requesterFunctions);
+      if (!canReviewCooldowns) return json(res, 403, { error: 'Only callsigns 001-299 or H.R. can view cooldown payers' });
       return json(res, 200, { members: cooldownPayersFromRows(members) });
     }
     if (isAvatarSync) {

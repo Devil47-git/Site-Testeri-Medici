@@ -140,6 +140,10 @@ function refreshCurrentView() {
     navigateTo('overview', { push: false });
     return;
   }
+  if (window.history.state?.view === 'cooldowns' && !canAccessCooldowns(currentUser)) {
+    navigateTo('overview', { push: false });
+    return;
+  }
   if (window.history.state?.view === 'activity-member') {
     if (!canViewAttendanceRooms(currentUser)) { navigateTo('overview', { push: false }); return; }
     const callsign = window.history.state.callsign;
@@ -282,6 +286,7 @@ function bonusTesterCallsign(value) {
 /** @param {Member} user @returns {boolean} */
 function isLeadershipUser(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return Boolean(user?.accessLevel === 'leadership' || user?.isConducere || user?.isLeadership || (cs >= 1 && cs <= 20)); }
 function canViewTestersRoom(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return cs >= 1 && cs <= 399; }
+function canAccessCooldowns(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return (cs >= 1 && cs <= 299) || canReviewAttendance(user); }
 function canViewGuide(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return cs >= 1 && cs <= 650; }
 function isExemptFromAttendance(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return cs >= 1 && cs <= 4; }
 function hasLeadershipCallsign(user) { const cs = callsignNumber(user?.csNum || user?.callsign || user?.callSign); return cs >= 1 && cs <= 20; }
@@ -748,6 +753,8 @@ function renderAvailableTestsSubmenu() {
   renderGuideSubmenu();
   const testersNav = document.querySelector('.nav-item[data-view="testers"]');
   if (testersNav) testersNav.hidden = !canViewTestersRoom(currentUser);
+  const cooldownNav = document.querySelector('.nav-item[data-view="cooldowns"]');
+  if (cooldownNav) cooldownNav.hidden = !canAccessCooldowns(currentUser);
   if (!submenu || !currentUser) return;
   const selectedTest = window.history.state?.view === 'test' ? window.history.state.testName : '';
   const tests = allowedForUser(currentUser);
@@ -4610,6 +4617,7 @@ function navigateTo(view, { push = true } = {}) {
   if (view === 'activity' && !canViewAttendanceRooms(currentUser)) view = 'overview';
   if (view === 'guide' && !canViewGuide(currentUser)) view = 'overview';
   if (view === 'testers' && !canViewTestersRoom(currentUser)) view = 'overview';
+  if (view === 'cooldowns' && !canAccessCooldowns(currentUser)) view = 'overview';
   if (!labels[view]) return;
   navigationRevision += 1;
   document.body.classList.remove('smuls-background-mode');

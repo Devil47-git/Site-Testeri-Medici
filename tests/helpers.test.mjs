@@ -667,6 +667,10 @@ test('cooldown payer lookup supports any department callsign', () => {
     rank: 'Brancardier'
   }]);
   assert.match(directorySource, /cooldownPayersFromRows\(members\)/);
+  assert.match(directorySource, /requesterCallsign >= 1 && requesterCallsign <= 299/);
+  assert.match(source, /function canAccessCooldowns\(user\)/);
+  assert.match(source, /view === 'cooldowns' && !canAccessCooldowns\(currentUser\)/);
+  assert.match(source, /cooldownNav\.hidden = !canAccessCooldowns\(currentUser\)/);
   assert.match(source, /<span aria-hidden="true">M-<\/span><input id="cooldown-payer-callsign"/);
   assert.doesNotMatch(source, /minimum 200/);
   assert.doesNotMatch(source, /callsignNumber\(enteredCallsign\) < 200/);
