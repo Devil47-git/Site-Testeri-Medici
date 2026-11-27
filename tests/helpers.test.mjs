@@ -329,7 +329,10 @@ test('starting attendance uses the saved response without an extra read request'
   const attendanceEvents = extract('wireAttendanceEvents');
   assert.match(attendanceEvents, /attendanceActionPending \|\| !attendanceRecordsLoaded/);
   assert.match(attendanceEvents, /actionButtons\.forEach\(actionButton => \{ actionButton\.disabled = true; \}\)/);
-  assert.match(attendanceEvents, /action === 'start' \? 'Se pornește pontajul\.\.\.'/);
+  assert.match(attendanceEvents, /attendanceOptimisticStart = \{/);
+  assert.match(attendanceEvents, /if \(action === 'start'\) refreshAttendanceView\(\)/);
+  assert.match(source, /const displayEntries = attendanceOptimisticStart \? \[\.\.\.entries, attendanceOptimisticStart\] : entries/);
+  assert.match(source, /attendanceActionPending \|\| Boolean\(attendanceSyncError\)/);
   assert.match(attendanceEvents, /if \(action !== 'start'\) await loadAttendanceRecords\(false, \{ render: false \}\)/);
 });
 

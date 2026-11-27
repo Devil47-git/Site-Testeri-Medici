@@ -1431,6 +1431,8 @@ let attendancePermissionsError = '';
 let attendanceRecordsLoaded = false;
 let attendanceLoadPending = false;
 let attendanceSyncError = '';
+let attendanceActionPending = false;
+let attendanceOptimisticStart = null;
 let activeAttendanceDate = attendanceDateKey(Date.now());
 let activeAttendanceMessage = '';
 let activeAttendanceBusy = false;
@@ -1635,11 +1637,12 @@ function renderAttendanceView() {
   const now = Date.now();
   const today = attendanceDateKey(now);
   const entries = attendanceEntries();
-  const open = entries.find(entry => !entry.end);
-  const week = attendanceWeekData(today, entries);
-  const closedWeeks = attendanceClosedWeeks(today, entries);
+  const displayEntries = attendanceOptimisticStart ? [...entries, attendanceOptimisticStart] : entries;
+  const open = displayEntries.find(entry => !entry.end);
+  const week = attendanceWeekData(today, displayEntries);
+  const closedWeeks = attendanceClosedWeeks(today, displayEntries);
   const history = closedWeeks.map(item => `<div class="attendance-history-row"><span>${attendanceWeekLabel(item.start, item.end)}</span><strong>${item.total}m</strong></div>`).join('');
-  const recentEntries = [...entries].sort((first, second) => Number(second.start) - Number(first.start)).slice(0, 30);
+  const recentEntries = [...displayEntries].sort((first, second) => Number(second.start) - Number(first.start)).slice(0, 30);
   const recentRows = recentEntries.map(entry => {
     const date = new Intl.DateTimeFormat('ro-RO', { timeZone: 'Europe/Bucharest', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(Number(entry.start)));
     const duration = entry.canceled ? 'Anulat' : entry.end ? attendanceFormatMinutes(attendanceMinutes(entry)) : 'În desfășurare';
@@ -1654,13 +1657,13 @@ function renderAttendanceView() {
     : excludedAttendanceCallsign
       ? 'Callsignurile 001-004 nu au pontaj.'
     : attendanceSyncError || (open ? `Pontaj ${attendanceTypeLabel(attendanceTypeForEntry(open))} activ de ${attendanceFormatMinutes(attendanceMinutes(open))}, început la ${attendanceTime(open.start)}.` : startAllowed ? 'Niciun pontaj activ.' : 'Pontajul nu mai poate fi deschis după ora 23:35.');
-  const controlsDisabled = excludedAttendanceCallsign || attendanceLoadPending || !attendanceRecordsLoaded || Boolean(attendanceSyncError);
+  const controlsDisabled = excludedAttendanceCallsign || attendanceLoadPending || !attendanceRecordsLoaded || attendanceActionPending || Boolean(attendanceSyncError);
   const permissionsMessage = attendancePermissionsError
     ? `<p class="attendance-permissions-warning muted" role="status">${escapeHtml(attendancePermissionsError)}</p>`
     : '';
   const timerCards = [
-    attendanceTimerCard('regular', 'PONTAJUL MEU', entries, controlsDisabled, startAllowed),
-    ...(attendanceAllowedTypes.includes('hr') ? [attendanceTimerCard('hr', 'PONTAJ H.R.', entries, controlsDisabled, startAllowed)] : [])
+    attendanceTimerCard('regular', 'PONTAJUL MEU', displayEntries, controlsDisabled, startAllowed),
+    ...(attendanceAllowedTypes.includes('hr') ? [attendanceTimerCard('hr', 'PONTAJ H.R.', displayEntries, controlsDisabled, startAllowed)] : [])
   ].join('');
   const attendanceMember = directoryMembers.find(member => member.discordId === currentUser.discordId) || currentUser;
   const attendanceTarget = attendanceMember?.attendanceMinimumMinutes;
@@ -1928,7 +1931,6 @@ async function syncSelectedAttendanceDay() {
 }
 function wireAttendanceEvents() {
   if (attendanceTimer) clearInterval(attendanceTimer);
-  let attendanceActionPending = false;
   const refresh = () => {
     const status = document.querySelector('#attendance-status');
     const open = attendanceEntries().find(entry => !entry.end);
@@ -1941,28 +1943,34 @@ function wireAttendanceEvents() {
       : '';
     if (action === 'cancel' && cancellationReason == null) return;
     attendanceActionPending = true;
-    const buttonText = button.textContent;
+    if (action === 'start') {
+      attendanceOptimisticStart = {
+        start: Date.now(),
+        end: null,
+        ...(button.dataset.attendanceType && button.dataset.attendanceType !== 'regular' ? { type: button.dataset.attendanceType } : {})
+      };
+    }
     const actionButtons = [...document.querySelectorAll('[data-attendance-action]')];
-    const previousDisabledStates = actionButtons.map(actionButton => actionButton.disabled);
     actionButtons.forEach(actionButton => { actionButton.disabled = true; });
-    if (action === 'start') button.textContent = 'Se pornește…';
     const status = document.querySelector('#attendance-status');
-    if (status) status.textContent = action === 'start' ? 'Se pornește pontajul...' : action === 'cancel' ? 'Se anulează pontajul...' : 'Se sincronizează pontajul...';
+    if (status && action !== 'start') status.textContent = action === 'cancel' ? 'Se anulează pontajul...' : 'Se sincronizează pontajul...';
+    if (action === 'start') refreshAttendanceView();
     const saved = action === 'cancel'
       ? await syncAttendanceRemote('cancel', currentUser.discordId, button.dataset.attendanceType || 'regular', cancellationReason)
       : await syncAttendanceRemote(action, '', button.dataset.attendanceType || 'regular');
     if (saved) {
+      attendanceOptimisticStart = null;
       if (action !== 'start') await loadAttendanceRecords(false, { render: false });
+      attendanceActionPending = false;
       refreshAttendanceView();
       const refreshedStatus = document.querySelector('#attendance-status');
       if (refreshedStatus && saved.warning) refreshedStatus.textContent = saved.warning;
     }
     else {
-      if (status) status.textContent = attendanceSyncError;
-      actionButtons.forEach((actionButton, index) => { actionButton.disabled = previousDisabledStates[index]; });
-      button.textContent = buttonText;
+      attendanceOptimisticStart = null;
+      attendanceActionPending = false;
+      refreshAttendanceView();
     }
-    attendanceActionPending = false;
   };
   document.querySelectorAll('[data-attendance-action]').forEach(button => button.addEventListener('click', event => submitAction(event.currentTarget.dataset.attendanceAction, event.currentTarget)));
   document.querySelectorAll('[data-cancel-attendance]').forEach(button => button.addEventListener('click', async event => {
