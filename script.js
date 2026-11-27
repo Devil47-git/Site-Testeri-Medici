@@ -3481,7 +3481,7 @@ function buildTestMarkup(testName, definition, questions) {
     ? `<div class="test-with-map"><div class="test-main-column">${guideBody}</div><aside class="test-map-column">${images}</aside></div>`
     : `${guideBody}${images ? `<div class="test-images">${images}</div>` : ''}`;
   const testAccessControl = testAccessMarkup(testName);
-  const headerActions = `<div class="test-guide-header-actions">${testAccessControl}<button class="outline site-guide-frame" id="back-to-tests">← Înapoi</button></div>`;
+  const headerActions = `<div class="test-guide-header-actions">${testAccessControl}<button class="outline danger-button site-guide-frame" id="cancel-test" type="button">Renunță la test</button><button class="outline site-guide-frame" id="back-to-tests">← Înapoi</button></div>`;
   return `<div class="panel view-panel${isSmulsTest ? ' smuls-background-panel' : isAlsTest ? ' als-background-panel' : isAdmissionTest ? ' admission-background-panel' : isTransferTest ? ' transfer-background-panel' : isMotoTest ? ' moto-background-panel' : isPilotTest ? ' pilot-background-panel' : isMedicalCertificate ? ' adeverinta-background-panel' : isParachutismTest ? ' parasutism-background-panel' : ''}"><div class="panel-head"><div><p class="eyebrow">GHID PENTRU TESTER</p><h2>${displayTestName(testName)}</h2></div>${headerActions}</div>${content}${isSmulsTest || isAlsTest ? evaluationStageFlow : ''}${parachutismResultStageFlow}${parachutismPracticalStage}${isAlsTest ? '<img class="test-corner-logo" src="/assets/logo%20als%202.png" alt="Sigla ALS" aria-hidden="true">' : ''}${isSmulsTest ? '<img class="test-corner-logo" src="/assets/logo%20smuls%202.png" alt="Sigla S.M.U.L.S." aria-hidden="true">' : isMotoTest ? '<img class="test-corner-logo" src="/assets/moto%202.png" alt="Sigla Moto" aria-hidden="true">' : isPilotTest ? '<img class="test-corner-logo" src="/assets/logo%20pilot.png" alt="Sigla Pilot" aria-hidden="true">' : isParachutismTest ? '<img class="test-corner-logo" src="/assets/logo%20parasuta.png" alt="Sigla parașutism" aria-hidden="true">' : ''}</div>`;
 }
 function wireTestEvents(testName, definition) {
@@ -3557,6 +3557,11 @@ function wireTestEvents(testName, definition) {
   document.querySelector('#back-to-tests').onclick = () => {
     if (window.history.state?.view === 'test') window.history.back();
     else navigateTo('overview');
+  };
+  document.querySelector('#cancel-test').onclick = () => {
+    if (!window.confirm('Renunți la acest test? Progresul curent va fi șters și vei reveni la începutul testului.')) return;
+    clearTestProgress(testName);
+    openTest(testName);
   };
   if (isApplicationTest || isMedicalCertificate) {
     if (isAdmissionTest || isTransferTest) {

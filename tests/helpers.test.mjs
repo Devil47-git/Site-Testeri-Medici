@@ -542,6 +542,14 @@ test('switching test routes replaces the old guide, resets staged UI, and scroll
   assert.match(openTestSource, /if \(isSameTestRoute && !push\) window\.scrollTo\(\{ top: savedScrollPosition/);
 });
 
+test('canceling a test clears saved progress and reopens its initial screen', () => {
+  const testEvents = extract('wireTestEvents');
+  const cancelHandler = testEvents.match(/document\.querySelector\('#cancel-test'\)\.onclick = \(\) => \{[\s\S]*?\n  \};/)?.[0] || '';
+  assert.match(source, /id="cancel-test"[^>]*>Renunță la test/);
+  assert.match(cancelHandler, /window\.confirm\(/);
+  assert.ok(cancelHandler.indexOf('clearTestProgress(testName)') < cancelHandler.indexOf('openTest(testName)'));
+});
+
 test('test progress, admission photos, and cooldown form choices persist without restoring payer callsign', () => {
   assert.match(storageSource, /function testProgressStorageKey\(user, testName\)/);
   assert.match(storageSource, /const TEST_PROGRESS_TTL_MS = 8 \* 60 \* 1000/);
