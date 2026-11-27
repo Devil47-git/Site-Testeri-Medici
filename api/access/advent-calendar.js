@@ -16,7 +16,7 @@ const ADVENT_ROLE_ID = '804382163536576616';
 
 export const ADVENT_PRIZES = [
   'ISU',
-  'Minute / zi',
+  '1 masina',
   '50.000',
   '5 FPT',
   '1 Sapt pontaj',
