@@ -6,7 +6,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { google } from 'googleapis';
-import { isLeadership, gradeGroupFor, catalog, automaticCoreTestsForMember } from './lib/access/shared.js';
+import { isLeadership, gradeGroupFor, catalog, automaticCoreTestsForMember, accessFor } from './lib/access/shared.js';
 import { readTestDefinitions, writeTestDefinitions } from './lib/test-definitions-store.js';
 import { authenticatedDiscordId, setAuthCookie as setSignedAuthCookie, clearAuthCookie } from './lib/auth-session.js';
 import { publicUserForDiscordId } from './lib/public-user.js';
@@ -69,20 +69,12 @@ function tooManyRequests(res, retrySeconds) {
 }
 function applyRateLimit(req, res, action, limit, windowMs) {
   const retrySeconds = Math.ceil(windowMs / 1000);
-  return rateLimit(`${action}:${clientIp(req)}`, limit, windowMs) || tooManyRequests(res, retrySeconds);
-}
-async function readJsonBody(req, limit = MAX_BODY_BYTES) {
-  let size = 0;
-  let body = '';
-  let overflow = false;
-  for await (const chunk of req) {
-    size += chunk.length;
-    if (size > limit) { overflow = true; continue; }  // keep draining, discard
-    body += chunk;
+  const allowed = rateLimit(`${action}:${clientIp(req)}`, limit, windowMs);
+  if (!allowed) {
+    tooManyRequests(res, retrySeconds);
+    return false;
   }
-  if (overflow) { const error = new Error('Payload prea mare'); error.statusCode = 413; throw error; }
-  try { return body ? JSON.parse(body) : {}; }
-  catch { const error = new Error('Date invalide'); error.statusCode = 400; throw error; }
+  return true;
 }
 async function readRawBody(req, limit = MAX_BODY_BYTES) {
   let size = 0;
@@ -96,16 +88,13 @@ async function readRawBody(req, limit = MAX_BODY_BYTES) {
   if (overflow) { const error = new Error('Payload prea mare'); error.statusCode = 413; throw error; }
   return body;
 }
+async function readJsonBody(req, limit = MAX_BODY_BYTES) {
+  const body = await readRawBody(req, limit);
+  try { return body ? JSON.parse(body) : {}; }
+  catch { const error = new Error('Date invalide'); error.statusCode = 400; throw error; }
+}
 function redirect(res, location) { res.writeHead(302, { Location: location }); res.end(); }
 function json(res, code, data) { res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(JSON.stringify(data)); }
-function roleAccess(functions, callsign = '', rank = '', dept = '') {
-  const g = Number(String(callsign).replace(/\D/g, '')) || 0;
-  const leader = isLeadership(g, rank, dept);
-  const group = gradeGroupFor(g);
-  const tests = leader ? catalog : [];
-  const grantedTests = automaticCoreTestsForMember(g, rank, dept);
-  return { isLeadership: leader, isConducere: leader, accessLevel: leader ? 'leadership' : 'tester', gradeGroup: group, allowedTests: [...new Set([...tests, ...grantedTests])], grantedTests, tests: [...new Set(tests)] };
-}
 async function sheetMember(discordId) {
   if (!process.env.GOOGLE_SERVICE_ACCOUNT_JSON && !process.env.GOOGLE_APPLICATION_CREDENTIALS) throw new Error('Google Sheets is not configured');
   const auth = new google.auth.GoogleAuth({ scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'] });
@@ -114,8 +103,9 @@ async function sheetMember(discordId) {
   const row = (result.data.values || []).slice(1).find(values => String(values[19] || '').trim() === String(discordId).trim());
   if (!row) return null;
   const callsign = String(row[2] || '').trim(); const functions = row[10] || ''; const rank = row[4] || ''; const dept = row[5] || '';
-  const access = roleAccess(functions, callsign, rank, dept);
-  return { discordId, callsign, callSign: callsign, csNum: Number(callsign.replace(/\D/g, '')) || 0, name: row[3] || '', functions, rank, dept, allowedTests: access.tests, eligibleSpecializations: [], ...access };
+  const csNum = Number(callsign.replace(/\D/g, '')) || 0;
+  const access = accessFor(csNum, functions, rank, dept);
+  return { discordId, callsign, callSign: callsign, csNum, name: row[3] || '', functions, rank, dept, allowedTests: access.allowedTests, eligibleSpecializations: [], ...access };
 }
 const DISCORD_API_BASE = process.env.DISCORD_API_BASE || 'https://discord.com/api';
 async function exchangeDiscord(code) {

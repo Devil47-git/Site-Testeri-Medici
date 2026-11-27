@@ -666,11 +666,9 @@ export default async function handler(req, res) {
           const target = members.find(row => String(row[19] || '').trim() === targetId);
           if (!targetId || !target) return json(res, 404, { error: 'Membrul pentru sincronizarea pontajului nu a fost găsit.' });
           if (hasExcludedAttendanceCallsign(target[2])) {
-            const sheets = await sheetsClient();
-            const sheetUpdated = await writeAttendanceToSheet(sheets, String(target[3] || '').trim(), dateKey, 0);
             const review = { status, minutes: null, updatedAt: new Date(now).toISOString(), updatedBy: requesterId };
             await attendanceRedis.setJson(attendanceReviewKey(dateKey, targetId), review, { expirationSeconds: 60 * 60 * 24 * 400 });
-            return json(res, 200, { success: true, review, sheetUpdated, warning: '', cooldownSeconds: ATTENDANCE_DOCS_SYNC_COOLDOWN_SECONDS });
+            return json(res, 200, { success: true, review, sheetUpdated: false, warning: '', cooldownSeconds: ATTENDANCE_DOCS_SYNC_COOLDOWN_SECONDS });
           }
           const targetData = await readAttendanceData(targetId);
           const normalized = closeExpiredAttendanceEntries(targetData, now);

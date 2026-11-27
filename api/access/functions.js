@@ -4,8 +4,8 @@ import { sameOrigin } from '../../lib/http.js';
 import { attendanceTypesForFunctions, callsignNumber, LEADERSHIP_MAX, normalize, STAFF_FUNCTION_LABELS } from '../../lib/access/shared.js';
 import { functionOverridesConfigured, readFunctionOverrides, removeFunctionOverride, saveFunctionOverride } from '../../lib/access/function-overrides.js';
 
-const SHEET_ID = process.env.GOOGLE_SHEETS_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
-const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || 'LISTA DEPARTAMENT!A1:T400';
+const SHEET_ID = process.env.GOOGLE_SHEETS_ID || process.env.GOOGLE_SHEET_ID || '1uaXnzKcNeOOXrQB2TU2aGrq9ZTie4AeFlAUX_FhH06M';
+const MEMBER_RANGE = process.env.GOOGLE_SHEETS_RANGE || process.env.GOOGLE_SHEET_RANGE || 'LISTA DEPARTAMENT!A1:T400';
 const COMPOUND_FUNCTION_LABELS = [
   'Manager I.S.U.L.S. | S.M.U.L.S.',
   'Adjunct I.S.U.L.S. | S.M.U.L.S.'
@@ -121,6 +121,58 @@ export function normalizeMemberFunctionLabels(values) {
   }
   return [...labels.values()];
 }
+async function handleGetFunctions(req, res, requesterId) {
+  const members = await readPublicValues(MEMBER_RANGE);
+  const requester = findMemberByDiscordId(members, requesterId.trim());
+  if (!requester) return json(res, 403, { error: 'Requester is not a department member' });
+  return json(res, 200, memberFunctionsDirectory(members, await readFunctionOverrides()));
+}
+
+async function handlePostFunctions(req, res, requesterId) {
+  const members = await readPublicValues(MEMBER_RANGE);
+  const requester = findMemberByDiscordId(members, requesterId.trim());
+  if (!requester) return json(res, 403, { error: 'Requester is not a department member' });
+  const requesterCallsign = callsignNumber(requester[2]);
+  if (requesterCallsign < 1 || requesterCallsign > LEADERSHIP_MAX) {
+    return json(res, 403, { error: 'Only callsigns 001-020 can manage member functions' });
+  }
+
+  const targetDiscordId = typeof req.body?.targetDiscordId === 'string' ? req.body.targetDiscordId.trim() : '';
+  if (!targetDiscordId) return json(res, 400, { error: 'Missing target member' });
+  const target = findMemberByDiscordId(members, targetDiscordId);
+  if (!target) return json(res, 404, { error: 'Target member not found' });
+  if (!String(target[3] || '').trim()) return json(res, 422, { error: 'Target member has no name in column D' });
+  if (!functionOverridesConfigured()) return json(res, 503, { error: 'Member function override storage is not configured' });
+  if (req.body?.useDocs === true) {
+    await removeFunctionOverride(targetDiscordId);
+    const functionIds = memberFunctionLabels(target[10] || '');
+    return json(res, 200, {
+      success: true,
+      assignment: {
+        discordId: targetDiscordId,
+        callsign: String(target[2] || '').trim(),
+        functionIds,
+        isOverride: false,
+        attendanceTypes: attendanceTypesForFunctions(functionIds.join('|'))
+      }
+    });
+  }
+  if (!Array.isArray(req.body?.functionIds) || req.body.functionIds.some(id => typeof id !== 'string' || !validMemberFunctionLabel(id))) {
+    return json(res, 400, { error: 'Invalid member function selection' });
+  }
+
+  const functionIds = normalizeMemberFunctionLabels(req.body.functionIds);
+  await saveFunctionOverride(targetDiscordId, functionIds);
+  const assignment = {
+    discordId: targetDiscordId,
+    callsign: String(target[2] || '').trim(),
+    functionIds,
+    isOverride: true,
+    attendanceTypes: attendanceTypesForFunctions(functionIds.join('|'))
+  };
+  return json(res, 200, { success: true, assignment });
+}
+
 export default async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'GET' && req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
@@ -132,54 +184,9 @@ export default async function handler(req, res) {
 
   try {
     if (req.method === 'GET') {
-      const members = await readPublicValues(MEMBER_RANGE);
-      const requester = findMemberByDiscordId(members, requesterId.trim());
-      if (!requester) return json(res, 403, { error: 'Requester is not a department member' });
-      return json(res, 200, memberFunctionsDirectory(members, await readFunctionOverrides()));
+      return await handleGetFunctions(req, res, requesterId);
     }
-
-    const members = await readPublicValues(MEMBER_RANGE);
-    const requester = findMemberByDiscordId(members, requesterId.trim());
-    if (!requester) return json(res, 403, { error: 'Requester is not a department member' });
-    const requesterCallsign = callsignNumber(requester[2]);
-    if (requesterCallsign < 1 || requesterCallsign > LEADERSHIP_MAX) {
-      return json(res, 403, { error: 'Only callsigns 001-020 can manage member functions' });
-    }
-
-    const targetDiscordId = typeof req.body?.targetDiscordId === 'string' ? req.body.targetDiscordId.trim() : '';
-    if (!targetDiscordId) return json(res, 400, { error: 'Missing target member' });
-    const target = findMemberByDiscordId(members, targetDiscordId);
-    if (!target) return json(res, 404, { error: 'Target member not found' });
-    if (!String(target[3] || '').trim()) return json(res, 422, { error: 'Target member has no name in column D' });
-    if (!functionOverridesConfigured()) return json(res, 503, { error: 'Member function override storage is not configured' });
-    if (req.body?.useDocs === true) {
-      await removeFunctionOverride(targetDiscordId);
-      const functionIds = memberFunctionLabels(target[10] || '');
-      return json(res, 200, {
-        success: true,
-        assignment: {
-          discordId: targetDiscordId,
-          callsign: String(target[2] || '').trim(),
-          functionIds,
-          isOverride: false,
-          attendanceTypes: attendanceTypesForFunctions(functionIds.join('|'))
-        }
-      });
-    }
-    if (!Array.isArray(req.body?.functionIds) || req.body.functionIds.some(id => typeof id !== 'string' || !validMemberFunctionLabel(id))) {
-      return json(res, 400, { error: 'Invalid member function selection' });
-    }
-
-    const functionIds = normalizeMemberFunctionLabels(req.body.functionIds);
-    await saveFunctionOverride(targetDiscordId, functionIds);
-    const assignment = {
-      discordId: targetDiscordId,
-      callsign: String(target[2] || '').trim(),
-      functionIds,
-      isOverride: true,
-      attendanceTypes: attendanceTypesForFunctions(functionIds.join('|'))
-    };
-    return json(res, 200, { success: true, assignment });
+    return await handlePostFunctions(req, res, requesterId);
   } catch (error) {
     console.error('Member functions storage failed:', error);
     return json(res, 500, { error: 'Member functions storage failed' });
